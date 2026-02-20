@@ -1,0 +1,380 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+  READ_ONLY
+  COACH
+  VIEWER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum RoleScope {
+  ORG
+  GLOBAL
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  UNPAID
+}
+
+// ============================================================================
+// USER MODEL
+// ============================================================================
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  auth0Id   String   @unique @map("auth0_id")
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  memberships   Membership[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+// ============================================================================
+// ORGANIZATION MODEL
+// ============================================================================
+
+model Organization {
+  id               String             @id @default(uuid()) @db.Uuid
+  name             String
+  status           OrganizationStatus @default(ACTIVE)
+  stripeCustomerId String?            @unique @map("stripe_customer_id")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  memberships    Membership[]
+  teams          Team[]
+  players        Player[]
+  subscription   Subscription?
+  auditEvents    AuditEvent[]
+  files          File[]
+  uploadSessions UploadSession[]
+
+  @@map("organizations")
+}
+
+// ============================================================================
+// MEMBERSHIP MODEL (User-Organization relationship)
+// ============================================================================
+
+model Membership {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  orgId     String           @map("org_id") @db.Uuid
+  role      MembershipRole
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+  @@index([userId])
+  @@index([status])
+  @@map("memberships")
+}
+
+// ============================================================================
+// TEAM MODEL
+// ============================================================================
+
+model Team {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  orgId     String   @map("org_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  players      Player[]
+
+  @@index([orgId])
+  @@map("teams")
+}
+
+// ============================================================================
+// PLAYER MODEL
+// ============================================================================
+
+model Player {
+  id        String   @id @default(uuid()) @db.Uuid
+  firstName String
+	lastName	String
+  teamId    String   @map("team_id") @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([orgId])
+  @@map("players")
+}
+
+// ============================================================================
+// SUBSCRIPTION MODEL
+// ============================================================================
+
+model Subscription {
+  id                   String             @id @default(uuid()) @db.Uuid
+  orgId                String             @unique @map("org_id") @db.Uuid
+  stripeSubscriptionId String?            @unique @map("stripe_subscription_id")
+  plan                 SubscriptionPlan   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd     DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+// ============================================================================
+// AUDIT EVENT MODEL
+// ============================================================================
+
+model AuditEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String?  @map("org_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  type      String
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("audit_events")
+}
+
+// ============================================================================
+// NOTIFICATION MODEL
+// ============================================================================
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String
+  title     String
+  body      String    @db.Text
+  metadata  Json?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, readAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================================================
+// STORAGE MODELS
+// ============================================================================
+
+enum StorageProvider {
+  S3
+  AZURE
+}
+
+enum FileEntityType {
+  ORG
+  TEAM
+  PLAYER
+  GENERIC
+}
+
+enum FileVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum UploadSessionStatus {
+  INITIATED
+  UPLOADING
+  COMPLETED
+  ABORTED
+  EXPIRED
+}
+
+model File {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  uploadedByUserId String @map("uploaded_by_user_id") @db.Uuid
+
+  // Storage info
+  storageProvider  StorageProvider @map("storage_provider")
+  bucketOrContainer String         @map("bucket_or_container")
+  storageKey       String          @map("storage_key")
+
+  // File metadata
+  fileName  String   @map("file_name")
+  mimeType  String   @map("mime_type")
+  sizeBytes BigInt   @map("size_bytes")
+  checksum  String?
+
+  // Entity association
+  entityType FileEntityType? @map("entity_type")
+  entityId   String?         @map("entity_id") @db.Uuid
+
+  visibility FileVisibility @default(PRIVATE)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([uploadedByUserId])
+  @@index([entityType, entityId])
+  @@index([storageProvider, storageKey])
+  @@index([createdAt])
+  @@map("files")
+}
+
+model UploadSession {
+  id     String @id @default(uuid()) @db.Uuid
+  orgId  String @map("org_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  // File info
+  fileName     String @map("file_name")
+  mimeType     String @map("mime_type")
+  expectedSize BigInt @map("expected_size")
+
+  // Upload tracking
+  storageProvider   StorageProvider      @map("storage_provider")
+  uploadProviderId  String?              @map("upload_provider_id") // multipart upload ID from provider
+  status            UploadSessionStatus  @default(INITIATED)
+
+  expectedParts Int? @map("expected_parts")
+  uploadedParts Int  @default(0) @map("uploaded_parts")
+
+  // Metadata
+  metadata Json?
+
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@map("upload_sessions")
+}
+
+// ============================================================================
+// RBAC MODELS
+// ============================================================================
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  scope       RoleScope @default(ORG)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  description String   @db.Text
+  category    String   // org, team, player, billing
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  roles RolePermission[]
+
+  @@index([category])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid()) @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}

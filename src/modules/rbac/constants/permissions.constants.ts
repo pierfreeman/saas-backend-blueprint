@@ -1,0 +1,36 @@
+/**
+ * RBAC Permission Keys
+ */
+export const PERMISSIONS = {
+  // Organization
+  ORG_MANAGE: 'org.manage',
+  ORG_BILLING_MANAGE: 'org.billing.manage',
+  ORG_MEMBERS_INVITE: 'org.members.invite',
+  ORG_MEMBERS_REMOVE: 'org.members.remove',
+  ORG_MEMBERS_ROLE_UPDATE: 'org.members.role.update',
+  ORG_READ: 'org.read',
+
+  // Team
+  TEAM_CREATE: 'team.create',
+  TEAM_UPDATE: 'team.update',
+  TEAM_DELETE: 'team.delete',
+  TEAM_READ: 'team.read',
+
+  // Player
+  PLAYER_CREATE: 'player.create',
+  PLAYER_UPDATE: 'player.update',
+  PLAYER_DELETE: 'player.delete',
+  PLAYER_READ: 'player.read',
+
+  // Analytics
+  ANALYTICS_VIEW: 'analytics.view',
+  ANALYTICS_EXPORT: 'analytics.export',
+
+  // File Storage
+  FILE_UPLOAD: 'file.upload',
+  FILE_READ: 'file.read',
+  FILE_DELETE: 'file.delete',
+  FILE_MANAGE: 'file.manage',
+} as const;
+
+export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

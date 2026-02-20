@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.next
+.turbo
+build
+*.lock
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+prisma/migrations
