@@ -35,6 +35,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://user:password@postgres:5432/sports_intelligence?schema=public
