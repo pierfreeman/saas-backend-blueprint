@@ -79,8 +79,8 @@ echo ""
 echo "Step 6: Checking environment variables..."
 if [ ! -f .env ]; then
     warning ".env file not found"
-    echo "Creating .env from .env.storage.example..."
-    cp .env.storage.example .env
+    echo "Creating .env from .env.example..."
+    cp .env.example .env
     warning "Please edit .env with your actual credentials"
 else
     success ".env file exists"
