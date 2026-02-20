@@ -26,14 +26,17 @@ export class SentryInitService {
       'unknown';
     const release = configService.get<string>('SENTRY_RELEASE');
     const tracesSampleRate = configService.get<number>('SENTRY_TRACES_SAMPLE_RATE', 0.1);
-    const profilesSampleRate = configService.get<number>('SENTRY_PROFILES_SAMPLE_RATE', 0.1);
+    const profileSessionSampleRate = configService.get<number>('SENTRY_PROFILES_SAMPLE_RATE', 0.1);
 
     Sentry.init({
       dsn: sentryDsn,
+      enableLogs: true,
+      sendDefaultPii: true,
       environment,
       release,
       tracesSampleRate,
-      profilesSampleRate,
+      profileSessionSampleRate,
+      profileLifecycle: 'trace',
       integrations: [
         nodeProfilingIntegration(),
       ],
