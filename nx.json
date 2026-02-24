@@ -37,7 +37,13 @@
       "options": {
         "targetName": "test"
       },
-      "exclude": ["apps/nx-nest-e2e/**/*"]
+      "exclude": [
+        "apps/nx-nest-e2e/**/*",
+        "apps/api-e2e/**/*",
+        "apps/lambda-a-e2e/**/*",
+        "apps/worker-a-e2e/**/*",
+        "apps/worker-b-e2e/**/*"
+      ]
     }
   ]
 }

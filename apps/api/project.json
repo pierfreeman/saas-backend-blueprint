@@ -1,7 +1,7 @@
 {
-  "name": "nx-nest",
+  "name": "api",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "apps/nx-nest/src",
+  "sourceRoot": "apps/api/src",
   "projectType": "application",
   "tags": [],
   "targets": {
@@ -10,7 +10,7 @@
       "options": {
         "command": "webpack-cli build",
         "args": ["--node-env=production"],
-        "cwd": "apps/nx-nest"
+        "cwd": "apps/api"
       },
       "configurations": {
         "development": {
@@ -23,8 +23,8 @@
       "cache": true,
       "executor": "@nx/js:prune-lockfile",
       "outputs": [
-        "{workspaceRoot}/dist/apps/nx-nest/package.json",
-        "{workspaceRoot}/dist/apps/nx-nest/package-lock.json"
+        "{workspaceRoot}/dist/apps/api/package.json",
+        "{workspaceRoot}/dist/apps/api/package-lock.json"
       ],
       "options": {
         "buildTarget": "build"
@@ -33,7 +33,7 @@
     "copy-workspace-modules": {
       "dependsOn": ["build"],
       "cache": true,
-      "outputs": ["{workspaceRoot}/dist/apps/nx-nest/workspace_modules"],
+      "outputs": ["{workspaceRoot}/dist/apps/api/workspace_modules"],
       "executor": "@nx/js:copy-workspace-modules",
       "options": {
         "buildTarget": "build"
@@ -49,15 +49,15 @@
       "defaultConfiguration": "development",
       "dependsOn": ["build"],
       "options": {
-        "buildTarget": "nx-nest:build",
+        "buildTarget": "api:build",
         "runBuildTargetDependencies": false
       },
       "configurations": {
         "development": {
-          "buildTarget": "nx-nest:build:development"
+          "buildTarget": "api:build:development"
         },
         "production": {
-          "buildTarget": "nx-nest:build:production"
+          "buildTarget": "api:build:production"
         }
       }
     },

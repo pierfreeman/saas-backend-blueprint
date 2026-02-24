@@ -1,5 +1,5 @@
 export default {
-  displayName: 'nx-nest-e2e',
+  displayName: 'worker-a-e2e',
   preset: '../../jest.preset.js',
   globalSetup: '<rootDir>/src/support/global-setup.ts',
   globalTeardown: '<rootDir>/src/support/global-teardown.ts',
@@ -14,5 +14,5 @@ export default {
     ],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../coverage/nx-nest-e2e',
+  coverageDirectory: '../../coverage/worker-a-e2e',
 };
