@@ -9,11 +9,11 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { PrismaService } from '@libs/prisma';
-import { RequestUser } from '@libs/common';
+import { RequestUser, TenantRequest } from '@libs/common';
 import { ORG_SCOPED_KEY } from '../decorators/org-scoped.decorator';
 import { MembershipStatus } from '@prisma/client';
 
-export interface RequestWithOrgContext extends Request {
+export interface RequestWithOrgContext extends Request, TenantRequest {
   user: RequestUser & { dbUserId?: string };
   orgId?: string;
   membership?: {
@@ -114,6 +114,15 @@ export class OrgContextGuard implements CanActivate {
       id: membership.id,
       role: membership.role,
       status: membership.status,
+    };
+
+    // Sync into TenantContext (enrich stage-1 context or create if middleware missed it)
+    request.tenantContext = {
+      tenantId: orgId,
+      userId: dbUser.id,
+      role: membership.role,
+      permissions: request.tenantContext?.permissions,
+      timestamp: request.tenantContext?.timestamp ?? new Date(),
     };
 
     this.logger.debug(

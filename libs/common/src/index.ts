@@ -11,6 +11,11 @@ export * from './rbac/roles.constants';
 // Middleware
 export * from './middleware/tenant.middleware';
 
+// Tenant context service & decorator
+export * from './tenant/tenant-context.service';
+export * from './tenant/current-tenant.decorator';
+export * from './tenant/tenant.module';
+
 // Filters
 export * from './filters/all-exceptions.filter';
 

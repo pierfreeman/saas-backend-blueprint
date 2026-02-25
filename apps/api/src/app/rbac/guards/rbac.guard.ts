@@ -93,6 +93,12 @@ export class RBACGuard implements CanActivate {
       request.rbacPermissions = userPermissions;
       request.rbacRole = membership.role;
 
+      // Keep tenantContext in sync
+      if (request.tenantContext) {
+        request.tenantContext.permissions = userPermissions;
+        request.tenantContext.role = membership.role;
+      }
+
       const hasAccess =
         mode === 'ALL'
           ? permissions.every((p) => userPermissions.includes(p))

@@ -2,7 +2,6 @@ import {
   Controller,
   Post,
   Body,
-  Request,
   HttpCode,
   HttpStatus,
   Logger,
@@ -10,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
-import { TenantRequest } from '@libs/common';
+import { CurrentTenant } from '@libs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -53,16 +52,16 @@ export class TasksController {
   })
   async createHeavyJob(
     @Body() createTaskDto: CreateTaskDto,
-    @Request() req: TenantRequest,
+    @CurrentTenant('tenantId') tenantId: string | undefined,
   ) {
-    const tenantId = req.tenantContext?.tenantId || 'default';
+    const resolvedTenantId = tenantId ?? 'default';
     this.logger.log(
-      `Creating heavy job for tenant: ${tenantId}, payload:`,
+      `Creating heavy job for tenant: ${resolvedTenantId}, payload:`,
       createTaskDto,
     );
 
     const result = await this.tasksService.createHeavyJob(
-      tenantId,
+      resolvedTenantId,
       createTaskDto,
     );
 
