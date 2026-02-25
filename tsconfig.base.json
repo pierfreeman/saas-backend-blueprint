@@ -35,6 +35,12 @@
       ],
       "@libs/common/*": [
         "libs/common/src/*"
+      ],
+      "@libs/config": [
+        "libs/config/src/index.ts"
+      ],
+      "@libs/config/*": [
+        "libs/config/src/*"
       ]
     }
   },

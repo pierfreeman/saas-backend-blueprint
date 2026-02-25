@@ -1,7 +1,7 @@
 import { PrismaService } from '@libs/prisma';
 import { CacheService } from '@libs/redis';
 import { Injectable, Logger } from '@nestjs/common';
-// import { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 // import Stripe from 'stripe';
 
 @Injectable()
@@ -12,7 +12,7 @@ export class HealthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: CacheService,
-    // private readonly configService: ConfigService,
+    private readonly configService: ConfigService,
   ) {
     // this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY')!, {
     //   apiVersion: '2026-01-28.clover',
@@ -25,15 +25,17 @@ export class HealthService {
     services: {
       database: { status: string; responseTime?: number };
       redis: { status: string; responseTime?: number };
-      // stripe: { status: string };
+      stripe: { status: string };
     };
   }> {
     const dbHealth = await this.checkDatabase();
     const redisHealth = await this.checkRedis();
-    // const stripeHealth = await this.checkStripe();
+    const stripeHealth = await this.checkStripe();
 
-    const allHealthy = dbHealth.status === 'ok' && redisHealth.status === 'ok';
-    // stripeHealth.status === 'ok';
+    const allHealthy =
+      dbHealth.status === 'ok' &&
+      redisHealth.status === 'ok' &&
+      stripeHealth.status === 'ok';
 
     return {
       status: allHealthy ? 'ok' : 'degraded',
@@ -41,7 +43,7 @@ export class HealthService {
       services: {
         database: dbHealth,
         redis: redisHealth,
-        // stripe: stripeHealth,
+        stripe: stripeHealth,
       },
     };
   }
@@ -100,21 +102,21 @@ export class HealthService {
     }
   }
 
-  // private async checkStripe(): Promise<{ status: string }> {
-  //   try {
-  //     // Simple check - verify API key format
-  //     // We don't want to actually call Stripe API on every health check
-  //     const apiKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-  //     if (
-  //       apiKey &&
-  //       (apiKey.startsWith('sk_test_') || apiKey.startsWith('sk_live_'))
-  //     ) {
-  //       return { status: 'ok' };
-  //     }
-  //     return { status: 'misconfigured' };
-  //   } catch (error) {
-  //     this.logger.error('Stripe health check failed', error);
-  //     return { status: 'error' };
-  //   }
-  // }
+  private async checkStripe(): Promise<{ status: string }> {
+    try {
+      // Simple check - verify API key format
+      // We don't want to actually call Stripe API on every health check
+      const apiKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+      if (
+        apiKey &&
+        (apiKey.startsWith('sk_test_') || apiKey.startsWith('sk_live_'))
+      ) {
+        return { status: 'ok' };
+      }
+      return { status: 'misconfigured' };
+    } catch (error) {
+      this.logger.error('Stripe health check failed', error);
+      return { status: 'error' };
+    }
+  }
 }
