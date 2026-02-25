@@ -6,6 +6,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
+import { MembershipsModule } from './memberships/memberships.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 import { TasksModule } from './tasks/tasks.module';
 
 @Module({
@@ -14,6 +16,8 @@ import { TasksModule } from './tasks/tasks.module';
     PrismaModule,
     RedisModule,
     AuthModule,
+    OrganizationsModule,
+    MembershipsModule,
     HealthModule,
     TasksModule,
   ],

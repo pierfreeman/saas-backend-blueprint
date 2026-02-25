@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
@@ -12,6 +9,28 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+  READ_ONLY
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
 }
 
 // ============================================================================
@@ -26,8 +45,7 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  // memberships   Membership[]
-  // notifications Notification[]
+  memberships Membership[]
 
   @@map("users")
 }
@@ -39,20 +57,37 @@ model User {
 model Organization {
   id               String             @id @default(uuid()) @db.Uuid
   name             String
-  // status           OrganizationStatus @default(ACTIVE)
+  status           OrganizationStatus @default(ACTIVE)
   stripeCustomerId String?            @unique @map("stripe_customer_id")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
   // Relations
-  // memberships    Membership[]
-  // teams          Team[]
-  // players        Player[]
-  // subscription   Subscription?
-  // auditEvents    AuditEvent[]
-  // files          File[]
-  // uploadSessions UploadSession[]
+  memberships Membership[]
 
   @@map("organizations")
 }
 
+// ============================================================================
+// MEMBERSHIP MODEL (User ↔ Organization relationship)
+// ============================================================================
+
+model Membership {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  orgId     String           @map("org_id") @db.Uuid
+  role      MembershipRole
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+  @@index([userId])
+  @@index([status])
+  @@map("memberships")
+}

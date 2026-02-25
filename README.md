@@ -52,10 +52,10 @@ docker compose up -d postgres redis
 
 ### 3. Configure environment
 
-Copy `.env.docker` to `.env` and adjust if needed:
+Copy `.env.example` to `.env` and adjust if needed:
 
 ```sh
-cp .env.docker .env
+cp .env.example .env
 ```
 
 Add a `DATABASE_URL` pointing at the local Postgres instance, e.g.:

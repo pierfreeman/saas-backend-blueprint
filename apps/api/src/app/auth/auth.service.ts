@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@libs/prisma';
-import { Prisma } from '@prisma/client';
-
-type User = Prisma.UserGetPayload<Record<string, never>>;
+import { User } from '@prisma/client';
 
 @Injectable()
 export class AuthService {

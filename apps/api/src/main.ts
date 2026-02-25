@@ -47,6 +47,8 @@ async function bootstrap() {
     )
     .addTag('Authentication', 'Authentication endpoints')
     .addTag('Health', 'Health check endpoints')
+    .addTag('Organizations', 'Organization management endpoints')
+    .addTag('Memberships', 'Organization membership management endpoints')
     .addTag('Tasks', 'Task management endpoints')
     .build();
 
