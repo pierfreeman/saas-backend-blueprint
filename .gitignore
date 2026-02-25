@@ -24,6 +24,9 @@ node_modules/
 # Prisma generated
 /generated/prisma
 
+# Compodoc generated docs
+/doc
+
 # Testing & coverage
 coverage/
 .nyc_output/

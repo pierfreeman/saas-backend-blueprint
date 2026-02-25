@@ -3,21 +3,16 @@ FROM node:lts-alpine AS builder
 
 WORKDIR /workspace
 
-# Copy package manifests first for better layer caching
 COPY package.json package-lock.json ./
-COPY tsconfig.base.json nx.json jest.preset.js ./
-
-# Copy prisma schema before install (postinstall may run prisma generate)
 COPY prisma ./prisma
 
-# Install all dependencies (dev included for the build)
 RUN npm ci
 
-# Copy source files
+COPY tsconfig.base.json nx.json jest.preset.js ./
 COPY apps ./apps
 COPY libs ./libs
 
-# Build only the api project (no cache available in CI, skip nx daemon)
+RUN npx prisma generate
 RUN npx nx run api:build --configuration=production --skip-nx-cache
 
 # ─── Stage 2: Migrator ────────────────────────────────────────────────────────
@@ -36,11 +31,17 @@ ENV PORT=3000
 
 WORKDIR /app
 
-# Copy built output from builder
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+
+# Copy all node_modules from builder (includes prisma CLI needed for generate)
+COPY --from=builder /workspace/node_modules ./node_modules
+
+# Copy compiled app
 COPY --from=builder /workspace/dist/apps/api .
 
-# Install only production dependencies from the pruned package.json
-RUN npm install --omit=dev --ignore-scripts
+# Generate Prisma client for this exact runtime (same as saas-backend-blueprint approach)
+RUN npx prisma generate
 
 EXPOSE 3000
 
