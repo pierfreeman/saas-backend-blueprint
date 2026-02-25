@@ -39,8 +39,7 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
-      target: migrator
+      dockerfile: apps/api/Dockerfile.migrate
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}
     depends_on:

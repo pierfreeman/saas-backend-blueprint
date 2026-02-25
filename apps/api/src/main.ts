@@ -17,6 +17,7 @@ async function bootstrap() {
     .setTitle('API Documentation')
     .setDescription('API description')
     .setVersion('1.0')
+    .addTag('Health', 'Health check endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

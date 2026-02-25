@@ -19,13 +19,14 @@ prisma/
 
 ### Infrastructure
 
-| Service    | Image                            | Default port |
-| ---------- | -------------------------------- | ------------ |
-| PostgreSQL | `postgres:17-alpine`             | `5432`       |
-| Redis      | `redis:7-alpine`                 | `6379`       |
-| API        | built from `apps/api/Dockerfile` | `3000`       |
+| Service    | Image                                    | Default port |
+| ---------- | ---------------------------------------- | ------------ |
+| PostgreSQL | `postgres:17-alpine`                     | `5432`       |
+| Redis      | `redis:7-alpine`                         | `6379`       |
+| Migrate    | built from `apps/api/Dockerfile.migrate` | —            |
+| API        | built from `apps/api/Dockerfile`         | `3000`       |
 
-Prisma migrations run automatically as a one-shot `migrate` service before the API starts.
+Migrations run as a one-shot service before the API starts. The migrate image is built independently from the API image — schema changes only rebuild the migrator, and app code changes only rebuild the API.
 
 ## Prerequisites
 
@@ -86,7 +87,14 @@ npx nx serve worker-b
 docker compose up --build
 ```
 
-This starts Postgres, Redis, runs migrations, then starts the API. The API waits for both Postgres (healthy) and Redis (healthy) before launching.
+This starts Postgres, Redis, runs migrations (`apps/api/Dockerfile.migrate`), then starts the API.
+Migrations and the API are built from **separate Dockerfiles**, so changing app code does not rebuild the migrator image.
+
+> **Daily workflow tip** — when the Prisma schema has not changed, skip the migrate service entirely:
+>
+> ```sh
+> docker compose up -d --no-deps --build api
+> ```
 
 To override defaults, set variables in a `.env` file:
 

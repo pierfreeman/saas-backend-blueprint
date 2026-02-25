@@ -1,0 +1,10 @@
+FROM node:lts-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+
+RUN npm ci --ignore-scripts
+
+CMD ["npx", "prisma", "migrate", "deploy"]

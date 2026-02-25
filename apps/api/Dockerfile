@@ -15,14 +15,7 @@ COPY libs ./libs
 RUN npx prisma generate
 RUN npx nx run api:build --configuration=production --skip-nx-cache
 
-# ─── Stage 2: Migrator ────────────────────────────────────────────────────────
-FROM builder AS migrator
-
-WORKDIR /workspace
-
-CMD ["npx", "prisma", "migrate", "deploy"]
-
-# ─── Stage 3: Production ──────────────────────────────────────────────────────
+# ─── Stage 2: Production ─────────────────────────────────────────────────────
 FROM node:lts-alpine AS production
 
 ENV NODE_ENV=production
