@@ -44,6 +44,17 @@
         "apps/worker-a-e2e/**/*",
         "apps/worker-b-e2e/**/*"
       ]
+    },
+    {
+      "plugin": "@nx/docker",
+      "options": {
+        "buildTarget": {
+          "name": "docker:build"
+        },
+        "runTarget": {
+          "name": "docker:run"
+        }
+      }
     }
   ],
   "targetDefaults": {

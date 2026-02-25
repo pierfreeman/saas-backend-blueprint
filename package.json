@@ -19,7 +19,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "docker:build": "docker build -t nx-nest:latest .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
   },
   "private": true,
   "dependencies": {
@@ -36,6 +40,7 @@
     "@eslint/js": "^9.8.0",
     "@nestjs/schematics": "^11.0.9",
     "@nestjs/testing": "^11.1.14",
+    "@nx/docker": "22.5.2",
     "@nx/eslint": "22.5.2",
     "@nx/eslint-plugin": "22.5.2",
     "@nx/jest": "22.5.2",
