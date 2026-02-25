@@ -1,0 +1,125 @@
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { Request } from 'express';
+import { PrismaService } from '@libs/prisma';
+import { RequestUser } from '@libs/common';
+import { ORG_SCOPED_KEY } from '../decorators/org-scoped.decorator';
+import { MembershipStatus } from '@prisma/client';
+
+export interface RequestWithOrgContext extends Request {
+  user: RequestUser & { dbUserId?: string };
+  orgId?: string;
+  membership?: {
+    id: string;
+    role: string;
+    status: string;
+  };
+  rbacPermissions?: string[];
+  rbacRole?: string;
+}
+
+/**
+ * OrgContextGuard
+ *
+ * Pipeline position: after JwtAuthGuard, before RBACGuard.
+ *
+ * This guard:
+ * 1. Extracts orgId from route params, query, body, or x-org-id header
+ * 2. Resolves the DB user from the Auth0 JWT sub claim
+ * 3. Validates the user has an ACTIVE membership in that organization
+ * 4. Injects `orgId` and `user.dbUserId` into the request for downstream guards/controllers
+ *
+ * If no orgId is found and the route is NOT decorated with @OrgScoped(), the guard
+ * passes through (non-org routes are unaffected).
+ */
+@Injectable()
+export class OrgContextGuard implements CanActivate {
+  private readonly logger = new Logger(OrgContextGuard.name);
+
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<RequestWithOrgContext>();
+    const user = request.user;
+
+    const isOrgScoped = this.reflector.getAllAndOverride<boolean>(
+      ORG_SCOPED_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (!user) {
+      throw new ForbiddenException('User not authenticated');
+    }
+
+    // Resolve orgId from multiple sources.
+    // Checks: params.orgId → params.id (for /organizations/:id routes) → query → body → header
+    const orgId =
+      request.params['orgId'] ??
+      request.params['id'] ??
+      (request.query['orgId'] as string | undefined) ??
+      (request.body as { orgId?: string } | undefined)?.orgId ??
+      (request.headers['x-org-id'] as string | undefined);
+
+    if (!orgId) {
+      if (isOrgScoped) {
+        throw new BadRequestException('Organization ID is required');
+      }
+      return true;
+    }
+
+    // Resolve DB user from Auth0 sub
+    let dbUser = await this.prisma.user.findUnique({
+      where: { auth0Id: user.sub },
+    });
+
+    if (!dbUser) {
+      this.logger.log(`Auto-creating DB user for Auth0: ${user.sub}`);
+      dbUser = await this.prisma.user.create({
+        data: {
+          auth0Id: user.sub,
+          email: user.email ?? `${user.sub}@unknown.local`,
+        },
+      });
+    }
+
+    // Verify active membership
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId_orgId: { userId: dbUser.id, orgId } },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this organization');
+    }
+
+    if (membership.status !== MembershipStatus.ACTIVE) {
+      throw new ForbiddenException(
+        `Membership is ${membership.status.toLowerCase()}`,
+      );
+    }
+
+    // Inject context into the request
+    request.orgId = orgId;
+    request.user.dbUserId = dbUser.id;
+    request.membership = {
+      id: membership.id,
+      role: membership.role,
+      status: membership.status,
+    };
+
+    this.logger.debug(
+      `Org context resolved: user=${dbUser.id}, org=${orgId}, role=${membership.role}`,
+    );
+
+    return true;
+  }
+}

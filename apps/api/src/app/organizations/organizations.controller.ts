@@ -21,11 +21,16 @@ import {
 import { Organization } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { RequestUser } from '../auth/interfaces/request-user.interface';
+import { RequestUser } from '@libs/common';
 import { AuthService } from '../auth/auth.service';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { OrgContextGuard } from '../rbac/guards/org-context.guard';
+import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
+import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
+import { PERMISSIONS } from '@libs/common';
 
 @ApiTags('Organizations')
 @ApiBearerAuth()
@@ -68,6 +73,9 @@ export class OrganizationsController {
   }
 
   @Get(':id')
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequirePermissions([PERMISSIONS.ORG_READ])
   @ApiOperation({ summary: 'Get organization by ID' })
   @ApiParam({ name: 'id', description: 'Organization UUID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Organization details.' })
@@ -79,17 +87,28 @@ export class OrganizationsController {
     status: HttpStatus.NOT_FOUND,
     description: 'Organization not found.',
   })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Insufficient permissions.',
+  })
   async findOne(@Param('id') id: string): Promise<Organization> {
     return this.organizationsService.findById(id);
   }
 
   @Patch(':id')
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequirePermissions([PERMISSIONS.ORG_MANAGE])
   @ApiOperation({ summary: 'Update an organization' })
   @ApiParam({ name: 'id', description: 'Organization UUID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Organization updated.' })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
     description: 'Unauthorized.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Insufficient permissions.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -104,12 +123,19 @@ export class OrganizationsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequirePermissions([PERMISSIONS.ORG_MANAGE])
   @ApiOperation({ summary: 'Delete an organization' })
   @ApiParam({ name: 'id', description: 'Organization UUID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Organization deleted.' })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
     description: 'Unauthorized.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Insufficient permissions.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,

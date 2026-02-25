@@ -3,17 +3,26 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
+  Inject,
+  forwardRef,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '@libs/prisma';
 import { Membership, MembershipRole } from '@prisma/client';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
+import { RBACCacheService } from '../rbac/services/rbac-cache.service';
 
 @Injectable()
 export class MembershipsService {
   private readonly logger = new Logger(MembershipsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(forwardRef(() => RBACCacheService))
+    private readonly rbacCache?: RBACCacheService,
+  ) {}
 
   async createMembership(
     orgId: string,
@@ -23,9 +32,12 @@ export class MembershipsService {
       `Adding user ${dto.userId} to org ${orgId} with role ${dto.role}`,
     );
 
-    return this.prisma.membership.create({
+    const membership = await this.prisma.membership.create({
       data: { userId: dto.userId, orgId, role: dto.role },
     });
+
+    await this.rbacCache?.invalidate(dto.userId, orgId);
+    return membership;
   }
 
   async findByOrg(orgId: string): Promise<Membership[]> {
@@ -66,13 +78,14 @@ export class MembershipsService {
 
   async updateMembership(
     id: string,
+    orgId: string,
     dto: UpdateMembershipDto,
   ): Promise<Membership> {
     const membership = await this.prisma.membership.findUnique({
       where: { id },
     });
 
-    if (!membership) {
+    if (!membership || membership.orgId !== orgId) {
       throw new NotFoundException('Membership not found');
     }
 
@@ -81,20 +94,22 @@ export class MembershipsService {
       data: { role: dto.role },
     });
 
+    await this.rbacCache?.invalidate(membership.userId, membership.orgId);
     this.logger.log(`Membership ${id} updated to role ${dto.role}`);
     return updated;
   }
 
-  async deleteMembership(id: string): Promise<void> {
+  async deleteMembership(id: string, orgId: string): Promise<void> {
     const membership = await this.prisma.membership.findUnique({
       where: { id },
     });
 
-    if (!membership) {
+    if (!membership || membership.orgId !== orgId) {
       throw new NotFoundException('Membership not found');
     }
 
     await this.prisma.membership.delete({ where: { id } });
+    await this.rbacCache?.invalidate(membership.userId, membership.orgId);
     this.logger.log(`Membership ${id} deleted`);
   }
 

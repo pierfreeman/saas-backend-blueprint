@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { RBACModule } from './rbac/rbac.module';
 import { TasksModule } from './tasks/tasks.module';
 
 @Module({
@@ -18,6 +19,7 @@ import { TasksModule } from './tasks/tasks.module';
     AuthModule,
     OrganizationsModule,
     MembershipsModule,
+    RBACModule,
     HealthModule,
     TasksModule,
   ],
