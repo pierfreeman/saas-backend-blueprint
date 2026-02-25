@@ -25,6 +25,8 @@ prisma/
 | Redis      | `redis:7-alpine`                         | `6379`       |
 | Migrate    | built from `apps/api/Dockerfile.migrate` | —            |
 | API        | built from `apps/api/Dockerfile`         | `3000`       |
+| Worker A   | built from `apps/worker-a/Dockerfile`    | —            |
+| Worker B   | built from `apps/worker-b/Dockerfile`    | —            |
 
 Migrations run as a one-shot service before the API starts. The migrate image is built independently from the API image — schema changes only rebuild the migrator, and app code changes only rebuild the API.
 
@@ -87,13 +89,19 @@ npx nx serve worker-b
 docker compose up --build
 ```
 
-This starts Postgres, Redis, runs migrations (`apps/api/Dockerfile.migrate`), then starts the API.
-Migrations and the API are built from **separate Dockerfiles**, so changing app code does not rebuild the migrator image.
+This starts Postgres, Redis, runs migrations (`apps/api/Dockerfile.migrate`), then starts the API and both workers.
+Migrations, API, and workers are built from **separate Dockerfiles**, so changing app code does not rebuild the migrator image.
+
+Workers (`worker-a`, `worker-b`) are Redis microservices — they subscribe to `heavy.job.created` events and process them asynchronously. They expose no HTTP port.
 
 > **Daily workflow tip** — when the Prisma schema has not changed, skip the migrate service entirely:
 >
 > ```sh
+> # Restart only the API
 > docker compose up -d --no-deps --build api
+>
+> # Restart only the workers
+> docker compose up -d --no-deps --build worker-a worker-b
 > ```
 
 To override defaults, set variables in a `.env` file:
