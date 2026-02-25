@@ -1,10 +1,12 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 /**
  * Health Controller
  * Provides endpoint for health checks and monitoring
  */
-@Controller("health")
+@ApiTags('Health')
+@Controller('health')
 export class HealthController {
   /**
    * GET /health
@@ -13,9 +15,9 @@ export class HealthController {
   @Get()
   health() {
     return {
-      status: "healthy",
+      status: 'healthy',
       timestamp: new Date().toISOString(),
-      service: "api-gateway",
+      service: 'api-gateway',
     };
   }
 }

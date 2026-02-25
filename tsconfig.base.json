@@ -20,6 +20,21 @@
     "paths": {
       "@libs/prisma": [
         "libs/prisma/src/index.ts"
+      ],
+      "@libs/prisma/*": [
+        "libs/prisma/src/*"
+      ],
+      "@libs/redis": [
+        "libs/redis/src/index.ts"
+      ],
+      "@libs/redis/*": [
+        "libs/redis/src/*"
+      ],
+      "@libs/common": [
+        "libs/common/src/index.ts"
+      ],
+      "@libs/common/*": [
+        "libs/common/src/*"
       ]
     }
   },
