@@ -1,19 +1,13 @@
 module.exports = {
-  displayName: 'api',
+  displayName: 'common',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
   transform: {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../coverage/apps/api',
-  collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/main.ts',
-    '!src/**/*.module.ts',
-    '!src/**/*.dto.ts',
-    '!src/**/*.d.ts',
-  ],
+  coverageDirectory: '../../coverage/libs/common',
+  collectCoverageFrom: ['src/**/*.ts', '!src/index.ts', '!src/**/*.d.ts'],
   coverageThreshold: {
     global: { lines: 80, functions: 80, branches: 70, statements: 80 },
   },

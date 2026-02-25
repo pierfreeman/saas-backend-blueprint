@@ -1,0 +1,6 @@
+{
+  "jest.jestCommandLine": "npx jest",
+  "jest.rootPath": ".",
+  "jest.coverageFormatter": "DefaultFormatter",
+  "jest.showCoverageOnLoad": false
+}

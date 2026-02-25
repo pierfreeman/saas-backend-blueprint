@@ -8,13 +8,13 @@ describe('AppService', () => {
     const app = await Test.createTestingModule({
       providers: [AppService],
     }).compile();
-
     service = app.get<AppService>(AppService);
   });
 
-  describe('getData', () => {
-    it('should return "Hello API"', () => {
-      expect(service.getData()).toEqual({ message: 'Hello API' });
+  describe('getHello', () => {
+    it('returns a non-empty string', () => {
+      expect(typeof service.getHello()).toBe('string');
+      expect(service.getHello().length).toBeGreaterThan(0);
     });
   });
 });

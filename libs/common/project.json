@@ -14,6 +14,13 @@
         "assets": []
       }
     },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/common"],
+      "options": {
+        "jestConfig": "libs/common/jest.config.cts"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
