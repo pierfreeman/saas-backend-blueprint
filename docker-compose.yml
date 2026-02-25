@@ -69,6 +69,42 @@ services:
       redis:
         condition: service_healthy
 
+  # ─── Worker A ────────────────────────────────────────────────────────────────
+  worker-a:
+    build:
+      context: .
+      dockerfile: apps/worker-a/Dockerfile
+      target: production
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # ─── Worker B ────────────────────────────────────────────────────────────────
+  worker-b:
+    build:
+      context: .
+      dockerfile: apps/worker-b/Dockerfile
+      target: production
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
