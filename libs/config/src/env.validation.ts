@@ -14,4 +14,8 @@ export const envValidationSchema = Joi.object({
   REDIS_HOST: Joi.string().required(),
   REDIS_PORT: Joi.number().default(6379),
   REDIS_PASSWORD: Joi.string().allow('').optional(),
+
+  // Auth0
+  AUTH0_DOMAIN: Joi.string().required(),
+  AUTH0_AUDIENCE: Joi.string().required(),
 });

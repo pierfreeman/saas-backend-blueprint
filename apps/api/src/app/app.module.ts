@@ -4,11 +4,19 @@ import { ConfigModule } from '@libs/config';
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
 import { TasksModule } from './tasks/tasks.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, RedisModule, HealthModule, TasksModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    RedisModule,
+    AuthModule,
+    HealthModule,
+    TasksModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

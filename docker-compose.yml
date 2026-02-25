@@ -54,6 +54,7 @@ services:
       dockerfile: apps/api/Dockerfile
       target: production
     restart: unless-stopped
+    env_file: .env
     ports:
       - '${API_PORT:-3000}:3000'
     environment:
@@ -76,6 +77,7 @@ services:
       dockerfile: apps/worker-a/Dockerfile
       target: production
     restart: unless-stopped
+    env_file: .env
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}

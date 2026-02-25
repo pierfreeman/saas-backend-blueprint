@@ -6,17 +6,25 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { TenantRequest } from '@libs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 /**
  * Tasks Controller
  * Handles task creation and management
  */
 @ApiTags('Tasks')
+@ApiBearerAuth()
 @Controller('tasks')
 export class TasksController {
   private readonly logger = new Logger(TasksController.name);
@@ -27,8 +35,22 @@ export class TasksController {
    * POST /tasks/heavy-job
    * Creates a heavy computation job and publishes event to Redis
    */
+  @UseGuards(JwtAuthGuard)
   @Post('heavy-job')
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Submit a heavy computation job',
+    description:
+      'Creates a heavy computation job and publishes the event to Redis for async processing.',
+  })
+  @ApiResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Job accepted and queued for processing.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT token.',
+  })
   async createHeavyJob(
     @Body() createTaskDto: CreateTaskDto,
     @Request() req: TenantRequest,

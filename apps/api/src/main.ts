@@ -32,8 +32,20 @@ async function bootstrap() {
   // ── Swagger ──────────────────────────────────────────────────────────────────
   const config = new DocumentBuilder()
     .setTitle('API Documentation')
-    .setDescription('API description')
+    .setDescription('API endpoints for the Nx Nest application')
     .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Enter Auth0 JWT token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
+    .addTag('Authentication', 'Authentication endpoints')
     .addTag('Health', 'Health check endpoints')
     .addTag('Tasks', 'Task management endpoints')
     .build();
