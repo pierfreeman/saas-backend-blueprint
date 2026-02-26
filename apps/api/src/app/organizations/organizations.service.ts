@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '@libs/prisma';
+import { AuditService, AUDIT_EVENTS } from '@libs/audit';
 import { Organization, MembershipRole } from '@prisma/client';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
@@ -13,7 +14,10 @@ import { UpdateOrganizationDto } from './dto/update-organization.dto';
 export class OrganizationsService {
   private readonly logger = new Logger(OrganizationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   /**
    * Creates a new organization and automatically assigns the creator as OWNER.
@@ -39,6 +43,15 @@ export class OrganizationsService {
       });
 
       this.logger.log(`Organization ${organization.id} created`);
+
+      // ISO 27001 A.8.15 – log resource creation
+      this.audit.logEventBackground({
+        type: AUDIT_EVENTS.ORGANIZATION.CREATED,
+        orgId: organization.id,
+        userId,
+        payload: { organizationId: organization.id, name: organization.name },
+      });
+
       return organization;
     } catch (error) {
       this.logger.error(
@@ -71,6 +84,7 @@ export class OrganizationsService {
   async updateOrganization(
     id: string,
     dto: UpdateOrganizationDto,
+    userId?: string,
   ): Promise<Organization> {
     await this.findById(id);
 
@@ -80,12 +94,30 @@ export class OrganizationsService {
     });
 
     this.logger.log(`Organization ${id} updated`);
+
+    // ISO 27001 A.8.15 – log resource modification
+    this.audit.logEventBackground({
+      type: AUDIT_EVENTS.ORGANIZATION.UPDATED,
+      orgId: id,
+      userId: userId ?? null,
+      payload: { organizationId: id, changes: dto },
+    });
+
     return updated;
   }
 
-  async deleteOrganization(id: string): Promise<void> {
-    await this.findById(id);
+  async deleteOrganization(id: string, userId?: string): Promise<void> {
+    const org = await this.findById(id);
     await this.prisma.organization.delete({ where: { id } });
     this.logger.log(`Organization ${id} deleted`);
+
+    // ISO 27001 A.8.15 / GDPR Art. 5 – log irreversible deletion (CRITICAL severity)
+    this.audit.logEventBackground({
+      type: AUDIT_EVENTS.ORGANIZATION.DELETED,
+      orgId: id,
+      userId: userId ?? null,
+      severity: 'CRITICAL',
+      payload: { organizationId: id, name: org.name },
+    });
   }
 }

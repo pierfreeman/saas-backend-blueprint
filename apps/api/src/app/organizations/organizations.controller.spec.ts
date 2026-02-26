@@ -137,54 +137,62 @@ describe('OrganizationsController', () => {
   // ---------- update ---------------------------------------------------------
   describe('update()', () => {
     it('updates an organization and returns the updated entity', async () => {
+      setupDbUser();
       const updated = { ...baseOrg, name: 'New Name' };
       mockOrganizationsService.updateOrganization = jest
         .fn()
         .mockResolvedValue(updated);
 
-      const result = await controller.update('org-1', { name: 'New Name' });
+      const result = await controller.update(jwtUser, 'org-1', {
+        name: 'New Name',
+      });
       expect(result).toBe(updated);
       expect(mockOrganizationsService.updateOrganization).toHaveBeenCalledWith(
         'org-1',
         { name: 'New Name' },
+        'db-u-1',
       );
     });
 
     it('propagates NotFoundException from service', async () => {
+      setupDbUser();
       mockOrganizationsService.updateOrganization = jest
         .fn()
         .mockRejectedValue(
           new NotFoundException('Organization bad-id not found'),
         );
 
-      await expect(controller.update('bad-id', { name: 'X' })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.update(jwtUser, 'bad-id', { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   // ---------- delete ---------------------------------------------------------
   describe('delete()', () => {
     it('deletes an organization and returns a success message', async () => {
+      setupDbUser();
       mockOrganizationsService.deleteOrganization = jest
         .fn()
         .mockResolvedValue(undefined);
 
-      const result = await controller.delete('org-1');
+      const result = await controller.delete(jwtUser, 'org-1');
       expect(result).toEqual({ message: 'Organization deleted successfully' });
       expect(mockOrganizationsService.deleteOrganization).toHaveBeenCalledWith(
         'org-1',
+        'db-u-1',
       );
     });
 
     it('propagates NotFoundException when org not found', async () => {
+      setupDbUser();
       mockOrganizationsService.deleteOrganization = jest
         .fn()
         .mockRejectedValue(
           new NotFoundException('Organization bad-id not found'),
         );
 
-      await expect(controller.delete('bad-id')).rejects.toThrow(
+      await expect(controller.delete(jwtUser, 'bad-id')).rejects.toThrow(
         NotFoundException,
       );
     });

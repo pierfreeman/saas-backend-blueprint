@@ -115,10 +115,12 @@ export class OrganizationsController {
     description: 'Organization not found.',
   })
   async update(
+    @CurrentUser() user: RequestUser,
     @Param('id') id: string,
     @Body() dto: UpdateOrganizationDto,
   ): Promise<Organization> {
-    return this.organizationsService.updateOrganization(id, dto);
+    const dbUser = await this.resolveUser(user.sub);
+    return this.organizationsService.updateOrganization(id, dto, dbUser.id);
   }
 
   @Delete(':id')
@@ -141,8 +143,12 @@ export class OrganizationsController {
     status: HttpStatus.NOT_FOUND,
     description: 'Organization not found.',
   })
-  async delete(@Param('id') id: string): Promise<{ message: string }> {
-    await this.organizationsService.deleteOrganization(id);
+  async delete(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ): Promise<{ message: string }> {
+    const dbUser = await this.resolveUser(user.sub);
+    await this.organizationsService.deleteOrganization(id, dbUser.id);
     return { message: 'Organization deleted successfully' };
   }
 

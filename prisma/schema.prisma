@@ -33,6 +33,14 @@ enum MembershipStatus {
   SUSPENDED
 }
 
+enum AuditSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
 // ============================================================================
 // USER MODEL
 // ============================================================================
@@ -64,6 +72,7 @@ model Organization {
 
   // Relations
   memberships Membership[]
+  auditEvents AuditEvent[]
 
   @@map("organizations")
 }
@@ -90,4 +99,43 @@ model Membership {
   @@index([userId])
   @@index([status])
   @@map("memberships")
+}
+
+// ============================================================================
+// AUDIT EVENT MODEL
+// Provides an immutable, append-only audit trail.
+// Satisfies ISO 27001:2022 A.8.15/A.8.16 and GDPR Art. 5(2)/Art. 30/Art. 32.
+// ============================================================================
+
+model AuditEvent {
+  id            String        @id @default(uuid()) @db.Uuid
+  /// Typed event name (e.g. 'org.created', 'auth.login.failed').
+  type          String
+  /// ISO/GDPR-aligned severity level.
+  severity      AuditSeverity @default(INFO)
+  /// Nullable – null means a global/system-initiated event.
+  orgId         String?       @map("org_id") @db.Uuid
+  /// Nullable – null means the action was performed by the system.
+  userId        String?       @map("user_id") @db.Uuid
+  /// Sanitised structured context for the event (no PII/secrets in plain text).
+  payload       Json          @default("{}")
+  /// Source IP address for GDPR access-log and security anomaly detection.
+  ipAddress     String?       @map("ip_address")
+  /// User-Agent header for security context.
+  userAgent     String?       @map("user_agent")
+  /// Distributed tracing correlation ID.
+  correlationId String?       @map("correlation_id")
+  /// Records are never updated – use createdAt as the immutable timestamp.
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  // Relations (optional – org may be deleted but audit records should remain)
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  // Indexes optimised for compliance queries
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@index([severity, createdAt(sort: Desc)])
+  @@index([correlationId])
+  @@map("audit_events")
 }

@@ -1,6 +1,7 @@
 import { PrismaModule } from '@libs/prisma';
 import { RedisModule } from '@libs/redis';
 import { ConfigModule } from '@libs/config';
+import { AuditModule } from '@libs/audit';
 import {
   MiddlewareConsumer,
   Module,
@@ -15,6 +16,7 @@ import { MembershipsModule } from './memberships/memberships.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { RBACModule } from './rbac/rbac.module';
 import { TasksModule } from './tasks/tasks.module';
+import { AuditAppModule } from './audit/audit-app.module';
 import { TenantMiddleware } from '@libs/common';
 
 @Module({
@@ -22,12 +24,14 @@ import { TenantMiddleware } from '@libs/common';
     ConfigModule,
     PrismaModule,
     RedisModule,
+    AuditModule,
     AuthModule,
     OrganizationsModule,
     MembershipsModule,
     RBACModule,
     HealthModule,
     TasksModule,
+    AuditAppModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -7,6 +7,9 @@ export const PERMISSIONS = {
   ORG_MEMBERS_ROLE_UPDATE: 'org.members.role.update',
   ORG_READ: 'org.read',
 
+  // Audit (ISO 27001 A.8.15 – restricted to OWNER/ADMIN)
+  AUDIT_READ: 'audit.read',
+
   // Team
   // TEAM_CREATE: 'team.create',
   // TEAM_UPDATE: 'team.update',

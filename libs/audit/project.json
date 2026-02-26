@@ -1,0 +1,27 @@
+{
+  "name": "audit",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/audit/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/audit"],
+      "options": {
+        "jestConfig": "libs/audit/jest.config.cts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/audit/tsconfig.json --noEmit"
+      }
+    }
+  },
+  "tags": ["type:lib", "scope:audit"]
+}

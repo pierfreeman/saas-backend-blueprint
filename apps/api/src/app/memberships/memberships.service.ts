@@ -8,6 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { PrismaService } from '@libs/prisma';
+import { AuditService, AUDIT_EVENTS } from '@libs/audit';
 import { Membership, MembershipRole } from '@prisma/client';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
@@ -19,6 +20,7 @@ export class MembershipsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
     @Optional()
     @Inject(forwardRef(() => RBACCacheService))
     private readonly rbacCache?: RBACCacheService,
@@ -27,6 +29,7 @@ export class MembershipsService {
   async createMembership(
     orgId: string,
     dto: CreateMembershipDto,
+    actorUserId?: string,
   ): Promise<Membership> {
     this.logger.log(
       `Adding user ${dto.userId} to org ${orgId} with role ${dto.role}`,
@@ -37,6 +40,19 @@ export class MembershipsService {
     });
 
     await this.rbacCache?.invalidate(dto.userId, orgId);
+
+    // ISO 27001 A.9.2 – log access provisioning
+    this.audit.logEventBackground({
+      type: AUDIT_EVENTS.MEMBERSHIP.CREATED,
+      orgId,
+      userId: actorUserId ?? null,
+      payload: {
+        membershipId: membership.id,
+        targetUserId: dto.userId,
+        role: dto.role,
+      },
+    });
+
     return membership;
   }
 
@@ -80,6 +96,7 @@ export class MembershipsService {
     id: string,
     orgId: string,
     dto: UpdateMembershipDto,
+    actorUserId?: string,
   ): Promise<Membership> {
     const membership = await this.prisma.membership.findUnique({
       where: { id },
@@ -89,6 +106,7 @@ export class MembershipsService {
       throw new NotFoundException('Membership not found');
     }
 
+    const previousRole = membership.role;
     const updated = await this.prisma.membership.update({
       where: { id },
       data: { role: dto.role },
@@ -96,10 +114,29 @@ export class MembershipsService {
 
     await this.rbacCache?.invalidate(membership.userId, membership.orgId);
     this.logger.log(`Membership ${id} updated to role ${dto.role}`);
+
+    // ISO 27001 A.9.2 – log privilege change (elevated severity)
+    this.audit.logEventBackground({
+      type: AUDIT_EVENTS.MEMBERSHIP.ROLE_CHANGED,
+      orgId,
+      userId: actorUserId ?? null,
+      severity: 'MEDIUM',
+      payload: {
+        membershipId: id,
+        targetUserId: membership.userId,
+        previousRole,
+        newRole: dto.role,
+      },
+    });
+
     return updated;
   }
 
-  async deleteMembership(id: string, orgId: string): Promise<void> {
+  async deleteMembership(
+    id: string,
+    orgId: string,
+    actorUserId?: string,
+  ): Promise<void> {
     const membership = await this.prisma.membership.findUnique({
       where: { id },
     });
@@ -111,6 +148,18 @@ export class MembershipsService {
     await this.prisma.membership.delete({ where: { id } });
     await this.rbacCache?.invalidate(membership.userId, membership.orgId);
     this.logger.log(`Membership ${id} deleted`);
+
+    // ISO 27001 A.9.2 – log access revocation
+    this.audit.logEventBackground({
+      type: AUDIT_EVENTS.MEMBERSHIP.DELETED,
+      orgId,
+      userId: actorUserId ?? null,
+      payload: {
+        membershipId: id,
+        targetUserId: membership.userId,
+        role: membership.role,
+      },
+    });
   }
 
   async hasRole(

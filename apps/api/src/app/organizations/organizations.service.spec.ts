@@ -1,6 +1,12 @@
 import { OrganizationsService } from './organizations.service';
 import { PrismaService } from '@libs/prisma';
+import { AuditService } from '@libs/audit';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+
+const mockAuditService = {
+  logEvent: jest.fn().mockResolvedValue(null),
+  logEventBackground: jest.fn(),
+} as unknown as AuditService;
 
 const mockTx = {
   organization: { create: jest.fn() },
@@ -30,7 +36,7 @@ describe('OrganizationsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new OrganizationsService(mockPrisma);
+    service = new OrganizationsService(mockPrisma, mockAuditService);
   });
 
   describe('createOrganization', () => {

@@ -50,6 +50,7 @@ async function bootstrap() {
     .addTag('Organizations', 'Organization management endpoints')
     .addTag('Memberships', 'Organization membership management endpoints')
     .addTag('Tasks', 'Task management endpoints')
+    .addTag('Audit', 'Audit log endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
