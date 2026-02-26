@@ -20,13 +20,48 @@ export class AuthController {
   @Get('me')
   @ApiOperation({
     summary: 'Get the currently authenticated user',
-    description: 'Returns the profile of the currently authenticated user.',
+    description:
+      'Syncs the Auth0 identity with the local database (upsert) and returns ' +
+      'the resolved user profile. Safe to call on every app load.',
   })
   @ApiResponse({
-    status: HttpStatus.ACCEPTED,
-    description: 'Returns the authenticated user profile',
+    status: HttpStatus.OK,
+    description: 'Authenticated user profile.',
+    schema: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Internal database UUID of the user.',
+          example: 'c7b3e1a2-45d6-4f89-9012-3456789abcde',
+        },
+        sub: {
+          type: 'string',
+          description: 'Auth0 subject identifier ("sub" JWT claim).',
+          example: 'auth0|64a1b2c3d4e5f6a7b8c9d0e1',
+        },
+        email: {
+          type: 'string',
+          format: 'email',
+          description: 'Email address from the Auth0 token.',
+          example: 'alice@example.com',
+        },
+      },
+      required: ['id', 'sub', 'email'],
+    },
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Unauthorized' },
+      },
+    },
+  })
   async getMe(@CurrentUser() user: RequestUser): Promise<{
     id: string;
     sub: string;

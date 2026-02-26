@@ -31,8 +31,26 @@ async function bootstrap() {
 
   // ── Swagger ──────────────────────────────────────────────────────────────────
   const config = new DocumentBuilder()
-    .setTitle('API Documentation')
-    .setDescription('API endpoints for the Nx Nest application')
+    .setTitle('Nx Nest API')
+    .setDescription(
+      '## Overview\n' +
+        'REST API for the Nx Nest multi-tenant SaaS backend.\n\n' +
+        '### Authentication\n' +
+        'All protected endpoints require a valid **Auth0 JWT** ' +
+        '(`Authorization: Bearer <token>`).\n\n' +
+        '### Multi-tenancy\n' +
+        'Organization-scoped endpoints are nested under `/organizations/:orgId/`. ' +
+        'The caller must be a member of the target organization.\n\n' +
+        '### Permissions (RBAC)\n' +
+        '| Role | Capabilities |\n' +
+        '|------|--------------|\n' +
+        '| OWNER | Full control |\n' +
+        '| ADMIN | Manage members, read audit |\n' +
+        '| MEMBER | Standard access |\n' +
+        '| READ_ONLY | Read-only access |\n\n' +
+        '### Error format\n' +
+        'All errors follow the shape `{ statusCode, timestamp, path, method, message }`.',
+    )
     .setVersion('1.0')
     .addBearerAuth(
       {

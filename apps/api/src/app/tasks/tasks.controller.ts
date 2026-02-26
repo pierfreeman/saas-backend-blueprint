@@ -45,10 +45,58 @@ export class TasksController {
   @ApiResponse({
     status: HttpStatus.ACCEPTED,
     description: 'Job accepted and queued for processing.',
+    schema: {
+      type: 'object',
+      properties: {
+        jobId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Unique identifier of the enqueued job.',
+          example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        },
+        status: {
+          type: 'string',
+          example: 'accepted',
+        },
+        message: {
+          type: 'string',
+          example: 'Job submitted for processing',
+        },
+        timestamp: {
+          type: 'string',
+          format: 'date-time',
+          example: '2026-02-26T12:34:56.789Z',
+        },
+      },
+      required: ['jobId', 'status', 'message', 'timestamp'],
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed — check request body against the schema.',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['name should not be empty'],
+        },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
     description: 'Missing or invalid JWT token.',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   async createHeavyJob(
     @Body() createTaskDto: CreateTaskDto,

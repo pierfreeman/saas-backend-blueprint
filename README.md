@@ -6,15 +6,19 @@ An [Nx](https://nx.dev) monorepo with NestJS applications backed by PostgreSQL (
 
 ```
 apps/
-  api          — HTTP API (NestJS)
-  worker-a     — Background worker A
-  worker-b     — Background worker B
+  api          — HTTP API (NestJS, port 3000)
+  api-e2e      — End-to-end tests for the API
+  worker-a     — Background worker (subscribes to Redis events)
+  worker-a-e2e — End-to-end tests for worker-a
 libs/
-  common       — Shared utilities and types
-  prisma       — PrismaClient wrapper and service
-  redis        — Redis cache (CacheService) and pub/sub (PubSubService)
+  audit        — Audit trail service, event-type constants, ISO 27001 / GDPR types
+  common       — Shared utilities: RBAC constants, tenant context, exception filter, Redis event types
+  config       — NestJS ConfigModule wrappers (app, auth, database, redis)
+  prisma       — PrismaService singleton (extends PrismaClient), PrismaModule
+  redis        — CacheService (key/value, DB 1) and PubSubService (pub/sub, DB 0)
 prisma/
-  schema.prisma — Database schema (User, Organization, …)
+  schema.prisma  — Database schema (User, Organization, Membership, AuditEvent)
+  migrations/    — Prisma migration history
 ```
 
 ### Infrastructure
@@ -33,8 +37,9 @@ Migrations run as a one-shot service before the API starts. The migrate image is
 ## Prerequisites
 
 - Node.js ≥ 20
-- Docker & Docker Compose
-- `pnpm` (or `npm`)
+- Docker & Docker Compose v2
+- `npm` (or `pnpm`)
+- An Auth0 tenant — see **Authentication** section below
 
 ## Local development
 
@@ -58,13 +63,28 @@ Copy `.env.example` to `.env` and adjust if needed:
 cp .env.example .env
 ```
 
-Add a `DATABASE_URL` pointing at the local Postgres instance, e.g.:
+#### Required variables
 
-```dotenv
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nx_nest
-REDIS_HOST=localhost
-REDIS_PORT=6379
-```
+| Variable         | Example                                                 | Description                              |
+| ---------------- | ------------------------------------------------------- | ---------------------------------------- |
+| `DATABASE_URL`   | `postgresql://postgres:postgres@localhost:5432/nx_nest` | PostgreSQL connection string             |
+| `REDIS_HOST`     | `localhost`                                             | Redis hostname                           |
+| `REDIS_PORT`     | `6379`                                                  | Redis port                               |
+| `AUTH0_DOMAIN`   | `your-tenant.auth0.com`                                 | Auth0 tenant domain (without `https://`) |
+| `AUTH0_AUDIENCE` | `https://api.your-app.com`                              | Auth0 API audience identifier            |
+
+#### Optional variables
+
+| Variable            | Default       | Description                                   |
+| ------------------- | ------------- | --------------------------------------------- |
+| `PORT`              | `3000`        | HTTP port the API listens on                  |
+| `NODE_ENV`          | `development` | Runtime environment                           |
+| `POSTGRES_USER`     | `postgres`    | Postgres user (Docker Compose)                |
+| `POSTGRES_PASSWORD` | `postgres`    | Postgres password (Docker Compose)            |
+| `POSTGRES_DB`       | `nx_nest`     | Postgres database name (Docker Compose)       |
+| `POSTGRES_PORT`     | `5432`        | Host port mapped to Postgres (Docker Compose) |
+| `REDIS_PORT`        | `6379`        | Host port mapped to Redis (Docker Compose)    |
+| `API_PORT`          | `3000`        | Host port mapped to the API (Docker Compose)  |
 
 ### 4. Run database migrations
 
@@ -92,7 +112,7 @@ docker compose up --build
 This starts Postgres, Redis, runs migrations (`apps/api/Dockerfile.migrate`), then starts the API and both workers.
 Migrations, API, and workers are built from **separate Dockerfiles**, so changing app code does not rebuild the migrator image.
 
-Workers (`worker-a`, `worker-b`) are Redis microservices — they subscribe to `heavy.job.created` events and process them asynchronously. They expose no HTTP port.
+Workers (`worker-a`) are Redis microservices — they subscribe to `heavy.job.created` events and process them asynchronously. They expose no HTTP port.
 
 > **Daily workflow tip** — when the Prisma schema has not changed, skip the migrate service entirely:
 >
@@ -101,7 +121,7 @@ Workers (`worker-a`, `worker-b`) are Redis microservices — they subscribe to `
 > docker compose up -d --no-deps --build api
 >
 > # Restart only the workers
-> docker compose up -d --no-deps --build worker-a worker-b
+> docker compose up -d --no-deps --build worker-a
 > ```
 
 To override defaults, set variables in a `.env` file:
@@ -115,6 +135,98 @@ REDIS_PORT=6379
 API_PORT=3000
 ```
 
+---
+
+## Authentication
+
+The API uses **Auth0** as the identity provider. All protected endpoints require a JWT bearer token issued by your Auth0 tenant.
+
+### Setup
+
+1. Create an Auth0 API in the dashboard and set an audience (e.g. `https://api.your-app.com`).
+2. Add to `.env`:
+   ```dotenv
+   AUTH0_DOMAIN=your-tenant.auth0.com
+   AUTH0_AUDIENCE=https://api.your-app.com
+   ```
+3. Obtain a token (e.g. via Auth0's Machine-to-Machine or the SPA flow) and pass it as `Authorization: Bearer <token>`.
+
+On first call to `GET /auth/me`, the user is upserted into the local database using the `sub` JWT claim as the unique key.
+
+---
+
+## RBAC — Role & Permission system
+
+Authorization is **static** (no database-driven role/permission tables). Roles and their permissions are defined in `libs/common/src/rbac/`.
+
+### Role hierarchy
+
+```
+OWNER > ADMIN > MEMBER > READ_ONLY
+```
+
+### Permission map
+
+| Permission                | OWNER | ADMIN | MEMBER | READ_ONLY |
+| ------------------------- | :---: | :---: | :----: | :-------: |
+| `org.manage`              |   ✓   |       |        |           |
+| `org.billing.manage`      |   ✓   |       |        |           |
+| `org.members.invite`      |   ✓   |   ✓   |        |           |
+| `org.members.remove`      |   ✓   |   ✓   |        |           |
+| `org.members.role.update` |   ✓   |   ✓   |        |           |
+| `org.read`                |   ✓   |   ✓   |   ✓    |     ✓     |
+| `audit.read`              |   ✓   |   ✓   |        |           |
+| `analytics.view`          |   ✓   |   ✓   |   ✓    |           |
+| `analytics.export`        |   ✓   |   ✓   |        |           |
+
+### Adding a new permission
+
+1. Add the constant to `libs/common/src/rbac/permissions.constants.ts`.
+2. Assign it to the appropriate roles in `libs/common/src/rbac/roles.constants.ts` (`ROLE_PERMISSIONS`).
+3. Guard the endpoint with `@RequirePermissions([PERMISSIONS.YOUR_NEW_PERMISSION])`.
+
+---
+
+## Audit trail
+
+The `@libs/audit` library writes immutable append-only audit events to the `audit_events` table. It satisfies ISO 27001:2022 A.8.15 and GDPR Art. 30.
+
+```typescript
+import { AuditService, AUDIT_EVENTS } from '@libs/audit';
+
+await this.auditService.log({
+  type: AUDIT_EVENTS.ORGANIZATION.CREATED,
+  severity: 'MEDIUM',
+  orgId: org.id,
+  userId: user.id,
+  payload: { name: org.name },
+});
+```
+
+All event type constants are in `libs/audit/src/lib/audit-event-types.constants.ts`, grouped by domain (`AUTH`, `USER`, `ORGANIZATION`, `MEMBERSHIP`, `GDPR`, `SECURITY`, `BILLING`, …).
+
+Audit records are **never updated or deleted** through the API. The `GET /organizations/:orgId/audit` endpoint is read-only and restricted to OWNER/ADMIN roles.
+
+---
+
+## Async jobs (Redis pub/sub)
+
+The API publishes events to Redis channels; workers subscribe and process them.
+
+```
+API  ──publish──▶  Redis channel  ──subscribe──▶  Worker
+```
+
+All channel names and payload interfaces are defined in `libs/common/src/events/redis-events.ts`.
+
+### Adding a new job type
+
+1. Add the channel constant and payload interface to `libs/common/src/events/redis-events.ts`.
+2. Publish from the API via `PubSubService.publish(REDIS_EVENTS.YOUR_EVENT, payload)`.
+3. Subscribe in the relevant worker.
+
+---
+
 ## Common Nx tasks
 
 ```sh
@@ -124,6 +236,9 @@ npx nx build api
 # Test
 npx nx test api
 npx nx run-many -t test
+
+# Test with coverage
+npx nx test api --coverage
 
 # Lint
 npx nx lint api
@@ -136,6 +251,28 @@ npx nx graph
 npx nx show project api
 ```
 
+### Swagger / OpenAPI
+
+When the API is running, the interactive docs are available at:
+
+```
+http://localhost:3000/docs
+```
+
+### Prisma Studio (database browser)
+
+```sh
+$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nx_nest"
+npx prisma studio
+```
+
+### Prisma migration (local development)
+
+```sh
+$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nx_nest"
+npx prisma migrate dev --name describe_your_change
+```
+
 ## Adding projects
 
 ```sh
@@ -145,6 +282,16 @@ npx nx g @nx/nest:app my-app
 # New shared library
 npx nx g @nx/node:lib my-lib
 ```
+
+### Adding a new shared library — checklist
+
+1. Generate: `npx nx g @nx/node:lib my-lib`
+2. Export the public API through `libs/my-lib/src/index.ts`
+3. Register the path alias in `tsconfig.base.json`:
+   ```json
+   "@libs/my-lib": ["libs/my-lib/src/index.ts"]
+   ```
+4. Write a `README.md` in `libs/my-lib/` documenting purpose, public API, and usage examples.
 
 ## CI
 
