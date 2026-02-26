@@ -106,5 +106,51 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique = jest.fn().mockResolvedValue(user);
       expect(await service.findUserById('u-1')).toBe(user);
     });
+
+    it('returns null when user is not found', async () => {
+      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(null);
+      expect(await service.findUserById('nonexistent')).toBeNull();
+    });
+  });
+
+  describe('syncUser — edge cases', () => {
+    it('propagates DB errors thrown by user.create', async () => {
+      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(null);
+      mockPrisma.user.create = jest
+        .fn()
+        .mockRejectedValue(new Error('Unique constraint failed'));
+
+      await expect(service.syncUser('auth0|new', 'new@b.com')).rejects.toThrow(
+        'Unique constraint failed',
+      );
+    });
+
+    it('propagates DB errors thrown by user.findUnique', async () => {
+      mockPrisma.user.findUnique = jest
+        .fn()
+        .mockRejectedValue(new Error('Connection refused'));
+
+      await expect(service.syncUser('auth0|1', 'a@b.com')).rejects.toThrow(
+        'Connection refused',
+      );
+    });
+
+    it('propagates DB errors thrown by user.update', async () => {
+      const existing = {
+        id: 'u-1',
+        auth0Id: 'auth0|1',
+        email: 'old@b.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(existing);
+      mockPrisma.user.update = jest
+        .fn()
+        .mockRejectedValue(new Error('Update failed'));
+
+      await expect(service.syncUser('auth0|1', 'new@b.com')).rejects.toThrow(
+        'Update failed',
+      );
+    });
   });
 });

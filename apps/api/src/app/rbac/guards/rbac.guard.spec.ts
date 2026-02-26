@@ -146,6 +146,55 @@ describe('RBACGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
+  it('throws ForbiddenException when membership is missing from request', async () => {
+    mockReflector.getAllAndOverride = jest
+      .fn()
+      .mockReturnValueOnce({ permissions: [PERMISSIONS.ORG_READ], mode: 'ANY' })
+      .mockReturnValueOnce(undefined);
+
+    const ctx = makeContext({
+      user: { dbUserId: 'u-1' },
+      orgId: 'org-1',
+      membership: undefined,
+    });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('throws ForbiddenException when membership status is INACTIVE', async () => {
+    mockReflector.getAllAndOverride = jest
+      .fn()
+      .mockReturnValueOnce({ permissions: [PERMISSIONS.ORG_READ], mode: 'ANY' })
+      .mockReturnValueOnce(undefined);
+
+    const ctx = makeContext({
+      user: { dbUserId: 'u-1' },
+      orgId: 'org-1',
+      membership: { id: 'm-1', role: 'ADMIN', status: 'INACTIVE' },
+    });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('mode ALL grants access when all permissions are present', async () => {
+    mockReflector.getAllAndOverride = jest
+      .fn()
+      .mockReturnValueOnce({
+        permissions: [PERMISSIONS.ORG_READ, PERMISSIONS.ORG_MANAGE],
+        mode: 'ALL',
+      })
+      .mockReturnValueOnce(undefined);
+    mockPermissionResolver.resolvePermissions = jest
+      .fn()
+      .mockResolvedValue([PERMISSIONS.ORG_READ, PERMISSIONS.ORG_MANAGE]);
+
+    const ctx = makeContext({
+      user: { dbUserId: 'u-1' },
+      orgId: 'org-1',
+      membership: { id: 'm-1', role: 'OWNER', status: 'ACTIVE' },
+      tenantContext: { tenantId: 'org-1', timestamp: new Date() },
+    });
+    expect(await guard.canActivate(ctx)).toBe(true);
+  });
+
   it('enriches tenantContext.permissions after successful check', async () => {
     const perms = [PERMISSIONS.ORG_READ, PERMISSIONS.ORG_MANAGE];
     mockReflector.getAllAndOverride = jest

@@ -90,6 +90,12 @@ describe('OrganizationsService', () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toBe(baseOrg);
     });
+
+    it('returns an empty array when user has no memberships', async () => {
+      mockPrisma.membership.findMany = jest.fn().mockResolvedValue([]);
+      const result = await service.findByUserId('u-no-orgs');
+      expect(result).toEqual([]);
+    });
   });
 
   describe('updateOrganization', () => {
