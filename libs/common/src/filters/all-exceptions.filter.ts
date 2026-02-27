@@ -16,9 +16,23 @@ import { Request, Response } from 'express';
  *   statusCode, timestamp, path, method, message
  * }
  *
+ * Log severity:
+ *   - 5xx  → ERROR (with full stack trace)
+ *   - 404 on browser-generated asset paths (favicon, robots.txt) → silently ignored
+ *   - other 4xx → WARN (no stack, expected client errors)
+ *
  * Register globally in main.ts:
  *   app.useGlobalFilters(new AllExceptionsFilter());
  */
+
+/** Paths that browsers request automatically — log noise, never an actionable server error. */
+const SILENT_PATHS = new Set([
+  '/favicon.ico',
+  '/favicon.png',
+  '/robots.txt',
+  '/apple-touch-icon.png',
+]);
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -43,10 +57,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? rawMessage
         : ((rawMessage as Record<string, unknown>).message ?? rawMessage);
 
-    this.logger.error(
-      `${request.method} ${request.url} → ${status}`,
-      exception instanceof Error ? exception.stack : String(exception),
-    );
+    const label = `${request.method} ${request.url} → ${status}`;
+
+    if (status >= 500) {
+      this.logger.error(
+        label,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+    } else if (!SILENT_PATHS.has(request.url)) {
+      this.logger.warn(label);
+    }
 
     response.status(status).json({
       statusCode: status,

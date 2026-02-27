@@ -69,4 +69,25 @@ describe('AllExceptionsFilter', () => {
     filter.catch('raw string error', host);
     expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
   });
+
+  it('does not log WARN for silent browser paths (favicon)', () => {
+    const { host } = makeHost('GET', '/favicon.ico');
+    const warnSpy = jest
+      .spyOn(filter['logger'], 'warn')
+      .mockImplementation(() => undefined);
+    filter.catch(new HttpException('Not Found', HttpStatus.NOT_FOUND), host);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('logs ERROR with stack for 5xx exceptions', () => {
+    const { host } = makeHost('GET', '/crash');
+    const errorSpy = jest
+      .spyOn(filter['logger'], 'error')
+      .mockImplementation(() => undefined);
+    filter.catch(new Error('boom'), host);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('500'),
+      expect.stringContaining('boom'),
+    );
+  });
 });
