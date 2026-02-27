@@ -40,7 +40,7 @@ export class TasksController {
   @ApiOperation({
     summary: 'Submit a heavy computation job',
     description:
-      'Creates a heavy computation job and publishes the event to Redis for async processing.',
+      'Creates a heavy computation job and publishes a domain event to SQS for async processing by the worker fleet.',
   })
   @ApiResponse({
     status: HttpStatus.ACCEPTED,

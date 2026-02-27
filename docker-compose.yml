@@ -35,6 +35,26 @@ services:
       timeout: 5s
       retries: 10
 
+  # ─── LocalStack (SQS) ──────────────────────────────────────────────────────────
+  localstack:
+    image: localstack/localstack:3
+    restart: unless-stopped
+    ports:
+      - '4566:4566'
+    environment:
+      SERVICES: sqs
+      DEFAULT_REGION: us-east-1
+      PERSISTENCE: 0
+    volumes:
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/01-sqs.sh:ro
+      - localstack_data:/var/lib/localstack
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
   # ─── Prisma Migrate ──────────────────────────────────────────────────────────
   migrate:
     build:
@@ -64,10 +84,20 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # --- SQS via LocalStack ---
+      EVENT_BUS_TRANSPORT: sqs
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_ENDPOINT_URL: http://localstack:4566
+      SQS_STANDARD_QUEUE_URL: http://localstack:4566/000000000000/nx-nest-heavy-jobs
+      SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/nx-nest-billing-events.fifo
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
 
   # ─── Worker A ────────────────────────────────────────────────────────────────
@@ -83,12 +113,23 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # --- SQS via LocalStack ---
+      EVENT_BUS_TRANSPORT: sqs
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_ENDPOINT_URL: http://localstack:4566
+      SQS_STANDARD_QUEUE_URL: http://localstack:4566/000000000000/nx-nest-heavy-jobs
+      SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/nx-nest-billing-events.fifo
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      localstack:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   redis_data:
+  localstack_data:
