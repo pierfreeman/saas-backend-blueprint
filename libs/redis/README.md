@@ -50,8 +50,8 @@ await this.cache.set('my:key', payload, 300); // expires in 5 min
 // Delete
 await this.cache.del('my:key');
 
-// Flush entire cache DB (use with caution in production)
-await this.cache.flush();
+// Flush entire cache DB — throws in production (use with caution)
+await this.cache.flushdb();
 
 // Access the raw ioredis client for advanced operations
 const client = this.cache.getClient();

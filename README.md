@@ -8,12 +8,13 @@ An [Nx](https://nx.dev) monorepo with NestJS applications backed by PostgreSQL (
 apps/
   api          — HTTP API (NestJS, port 3000)
   api-e2e      — End-to-end tests for the API
-  worker-a     — Background worker (subscribes to Redis events)
+  worker-a     — Background worker (polls SQS Standard queue, processes heavy jobs)
   worker-a-e2e — End-to-end tests for worker-a
 libs/
   audit        — Audit trail service, event-type constants, ISO 27001 / GDPR types
-  common       — Shared utilities: RBAC constants, tenant context, exception filter, Redis event types
+  common       — Shared utilities: RBAC constants, tenant context, exception filter
   config       — NestJS ConfigModule wrappers (app, auth, database, redis)
+  events       — EventBusService facade (LocalTransport / SQS), DomainEvent types, DOMAIN_EVENTS constants
   prisma       — PrismaService singleton (extends PrismaClient), PrismaModule
   redis        — CacheService (key/value, DB 1) and PubSubService (pub/sub, DB 0)
 prisma/
@@ -27,10 +28,10 @@ prisma/
 | ---------- | ---------------------------------------- | ------------ |
 | PostgreSQL | `postgres:17-alpine`                     | `5432`       |
 | Redis      | `redis:7-alpine`                         | `6379`       |
+| LocalStack | `localstack/localstack:3`                | `4566`       |
 | Migrate    | built from `apps/api/Dockerfile.migrate` | —            |
 | API        | built from `apps/api/Dockerfile`         | `3000`       |
 | Worker A   | built from `apps/worker-a/Dockerfile`    | —            |
-| Worker B   | built from `apps/worker-b/Dockerfile`    | —            |
 
 Migrations run as a one-shot service before the API starts. The migrate image is built independently from the API image — schema changes only rebuild the migrator, and app code changes only rebuild the API.
 
@@ -85,6 +86,10 @@ cp .env.example .env
 | `POSTGRES_PORT`     | `5432`        | Host port mapped to Postgres (Docker Compose) |
 | `REDIS_PORT`        | `6379`        | Host port mapped to Redis (Docker Compose)    |
 | `API_PORT`          | `3000`        | Host port mapped to the API (Docker Compose)  |
+| `EVENT_BUS_TRANSPORT` | `local`     | Event transport: `local` (EventEmitter) or `sqs` |
+| `SQS_STANDARD_QUEUE_URL` | —        | SQS Standard queue URL (required when `sqs`)  |
+| `SQS_FIFO_QUEUE_URL`    | —         | SQS FIFO queue URL, must end in `.fifo` (required when `sqs`) |
+| `SQS_ENDPOINT_URL`      | —         | LocalStack endpoint, e.g. `http://localhost:4566` (dev/CI only) |
 
 ### 4. Run database migrations
 
@@ -100,7 +105,6 @@ npx nx serve api
 
 # Workers
 npx nx serve worker-a
-npx nx serve worker-b
 ```
 
 ## Docker (full stack)
@@ -112,7 +116,7 @@ docker compose up --build
 This starts Postgres, Redis, runs migrations (`apps/api/Dockerfile.migrate`), then starts the API and both workers.
 Migrations, API, and workers are built from **separate Dockerfiles**, so changing app code does not rebuild the migrator image.
 
-Workers (`worker-a`) are Redis microservices — they subscribe to `heavy.job.created` events and process them asynchronously. They expose no HTTP port.
+Workers (`worker-a`) poll the **SQS Standard queue** for `heavy.job.created` events and process them asynchronously. They expose no HTTP port. In local mode (`EVENT_BUS_TRANSPORT=local`) the in-process EventEmitter is used instead and no SQS infrastructure is required.
 
 > **Daily workflow tip** — when the Prisma schema has not changed, skip the migrate service entirely:
 >

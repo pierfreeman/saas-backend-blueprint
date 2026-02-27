@@ -176,22 +176,23 @@ Add new event names here instead of defining inline strings.
 To run SQS locally without hitting AWS, start LocalStack and point the
 transport at it:
 
-```yaml
-# docker-compose.yml (excerpt)
-localstack:
-  image: localstack/localstack
-  ports:
-    - '4566:4566'
-  environment:
-    SERVICES: sqs
+The `docker-compose.yml` already includes a LocalStack service and `scripts/localstack-init.sh` automatically creates both queues on startup.
+
+To start SQS locally:
+
+```sh
+docker compose up -d localstack
 ```
+
+Then set in `.env`:
 
 ```env
 EVENT_BUS_TRANSPORT=sqs
-AWS_REGION=eu-west-1
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
 SQS_ENDPOINT_URL=http://localhost:4566
-SQS_STANDARD_QUEUE_URL=http://localhost:4566/000000000000/standard-events
-SQS_FIFO_QUEUE_URL=http://localhost:4566/000000000000/fifo-events.fifo
+SQS_STANDARD_QUEUE_URL=http://localhost:4566/000000000000/nx-nest-heavy-jobs
+SQS_FIFO_QUEUE_URL=http://localhost:4566/000000000000/nx-nest-billing-events.fifo
 ```
 
 For unit tests, leave `EVENT_BUS_TRANSPORT` unset (defaults to `local`) — no
