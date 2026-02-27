@@ -1,59 +1,67 @@
-import { Controller, Logger } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
-import { REDIS_EVENTS, HeavyJobCreatedEvent } from '@libs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { DomainEvent } from '@libs/events';
 
 /**
- * Worker Controller
- * Handles incoming events from Redis
+ * Job payload carried inside DomainEvent.payload for HEAVY_JOB_CREATED events.
+ * Extends Record<string, unknown> to satisfy the DomainEvent<T> generic constraint.
  */
-@Controller()
+export interface HeavyJobPayload extends Record<string, unknown> {
+  jobId: string;
+  tenantId: string;
+  data: Record<string, unknown>;
+}
+
+/**
+ * WorkerController
+ * Processes heavy computation jobs delivered via SQS.
+ * Called by SqsConsumerService after it deserialises the DomainEvent from
+ * the message body. Kept as @Injectable (not @Controller) so it can also be
+ * instantiated directly in unit tests without the NestJS HTTP adapter.
+ *
+ * TODO: Replace simulateComputation() with real business logic.
+ * TODO: Persist results to the database or publish a HEAVY_JOB_COMPLETED event.
+ */
+@Injectable()
 export class WorkerController {
   private readonly logger = new Logger(WorkerController.name);
 
   /**
-   * Subscribe to heavy.job.created event
-   * Process the payload and handle long-running computation
+   * Handles a HEAVY_JOB_CREATED domain event.
+   * Errors are caught and logged — the caller (SqsConsumerService) decides
+   * whether to delete the message or leave it for the DLQ.
    *
-   * TODO: Add actual computation logic, error handling, result persistence
+   * @throws when the underlying computation throws an unrecoverable error
    */
-  @MessagePattern(REDIS_EVENTS.HEAVY_JOB_CREATED)
-  async handleHeavyJobCreated(@Payload() payload: HeavyJobCreatedEvent) {
+  async handleHeavyJobCreated(
+    event: DomainEvent<HeavyJobPayload>,
+  ): Promise<void> {
+    const { jobId, tenantId } = event.payload;
+
     this.logger.log(
-      `[Worker-Compute-A] Received job: ${payload.jobId} from tenant: ${payload.tenantId}`,
+      `[Worker-Compute-A] Received job: ${jobId} from tenant: ${tenantId}`,
     );
-    this.logger.debug(`Job payload:`, payload);
+    this.logger.debug('Job event:', event);
 
     try {
       // TODO: Implement actual heavy computation here
-      // This is a placeholder where long-running operations would happen
-      this.logger.log(`[Worker-Compute-A] Processing job ${payload.jobId}...`);
+      this.logger.log(`[Worker-Compute-A] Processing job ${jobId}...`);
 
-      // Simulate some computation
       await this.simulateComputation();
 
-      this.logger.log(
-        `[Worker-Compute-A] Job ${payload.jobId} completed successfully`,
-      );
-
-      // TODO: Publish result back via another Redis event or store in database
+      this.logger.log(`[Worker-Compute-A] Job ${jobId} completed successfully`);
     } catch (error) {
       this.logger.error(
-        `[Worker-Compute-A] Error processing job ${payload.jobId}:`,
+        `[Worker-Compute-A] Error processing job ${jobId}:`,
         error,
       );
-      // TODO: Implement error handling (retry, dead letter queue, etc.)
+      throw error; // re-throw so SqsConsumerService can handle DLQ logic
     }
   }
 
-  /**
-   * Placeholder for computation logic
-   */
+  /** Placeholder — replace with real computation logic. */
   private async simulateComputation(): Promise<void> {
-    // Simulate work
     return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, Math.random() * 2000); // Random delay up to 2 seconds
+      setTimeout(resolve, Math.random() * 2000); // random delay up to 2 s
     });
   }
 }

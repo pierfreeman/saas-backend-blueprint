@@ -2,12 +2,18 @@
 
 Shared Redis library exposing two independent services:
 
-| Service         | Purpose                                               | Redis DB |
-| --------------- | ----------------------------------------------------- | -------- |
-| `CacheService`  | Key/value cache with TTL support                      | `1`      |
-| `PubSubService` | Event publishing for async microservice communication | `0`      |
+| Service         | Purpose                                            | Redis DB |
+| --------------- | -------------------------------------------------- | -------- |
+| `CacheService`  | Key/value cache with TTL support                   | `1`      |
+| `PubSubService` | Real-time pub/sub for WebSocket broadcast channels | `0`      |
 
-Both services manage their own `ioredis` connection and implement graceful shutdown via `OnModuleDestroy`.
+Both services manage their own `ioredis` connection and implement graceful
+shutdown via `OnModuleDestroy`.
+
+> **Domain event delivery (API → workers) is handled by `@libs/events` (SQS),
+> not by Redis.** `PubSubService` is reserved for real-time channels such as
+> WebSocket room broadcasts where low-latency fan-out is required and
+> durability is not.
 
 ---
 
@@ -22,15 +28,14 @@ import { RedisModule } from '@libs/redis';
 export class FeatureModule {}
 ```
 
-`RedisModule` exports both `CacheService` and `PubSubService` and is not global — import it in every module that needs it.
+`RedisModule` exports both `CacheService` and `PubSubService` and is **not**
+global — import it in every module that needs it.
 
 ---
 
 ## CacheService
 
-Key/value store backed by Redis DB `1` (separate from the Pub/Sub DB).
-
-### API
+Key/value store backed by Redis DB `1` (separate from the pub/sub DB).
 
 ```typescript
 // Inject
@@ -45,7 +50,7 @@ await this.cache.set('my:key', payload, 300); // expires in 5 min
 // Delete
 await this.cache.del('my:key');
 
-// Flush entire cache DB (use with caution)
+// Flush entire cache DB (use with caution in production)
 await this.cache.flush();
 
 // Access the raw ioredis client for advanced operations
@@ -58,48 +63,27 @@ const client = this.cache.getClient();
 
 ## PubSubService
 
-Thin wrapper used to publish Redis channel messages. Workers subscribe on the same channel name.
-
-### Publish an event (API side)
-
-```typescript
-import { PubSubService } from '@libs/redis';
-import { REDIS_EVENTS, HeavyJobCreatedEvent } from '@libs/common';
-
-// ...
-const event: HeavyJobCreatedEvent = {
-  jobId: 'uuid',
-  tenantId: 'tenant-uuid',
-  payload: { ... },
-  createdAt: new Date(),
-};
-await this.pubSub.publish(REDIS_EVENTS.HEAVY_JOB_CREATED, event);
-```
-
-### Subscribe (worker side)
-
-Workers use the raw ioredis instance to subscribe (see `apps/worker-a/src`):
+Thin wrapper around an ioredis connection on DB `0`. Intended for **real-time
+push channels** — e.g. broadcasting to WebSocket rooms via a Socket.IO Redis
+adapter, or pushing live notifications to connected clients.
 
 ```typescript
+// Inject
+constructor(private readonly pubSub: PubSubService) {}
+
+// Publish a message to a named channel
+await this.pubSub.publish('notifications:org-1', { type: 'alert', body: '...' });
+
+// Access the raw ioredis instance when the adapter needs it directly
+// (e.g. socket.io-redis createAdapter)
 const redis = this.pubSub.getRedis();
-await redis.subscribe(REDIS_EVENTS.HEAVY_JOB_CREATED);
-redis.on('message', (channel, message) => {
-  const event: HeavyJobCreatedEvent = JSON.parse(message);
-  // handle...
-});
 ```
 
-### Registered event channels
+### What PubSubService is NOT for
 
-All channel names are defined as constants in `@libs/common`:
-
-```typescript
-import { REDIS_EVENTS } from '@libs/common';
-
-// REDIS_EVENTS.HEAVY_JOB_CREATED  →  'heavy.job.created'
-```
-
-When adding a new channel, add it to `libs/common/src/events/redis-events.ts` together with its payload interface.
+`PubSubService` does **not** replace a message queue. It provides no
+durability, no retry, and no dead-letter handling. For asynchronous job
+dispatch between the API and workers use `EventBusService` from `@libs/events`.
 
 ---
 

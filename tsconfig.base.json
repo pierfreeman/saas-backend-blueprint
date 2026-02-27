@@ -47,6 +47,12 @@
       ],
       "@libs/audit/*": [
         "libs/audit/src/*"
+      ],
+      "@libs/events": [
+        "libs/events/src/index.ts"
+      ],
+      "@libs/events/*": [
+        "libs/events/src/*"
       ]
     }
   },

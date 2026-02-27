@@ -18,6 +18,3 @@ export * from './tenant/tenant.module';
 
 // Filters
 export * from './filters/all-exceptions.filter';
-
-// Events
-export * from './events/redis-events';

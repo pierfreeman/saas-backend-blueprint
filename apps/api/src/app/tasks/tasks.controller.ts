@@ -32,7 +32,7 @@ export class TasksController {
 
   /**
    * POST /tasks/heavy-job
-   * Creates a heavy computation job and publishes event to Redis
+   * Creates a heavy computation job and publishes the event to SQS for async processing.
    */
   @UseGuards(JwtAuthGuard)
   @Post('heavy-job')

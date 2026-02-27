@@ -2,6 +2,7 @@ import { PrismaModule } from '@libs/prisma';
 import { RedisModule } from '@libs/redis';
 import { ConfigModule } from '@libs/config';
 import { AuditModule } from '@libs/audit';
+import { EventsModule } from '@libs/events';
 import {
   MiddlewareConsumer,
   Module,
@@ -24,6 +25,7 @@ import { TenantMiddleware } from '@libs/common';
     ConfigModule,
     PrismaModule,
     RedisModule,
+    EventsModule,
     AuditModule,
     AuthModule,
     OrganizationsModule,

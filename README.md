@@ -209,21 +209,22 @@ Audit records are **never updated or deleted** through the API. The `GET /organi
 
 ---
 
-## Async jobs (Redis pub/sub)
+## Async jobs (SQS)
 
-The API publishes events to Redis channels; workers subscribe and process them.
+The API publishes domain events to SQS; workers poll and process them.
 
 ```
-API  ──publish──▶  Redis channel  ──subscribe──▶  Worker
+API  ──publish──▶  SQS queue  ──poll──▶  Worker
 ```
 
-All channel names and payload interfaces are defined in `libs/common/src/events/redis-events.ts`.
+Event names and payload interfaces are defined in `libs/events/src/constants/event-routing.constants.ts`.
+See [libs/events/README.md](libs/events/README.md) for the full reference.
 
 ### Adding a new job type
 
-1. Add the channel constant and payload interface to `libs/common/src/events/redis-events.ts`.
-2. Publish from the API via `PubSubService.publish(REDIS_EVENTS.YOUR_EVENT, payload)`.
-3. Subscribe in the relevant worker.
+1. Add the new constant to `DOMAIN_EVENTS` in `libs/events/src/constants/event-routing.constants.ts`.
+2. Publish from the API via `EventBusService.publish({ eventType: DOMAIN_EVENTS.YOUR_EVENT, payload, tenantId })`.
+3. Handle in the relevant worker's `SqsConsumerService.dispatch()` switch.
 
 ---
 

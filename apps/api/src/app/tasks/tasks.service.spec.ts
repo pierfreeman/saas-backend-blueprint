@@ -1,11 +1,10 @@
 import { TasksService } from './tasks.service';
-import { PubSubService } from '@libs/redis';
-import { REDIS_EVENTS } from '@libs/common';
+import { EventBusService } from '@libs/events';
 import { CreateTaskDto } from './dto/create-task.dto';
 
-const mockPubSub = {
+const mockEventBus = {
   publish: jest.fn(),
-} as unknown as PubSubService;
+} as unknown as EventBusService;
 
 const validDto: CreateTaskDto = { name: 'test-job', data: { key: 'value' } };
 
@@ -14,43 +13,49 @@ describe('TasksService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new TasksService(mockPubSub);
+    service = new TasksService(mockEventBus);
   });
 
   describe('createHeavyJob', () => {
-    it('publishes a HeavyJobCreatedEvent to Redis and returns a jobId', async () => {
-      mockPubSub.publish = jest.fn().mockResolvedValue(undefined);
+    it('publishes a HEAVY_JOB_CREATED event and returns a jobId', async () => {
+      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
 
       const result = await service.createHeavyJob('org-1', validDto);
 
-      expect(result.jobId).toMatch(/^job_\d+_[a-z0-9]+$/);
-      expect(mockPubSub.publish).toHaveBeenCalledTimes(1);
-      expect(mockPubSub.publish).toHaveBeenCalledWith(
-        REDIS_EVENTS.HEAVY_JOB_CREATED,
+      expect(result.jobId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+      expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
         expect.objectContaining({
+          eventType: 'heavy.job.created',
           tenantId: 'org-1',
-          payload: validDto,
-          jobId: result.jobId,
+          payload: expect.objectContaining({
+            jobId: result.jobId,
+            data: validDto,
+          }),
         }),
       );
     });
 
-    it('includes createdAt timestamp in the event', async () => {
-      mockPubSub.publish = jest.fn().mockResolvedValue(undefined);
+    it('includes a valid Date timestamp in the event', async () => {
+      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
       await service.createHeavyJob('org-2', { name: 'job-2' });
-      const event = (mockPubSub.publish as jest.Mock).mock.calls[0][1];
-      expect(event.createdAt).toBeInstanceOf(Date);
+      const event = (mockEventBus.publish as jest.Mock).mock.calls[0][0];
+      expect(event.timestamp).toBeInstanceOf(Date);
     });
 
-    it('rethrows when publish fails', async () => {
-      mockPubSub.publish = jest.fn().mockRejectedValue(new Error('Redis down'));
+    it('re-throws when publish fails', async () => {
+      mockEventBus.publish = jest
+        .fn()
+        .mockRejectedValue(new Error('SQS unavailable'));
       await expect(
         service.createHeavyJob('org-1', { name: 'j' }),
-      ).rejects.toThrow('Redis down');
+      ).rejects.toThrow('SQS unavailable');
     });
 
-    it('generates a unique jobId per invocation', async () => {
-      mockPubSub.publish = jest.fn().mockResolvedValue(undefined);
+    it('generates a unique UUID jobId per invocation', async () => {
+      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
       const r1 = await service.createHeavyJob('org-1', { name: 'j1' });
       const r2 = await service.createHeavyJob('org-1', { name: 'j2' });
       expect(r1.jobId).not.toBe(r2.jobId);

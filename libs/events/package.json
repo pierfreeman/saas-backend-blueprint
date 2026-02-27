@@ -1,0 +1,13 @@
+{
+  "name": "@nx-nest/events",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "@aws-sdk/client-sqs": "*",
+    "eventemitter2": "^6.4.9"
+  }
+}

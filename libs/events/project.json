@@ -1,0 +1,28 @@
+{
+  "name": "events",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/events/src",
+  "projectType": "library",
+  "tags": ["scope:lib", "type:events"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/events",
+        "tsConfig": "libs/events/tsconfig.lib.json",
+        "packageJson": "libs/events/package.json",
+        "main": "libs/events/src/index.ts",
+        "assets": ["libs/events/*.md"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/events"],
+      "options": {
+        "jestConfig": "libs/events/jest.config.cts",
+        "passWithNoTests": true
+      }
+    }
+  }
+}

@@ -1,30 +1,20 @@
 import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const logger = new Logger('Worker-Compute-A');
 
-  // Note: transport options are evaluated before the DI container initialises
-  // ConfigModule, so process.env is the only option here. In all deployment
-  // environments (Docker, AWS) these vars are injected by the platform.
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.REDIS,
-      options: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
-      },
-    },
-  );
+  // Run as a standalone application context (no HTTP server, no Redis Transport).
+  // SQS long-polling is handled by SqsConsumerService which starts on module init.
+  // In all deployment environments (Docker, AWS ECS) env vars are injected by
+  // the platform; locally they are read from .env via ConfigModule.
+  const app = await NestFactory.createApplicationContext(AppModule);
 
-  // Ensure onModuleDestroy is called on SIGTERM/SIGINT (e.g. Docker stop, K8s)
+  // Ensure onModuleDestroy hooks fire on SIGTERM/SIGINT (Docker stop, K8s pod eviction).
   app.enableShutdownHooks();
 
-  await app.listen();
-  logger.log('Worker-Compute-A started and listening to Redis events');
+  logger.log('Worker-Compute-A started — polling SQS for events');
 }
 
 bootstrap().catch((error) => {

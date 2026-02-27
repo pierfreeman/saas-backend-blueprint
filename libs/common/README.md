@@ -20,8 +20,6 @@ Shared utilities and cross-cutting concerns used across all applications in this
 | `CurrentTenant`         | Parameter decorator to extract a field from the tenant context                       |
 | `TenantModule`          | NestJS module that wires up tenant middleware and service                            |
 | `AllExceptionsFilter`   | Global exception filter returning `{ statusCode, timestamp, path, method, message }` |
-| `REDIS_EVENTS`          | Redis channel name constants                                                         |
-| `HeavyJobCreatedEvent`  | Payload interface for the `heavy.job.created` channel                                |
 
 ---
 
@@ -97,15 +95,16 @@ NestJS `HttpException`s preserve their original `statusCode` and `message`.
 
 ---
 
-## Redis event constants
+## Domain events
+
+Event names and payload types are defined in `@libs/events` (not in `@libs/common`).
+See [libs/events/README.md](../events/README.md) for the full reference.
 
 ```typescript
-import { REDIS_EVENTS, HeavyJobCreatedEvent } from '@libs/common';
+import { DOMAIN_EVENTS, DomainEvent } from '@libs/events';
 
-// REDIS_EVENTS.HEAVY_JOB_CREATED  →  'heavy.job.created'
+// DOMAIN_EVENTS.HEAVY_JOB_CREATED  →  'heavy.job.created'
 ```
-
-When adding a new async job type, add the channel constant and its payload interface to `libs/common/src/events/redis-events.ts`.
 
 ---
 

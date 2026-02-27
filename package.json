@@ -31,6 +31,7 @@
   },
   "private": true,
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.999.0",
     "@nestjs/common": "^11.1.14",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.1.14",
@@ -43,6 +44,7 @@
     "axios": "^1.13.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
+    "eventemitter2": "^6.4.9",
     "ioredis": "^5.9.3",
     "joi": "^18.0.2",
     "jwks-rsa": "^3.2.2",
