@@ -1,60 +1,140 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
+
+/** Handler called when a message arrives on a subscribed channel. */
+export type PubSubHandler = (payload: unknown) => void;
+
+/**
+ * Handler called when a message matches a pSubscribe pattern.
+ * @param channel - the exact channel the message was published on
+ * @param payload - the parsed JSON payload
+ */
+export type PatternHandler = (channel: string, payload: unknown) => void;
 
 /**
  * Pub/Sub Service
- * Handles publishing and subscription of events via Redis
+ *
+ * Provides publishing and subscription of events via Redis.
+ *
+ * Two dedicated ioredis connections are maintained:
+ *   - `publisher`  — used exclusively for PUBLISH commands.
+ *   - `subscriber` — used exclusively for SUBSCRIBE / PSUBSCRIBE.
+ *
+ * Redis mandates that a connection in subscribe mode can only issue
+ * sub/unsub commands; mixing publish calls on the same connection
+ * causes protocol errors.  The two-connection pattern is the canonical
+ * solution (same approach used by ioredis documentation and BullMQ).
  */
 @Injectable()
-export class PubSubService {
+export class PubSubService implements OnModuleDestroy {
   private readonly logger = new Logger(PubSubService.name);
-  private redis: Redis;
+
+  private readonly publisher: Redis;
+  private readonly subscriber: Redis;
 
   constructor() {
-    this.redis = new Redis({
-      host: process.env['REDIS_HOST'] || 'localhost',
-      port: parseInt(process.env['REDIS_PORT'] || '6379'),
-      retryStrategy: (times: number) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
-      },
-    });
+    const opts = {
+      host: process.env['REDIS_HOST'] ?? 'localhost',
+      port: parseInt(process.env['REDIS_PORT'] ?? '6379', 10),
+      retryStrategy: (times: number) => Math.min(times * 50, 2000),
+    };
 
-    this.redis.on('connect', () => {
-      this.logger.log('Redis Pub/Sub connected');
-    });
+    this.publisher = new Redis(opts);
+    this.subscriber = new Redis(opts);
 
-    this.redis.on('error', (error) => {
-      this.logger.error('Redis Pub/Sub error:', error);
-    });
+    this.publisher.on('connect', () =>
+      this.logger.log('Redis publisher connected'),
+    );
+    this.publisher.on('error', (err) =>
+      this.logger.error('Redis publisher error', err),
+    );
+
+    this.subscriber.on('connect', () =>
+      this.logger.log('Redis subscriber connected'),
+    );
+    this.subscriber.on('error', (err) =>
+      this.logger.error('Redis subscriber error', err),
+    );
   }
 
+  // ── Publish ───────────────────────────────────────────────────────────────
+
   /**
-   * Publish message to Redis channel
+   * Serialise `payload` to JSON and publish it on `channel`.
+   * @throws when the Redis PUBLISH command fails.
    */
-  async publish(channel: string, payload: any): Promise<void> {
+  async publish(channel: string, payload: unknown): Promise<void> {
     try {
       const message = JSON.stringify(payload);
-      const result = await this.redis.publish(channel, message);
-      this.logger.debug(`Published to ${channel}, subscribers: ${result}`);
+      const receivers = await this.publisher.publish(channel, message);
+      this.logger.debug(
+        `Published to "${channel}" — ${receivers} subscriber(s)`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to publish to ${channel}:`, error);
+      this.logger.error(`Failed to publish to "${channel}":`, error);
       throw error;
     }
   }
 
+  // ── Subscribe ─────────────────────────────────────────────────────────────
+
   /**
-   * Get Redis instance for advanced use cases
+   * Subscribe to an exact Redis channel.
+   *
+   * `handler` is invoked with the parsed JSON payload for every incoming
+   * message on `channel`.  Multiple handlers may be registered for the
+   * same channel; each is called independently.
    */
-  getRedis(): Redis {
-    return this.redis;
+  subscribe(channel: string, handler: PubSubHandler): void {
+    void this.subscriber.subscribe(channel);
+
+    this.subscriber.on('message', (ch: string, raw: string) => {
+      if (ch !== channel) return;
+      try {
+        handler(JSON.parse(raw));
+      } catch {
+        this.logger.error(`Failed to parse message from channel "${ch}"`);
+      }
+    });
+
+    this.logger.log(`Subscribed to channel: "${channel}"`);
   }
 
   /**
-   * Graceful shutdown
+   * Subscribe to a Redis channel pattern (glob-style, e.g. `job:update:*`).
+   *
+   * `handler` is called with the exact matched channel name and the
+   * parsed JSON payload.  Multiple handlers may be registered for the
+   * same pattern.
    */
-  async onModuleDestroy() {
-    this.logger.log('Disconnecting Redis Pub/Sub...');
-    await this.redis.quit();
+  pSubscribe(pattern: string, handler: PatternHandler): void {
+    void this.subscriber.psubscribe(pattern);
+
+    this.subscriber.on('pmessage', (_pat: string, ch: string, raw: string) => {
+      try {
+        handler(ch, JSON.parse(raw));
+      } catch {
+        this.logger.error(`Failed to parse pmessage from channel "${ch}"`);
+      }
+    });
+
+    this.logger.log(`Pattern-subscribed to: "${pattern}"`);
+  }
+
+  // ── Utilities ─────────────────────────────────────────────────────────────
+
+  /**
+   * Expose the publisher connection for advanced use-cases
+   * (e.g. SET / GET operations that must not conflict with subscribe mode).
+   */
+  getRedis(): Redis {
+    return this.publisher;
+  }
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+  async onModuleDestroy(): Promise<void> {
+    this.logger.log('Disconnecting Redis Pub/Sub connections...');
+    await Promise.all([this.publisher.quit(), this.subscriber.quit()]);
   }
 }

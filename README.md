@@ -18,7 +18,7 @@ libs/
   prisma       — PrismaService singleton (extends PrismaClient), PrismaModule
   redis        — CacheService (key/value, DB 1) and PubSubService (pub/sub, DB 0)
 prisma/
-  schema.prisma  — Database schema (User, Organization, Membership, AuditEvent)
+  schema.prisma  — Database schema (User, Organization, Membership, AuditEvent, Job)
   migrations/    — Prisma migration history
 ```
 
@@ -213,22 +213,109 @@ Audit records are **never updated or deleted** through the API. The `GET /organi
 
 ---
 
-## Async jobs (SQS)
+## Async jobs (SQS + persistence)
 
-The API publishes domain events to SQS; workers poll and process them.
+The full lifecycle of a heavy job:
 
 ```
-API  ──publish──▶  SQS queue  ──poll──▶  Worker
+POST /tasks/heavy-job
+   │
+   ├─ prisma.job.create (status: PENDING)   ← immediately queryable
+   └─ EventBusService.publish → SQS queue
+                                    │
+                              Worker polls SQS
+                                    │
+                    ┌───────────────┴────────────────┐
+                    │                                │
+              job.update(PROCESSING)          job.update(DONE|FAILED)
+              pubSub.publish(job:update:*)    pubSub.publish(job:update:*)
+                    │                                │
+              JobsGateway                     JobsGateway
+         (pattern-subscribes Redis)      emits "job:update" to socket rooms
+                    │
+              WebSocket clients
 ```
 
-Event names and payload interfaces are defined in `libs/events/src/constants/event-routing.constants.ts`.
-See [libs/events/README.md](libs/events/README.md) for the full reference.
+### Job state machine
+
+```
+PENDING → PROCESSING → DONE
+                     ↘ FAILED
+```
+
+Each transition writes to the `jobs` table **and** publishes a `JobUpdateMessage`
+to the Redis channel `job:update:{tenantId}`, which the `JobsGateway` fans out
+to connected WebSocket clients.
+
+### REST endpoints
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/tasks/heavy-job` | Create and enqueue a job; returns `{ jobId }` |
+| `GET`  | `/tasks/:jobId`    | Poll current job status (for non-WS clients)   |
 
 ### Adding a new job type
 
 1. Add the new constant to `DOMAIN_EVENTS` in `libs/events/src/constants/event-routing.constants.ts`.
-2. Publish from the API via `EventBusService.publish({ eventType: DOMAIN_EVENTS.YOUR_EVENT, payload, tenantId })`.
-3. Handle in the relevant worker's `SqsConsumerService.dispatch()` switch.
+2. Create a PENDING row in `jobs` before publishing (see `TasksService.createHeavyJob`).
+3. Publish from the API via `EventBusService.publish({ eventType: DOMAIN_EVENTS.YOUR_EVENT, payload, tenantId })`.
+4. Handle in the relevant worker's `SqsConsumerService.dispatch()` switch.
+5. In the worker handler, update the job row and publish a `JobUpdateMessage` to Redis.
+
+Event names and payload interfaces are defined in `libs/events/src/constants/event-routing.constants.ts`.
+See [libs/events/README.md](libs/events/README.md) for the full reference.
+
+---
+
+## Real-time notifications (WebSocket)
+
+The API exposes a Socket.IO server for real-time job status updates.
+
+### Connection
+
+```
+wss://your-api/jobs
+```
+
+Pass the Auth0 JWT in one of three ways (checked in order):
+
+```javascript
+// 1. Socket.IO auth option (recommended)
+const socket = io('http://localhost:3000/jobs', {
+  auth: { token: 'Bearer <jwt>' },
+});
+
+// 2. Query parameter
+const socket = io('http://localhost:3000/jobs?token=Bearer%20<jwt>');
+
+// 3. Authorization header (not available in browsers)
+```
+
+### Rooms
+
+On successful connection the gateway automatically joins the client to:
+
+| Room | Receives |
+| ---- | -------- |
+| `user:{userId}` | Updates for jobs submitted by that user |
+| `tenant:{tenantId}` | All job updates within the organisation |
+
+### Emitted events
+
+| Event | Payload | Description |
+| ----- | ------- | ----------- |
+| `job:update` | `JobUpdateMessage` | Fired on every job state transition |
+
+```typescript
+import { JobUpdateMessage } from '@libs/events';
+
+socket.on('job:update', (msg: JobUpdateMessage) => {
+  console.log(msg.jobId, msg.status); // 'PROCESSING' | 'DONE' | 'FAILED'
+});
+```
+
+See `libs/events/src/interfaces/job-update-message.interface.ts` for the full
+`JobUpdateMessage` type.
 
 ---
 

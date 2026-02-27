@@ -15,6 +15,19 @@ datasource db {
 // ENUMS
 // ============================================================================
 
+/// Lifecycle status of an asynchronous background job.
+/// Transitions: PENDING → PROCESSING → DONE | FAILED
+enum JobStatus {
+  /// Job has been accepted and enqueued, waiting for a worker to pick it up.
+  PENDING
+  /// A worker has dequeued the job and is actively executing it.
+  PROCESSING
+  /// The worker completed execution successfully. Result is stored in `result`.
+  DONE
+  /// The worker encountered an unrecoverable error. Details are in `error`.
+  FAILED
+}
+
 /// Lifecycle status of an Organization.
 enum OrganizationStatus {
   /// Organization is fully operational and can be accessed by all its members.
@@ -223,4 +236,56 @@ model AuditEvent {
   /// Global time-range queries without org/user filter (admin-level audit views).
   @@index([createdAt(sort: Desc)])
   @@map("audit_events")
+}
+
+// ============================================================================
+// JOB MODEL
+// Tracks the full lifecycle of an asynchronous background job.
+// Created by the API as PENDING when the event is enqueued; updated by the
+// worker to PROCESSING → DONE | FAILED.  Queryable via GET /tasks/:jobId.
+// ============================================================================
+
+model Job {
+  /// Internal UUID – primary key. Matches the jobId propagated on SQS.
+  id         String    @id @default(uuid()) @db.Uuid
+  /// FK → Organization (tenant). Links the job to a billing/RBAC boundary.
+  /// Stored as a plain string (no relation) to avoid cascade complexity;
+  /// jobs must survive org deletion for billing audit purposes.
+  orgId      String    @map("org_id")
+  /// Auth0 subject of the user who submitted the job. Null for system-initiated jobs.
+  userId     String?   @map("user_id")
+  /// Discriminator for the job handler (e.g. 'heavy_job').
+  /// Allows future fan-out to multiple worker types without schema changes.
+  type       String    @default("heavy_job")
+  /// Current lifecycle status. Defaults to PENDING on creation.
+  status     JobStatus @default(PENDING)
+  /// Original request payload forwarded verbatim from the API to the worker.
+  /// Must NOT contain raw secrets; callers are responsible for sanitisation.
+  payload    Json      @default("{}")
+  /// Structured output produced by the worker on successful completion.
+  result     Json?
+  /// Human-readable error message when status = FAILED.
+  error      String?
+  /// Number of times a worker has attempted this job (incremented on PROCESSING).
+  /// Useful for detecting jobs that fail repeatedly before hitting the DLQ.
+  attempts   Int       @default(0)
+  /// Timestamp when the first PROCESSING transition occurred.
+  startedAt  DateTime? @map("started_at")
+  /// Timestamp when the job reached a terminal state (DONE or FAILED).
+  finishedAt DateTime? @map("finished_at")
+  /// Timestamp of record creation (= time the job was accepted by the API).
+  createdAt  DateTime  @default(now()) @map("created_at")
+  /// Timestamp of the last status update.
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Primary tenant query: "list all jobs for tenant X, newest first".
+  @@index([orgId, createdAt(sort: Desc)])
+  /// Status-filtered tenant query: "show me all FAILED jobs for tenant X".
+  @@index([orgId, status])
+  /// User activity timeline: "show me all jobs submitted by user Y".
+  @@index([userId, createdAt(sort: Desc)])
+  /// Admin/ops query: global status sweep (e.g. stuck PROCESSING jobs).
+  @@index([status, createdAt(sort: Desc)])
+  @@map("jobs")
 }

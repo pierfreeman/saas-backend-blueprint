@@ -54,20 +54,38 @@ export class AppModule {}
 
 ```typescript
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
+import { PrismaService } from '@libs/prisma';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly eventBus: EventBusService) {}
+  constructor(
+    private readonly eventBus: EventBusService,
+    private readonly prisma: PrismaService,
+  ) {}
 
-  async createHeavyJob(tenantId: string, dto: CreateTaskDto) {
+  async createHeavyJob(tenantId: string, dto: CreateTaskDto, userId?: string) {
     const jobId = randomUUID();
 
-    await this.eventBus.publish({
-      eventType: DOMAIN_EVENTS.HEAVY_JOB_CREATED, // → SQS Standard
-      timestamp: new Date(),
-      payload: { jobId, tenantId, data: dto },
-      tenantId,
+    // 1. Persist PENDING record so the job is immediately queryable via REST
+    await this.prisma.job.create({
+      data: { id: jobId, orgId: tenantId, userId, type: 'heavy_job',
+              status: 'PENDING', payload: dto as unknown as Prisma.InputJsonValue },
     });
+
+    try {
+      // 2. Enqueue (SQS Standard in production, LocalTransport in dev)
+      await this.eventBus.publish({
+        eventType: DOMAIN_EVENTS.HEAVY_JOB_CREATED, // → SQS Standard
+        timestamp: new Date(),
+        payload: { jobId, tenantId, data: dto },
+        tenantId,
+        userId,
+      });
+    } catch {
+      // 3. Rollback: remove orphan PENDING row on publish failure
+      await this.prisma.job.delete({ where: { id: jobId } });
+      throw error;
+    }
 
     return { jobId };
   }
@@ -91,6 +109,30 @@ interface DomainEvent<T = Record<string, unknown>> {
   messageGroupId?: string; // SQS FIFO group (defaults to tenantId)
 }
 ```
+
+---
+
+## JobUpdateMessage interface
+
+Used for Redis pub/sub messages that travel from workers to the `JobsGateway`
+and are forwarded to WebSocket clients.
+
+```typescript
+import { JobUpdateMessage } from '@libs/events';
+
+const msg: JobUpdateMessage = {
+  jobId: 'uuid',
+  status: JobStatus.DONE, // PENDING | PROCESSING | DONE | FAILED
+  tenantId: 'org-1',
+  userId: 'auth0|...',
+  result: { processed: true },      // only on DONE
+  error: undefined,                  // only on FAILED
+  updatedAt: new Date().toISOString(),
+};
+```
+
+Published by workers to `job:update:{tenantId}`, consumed by `JobsGateway`
+via `pubSub.pSubscribe('job:update:*', handler)`.
 
 ---
 

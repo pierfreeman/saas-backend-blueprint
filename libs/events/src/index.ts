@@ -6,6 +6,7 @@ export * from './event-bus.service';
 
 // Interfaces
 export * from './interfaces/domain-event.interface';
+export * from './interfaces/job-update-message.interface';
 
 // Constants
 export * from './constants/event-routing.constants';

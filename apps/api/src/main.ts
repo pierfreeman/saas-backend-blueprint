@@ -6,11 +6,16 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AllExceptionsFilter } from '@libs/common';
 import { AppModule } from './app/app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // ── WebSocket adapter ───────────────────────────────────────────────────────
+  // Required to enable socket.io-based WebSocket gateways (e.g. JobsGateway).
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // ── Global validation pipe ──────────────────────────────────────────────────
   // whitelist: strips unknown properties from DTOs
@@ -67,7 +72,7 @@ async function bootstrap() {
     .addTag('Health', 'Health check endpoints')
     .addTag('Organizations', 'Organization management endpoints')
     .addTag('Memberships', 'Organization membership management endpoints')
-    .addTag('Tasks', 'Task management endpoints')
+    .addTag('Tasks', 'Task management and job status endpoints')
     .addTag('Audit', 'Audit log endpoints')
     .build();
 

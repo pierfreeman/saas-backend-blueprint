@@ -63,21 +63,53 @@ const client = this.cache.getClient();
 
 ## PubSubService
 
-Thin wrapper around an ioredis connection on DB `0`. Intended for **real-time
-push channels** — e.g. broadcasting to WebSocket rooms via a Socket.IO Redis
-adapter, or pushing live notifications to connected clients.
+Wrapper around **two dedicated ioredis connections** on DB `0`:
+
+| Internal connection | Role |
+| ------------------- | ---- |
+| `publisher`  | Calls `PUBLISH` — used by workers and services to broadcast updates |
+| `subscriber` | Calls `SUBSCRIBE` / `PSUBSCRIBE` — used by gateway listeners |
+
+Redis does not allow a connection in subscribe mode to issue other commands,
+so the two-connection design is mandatory.
 
 ```typescript
 // Inject
 constructor(private readonly pubSub: PubSubService) {}
 
-// Publish a message to a named channel
-await this.pubSub.publish('notifications:org-1', { type: 'alert', body: '...' });
+// ── Publishing ────────────────────────────────────────────────────────────────
 
-// Access the raw ioredis instance when the adapter needs it directly
-// (e.g. socket.io-redis createAdapter)
-const redis = this.pubSub.getRedis();
+// Serialize and publish a payload to an exact channel
+await this.pubSub.publish('job:update:org-1', { jobId: 'abc', status: 'DONE' });
+
+// ── Subscribing (exact channel) ───────────────────────────────────────────────
+
+import { PubSubHandler } from '@libs/redis';
+
+const handler: PubSubHandler = (payload) => {
+  console.log(payload); // already JSON-parsed
+};
+this.pubSub.subscribe('job:update:org-1', handler);
+
+// ── Pattern-subscribing ───────────────────────────────────────────────────────
+
+import { PatternHandler } from '@libs/redis';
+
+const pHandler: PatternHandler = (channel, payload) => {
+  // channel = 'job:update:org-1', payload already JSON-parsed
+  console.log(channel, payload);
+};
+this.pubSub.pSubscribe('job:update:*', pHandler);
+
+// ── Raw ioredis client (e.g. for socket.io-redis createAdapter) ───────────────
+const redis = this.pubSub.getRedis(); // returns the publisher connection
 ```
+
+### Channel naming convention
+
+Workers publish to `job:update:{tenantId}`. The `JobsGateway` in `apps/api`
+pattern-subscribes to `job:update:*` and fans out to the correct Socket.IO
+rooms (`tenant:{tenantId}` and `user:{userId}`).
 
 ### What PubSubService is NOT for
 
