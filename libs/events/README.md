@@ -233,8 +233,8 @@ EVENT_BUS_TRANSPORT=sqs
 AWS_ACCESS_KEY_ID=test
 AWS_SECRET_ACCESS_KEY=test
 SQS_ENDPOINT_URL=http://localhost:4566
-SQS_STANDARD_QUEUE_URL=http://localhost:4566/000000000000/nx-nest-heavy-jobs
-SQS_FIFO_QUEUE_URL=http://localhost:4566/000000000000/nx-nest-billing-events.fifo
+SQS_STANDARD_QUEUE_URL=http://localhost:4566/000000000000/saas-backend-heavy-jobs
+SQS_FIFO_QUEUE_URL=http://localhost:4566/000000000000/saas-backend-billing-events.fifo
 ```
 
 For unit tests, leave `EVENT_BUS_TRANSPORT` unset (defaults to `local`) — no

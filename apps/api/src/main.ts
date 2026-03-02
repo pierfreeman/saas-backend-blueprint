@@ -36,10 +36,10 @@ async function bootstrap() {
 
   // ── Swagger ──────────────────────────────────────────────────────────────────
   const config = new DocumentBuilder()
-    .setTitle('Nx Nest API')
+    .setTitle('SaaS Backend API')
     .setDescription(
       '## Overview\n' +
-        'REST API for the Nx Nest multi-tenant SaaS backend.\n\n' +
+        'REST API for the saas-backend multi-tenant SaaS backend.\n\n' +
         '### Authentication\n' +
         'All protected endpoints require a valid **Auth0 JWT** ' +
         '(`Authorization: Bearer <token>`).\n\n' +

@@ -18,7 +18,7 @@ import { envValidationSchema } from './env.validation';
  *   load: [
  *     async () => {
  *       const client = new SecretsManagerClient({ region: 'eu-west-1' });
- *       const secret = await client.send(new GetSecretValueCommand({ SecretId: 'nx-nest/prod' }));
+ *       const secret = await client.send(new GetSecretValueCommand({ SecretId: 'saas-backend/prod' }));
  *       return JSON.parse(secret.SecretString!);
  *     },
  *   ]

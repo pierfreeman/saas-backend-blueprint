@@ -1,5 +1,5 @@
 {
-  "name": "@nx-nest/source",
+  "name": "@saas-backend/source",
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
@@ -22,7 +22,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "docker:build": "docker build -t nx-nest:latest .",
+    "docker:build": "docker build -t saas-backend:latest .",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f"

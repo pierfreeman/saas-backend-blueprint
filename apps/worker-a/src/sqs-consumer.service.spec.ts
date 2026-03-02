@@ -43,7 +43,7 @@ describe('SqsConsumerService', () => {
   let controller: jest.Mocked<WorkerController>;
   let service: SqsConsumerService;
 
-  const QUEUE_URL = 'http://localstack:4566/000000000000/nx-nest-heavy-jobs';
+  const QUEUE_URL = 'http://localstack:4566/000000000000/saas-backend-heavy-jobs';
 
   beforeEach(() => {
     jest.clearAllMocks();

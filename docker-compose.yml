@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-nx_nest}
+      POSTGRES_DB: ${POSTGRES_DB:-saas_backend}
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     volumes:
@@ -15,7 +15,7 @@ services:
       test:
         [
           'CMD-SHELL',
-          'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-nx_nest}',
+          'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-saas_backend}',
         ]
       interval: 5s
       timeout: 5s
@@ -61,7 +61,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile.migrate
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,7 +81,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       # --- SQS via LocalStack ---
@@ -90,8 +90,8 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       SQS_ENDPOINT_URL: http://localstack:4566
-      SQS_STANDARD_QUEUE_URL: http://localstack:4566/000000000000/nx-nest-heavy-jobs
-      SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/nx-nest-billing-events.fifo
+      SQS_STANDARD_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-heavy-jobs
+      SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-billing-events.fifo
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -110,7 +110,7 @@ services:
     env_file: .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nx_nest}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       # --- SQS via LocalStack ---
@@ -119,8 +119,8 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       SQS_ENDPOINT_URL: http://localstack:4566
-      SQS_STANDARD_QUEUE_URL: http://localstack:4566/000000000000/nx-nest-heavy-jobs
-      SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/nx-nest-billing-events.fifo
+      SQS_STANDARD_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-heavy-jobs
+      SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-billing-events.fifo
     depends_on:
       migrate:
         condition: service_completed_successfully

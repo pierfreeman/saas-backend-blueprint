@@ -13,7 +13,7 @@ echo "[localstack-init] Creating SQS queues..."
 
 # Standard queue — heavy compute jobs (worker-a)
 awslocal sqs create-queue \
-  --queue-name nx-nest-heavy-jobs \
+  --queue-name saas-backend-heavy-jobs \
   --attributes '{
     "VisibilityTimeout": "30",
     "MessageRetentionPeriod": "86400",
@@ -22,7 +22,7 @@ awslocal sqs create-queue \
 
 # FIFO queue — billing, subscriptions, payments (strict ordering required)
 awslocal sqs create-queue \
-  --queue-name nx-nest-billing-events.fifo \
+  --queue-name saas-backend-billing-events.fifo \
   --attributes '{
     "FifoQueue": "true",
     "ContentBasedDeduplication": "false",
@@ -32,5 +32,5 @@ awslocal sqs create-queue \
   }'
 
 echo "[localstack-init] SQS queues created successfully."
-echo "[localstack-init] Standard : http://localhost:4566/000000000000/nx-nest-heavy-jobs"
-echo "[localstack-init] FIFO     : http://localhost:4566/000000000000/nx-nest-billing-events.fifo"
+echo "[localstack-init] Standard : http://localhost:4566/000000000000/saas-backend-heavy-jobs"
+echo "[localstack-init] FIFO     : http://localhost:4566/000000000000/saas-backend-billing-events.fifo"

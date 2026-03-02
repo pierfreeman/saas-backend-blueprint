@@ -38,7 +38,7 @@
         "targetName": "test"
       },
       "exclude": [
-        "apps/nx-nest-e2e/**/*",
+        "apps/saas-backend-e2e/**/*",
         "apps/api-e2e/**/*",
         "apps/lambda-a-e2e/**/*",
         "apps/worker-a-e2e/**/*"

@@ -1,4 +1,4 @@
-# nx-nest
+# saas-backend
 
 An [Nx](https://nx.dev) monorepo with NestJS applications backed by PostgreSQL (via Prisma), Redis (cache + pub/sub), and background workers.
 
@@ -68,7 +68,7 @@ cp .env.example .env
 
 | Variable         | Example                                                 | Description                              |
 | ---------------- | ------------------------------------------------------- | ---------------------------------------- |
-| `DATABASE_URL`   | `postgresql://postgres:postgres@localhost:5432/nx_nest` | PostgreSQL connection string             |
+| `DATABASE_URL`   | `postgresql://postgres:postgres@localhost:5432/saas_backend` | PostgreSQL connection string             |
 | `REDIS_HOST`     | `localhost`                                             | Redis hostname                           |
 | `REDIS_PORT`     | `6379`                                                  | Redis port                               |
 | `AUTH0_DOMAIN`   | `your-tenant.auth0.com`                                 | Auth0 tenant domain (without `https://`) |
@@ -82,7 +82,7 @@ cp .env.example .env
 | `NODE_ENV`          | `development` | Runtime environment                           |
 | `POSTGRES_USER`     | `postgres`    | Postgres user (Docker Compose)                |
 | `POSTGRES_PASSWORD` | `postgres`    | Postgres password (Docker Compose)            |
-| `POSTGRES_DB`       | `nx_nest`     | Postgres database name (Docker Compose)       |
+| `POSTGRES_DB`       | `saas_backend`     | Postgres database name (Docker Compose)       |
 | `POSTGRES_PORT`     | `5432`        | Host port mapped to Postgres (Docker Compose) |
 | `REDIS_PORT`        | `6379`        | Host port mapped to Redis (Docker Compose)    |
 | `API_PORT`          | `3000`        | Host port mapped to the API (Docker Compose)  |
@@ -133,7 +133,7 @@ To override defaults, set variables in a `.env` file:
 ```dotenv
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
-POSTGRES_DB=nx_nest
+POSTGRES_DB=saas_backend
 POSTGRES_PORT=5432
 REDIS_PORT=6379
 API_PORT=3000
@@ -354,14 +354,14 @@ http://localhost:3000/docs
 ### Prisma Studio (database browser)
 
 ```sh
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nx_nest"
+$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
 npx prisma studio
 ```
 
 ### Prisma migration (local development)
 
 ```sh
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nx_nest"
+$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
 npx prisma migrate dev --name describe_your_change
 ```
 

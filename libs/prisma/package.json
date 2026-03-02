@@ -1,5 +1,5 @@
 {
-  "name": "@nx-nest/prisma",
+  "name": "@saas-backend/prisma",
   "version": "0.0.1",
   "private": true,
   "type": "commonjs",

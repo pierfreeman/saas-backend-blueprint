@@ -1,5 +1,5 @@
 {
-  "name": "@nx-nest/events",
+  "name": "@saas-backend/events",
   "version": "0.0.1",
   "private": true,
   "type": "commonjs",

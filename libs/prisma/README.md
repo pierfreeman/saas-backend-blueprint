@@ -57,7 +57,7 @@ All Prisma models live in `prisma/schema.prisma`.
 
 ```sh
 # Point directly at the Docker Postgres container
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nx_nest"
+$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
 npx prisma migrate dev --name describe_your_change
 ```
 
@@ -76,14 +76,14 @@ npx prisma generate
 ### Inspect the database with Prisma Studio
 
 ```sh
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nx_nest"
+$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
 npx prisma studio
 ```
 
 ### Reset the local database (⚠ destructive)
 
 ```sh
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nx_nest"
+$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
 npx prisma migrate reset
 ```
 
