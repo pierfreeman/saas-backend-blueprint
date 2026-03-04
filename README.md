@@ -1,6 +1,6 @@
 # saas-backend
 
-An [Nx](https://nx.dev) monorepo with NestJS applications backed by PostgreSQL (via Prisma), Redis (cache + pub/sub), and background workers.
+An [Nx](https://nx.dev) monorepo with NestJS applications backed by two PostgreSQL databases (via Prisma), Redis (cache + pub/sub), and background workers.
 
 ## Architecture
 
@@ -11,27 +11,37 @@ apps/
   worker-a     — Background worker (polls SQS Standard queue, processes heavy jobs)
   worker-a-e2e — End-to-end tests for worker-a
 libs/
-  audit        — Audit trail service, event-type constants, ISO 27001 / GDPR types
-  common       — Shared utilities: RBAC constants, tenant context, exception filter
-  config       — NestJS ConfigModule wrappers (app, auth, database, redis)
-  events       — EventBusService facade (LocalTransport / SQS), DomainEvent types, DOMAIN_EVENTS constants
-  prisma       — PrismaService singleton (extends PrismaClient), PrismaModule
-  redis        — CacheService (key/value, DB 1) and PubSubService (pub/sub, DB 0)
+  activity-log   — Tenant-visible operational event log (business DB, app_audit schema)
+  legal-audit    — Immutable compliance event recorder (legal DB, ISO 27001 / GDPR)
+  common         — Shared utilities: RBAC constants, tenant context, exception filter
+  config         — NestJS ConfigModule wrappers (app, auth, database, redis)
+  events         — EventBusService facade (LocalTransport / SQS), DomainEvent types, DOMAIN_EVENTS constants
+  prisma-business — PrismaBusinessService (extends PrismaClient → business DB)
+  prisma-legal    — PrismaLegalService (extends PrismaClient → legal audit DB)
+  redis           — CacheService (key/value, DB 1) and PubSubService (pub/sub, DB 0)
 prisma/
-  schema.prisma  — Database schema (User, Organization, Membership, AuditEvent, Job)
-  migrations/    — Prisma migration history
+  schema.prisma        — Business DB schema (User, Organization, Membership, ActivityLog, Job)
+  schema.legal.prisma  — Legal audit DB schema (AuditEvent — append-only)
+  migrations/          — Business DB migration history
+  migrations-legal/    — Legal audit DB migration history
 ```
 
 ### Infrastructure
 
-| Service    | Image                                    | Default port |
-| ---------- | ---------------------------------------- | ------------ |
-| PostgreSQL | `postgres:17-alpine`                     | `5432`       |
-| Redis      | `redis:7-alpine`                         | `6379`       |
-| LocalStack | `localstack/localstack:3`                | `4566`       |
-| Migrate    | built from `apps/api/Dockerfile.migrate` | —            |
-| API        | built from `apps/api/Dockerfile`         | `3000`       |
-| Worker A   | built from `apps/worker-a/Dockerfile`    | —            |
+| Service               | Image                                    | Default port |
+| --------------------- | ---------------------------------------- | ------------ |
+| PostgreSQL (business) | `postgres:17-alpine`                     | `5432`       |
+| PostgreSQL (legal)    | `postgres:17-alpine`                     | `5433`       |
+| Redis                 | `redis:7-alpine`                         | `6379`       |
+| LocalStack            | `localstack/localstack:3`                | `4566`       |
+| Migrate               | built from `apps/api/Dockerfile.migrate` | —            |
+| API                   | built from `apps/api/Dockerfile`         | `3000`       |
+| Worker A              | built from `apps/worker-a/Dockerfile`    | —            |
+
+The project uses **two separate PostgreSQL instances**:
+
+- **Business DB** (`DATABASE_URL`) — domain models: User, Organization, Membership, ActivityLog, Job.
+- **Legal audit DB** (`LEGAL_AUDIT_DATABASE_URL`) — append-only compliance records: AuditEvent. This database is isolated so that compliance logs survive even if the business database is wiped or restored.
 
 Migrations run as a one-shot service before the API starts. The migrate image is built independently from the API image — schema changes only rebuild the migrator, and app code changes only rebuild the API.
 
@@ -66,35 +76,51 @@ cp .env.example .env
 
 #### Required variables
 
-| Variable         | Example                                                 | Description                              |
-| ---------------- | ------------------------------------------------------- | ---------------------------------------- |
-| `DATABASE_URL`   | `postgresql://postgres:postgres@localhost:5432/saas_backend` | PostgreSQL connection string             |
-| `REDIS_HOST`     | `localhost`                                             | Redis hostname                           |
-| `REDIS_PORT`     | `6379`                                                  | Redis port                               |
-| `AUTH0_DOMAIN`   | `your-tenant.auth0.com`                                 | Auth0 tenant domain (without `https://`) |
-| `AUTH0_AUDIENCE` | `https://api.your-app.com`                              | Auth0 API audience identifier            |
+| Variable                   | Example                                                      | Description                              |
+| -------------------------- | ------------------------------------------------------------ | ---------------------------------------- |
+| `DATABASE_URL`             | `postgresql://postgres:postgres@localhost:5432/saas_backend` | Business PostgreSQL connection string    |
+| `LEGAL_AUDIT_DATABASE_URL` | `postgresql://postgres:postgres@localhost:5433/saas_legal`   | Legal audit PostgreSQL connection string |
+| `REDIS_HOST`               | `localhost`                                                  | Redis hostname                           |
+| `REDIS_PORT`               | `6379`                                                       | Redis port                               |
+| `AUTH0_DOMAIN`             | `your-tenant.auth0.com`                                      | Auth0 tenant domain (without `https://`) |
+| `AUTH0_AUDIENCE`           | `https://api.your-app.com`                                   | Auth0 API audience identifier            |
 
 #### Optional variables
 
-| Variable            | Default       | Description                                   |
-| ------------------- | ------------- | --------------------------------------------- |
-| `PORT`              | `3000`        | HTTP port the API listens on                  |
-| `NODE_ENV`          | `development` | Runtime environment                           |
-| `POSTGRES_USER`     | `postgres`    | Postgres user (Docker Compose)                |
-| `POSTGRES_PASSWORD` | `postgres`    | Postgres password (Docker Compose)            |
-| `POSTGRES_DB`       | `saas_backend`     | Postgres database name (Docker Compose)       |
-| `POSTGRES_PORT`     | `5432`        | Host port mapped to Postgres (Docker Compose) |
-| `REDIS_PORT`        | `6379`        | Host port mapped to Redis (Docker Compose)    |
-| `API_PORT`          | `3000`        | Host port mapped to the API (Docker Compose)  |
-| `EVENT_BUS_TRANSPORT` | `local`     | Event transport: `local` (EventEmitter) or `sqs` |
-| `SQS_STANDARD_QUEUE_URL` | —        | SQS Standard queue URL (required when `sqs`)  |
-| `SQS_FIFO_QUEUE_URL`    | —         | SQS FIFO queue URL, must end in `.fifo` (required when `sqs`) |
-| `SQS_ENDPOINT_URL`      | —         | LocalStack endpoint, e.g. `http://localhost:4566` (dev/CI only) |
+| Variable                  | Default        | Description                                                     |
+| ------------------------- | -------------- | --------------------------------------------------------------- |
+| `PORT`                    | `3000`         | HTTP port the API listens on                                    |
+| `NODE_ENV`                | `development`  | Runtime environment                                             |
+| `POSTGRES_USER`           | `postgres`     | Postgres user (Docker Compose)                                  |
+| `POSTGRES_PASSWORD`       | `postgres`     | Postgres password (Docker Compose)                              |
+| `POSTGRES_DB`             | `saas_backend` | Postgres database name (Docker Compose)                         |
+| `POSTGRES_PORT`           | `5432`         | Host port mapped to business Postgres                           |
+| `LEGAL_POSTGRES_USER`     | `postgres`     | Legal Postgres user (Docker Compose)                            |
+| `LEGAL_POSTGRES_PASSWORD` | `postgres`     | Legal Postgres password (Docker Compose)                        |
+| `LEGAL_POSTGRES_DB`       | `saas_legal`   | Legal Postgres database name (Docker Compose)                   |
+| `LEGAL_POSTGRES_PORT`     | `5433`         | Host port mapped to legal Postgres                              |
+| `REDIS_PORT`              | `6379`         | Host port mapped to Redis (Docker Compose)                      |
+| `API_PORT`                | `3000`         | Host port mapped to the API (Docker Compose)                    |
+| `EVENT_BUS_TRANSPORT`     | `local`        | Event transport: `local` (EventEmitter) or `sqs`                |
+| `SQS_STANDARD_QUEUE_URL`  | —              | SQS Standard queue URL (required when `sqs`)                    |
+| `SQS_FIFO_QUEUE_URL`      | —              | SQS FIFO queue URL, must end in `.fifo` (required when `sqs`)   |
+| `SQS_ENDPOINT_URL`        | —              | LocalStack endpoint, e.g. `http://localhost:4566` (dev/CI only) |
 
 ### 4. Run database migrations
 
+Business database (uses `prisma.config.ts` — no `--schema` flag needed):
+
 ```sh
-npx nx run prisma:migrate-dev
+npx prisma migrate dev --name describe_your_change
+```
+
+Legal audit database (separate schema and migrations directory):
+
+```sh
+npx prisma migrate dev \
+  --schema=prisma/schema.legal.prisma \
+  --migrations-dir=prisma/migrations-legal \
+  --name describe_your_change
 ```
 
 ### 5. Serve applications
@@ -135,6 +161,10 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=saas_backend
 POSTGRES_PORT=5432
+LEGAL_POSTGRES_USER=postgres
+LEGAL_POSTGRES_PASSWORD=postgres
+LEGAL_POSTGRES_DB=saas_legal
+LEGAL_POSTGRES_PORT=5433
 REDIS_PORT=6379
 API_PORT=3000
 ```
@@ -191,25 +221,78 @@ OWNER > ADMIN > MEMBER > READ_ONLY
 
 ---
 
-## Audit trail
+## Activity log
 
-The `@libs/audit` library writes immutable append-only audit events to the `audit_events` table. It satisfies ISO 27001:2022 A.8.15 and GDPR Art. 30.
+`@libs/activity-log` records **tenant-visible operational events** in the `app_audit.activity_logs` table of the business database.  
+Every entry is scoped to an organisation and queryable by ADMIN/OWNER roles via `GET /organizations/:orgId/activity-log`.
+
+Key design rules:
+
+- All writes are fire-and-forget — failures are logged but never propagated.
+- Logs are cascade-deleted when the owning organisation is deleted.
+- Does **not** store IP addresses, user agents, or correlation IDs — those belong in the legal audit database.
 
 ```typescript
-import { AuditService, AUDIT_EVENTS } from '@libs/audit';
+import { ActivityLogService } from '@libs/activity-log';
 
-await this.auditService.log({
-  type: AUDIT_EVENTS.ORGANIZATION.CREATED,
-  severity: 'MEDIUM',
+this.activityLogService.logActivity({
   orgId: org.id,
-  userId: user.id,
-  payload: { name: org.name },
+  actorId: user.id,
+  actorRole: 'ADMIN',
+  action: 'membership.role.changed',
+  entityType: 'Membership',
+  entityId: membership.id,
+  metadata: { from: 'MEMBER', to: 'ADMIN' },
 });
 ```
 
-All event type constants are in `libs/audit/src/lib/audit-event-types.constants.ts`, grouped by domain (`AUTH`, `USER`, `ORGANIZATION`, `MEMBERSHIP`, `GDPR`, `SECURITY`, `BILLING`, …).
+The `action` field uses dot-notation strings (e.g. `org.created`, `membership.role.changed`, `org.deleted`).  
+`metadata` must **never** contain PII or credentials — sanitise before passing.
 
-Audit records are **never updated or deleted** through the API. The `GET /organizations/:orgId/audit` endpoint is read-only and restricted to OWNER/ADMIN roles.
+Activity log records are queryable by ADMIN and OWNER roles:
+
+| Method | Path                                 | Description                               |
+| ------ | ------------------------------------ | ----------------------------------------- |
+| `GET`  | `/organizations/:orgId/activity-log` | Returns paginated activity log for an org |
+
+---
+
+## Legal audit trail
+
+`@libs/legal-audit` records **immutable compliance events** in a **separate** legal audit PostgreSQL database.  
+It satisfies ISO 27001:2022 A.8.15/A.8.16 and GDPR Art. 5(2)/Art. 30 accountability obligations.
+
+Key design rules:
+
+- Strictly append-only — no UPDATE or DELETE operations, ever.
+- Records persist after organisation deletion (no FK constraint, no cascade).
+- All writes are fire-and-forget — failures are swallowed internally.
+- **Not queryable via the public API** — direct DB access by authorised personnel / SIEM tooling only.
+- Must not store raw PII — callers must sanitise before calling.
+- Completely independent of `ActivityLogModule`.
+
+```typescript
+import { LegalAuditService } from '@libs/legal-audit';
+
+this.legalAuditService.recordEvent({
+  eventType: 'org.created',
+  orgId: org.id,
+  actorRole: 'OWNER',
+  triggerType: 'user_action',
+  metadata: { orgName: org.name },
+});
+```
+
+Valid `triggerType` values: `'user_action'` | `'system'` | `'api'` | `'scheduler'`.
+
+### Two-database separation
+
+| Database       | Library                 | Prisma schema                | ENV var                    |
+| -------------- | ----------------------- | ---------------------------- | -------------------------- |
+| Business DB    | `@libs/prisma-business` | `prisma/schema.prisma`       | `DATABASE_URL`             |
+| Legal audit DB | `@libs/prisma-legal`    | `prisma/schema.legal.prisma` | `LEGAL_AUDIT_DATABASE_URL` |
+
+`PrismaBusinessService` and `PrismaLegalService` each extend their own generated `PrismaClient` (from `@prisma/client` and `@prisma/legal-client` respectively), ensuring no accidental cross-contamination between the two databases.
 
 ---
 
@@ -249,10 +332,10 @@ to connected WebSocket clients.
 
 ### REST endpoints
 
-| Method | Path | Description |
-| ------ | ---- | ----------- |
+| Method | Path               | Description                                   |
+| ------ | ------------------ | --------------------------------------------- |
 | `POST` | `/tasks/heavy-job` | Create and enqueue a job; returns `{ jobId }` |
-| `GET`  | `/tasks/:jobId`    | Poll current job status (for non-WS clients)   |
+| `GET`  | `/tasks/:jobId`    | Poll current job status (for non-WS clients)  |
 
 ### Adding a new job type
 
@@ -295,15 +378,15 @@ const socket = io('http://localhost:3000/jobs?token=Bearer%20<jwt>');
 
 On successful connection the gateway automatically joins the client to:
 
-| Room | Receives |
-| ---- | -------- |
-| `user:{userId}` | Updates for jobs submitted by that user |
+| Room                | Receives                                |
+| ------------------- | --------------------------------------- |
+| `user:{userId}`     | Updates for jobs submitted by that user |
 | `tenant:{tenantId}` | All job updates within the organisation |
 
 ### Emitted events
 
-| Event | Payload | Description |
-| ----- | ------- | ----------- |
+| Event        | Payload            | Description                         |
+| ------------ | ------------------ | ----------------------------------- |
 | `job:update` | `JobUpdateMessage` | Fired on every job state transition |
 
 ```typescript
@@ -353,17 +436,40 @@ http://localhost:3000/docs
 
 ### Prisma Studio (database browser)
 
+Business database:
+
 ```sh
 $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
 npx prisma studio
 ```
 
+Legal audit database:
+
+```sh
+$env:LEGAL_AUDIT_DATABASE_URL="postgresql://postgres:postgres@localhost:5433/saas_legal"
+npx prisma studio --schema=prisma/schema.legal.prisma
+```
+
 ### Prisma migration (local development)
+
+Business database (`prisma.config.ts` is picked up automatically):
 
 ```sh
 $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
 npx prisma migrate dev --name describe_your_change
 ```
+
+Legal audit database:
+
+```sh
+$env:LEGAL_AUDIT_DATABASE_URL="postgresql://postgres:postgres@localhost:5433/saas_legal"
+npx prisma migrate dev \
+  --schema=prisma/schema.legal.prisma \
+  --migrations-dir=prisma/migrations-legal \
+  --name describe_your_change
+```
+
+> **Prisma config** — `prisma.config.ts` at the workspace root configures the business-database defaults (schema path, migrations directory, datasource URL). The legal schema always requires explicit `--schema` and `--migrations-dir` flags because it uses a second datasource (`LEGAL_AUDIT_DATABASE_URL`) that is not covered by `prisma.config.ts`.
 
 ## Adding projects
 
