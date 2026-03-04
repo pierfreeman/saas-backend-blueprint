@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { PermissionKey, ROLE_PERMISSIONS } from '@libs/common';
 
@@ -24,7 +24,7 @@ export interface RBACContextData {
 export class RBACService {
   private readonly logger = new Logger(RBACService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaBusinessService) {}
 
   /**
    * Returns the permissions for a given role from the static map.

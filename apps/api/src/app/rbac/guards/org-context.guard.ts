@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { RequestUser, TenantRequest } from '@libs/common';
 import { ORG_SCOPED_KEY } from '../decorators/org-scoped.decorator';
 import { MembershipStatus } from '@prisma/client';
@@ -45,7 +45,7 @@ export class OrgContextGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaBusinessService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

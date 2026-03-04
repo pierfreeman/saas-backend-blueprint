@@ -1,11 +1,11 @@
 import { HealthService } from './health.service';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { ConfigService } from '@nestjs/config';
 
 const mockPrisma = {
   $queryRaw: jest.fn(),
-} as unknown as PrismaService;
+} as unknown as PrismaBusinessService;
 
 const mockRedisClient = { ping: jest.fn() };
 const mockCacheService = {

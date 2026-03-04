@@ -1,0 +1,27 @@
+{
+  "name": "activity-log",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/activity-log/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:activity-log"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/activity-log"],
+      "options": {
+        "jestConfig": "libs/activity-log/jest.config.cts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/activity-log/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

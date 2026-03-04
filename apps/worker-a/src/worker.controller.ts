@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, JobUpdateMessage } from '@libs/events';
 import { JobStatus, Prisma } from '@prisma/client';
@@ -36,7 +36,7 @@ export class WorkerController {
   private readonly logger = new Logger(WorkerController.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaBusinessService,
     private readonly pubSub: PubSubService,
   ) {}
 

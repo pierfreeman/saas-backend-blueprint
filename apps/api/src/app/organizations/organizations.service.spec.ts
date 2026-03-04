@@ -1,12 +1,16 @@
 import { OrganizationsService } from './organizations.service';
-import { PrismaService } from '@libs/prisma';
-import { AuditService } from '@libs/audit';
+import { PrismaBusinessService } from '@libs/prisma-business';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
-const mockAuditService = {
-  logEvent: jest.fn().mockResolvedValue(null),
-  logEventBackground: jest.fn(),
-} as unknown as AuditService;
+const mockActivityLogService = {
+  logActivity: jest.fn(),
+} as unknown as ActivityLogService;
+
+const mockLegalAuditService = {
+  recordEvent: jest.fn(),
+} as unknown as LegalAuditService;
 
 const mockTx = {
   organization: { create: jest.fn() },
@@ -22,7 +26,7 @@ const mockPrisma = {
   },
   membership: { findMany: jest.fn() },
   $transaction: jest.fn(),
-} as unknown as PrismaService;
+} as unknown as PrismaBusinessService;
 
 const baseOrg = {
   id: 'org-1',
@@ -36,7 +40,7 @@ describe('OrganizationsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new OrganizationsService(mockPrisma, mockAuditService);
+    service = new OrganizationsService(mockPrisma, mockActivityLogService, mockLegalAuditService);
   });
 
   describe('createOrganization', () => {
@@ -58,6 +62,25 @@ describe('OrganizationsService', () => {
       expect(mockTx.membership.create).toHaveBeenCalledWith({
         data: { userId: 'u-1', orgId: 'org-1', role: 'OWNER' },
       });
+    });
+
+    it('fires logActivity and recordEvent after successful creation', async () => {
+      mockTx.organization.create.mockResolvedValue(baseOrg);
+      mockTx.membership.create.mockResolvedValue({});
+      mockPrisma.$transaction = jest
+        .fn()
+        .mockImplementation((fn: (tx: typeof mockTx) => Promise<unknown>) =>
+          fn(mockTx),
+        );
+
+      await service.createOrganization('u-1', { name: 'Acme' });
+
+      expect(mockActivityLogService.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ orgId: 'org-1', action: 'organization.created' }),
+      );
+      expect(mockLegalAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'organization.created', orgId: 'org-1' }),
+      );
     });
 
     it('throws BadRequestException when transaction fails', async () => {
@@ -125,13 +148,16 @@ describe('OrganizationsService', () => {
   });
 
   describe('deleteOrganization', () => {
-    it('deletes the org', async () => {
+    it('deletes the org and records legal audit event', async () => {
       mockPrisma.organization.findUnique = jest.fn().mockResolvedValue(baseOrg);
       mockPrisma.organization.delete = jest.fn().mockResolvedValue(undefined);
       await service.deleteOrganization('org-1');
       expect(mockPrisma.organization.delete).toHaveBeenCalledWith({
         where: { id: 'org-1' },
       });
+      expect(mockLegalAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'organization.deleted' }),
+      );
     });
 
     it('throws NotFoundException for unknown org', async () => {

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PrismaModule } from '@libs/prisma';
+import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
 import { RBACService } from './services/rbac.service';
 import { RBACCacheService } from './services/rbac-cache.service';
@@ -8,7 +8,7 @@ import { OrgContextGuard } from './guards/org-context.guard';
 import { RBACGuard } from './guards/rbac.guard';
 
 @Module({
-  imports: [PrismaModule, RedisModule],
+  imports: [PrismaBusinessModule, RedisModule],
   providers: [
     RBACService,
     RBACCacheService,
@@ -17,6 +17,7 @@ import { RBACGuard } from './guards/rbac.guard';
     RBACGuard,
   ],
   exports: [
+    PrismaBusinessModule,
     RBACService,
     RBACCacheService,
     PermissionResolverService,

@@ -1,11 +1,11 @@
 import { RBACService } from './rbac.service';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '@libs/common';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 
 const mockPrisma = {
   membership: { findUnique: jest.fn() },
-} as unknown as PrismaService;
+} as unknown as PrismaBusinessService;
 
 describe('RBACService', () => {
   let service: RBACService;

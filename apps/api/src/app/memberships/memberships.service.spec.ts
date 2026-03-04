@@ -1,14 +1,19 @@
 import { MembershipsService } from './memberships.service';
-import { PrismaService } from '@libs/prisma';
-import { AuditService } from '@libs/audit';
+import { PrismaBusinessService } from '@libs/prisma-business';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { RBACCacheService } from '../rbac/services/rbac-cache.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 
-const mockAuditService = {
-  logEvent: jest.fn().mockResolvedValue(null),
-  logEventBackground: jest.fn(),
-} as unknown as AuditService;
+const mockActivityLogService = {
+  logActivity: jest.fn(),
+} as unknown as ActivityLogService;
+
+const mockLegalAuditService = {
+  recordEvent: jest.fn(),
+} as unknown as LegalAuditService;
+
 
 const mockPrisma = {
   membership: {
@@ -18,7 +23,7 @@ const mockPrisma = {
     update: jest.fn(),
     delete: jest.fn(),
   },
-} as unknown as PrismaService;
+} as unknown as PrismaBusinessService;
 
 const mockRbacCache = {
   invalidate: jest.fn(),
@@ -41,7 +46,8 @@ describe('MembershipsService', () => {
     jest.clearAllMocks();
     service = new MembershipsService(
       mockPrisma,
-      mockAuditService,
+      mockActivityLogService,
+      mockLegalAuditService,
       mockRbacCache,
     );
   });
@@ -171,9 +177,7 @@ describe('MembershipsService', () => {
   describe('createMembership — without rbacCache (optional dependency)', () => {
     it('creates membership without calling rbacCache when it is undefined', async () => {
       const serviceWithoutCache = new MembershipsService(
-        mockPrisma,
-        mockAuditService,
-        undefined,
+        mockPrisma, mockActivityLogService, mockLegalAuditService, undefined,
       );
       mockPrisma.membership.create = jest
         .fn()
@@ -211,9 +215,7 @@ describe('MembershipsService', () => {
   describe('updateMembership — without rbacCache', () => {
     it('updates role without invalidating cache when rbacCache is undefined', async () => {
       const serviceWithoutCache = new MembershipsService(
-        mockPrisma,
-        mockAuditService,
-        undefined,
+        mockPrisma, mockActivityLogService, mockLegalAuditService, undefined,
       );
       const updated = { ...baseMembership, role: 'ADMIN' as MembershipRole };
       mockPrisma.membership.findUnique = jest
@@ -236,9 +238,7 @@ describe('MembershipsService', () => {
   describe('deleteMembership — without rbacCache', () => {
     it('deletes membership without invalidating cache when rbacCache is undefined', async () => {
       const serviceWithoutCache = new MembershipsService(
-        mockPrisma,
-        mockAuditService,
-        undefined,
+        mockPrisma, mockActivityLogService, mockLegalAuditService, undefined,
       );
       mockPrisma.membership.findUnique = jest
         .fn()

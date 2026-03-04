@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { User } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaBusinessService) {}
 
   /**
    * Syncs an Auth0 user to the local database.

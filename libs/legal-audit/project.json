@@ -1,0 +1,27 @@
+{
+  "name": "legal-audit",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/legal-audit/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:legal-audit"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/legal-audit"],
+      "options": {
+        "jestConfig": "libs/legal-audit/jest.config.cts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/legal-audit/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

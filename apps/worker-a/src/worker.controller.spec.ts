@@ -1,5 +1,5 @@
 import { WorkerController, HeavyJobPayload } from './worker.controller';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
@@ -24,7 +24,7 @@ const mockPrisma = {
   job: {
     update: jest.fn(),
   },
-} as unknown as PrismaService;
+} as unknown as PrismaBusinessService;
 
 const mockPubSub = {
   publish: jest.fn(),

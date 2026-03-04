@@ -4,8 +4,9 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { PrismaService } from '@libs/prisma';
-import { AuditService, AUDIT_EVENTS } from '@libs/audit';
+import { PrismaBusinessService } from '@libs/prisma-business';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { Organization, MembershipRole } from '@prisma/client';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
@@ -15,8 +16,9 @@ export class OrganizationsService {
   private readonly logger = new Logger(OrganizationsService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly audit: AuditService,
+    private readonly prisma: PrismaBusinessService,
+    private readonly activityLog: ActivityLogService,
+    private readonly legalAudit: LegalAuditService,
   ) {}
 
   /**
@@ -44,12 +46,22 @@ export class OrganizationsService {
 
       this.logger.log(`Organization ${organization.id} created`);
 
-      // ISO 27001 A.8.15 – log resource creation
-      this.audit.logEventBackground({
-        type: AUDIT_EVENTS.ORGANIZATION.CREATED,
+      // ISO 27001 A.8.15 - business activity log (tenant-visible)
+      this.activityLog.logActivity({
         orgId: organization.id,
-        userId,
-        payload: { organizationId: organization.id, name: organization.name },
+        actorId: userId,
+        action: 'organization.created',
+        entityType: 'organization',
+        entityId: organization.id,
+        metadata: { name: organization.name },
+      });
+
+      // ISO 27001 A.8.15 - legal compliance record (immutable, separate DB)
+      this.legalAudit.recordEvent({
+        eventType: 'organization.created',
+        orgId: organization.id,
+        triggerType: 'user',
+        metadata: { organizationId: organization.id, name: organization.name, userId },
       });
 
       return organization;
@@ -95,12 +107,22 @@ export class OrganizationsService {
 
     this.logger.log(`Organization ${id} updated`);
 
-    // ISO 27001 A.8.15 – log resource modification
-    this.audit.logEventBackground({
-      type: AUDIT_EVENTS.ORGANIZATION.UPDATED,
+    // ISO 27001 A.8.15 - business activity log
+    this.activityLog.logActivity({
       orgId: id,
-      userId: userId ?? null,
-      payload: { organizationId: id, changes: dto },
+      actorId: userId ?? null,
+      action: 'organization.updated',
+      entityType: 'organization',
+      entityId: id,
+      metadata: { changes: dto as Record<string, unknown> },
+    });
+
+    // ISO 27001 A.8.15 - legal compliance record
+    this.legalAudit.recordEvent({
+      eventType: 'organization.updated',
+      orgId: id,
+      triggerType: 'user',
+      metadata: { organizationId: id, changes: dto as Record<string, unknown>, userId: userId ?? null },
     });
 
     return updated;
@@ -111,13 +133,13 @@ export class OrganizationsService {
     await this.prisma.organization.delete({ where: { id } });
     this.logger.log(`Organization ${id} deleted`);
 
-    // ISO 27001 A.8.15 / GDPR Art. 5 – log irreversible deletion (CRITICAL severity)
-    this.audit.logEventBackground({
-      type: AUDIT_EVENTS.ORGANIZATION.DELETED,
+    // Activity log is cascade-deleted with the org - legal record is permanent
+    // ISO 27001 A.8.15 / GDPR Art. 5 - legal compliance record (survives deletion)
+    this.legalAudit.recordEvent({
+      eventType: 'organization.deleted',
       orgId: id,
-      userId: userId ?? null,
-      severity: 'CRITICAL',
-      payload: { organizationId: id, name: org.name },
+      triggerType: 'user',
+      metadata: { organizationId: id, name: org.name, userId: userId ?? null },
     });
   }
 }

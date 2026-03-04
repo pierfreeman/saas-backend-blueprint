@@ -2,13 +2,15 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public", "app_audit"]
 }
 
 // ============================================================================
@@ -26,6 +28,8 @@ enum JobStatus {
   DONE
   /// The worker encountered an unrecoverable error. Details are in `error`.
   FAILED
+
+  @@schema("public")
 }
 
 /// Lifecycle status of an Organization.
@@ -35,6 +39,8 @@ enum OrganizationStatus {
   /// Organization has been administratively suspended (e.g. billing failure,
   /// policy violation). Members cannot access org resources while suspended.
   SUSPENDED
+
+  @@schema("public")
 }
 
 /// RBAC role assigned to a Membership. Roles are hierarchical:
@@ -43,13 +49,15 @@ enum MembershipRole {
   /// Full control over the organization, including deletion and owner transfer.
   /// There must always be at least one OWNER per organization.
   OWNER
-  /// Can manage members (invite, update role, remove) and read audit logs.
+  /// Can manage members (invite, update role, remove) and read activity logs.
   /// Cannot delete the organization or transfer ownership.
   ADMIN
   /// Standard access to organization resources. Cannot manage other members.
   MEMBER
   /// Read-only access. Cannot create, update, or delete any resource.
   READ_ONLY
+
+  @@schema("public")
 }
 
 /// Lifecycle status of a Membership record.
@@ -60,21 +68,8 @@ enum MembershipStatus {
   INVITED
   /// Membership has been suspended; the user cannot access the organization.
   SUSPENDED
-}
 
-/// ISO/GDPR-aligned severity classification for audit events.
-/// Maps to syslog severity levels for SIEM integration.
-enum AuditSeverity {
-  /// Security breach, data loss, or compliance violation requiring immediate action.
-  CRITICAL
-  /// High-risk event (e.g. repeated auth failure, privilege escalation attempt).
-  HIGH
-  /// Moderate-risk event (e.g. role change, configuration update).
-  MEDIUM
-  /// Low-impact change (e.g. display-name update, non-sensitive field edit).
-  LOW
-  /// Informational trace (e.g. successful login, standard CRUD operation).
-  INFO
+  @@schema("public")
 }
 
 // ============================================================================
@@ -103,6 +98,7 @@ model User {
   /// Supports paginated admin listings ordered by sign-up date.
   @@index([createdAt(sort: Desc)])
   @@map("users")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -126,8 +122,8 @@ model Organization {
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
   // ── Relations ──────────────────────────────────────────────────────────────
-  memberships Membership[]
-  auditEvents AuditEvent[]
+  memberships  Membership[]
+  activityLogs ActivityLog[]
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   /// Supports filtering organizations by lifecycle status (e.g. list all SUSPENDED orgs).
@@ -139,6 +135,7 @@ model Organization {
   /// Supports paginated admin listings ordered by creation date.
   @@index([createdAt(sort: Desc)])
   @@map("organizations")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -181,61 +178,47 @@ model Membership {
   /// Supports role-based permission checks: "find all ADMINs/OWNERs of an org".
   @@index([orgId, role])
   @@map("memberships")
+  @@schema("public")
 }
 
 // ============================================================================
-// AUDIT EVENT MODEL
-// Immutable, append-only audit trail.
-// Satisfies ISO 27001:2022 A.8.15/A.8.16 and GDPR Art. 5(2)/Art. 30/Art. 32.
-// Records must NEVER be updated or deleted through application code.
+// ACTIVITY LOG MODEL
+// Business-level, tenant-visible activity log.
+// Scoped to an organisation. Cascade-deleted when the organisation is deleted.
+// Not suitable for legal/compliance obligations — use the legal audit database.
 // ============================================================================
 
-model AuditEvent {
-  /// Internal UUID – primary key. Never reused, never modified.
-  id            String        @id @default(uuid()) @db.Uuid
-  /// Typed event name using dot-notation (e.g. 'org.created', 'auth.login.failed').
-  /// Use the narrowest prefix possible to enable efficient typePrefix filtering.
-  type          String
-  /// ISO/GDPR-aligned severity level. Defaults to INFO.
-  severity      AuditSeverity @default(INFO)
-  /// FK → Organization. Nullable – null indicates a system/global event not
-  /// scoped to any organization. SetNull on org deletion preserves the record.
-  orgId         String?       @map("org_id") @db.Uuid
-  /// FK → User (no relation declared to avoid cascade issues). Nullable – null
-  /// indicates the action was performed by the system, not an authenticated user.
-  userId        String?       @map("user_id") @db.Uuid
-  /// Sanitised structured context for the event. Must NOT contain raw PII,
-  /// credentials, or secrets – use hashed/masked values where necessary.
-  payload       Json          @default("{}")
-  /// Source IP address of the request. Used for GDPR access-log and anomaly detection.
-  ipAddress     String?       @map("ip_address")
-  /// User-Agent header value for security context and bot detection.
-  userAgent     String?       @map("user_agent")
-  /// Distributed tracing correlation ID (e.g. X-Correlation-ID header).
-  /// Links multiple audit events belonging to a single logical operation.
-  correlationId String?       @map("correlation_id")
-  /// Immutable creation timestamp. No updatedAt – records are never modified.
-  createdAt     DateTime      @default(now()) @map("created_at")
+model ActivityLog {
+  /// Internal UUID – primary key.
+  id         String   @id @default(uuid()) @db.Uuid
+  /// FK → Organization. Cascade-delete removes activity logs when the org is deleted.
+  orgId      String   @map("org_id") @db.Uuid
+  /// Internal UUID of the user who triggered the action. Nullable for system actions.
+  actorId    String?  @map("actor_id") @db.Uuid
+  /// RBAC role of the actor at the time of the action (e.g. 'OWNER', 'ADMIN').
+  actorRole  String?  @map("actor_role")
+  /// Dot-notation action string. Use the narrowest prefix possible.
+  /// Examples: 'org.created', 'membership.role.changed', 'org.deleted'
+  action     String
+  /// Category of the entity the action was performed on (e.g. 'Organization').
+  entityType String?  @map("entity_type")
+  /// UUID of the entity the action was performed on.
+  entityId   String?  @map("entity_id") @db.Uuid
+  /// Sanitised structured context. Must NOT contain PII or credentials.
+  metadata   Json     @default("{}")
+  /// Immutable creation timestamp.
+  createdAt  DateTime @default(now()) @map("created_at")
 
   // ── Relations ──────────────────────────────────────────────────────────────
-  // Org relation is optional; SetNull preserves audit records after org deletion
-  // (required by ISO 27001 A.8.15 – minimum 1-year retention).
-  organization Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
-  // ── Indexes (optimised for compliance and SIEM queries) ───────────────────
-  /// Primary compliance query: events for a given org, newest first.
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Primary tenant query: events for a given org, newest first.
   @@index([orgId, createdAt(sort: Desc)])
-  /// User activity timeline: all events triggered by a specific user.
-  @@index([userId, createdAt(sort: Desc)])
-  /// Event-type queries with time ordering (e.g. all 'auth.*' events).
-  @@index([type, createdAt(sort: Desc)])
-  /// Severity-based alerting queries (e.g. all CRITICAL events in a time window).
-  @@index([severity, createdAt(sort: Desc)])
-  /// Distributed-trace lookup: find all events sharing a correlation ID.
-  @@index([correlationId])
-  /// Global time-range queries without org/user filter (admin-level audit views).
-  @@index([createdAt(sort: Desc)])
-  @@map("audit_events")
+  /// Action-type queries with time ordering (e.g. all 'org.*' events).
+  @@index([action, createdAt(sort: Desc)])
+  @@map("activity_logs")
+  @@schema("app_audit")
 }
 
 // ============================================================================
@@ -288,4 +271,5 @@ model Job {
   /// Admin/ops query: global status sweep (e.g. stuck PROCESSING jobs).
   @@index([status, createdAt(sort: Desc)])
   @@map("jobs")
+  @@schema("public")
 }

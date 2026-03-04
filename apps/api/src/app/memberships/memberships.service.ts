@@ -7,8 +7,9 @@ import {
   forwardRef,
   Optional,
 } from '@nestjs/common';
-import { PrismaService } from '@libs/prisma';
-import { AuditService, AUDIT_EVENTS } from '@libs/audit';
+import { PrismaBusinessService } from '@libs/prisma-business';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { Membership, MembershipRole } from '@prisma/client';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
@@ -19,8 +20,9 @@ export class MembershipsService {
   private readonly logger = new Logger(MembershipsService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly audit: AuditService,
+    private readonly prisma: PrismaBusinessService,
+    private readonly activityLog: ActivityLogService,
+    private readonly legalAudit: LegalAuditService,
     @Optional()
     @Inject(forwardRef(() => RBACCacheService))
     private readonly rbacCache?: RBACCacheService,
@@ -41,16 +43,22 @@ export class MembershipsService {
 
     await this.rbacCache?.invalidate(dto.userId, orgId);
 
-    // ISO 27001 A.9.2 – log access provisioning
-    this.audit.logEventBackground({
-      type: AUDIT_EVENTS.MEMBERSHIP.CREATED,
+    // ISO 27001 A.9.2 - business activity log (access provisioning)
+    this.activityLog.logActivity({
       orgId,
-      userId: actorUserId ?? null,
-      payload: {
-        membershipId: membership.id,
-        targetUserId: dto.userId,
-        role: dto.role,
-      },
+      actorId: actorUserId ?? null,
+      action: 'membership.created',
+      entityType: 'membership',
+      entityId: membership.id,
+      metadata: { targetUserId: dto.userId, role: dto.role },
+    });
+
+    // ISO 27001 A.9.2 - legal compliance record
+    this.legalAudit.recordEvent({
+      eventType: 'membership.created',
+      orgId,
+      triggerType: 'user',
+      metadata: { membershipId: membership.id, targetUserId: dto.userId, role: dto.role, actorUserId: actorUserId ?? null },
     });
 
     return membership;
@@ -115,18 +123,22 @@ export class MembershipsService {
     await this.rbacCache?.invalidate(membership.userId, membership.orgId);
     this.logger.log(`Membership ${id} updated to role ${dto.role}`);
 
-    // ISO 27001 A.9.2 – log privilege change (elevated severity)
-    this.audit.logEventBackground({
-      type: AUDIT_EVENTS.MEMBERSHIP.ROLE_CHANGED,
+    // ISO 27001 A.9.2 - business activity log (privilege change)
+    this.activityLog.logActivity({
       orgId,
-      userId: actorUserId ?? null,
-      severity: 'MEDIUM',
-      payload: {
-        membershipId: id,
-        targetUserId: membership.userId,
-        previousRole,
-        newRole: dto.role,
-      },
+      actorId: actorUserId ?? null,
+      action: 'membership.role_changed',
+      entityType: 'membership',
+      entityId: id,
+      metadata: { targetUserId: membership.userId, previousRole, newRole: dto.role },
+    });
+
+    // ISO 27001 A.9.2 - legal compliance record (privilege change)
+    this.legalAudit.recordEvent({
+      eventType: 'membership.role_changed',
+      orgId,
+      triggerType: 'user',
+      metadata: { membershipId: id, targetUserId: membership.userId, previousRole, newRole: dto.role, actorUserId: actorUserId ?? null },
     });
 
     return updated;
@@ -149,16 +161,22 @@ export class MembershipsService {
     await this.rbacCache?.invalidate(membership.userId, membership.orgId);
     this.logger.log(`Membership ${id} deleted`);
 
-    // ISO 27001 A.9.2 – log access revocation
-    this.audit.logEventBackground({
-      type: AUDIT_EVENTS.MEMBERSHIP.DELETED,
+    // ISO 27001 A.9.2 - business activity log (access revocation)
+    this.activityLog.logActivity({
       orgId,
-      userId: actorUserId ?? null,
-      payload: {
-        membershipId: id,
-        targetUserId: membership.userId,
-        role: membership.role,
-      },
+      actorId: actorUserId ?? null,
+      action: 'membership.deleted',
+      entityType: 'membership',
+      entityId: id,
+      metadata: { targetUserId: membership.userId, role: membership.role },
+    });
+
+    // ISO 27001 A.9.2 - legal compliance record (access revocation)
+    this.legalAudit.recordEvent({
+      eventType: 'membership.deleted',
+      orgId,
+      triggerType: 'user',
+      metadata: { membershipId: id, targetUserId: membership.userId, role: membership.role, actorUserId: actorUserId ?? null },
     });
   }
 

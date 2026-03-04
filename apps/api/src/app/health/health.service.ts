@@ -1,4 +1,4 @@
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -10,7 +10,7 @@ export class HealthService {
   // private readonly stripe: Stripe;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaBusinessService,
     private readonly redis: CacheService,
     private readonly configService: ConfigService,
   ) {

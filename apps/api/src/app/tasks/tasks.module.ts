@@ -1,5 +1,5 @@
 import { TenantModule } from '@libs/common';
-import { PrismaModule } from '@libs/prisma';
+import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
 import { Module } from '@nestjs/common';
 import { TasksController } from './tasks.controller';
@@ -17,7 +17,7 @@ import { JobsGateway } from './gateway/jobs.gateway';
  * EventBusService is injected globally by EventsModule (in AppModule).
  */
 @Module({
-  imports: [TenantModule, PrismaModule, RedisModule],
+  imports: [TenantModule, PrismaBusinessModule, RedisModule],
   controllers: [TasksController],
   providers: [TasksService, JobsGateway],
 })

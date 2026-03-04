@@ -1,0 +1,70 @@
+// Legal Audit Database Schema
+// Stores immutable, append-only compliance records in a separate PostgreSQL instance.
+//
+// ⚠️  IMPORTANT RULES — enforced by application design:
+//     - NEVER issue UPDATE statements against this database.
+//     - NEVER issue DELETE statements against this database.
+//     - The application role must have INSERT-only permissions in production.
+//     - Records must NOT be deleted when an organisation is removed.
+//     - This schema satisfies ISO 27001:2022 A.8.15 (tamper-evident records)
+//       and GDPR Art. 5(2) accountability obligations.
+//
+// To generate the Prisma client for this schema:
+//   npx prisma generate --schema prisma/schema.legal.prisma
+//
+// To run migrations for this schema:
+//   npx prisma migrate dev \
+//     --schema=prisma/schema.legal.prisma \
+//     --migrations-dir=prisma/migrations-legal \
+//     --name <migration_name>
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/legal-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("LEGAL_AUDIT_DATABASE_URL")
+}
+
+// ============================================================================
+// AUDIT EVENT MODEL
+// Immutable compliance event. Written once, never modified, never deleted.
+// ============================================================================
+
+/// Append-only compliance audit event.
+/// NEVER update or delete rows — this is enforced at the DB role level in production.
+model AuditEvent {
+  /// Internal UUID – primary key. Never reused, never modified.
+  id          String   @id @default(uuid()) @db.Uuid
+
+  /// Typed event name using dot-notation (e.g. 'org.created', 'gdpr.consent.revoked').
+  eventType   String   @map("event_type")
+
+  /// Organisation scope. Stored as a plain UUID string with no FK constraint,
+  /// so records survive organisation deletion without modification.
+  orgId       String?  @map("org_id") @db.Uuid
+
+  /// RBAC role of the actor at the time of the event (e.g. 'OWNER', 'system').
+  actorRole   String?  @map("actor_role")
+
+  /// Describes what triggered the event.
+  /// Values: 'user_action' | 'system' | 'api' | 'scheduler'
+  triggerType String?  @map("trigger_type")
+
+  /// Sanitised structured context for the event.
+  /// Must NOT contain raw PII, credentials, or secrets.
+  metadata    Json     @default("{}")
+
+  /// Immutable creation timestamp. No updatedAt – records are never modified.
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Org-scoped compliance queries with time ordering.
+  @@index([orgId, createdAt(sort: Desc)])
+  /// Event-type queries with time ordering (e.g. all 'gdpr.*' events).
+  @@index([eventType, createdAt(sort: Desc)])
+
+  @@map("audit_events")
+}

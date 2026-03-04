@@ -1,6 +1,6 @@
 import { OrgContextGuard, RequestWithOrgContext } from './org-context.guard';
 import { Reflector } from '@nestjs/core';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import {
   ExecutionContext,
   BadRequestException,
@@ -12,7 +12,7 @@ const mockReflector = { getAllAndOverride: jest.fn() } as unknown as Reflector;
 const mockPrisma = {
   user: { findUnique: jest.fn(), create: jest.fn() },
   membership: { findUnique: jest.fn() },
-} as unknown as PrismaService;
+} as unknown as PrismaBusinessService;
 
 function makeContext(
   request: Partial<RequestWithOrgContext>,

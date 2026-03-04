@@ -13,6 +13,7 @@ COPY apps ./apps
 COPY libs ./libs
 
 RUN npx prisma generate
+RUN npx prisma generate --schema prisma/schema.legal.prisma
 RUN npx nx run api:build --configuration=production --skip-nx-cache
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ COPY --from=builder /workspace/dist/apps/api .
 
 # Generate Prisma client for this exact runtime (same as saas-backend-blueprint approach)
 RUN npx prisma generate
+RUN npx prisma generate --schema prisma/schema.legal.prisma
 
 EXPOSE 3000
 

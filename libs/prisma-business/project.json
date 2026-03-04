@@ -1,0 +1,20 @@
+{
+  "name": "prisma-business",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/prisma-business/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:prisma-business"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/prisma-business",
+        "tsConfig": "libs/prisma-business/tsconfig.lib.json",
+        "packageJson": "libs/prisma-business/package.json",
+        "main": "libs/prisma-business/src/index.ts",
+        "assets": ["libs/prisma-business/*.md"]
+      }
+    }
+  }
+}

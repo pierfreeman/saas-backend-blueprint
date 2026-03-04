@@ -9,6 +9,7 @@ export const envValidationSchema = Joi.object({
 
   // Database
   DATABASE_URL: Joi.string().required(),
+  LEGAL_AUDIT_DATABASE_URL: Joi.string().required(),
 
   // Redis
   REDIS_HOST: Joi.string().required(),

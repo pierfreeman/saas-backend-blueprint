@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PrismaModule } from '@libs/prisma';
+import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
 import { ConfigModule } from '@libs/config';
 import { EventsModule } from '@libs/events';
@@ -12,7 +12,7 @@ import { SqsConsumerService } from './sqs-consumer.service';
  * Redis is still imported for cache and pub/sub socket channels.
  */
 @Module({
-  imports: [ConfigModule, PrismaModule, RedisModule, EventsModule],
+  imports: [ConfigModule, PrismaBusinessModule, RedisModule, EventsModule],
   providers: [WorkerController, SqsConsumerService],
 })
 export class AppModule {}

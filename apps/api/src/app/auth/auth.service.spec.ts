@@ -1,5 +1,5 @@
 import { AuthService } from './auth.service';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 
 const mockPrisma = {
   user: {
@@ -7,7 +7,7 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
-} as unknown as PrismaService;
+} as unknown as PrismaBusinessService;
 
 describe('AuthService', () => {
   let service: AuthService;

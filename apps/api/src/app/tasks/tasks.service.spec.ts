@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { EventBusService } from '@libs/events';
-import { PrismaService } from '@libs/prisma';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { JobStatus } from '@prisma/client';
 
@@ -17,7 +17,7 @@ const mockPrisma = {
     delete: jest.fn(),
     findFirst: jest.fn(),
   },
-} as unknown as PrismaService;
+} as unknown as PrismaBusinessService;
 
 const validDto: CreateTaskDto = { name: 'test-job', data: { key: 'value' } };
 
