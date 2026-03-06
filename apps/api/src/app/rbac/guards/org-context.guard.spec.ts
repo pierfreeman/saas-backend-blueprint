@@ -12,6 +12,7 @@ const mockReflector = { getAllAndOverride: jest.fn() } as unknown as Reflector;
 const mockPrisma = {
   user: { findUnique: jest.fn(), create: jest.fn() },
   membership: { findUnique: jest.fn() },
+  organization: { findUnique: jest.fn() },
 } as unknown as PrismaBusinessService;
 
 function makeContext(
@@ -73,6 +74,9 @@ describe('OrgContextGuard', () => {
     const dbUser = { id: 'db-u-1', auth0Id: 'auth0|1', email: 'a@b.com' };
     mockPrisma.user.findUnique = jest.fn().mockResolvedValue(dbUser);
     mockPrisma.membership.findUnique = jest.fn().mockResolvedValue(null);
+    mockPrisma.organization.findUnique = jest
+      .fn()
+      .mockResolvedValue({ id: 'org-1' });
 
     const ctx = makeContext({
       user: { sub: 'auth0|1', email: 'a@b.com' } as any,

@@ -36,7 +36,7 @@ describe('AuthController', () => {
 
       expect(result).toEqual({
         id: 'db-u-1',
-        sub: 'auth0|u1',
+        auth0Id: 'auth0|u1',
         email: 'user@example.com',
       });
       expect(mockAuthService.syncUser).toHaveBeenCalledWith(

@@ -25,6 +25,7 @@ const mockPrisma = {
     delete: jest.fn(),
   },
   membership: { findMany: jest.fn() },
+  job: { deleteMany: jest.fn() },
   $transaction: jest.fn(),
 } as unknown as PrismaBusinessService;
 
@@ -40,7 +41,11 @@ describe('OrganizationsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new OrganizationsService(mockPrisma, mockActivityLogService, mockLegalAuditService);
+    service = new OrganizationsService(
+      mockPrisma,
+      mockActivityLogService,
+      mockLegalAuditService,
+    );
   });
 
   describe('createOrganization', () => {
@@ -76,10 +81,16 @@ describe('OrganizationsService', () => {
       await service.createOrganization('u-1', { name: 'Acme' });
 
       expect(mockActivityLogService.logActivity).toHaveBeenCalledWith(
-        expect.objectContaining({ orgId: 'org-1', action: 'organization.created' }),
+        expect.objectContaining({
+          orgId: 'org-1',
+          action: 'organization.created',
+        }),
       );
       expect(mockLegalAuditService.recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ eventType: 'organization.created', orgId: 'org-1' }),
+        expect.objectContaining({
+          eventType: 'organization.created',
+          orgId: 'org-1',
+        }),
       );
     });
 
@@ -151,6 +162,7 @@ describe('OrganizationsService', () => {
     it('deletes the org and records legal audit event', async () => {
       mockPrisma.organization.findUnique = jest.fn().mockResolvedValue(baseOrg);
       mockPrisma.organization.delete = jest.fn().mockResolvedValue(undefined);
+      mockPrisma.job.deleteMany = jest.fn().mockResolvedValue({ count: 0 });
       await service.deleteOrganization('org-1');
       expect(mockPrisma.organization.delete).toHaveBeenCalledWith({
         where: { id: 'org-1' },

@@ -36,7 +36,7 @@ export class AuthController {
           description: 'Internal database UUID of the user.',
           example: 'c7b3e1a2-45d6-4f89-9012-3456789abcde',
         },
-        sub: {
+        auth0Id: {
           type: 'string',
           description: 'Auth0 subject identifier ("sub" JWT claim).',
           example: 'auth0|64a1b2c3d4e5f6a7b8c9d0e1',
@@ -48,7 +48,7 @@ export class AuthController {
           example: 'alice@example.com',
         },
       },
-      required: ['id', 'sub', 'email'],
+      required: ['id', 'auth0Id', 'email'],
     },
   })
   @ApiResponse({

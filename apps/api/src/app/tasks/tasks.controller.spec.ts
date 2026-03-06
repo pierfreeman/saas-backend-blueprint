@@ -71,7 +71,7 @@ describe('TasksController', () => {
       );
       expect(result).toMatchObject({
         jobId: 'job_123',
-        status: 'accepted',
+        status: 'PENDING',
         message: 'Job submitted for processing',
       });
       expect(result.timestamp).toBeDefined();
