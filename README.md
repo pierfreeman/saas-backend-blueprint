@@ -426,18 +426,98 @@ See `libs/events/src/interfaces/job-update-message.interface.ts` for the full
 
 ---
 
-## Common Nx tasks
+## Testing
+
+The project has two independent test suites. They run against different infrastructure and must not be executed at the same time (they share the test databases).
+
+### Unit tests
+
+Run all unit tests across every app and library in the monorepo:
+
+```sh
+npm run test:unit
+```
+
+Run a single project:
+
+```sh
+npx nx test api
+npx nx test worker-a
+npx nx test events   # any lib name works
+```
+
+Watch mode (useful during active development):
+
+```sh
+npm run test:watch   # watches the api project; change the project name as needed
+```
+
+### Integration tests
+
+Integration tests spin up the full NestJS application against real Postgres and Redis containers. Start the test infrastructure first:
+
+```sh
+# Start test containers (Postgres × 2 on ports 5440/5441, Redis on 6380, LocalStack on 4566)
+npm run test:infra:up
+
+# Apply migrations to the test databases (run once per fresh container, or after schema changes)
+npm run test:migrate
+```
+
+Then run the suites:
+
+```sh
+# Both suites sequentially (recommended — they share the test DBs)
+npm run test:integration
+
+# API integration tests only
+npm run test:integration:api
+
+# Worker integration tests only
+npm run test:integration:worker
+```
+
+Tear down when done:
+
+```sh
+npm run test:infra:down
+```
+
+> **Why sequential?** Both `api-e2e` and `worker-a-e2e` connect to the same test database. Running them in parallel causes race conditions between `cleanDatabase()` calls and in-flight job processing. `--parallel=1` prevents this.
+
+### Coverage
+
+Generate HTML coverage reports:
+
+```sh
+# Unit tests → coverage/unit/
+npm run test:coverage
+
+# Integration tests → coverage/integration/
+npm run test:integration:coverage
+```
+
+Serve the reports locally at `http://localhost:4321`:
+
+```sh
+npm run coverage:serve
+```
+
+Navigate to:
+
+| URL                                               | Contents                      |
+| ------------------------------------------------- | ----------------------------- |
+| `http://localhost:4321/unit/apps/api/`            | API unit coverage             |
+| `http://localhost:4321/unit/apps/worker-a/`       | Worker-A unit coverage        |
+| `http://localhost:4321/unit/libs/<name>/`         | Per-library unit coverage     |
+| `http://localhost:4321/integration/api-e2e/`      | API integration coverage      |
+| `http://localhost:4321/integration/worker-a-e2e/` | Worker-A integration coverage |
+
+### Common Nx tasks
 
 ```sh
 # Build
 npx nx build api
-
-# Test
-npx nx test api
-npx nx run-many -t test
-
-# Test with coverage
-npx nx test api --coverage
 
 # Lint
 npx nx lint api

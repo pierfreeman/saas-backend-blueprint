@@ -18,7 +18,7 @@ export default {
     ],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../coverage/worker-a-e2e',
+  coverageDirectory: '../../coverage/integration/worker-a-e2e',
   // ─── Only run integration test files ─────────────────────────────────────────
   testMatch: ['**/*.integration.spec.ts'],
 };

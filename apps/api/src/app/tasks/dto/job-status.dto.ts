@@ -12,6 +12,13 @@ export class JobStatusDto {
     format: 'uuid',
     example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
   })
+  id: string;
+
+  @ApiProperty({
+    description: 'Unique identifier of the job (UUID v4). Alias of id.',
+    format: 'uuid',
+    example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+  })
   jobId: string;
 
   @ApiProperty({

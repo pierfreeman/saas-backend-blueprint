@@ -22,7 +22,7 @@ export default {
   // ─── Allow Jest to transform jose (pure ESM) so it runs under CJS/Jest ───────
   transformIgnorePatterns: ['node_modules/(?!(jose)/)'],
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../coverage/api-e2e',
+  coverageDirectory: '../../coverage/integration/api-e2e',
   // ─── Only pick up integration spec files (not unit tests) ────────────────────
   testMatch: ['**/*.integration.spec.ts'],
 };

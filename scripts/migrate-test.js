@@ -22,7 +22,7 @@ execSync('npx prisma migrate deploy --schema=prisma/schema.prisma', {
 });
 
 console.log('[migrate-test] Running legal audit DB migrations...');
-execSync('npx prisma migrate deploy --schema=prisma/schema.legal.prisma', {
+execSync('npx prisma migrate deploy --config prisma.config.legal.ts', {
   cwd: path.join(__dirname, '..'),
   env: { ...process.env, PRISMA_LEGAL_SCHEMA: '1' },
   stdio: 'inherit',

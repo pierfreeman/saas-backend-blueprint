@@ -112,7 +112,7 @@ describe('Worker-A Job Lifecycle (integration)', () => {
         userId: user.id,
         data: { input: 'test' },
       },
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
     };
 
     await workerController.handleHeavyJobCreated(event);
@@ -150,7 +150,7 @@ describe('Worker-A Job Lifecycle (integration)', () => {
     const event: DomainEvent<HeavyJobPayload> = {
       eventType: DOMAIN_EVENTS.HEAVY_JOB_CREATED,
       payload: { jobId: job.id, tenantId: org.id, userId: user.id, data: {} },
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
     };
 
     await workerController.handleHeavyJobCreated(event);
@@ -185,7 +185,7 @@ describe('Worker-A Job Lifecycle (integration)', () => {
     const event: DomainEvent<HeavyJobPayload> = {
       eventType: DOMAIN_EVENTS.HEAVY_JOB_CREATED,
       payload: { jobId: job.id, tenantId: org.id, userId: user.id, data: {} },
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
     };
 
     await workerController.handleHeavyJobCreated(event);
@@ -234,7 +234,7 @@ describe('Worker-A Job Lifecycle (integration)', () => {
     const event: DomainEvent<HeavyJobPayload> = {
       eventType: DOMAIN_EVENTS.HEAVY_JOB_CREATED,
       payload: { jobId: job.id, tenantId: org.id, userId: user.id, data: {} },
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
     };
 
     // handleHeavyJobCreated re-throws so SqsConsumerService can handle DLQ
@@ -284,7 +284,7 @@ describe('Worker-A Job Lifecycle (integration)', () => {
     const event: DomainEvent<HeavyJobPayload> = {
       eventType: DOMAIN_EVENTS.HEAVY_JOB_CREATED,
       payload: { jobId: job.id, tenantId: org.id, userId: user.id, data: {} },
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
     };
 
     await workerController.handleHeavyJobCreated(event);

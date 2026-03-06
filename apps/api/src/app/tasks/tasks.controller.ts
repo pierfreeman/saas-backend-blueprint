@@ -194,6 +194,7 @@ export class TasksController {
     );
 
     return {
+      id: job.id,
       jobId: job.id,
       status: job.status,
       type: job.type,

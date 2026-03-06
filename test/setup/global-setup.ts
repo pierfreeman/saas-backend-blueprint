@@ -29,7 +29,7 @@ module.exports = async function globalSetup() {
   });
 
   console.log('[global-setup] Running legal audit DB migrations...');
-  execSync('npx prisma migrate deploy --schema=prisma/schema.legal.prisma', {
+  execSync('npx prisma migrate deploy --config prisma.config.legal.ts', {
     cwd: process.cwd(),
     env: { ...process.env, PRISMA_LEGAL_SCHEMA: '1' },
     stdio: 'inherit',
