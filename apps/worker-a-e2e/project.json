@@ -9,9 +9,9 @@
       "outputs": ["{workspaceRoot}/coverage/{e2eProjectRoot}"],
       "options": {
         "jestConfig": "apps/worker-a-e2e/jest.config.cts",
-        "passWithNoTests": true
-      },
-      "dependsOn": ["worker-a:build", "worker-a:serve"]
+        "passWithNoTests": true,
+        "runInBand": true
+      }
     }
   }
 }

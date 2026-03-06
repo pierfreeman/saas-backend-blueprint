@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   BadRequestException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -98,6 +99,14 @@ export class OrgContextGuard implements CanActivate {
     });
 
     if (!membership) {
+      // Distinguish between "org doesn't exist" (404) and "not a member" (403)
+      const orgExists = await this.prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { id: true },
+      });
+      if (!orgExists) {
+        throw new NotFoundException(`Organization ${orgId} not found`);
+      }
       throw new ForbiddenException('You are not a member of this organization');
     }
 

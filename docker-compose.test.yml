@@ -1,0 +1,59 @@
+services:
+  # ─── PostgreSQL (Business DB — Test) ──────────────────────────────────────────
+  postgres-test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: saas_test
+    ports:
+      - '5440:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d saas_test']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── PostgreSQL (Legal Audit DB — Test) ───────────────────────────────────────
+  postgres-legal-test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: legal_test
+    ports:
+      - '5441:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d legal_test']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── Redis (Test) ──────────────────────────────────────────────────────────────
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── LocalStack (SQS — Test) ───────────────────────────────────────────────────
+  localstack-test:
+    image: localstack/localstack:3
+    ports:
+      - '4567:4566'
+    environment:
+      SERVICES: sqs
+      DEFAULT_REGION: us-east-1
+      PERSISTENCE: 0
+    volumes:
+      - ./scripts/localstack-test-init.sh:/etc/localstack/init/ready.d/01-sqs.sh:ro
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s

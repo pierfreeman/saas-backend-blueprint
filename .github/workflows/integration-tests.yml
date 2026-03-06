@@ -1,0 +1,109 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, feature/**]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Start test infrastructure ─────────────────────────────────────────
+      - name: Start test containers
+        run: docker compose -f docker-compose.test.yml up -d
+
+      - name: Wait for PostgreSQL (business)
+        run: |
+          until docker compose -f docker-compose.test.yml exec -T postgres-test \
+            pg_isready -U postgres -d saas_test; do
+            echo "Waiting for business DB..."
+            sleep 2
+          done
+
+      - name: Wait for PostgreSQL (legal)
+        run: |
+          until docker compose -f docker-compose.test.yml exec -T postgres-legal-test \
+            pg_isready -U postgres -d legal_test; do
+            echo "Waiting for legal DB..."
+            sleep 2
+          done
+
+      - name: Wait for Redis
+        run: |
+          until docker compose -f docker-compose.test.yml exec -T redis-test \
+            redis-cli ping; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+
+      # ── Generate Prisma clients ───────────────────────────────────────────
+      - name: Generate Prisma clients
+        run: |
+          npx prisma generate --schema=prisma/schema.prisma
+          npx prisma generate --schema=prisma/schema.legal.prisma
+
+      # ── Run migrations ────────────────────────────────────────────────────
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
+        run: |
+          npx prisma migrate deploy --schema=prisma/schema.prisma
+          npx prisma migrate deploy --schema=prisma/schema.legal.prisma
+
+      # ── Run integration tests ─────────────────────────────────────────────
+      - name: Run API integration tests
+        run: npx nx e2e api-e2e
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6380
+          REDIS_PASSWORD: ''
+          AUTH0_DOMAIN: test.auth0.local
+          AUTH0_AUDIENCE: https://api.test.local
+          EVENT_BUS_TRANSPORT: local
+          PORT: '0'
+
+      - name: Run Worker-A integration tests
+        run: npx nx e2e worker-a-e2e
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6380
+          REDIS_PASSWORD: ''
+          AUTH0_DOMAIN: test.auth0.local
+          AUTH0_AUDIENCE: https://api.test.local
+          EVENT_BUS_TRANSPORT: local
+          SQS_STANDARD_QUEUE_URL: http://localhost:4567/000000000000/saas-backend-heavy-jobs
+          SQS_FIFO_QUEUE_URL: http://localhost:4567/000000000000/saas-backend-billing-events.fifo
+          AWS_ENDPOINT_URL: http://localhost:4567
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_REGION: us-east-1
+          PORT: '0'
+
+      # ── Teardown ──────────────────────────────────────────────────────────
+      - name: Teardown test containers
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v

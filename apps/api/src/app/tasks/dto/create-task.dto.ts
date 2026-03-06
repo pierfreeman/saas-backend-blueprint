@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsObject } from 'class-validator';
 
 /**
@@ -6,13 +6,14 @@ import { IsString, IsNotEmpty, IsOptional, IsObject } from 'class-validator';
  * Validates request body for task creation
  */
 export class CreateTaskDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Human-readable name of the task to be processed.',
     example: 'Generate monthly report',
   })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  @IsOptional()
+  name?: string;
 
   @ApiPropertyOptional({
     description:

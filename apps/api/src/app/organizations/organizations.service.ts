@@ -61,7 +61,11 @@ export class OrganizationsService {
         eventType: 'organization.created',
         orgId: organization.id,
         triggerType: 'user',
-        metadata: { organizationId: organization.id, name: organization.name, userId },
+        metadata: {
+          organizationId: organization.id,
+          name: organization.name,
+          userId,
+        },
       });
 
       return organization;
@@ -122,7 +126,11 @@ export class OrganizationsService {
       eventType: 'organization.updated',
       orgId: id,
       triggerType: 'user',
-      metadata: { organizationId: id, changes: dto as Record<string, unknown>, userId: userId ?? null },
+      metadata: {
+        organizationId: id,
+        changes: dto as Record<string, unknown>,
+        userId: userId ?? null,
+      },
     });
 
     return updated;
@@ -130,6 +138,8 @@ export class OrganizationsService {
 
   async deleteOrganization(id: string, userId?: string): Promise<void> {
     const org = await this.findById(id);
+    // Jobs use a plain-string FK (no DB-level cascade), so delete them explicitly
+    await this.prisma.job.deleteMany({ where: { orgId: id } });
     await this.prisma.organization.delete({ where: { id } });
     this.logger.log(`Organization ${id} deleted`);
 

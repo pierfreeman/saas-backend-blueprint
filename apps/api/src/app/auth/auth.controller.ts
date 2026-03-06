@@ -64,7 +64,7 @@ export class AuthController {
   })
   async getMe(@CurrentUser() user: RequestUser): Promise<{
     id: string;
-    sub: string;
+    auth0Id: string;
     email: string;
     // organization: {
     //   id: string;
@@ -76,7 +76,7 @@ export class AuthController {
     const dbUser = await this.authService.syncUser(user.sub, user.email);
     return {
       id: dbUser.id,
-      sub: user.sub,
+      auth0Id: user.sub,
       email: user.email,
       // organization: userWithOrg?.memberships?.[0]?.organization
       //   ? {

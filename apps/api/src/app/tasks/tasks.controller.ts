@@ -24,7 +24,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Job } from '@prisma/client';
+import { Job, JobStatus } from '@prisma/client';
 
 /** Shape of the user object attached to the request by JwtStrategy.validate(). */
 interface RequestUser {
@@ -131,8 +131,9 @@ export class TasksController {
     );
 
     return {
+      id: result.jobId,
       jobId: result.jobId,
-      status: 'accepted',
+      status: JobStatus.PENDING,
       message: 'Job submitted for processing',
       timestamp: new Date().toISOString(),
     };
