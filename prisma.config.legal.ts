@@ -1,22 +1,24 @@
-// ─── Business DB config ──────────────────────────────────────────────────────
-// Auto-detected by all `npx prisma` commands (no --config flag needed).
-// Reads DATABASE_URL from .env  →  postgres container, port 5432.
+// ─── Legal Audit DB config ────────────────────────────────────────────────────
+// Used by all `npx prisma` commands via `--config prisma.config.legal.ts`.
+// Reads LEGAL_AUDIT_DATABASE_URL from .env  →  postgres-legal container, port 5433.
 //
-// For the Legal Audit DB, use the companion config file:
+// Examples:
 //   npx prisma migrate dev    --config prisma.config.legal.ts [--name …]
 //   npx prisma migrate deploy --config prisma.config.legal.ts
 //   npx prisma generate       --config prisma.config.legal.ts
 //   npx prisma studio         --config prisma.config.legal.ts
+//
+// ⚠️  Append-only database — do NOT issue UPDATE or DELETE statements.
 // ─────────────────────────────────────────────────────────────────────────────
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
 
 export default defineConfig({
-  schema: 'prisma/schema.prisma',
+  schema: 'prisma/schema.legal.prisma',
   migrations: {
-    path: 'prisma/migrations',
+    path: 'prisma/migrations-legal',
   },
   datasource: {
-    url: process.env['DATABASE_URL'],
+    url: process.env['LEGAL_AUDIT_DATABASE_URL'],
   },
 });

@@ -2,6 +2,31 @@
 
 An [Nx](https://nx.dev) monorepo with NestJS applications backed by two PostgreSQL databases (via Prisma), Redis (cache + pub/sub), and background workers.
 
+## Quick start
+
+Complete local setup from a fresh clone (~2 minutes):
+
+```sh
+# 1. Dependencies
+pnpm install
+
+# 2. Start both Postgres instances + Redis
+docker compose up -d postgres postgres-legal redis
+
+# 3. Environment (defaults work out of the box for local dev)
+cp .env.example .env
+
+# 4. Run all migrations
+npx prisma migrate dev                                  # business DB
+npx prisma migrate dev --config prisma.config.legal.ts  # legal audit DB
+
+# 5. Start the API
+npx nx serve api
+```
+
+The API is available at `http://localhost:3000` and Swagger docs at `http://localhost:3000/docs`.  
+For Auth0 setup and advanced options see the [Local development](#local-development) section below.
+
 ## Architecture
 
 ```
@@ -63,8 +88,10 @@ pnpm install
 ### 2. Start infrastructure
 
 ```sh
-docker compose up -d postgres redis
+docker compose up -d postgres postgres-legal redis
 ```
+
+> Default host ports: business DB → `5432`, legal audit DB → `5433`. Both match the defaults in `.env.example`.
 
 ### 3. Configure environment
 
@@ -108,20 +135,17 @@ cp .env.example .env
 
 ### 4. Run database migrations
 
-Business database (uses `prisma.config.ts` — no `--schema` flag needed):
+Each database has a dedicated Prisma config file at the workspace root.
 
 ```sh
-npx prisma migrate dev --name describe_your_change
+# Business database — prisma.config.ts is auto-detected:
+npx prisma migrate dev
+
+# Legal audit database — pass the dedicated config:
+npx prisma migrate dev --config prisma.config.legal.ts
 ```
 
-Legal audit database (separate schema and migrations directory):
-
-```sh
-npx prisma migrate dev \
-  --schema=prisma/schema.legal.prisma \
-  --migrations-dir=prisma/migrations-legal \
-  --name describe_your_change
-```
+> Append `--name <describe_your_change>` when you want to create a new migration. Omitting it causes Prisma to prompt interactively.
 
 ### 5. Serve applications
 
@@ -436,40 +460,27 @@ http://localhost:3000/docs
 
 ### Prisma Studio (database browser)
 
-Business database:
+Both config files auto-load connection URLs from `.env` via `dotenv/config`:
 
 ```sh
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
+# Business database:
 npx prisma studio
-```
 
-Legal audit database:
-
-```sh
-$env:LEGAL_AUDIT_DATABASE_URL="postgresql://postgres:postgres@localhost:5433/saas_legal"
-npx prisma studio --schema=prisma/schema.legal.prisma
+# Legal audit database:
+npx prisma studio --config prisma.config.legal.ts
 ```
 
 ### Prisma migration (local development)
 
-Business database (`prisma.config.ts` is picked up automatically):
-
 ```sh
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/saas_backend"
+# Business database (prisma.config.ts auto-detected):
 npx prisma migrate dev --name describe_your_change
+
+# Legal audit database:
+npx prisma migrate dev --config prisma.config.legal.ts --name describe_your_change
 ```
 
-Legal audit database:
-
-```sh
-$env:LEGAL_AUDIT_DATABASE_URL="postgresql://postgres:postgres@localhost:5433/saas_legal"
-npx prisma migrate dev \
-  --schema=prisma/schema.legal.prisma \
-  --migrations-dir=prisma/migrations-legal \
-  --name describe_your_change
-```
-
-> **Prisma config** — `prisma.config.ts` at the workspace root configures the business-database defaults (schema path, migrations directory, datasource URL). The legal schema always requires explicit `--schema` and `--migrations-dir` flags because it uses a second datasource (`LEGAL_AUDIT_DATABASE_URL`) that is not covered by `prisma.config.ts`.
+> **Prisma config** — Two config files live at the workspace root: `prisma.config.ts` (business DB, auto-detected) and `prisma.config.legal.ts` (legal audit DB, pass with `--config`). Both load their connection URL from `.env` via `dotenv/config` — no manual environment variable prefixes needed.
 
 ## Adding projects
 
