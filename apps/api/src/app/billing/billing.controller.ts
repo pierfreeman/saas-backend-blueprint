@@ -95,6 +95,19 @@ export class BillingController {
     description: 'Checkout session created.',
     type: CheckoutSessionResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed — missing or invalid request body fields.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Caller has no active membership in the org or lacks OWNER/ADMIN role.',
+  })
   async createCheckoutSession(
     @Body() dto: CreateCheckoutSessionDto,
     @CurrentDbUserId() actorUserId: string,
@@ -127,6 +140,19 @@ export class BillingController {
     description: 'Billing portal session created.',
     type: PortalSessionResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed — missing or invalid request body fields.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Caller has no active membership in the org or lacks OWNER/ADMIN role.',
+  })
   async createPortalSession(
     @Body() dto: CreatePortalSessionDto,
     @CurrentDbUserId() actorUserId: string,
@@ -152,6 +178,15 @@ export class BillingController {
     description: 'Subscription state returned.',
     type: SubscriptionResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Caller has no active membership in the org or lacks OWNER/ADMIN role.',
+  })
   async getSubscription(
     @Query('orgId') orgId: string,
   ): Promise<SubscriptionResponseDto> {
@@ -171,6 +206,19 @@ export class BillingController {
     status: HttpStatus.OK,
     description: 'Subscription scheduled for cancellation.',
     type: CancelSubscriptionResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed — missing or invalid request body fields.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Caller has no active membership in the org or lacks OWNER/ADMIN role.',
   })
   async cancelSubscription(
     @Body() dto: CancelSubscriptionDto,
@@ -211,12 +259,24 @@ export class BillingController {
     description: 'Paginated subscription snapshot history returned.',
     type: BillingHistoryResponseDto,
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Caller has no active membership in the org or lacks OWNER/ADMIN role.',
+  })
   async getSubscriptionHistory(
     @Query('orgId') orgId: string,
     @Query('limit') limitStr?: string,
     @Query('offset') offsetStr?: string,
   ): Promise<BillingHistoryResponseDto> {
-    const limit = Math.min(Math.max(parseInt(limitStr ?? '50', 10) || 50, 1), 200);
+    const limit = Math.min(
+      Math.max(parseInt(limitStr ?? '50', 10) || 50, 1),
+      200,
+    );
     const offset = Math.max(parseInt(offsetStr ?? '0', 10) || 0, 0);
     const { items, total } = await this.billingService.getSubscriptionHistory(
       orgId,

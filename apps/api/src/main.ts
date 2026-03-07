@@ -76,9 +76,13 @@ async function bootstrap() {
     .addTag('Health', 'Health check endpoints')
     .addTag('Organizations', 'Organization management endpoints')
     .addTag('Memberships', 'Organization membership management endpoints')
-    .addTag('Tasks', 'Task management and job status endpoints')
+    .addTag(
+      'Feature Flags',
+      'Organization feature flag and entitlement endpoints',
+    )
     .addTag('Activity Log', 'Activity log query endpoints')
     .addTag('Billing', 'Subscription and billing management endpoints')
+    .addTag('Tasks', 'Task management and job status endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
