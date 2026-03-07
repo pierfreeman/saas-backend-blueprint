@@ -2,16 +2,21 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   actions: read
   contents: read
 
 jobs:
-  main:
+  # ── Job 1: Lint · Unit Tests · Build ──────────────────────────────────────
+  unit:
+    name: Lint · Unit Tests · Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,13 +24,6 @@ jobs:
           filter: tree:0
           fetch-depth: 0
 
-      # This enables task distribution via Nx Cloud
-      # Run this command as early as possible, before dependencies are installed
-      # Learn more at https://nx.dev/ci/reference/nx-cloud-cli#npx-nxcloud-startcirun
-      # Connect your workspace by running "nx connect" and uncomment this line to enable task distribution
-      # - run: npx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="build"
-
-      # Cache node_modules
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -33,9 +31,125 @@ jobs:
 
       - run: npm ci
 
-      # Prepend any command with "nx record --" to record its logs to Nx Cloud
-      # - run: npx nx record -- echo Hello World
       - run: npx nx run-many -t lint test build
-      # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
+
       - run: npx nx fix-ci
         if: always()
+
+  # ── Job 2: Integration & E2E Tests ────────────────────────────────────────
+  # Runs only after unit passes. Spins up Postgres, Redis, and LocalStack
+  # (SQS) via docker-compose.test.yml, runs migrations, then executes all
+  # e2e suites. Add future e2e projects as extra steps in this job.
+  integration:
+    name: Integration & E2E Tests
+    runs-on: ubuntu-latest
+    needs: unit
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Start test infrastructure ───────────────────────────────────────
+      - name: Start test containers
+        run: docker compose -f docker-compose.test.yml up -d
+
+      - name: Wait for PostgreSQL (business)
+        run: |
+          until docker compose -f docker-compose.test.yml exec -T postgres-test \
+            pg_isready -U postgres -d saas_test; do
+            echo "Waiting for business DB..."
+            sleep 2
+          done
+
+      - name: Wait for PostgreSQL (legal)
+        run: |
+          until docker compose -f docker-compose.test.yml exec -T postgres-legal-test \
+            pg_isready -U postgres -d legal_test; do
+            echo "Waiting for legal DB..."
+            sleep 2
+          done
+
+      - name: Wait for Redis
+        run: |
+          until docker compose -f docker-compose.test.yml exec -T redis-test \
+            redis-cli ping; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+
+      - name: Wait for LocalStack
+        run: |
+          until curl -sf http://localhost:4567/_localstack/health | grep -q '"sqs": *"available"'; do
+            echo "Waiting for LocalStack SQS..."
+            sleep 3
+          done
+
+      # ── Generate Prisma clients ─────────────────────────────────────────
+      - name: Generate Prisma clients
+        run: |
+          npx prisma generate --schema=prisma/schema.prisma
+          npx prisma generate --schema=prisma/schema.legal.prisma
+
+      # ── Run migrations ──────────────────────────────────────────────────
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
+        run: |
+          npx prisma migrate deploy --schema=prisma/schema.prisma
+          npx prisma migrate deploy --schema=prisma/schema.legal.prisma
+
+      # ── E2E suites ──────────────────────────────────────────────────────
+      - name: E2E — api-e2e
+        run: npx nx e2e api-e2e
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6380
+          REDIS_PASSWORD: ''
+          AUTH0_DOMAIN: test.auth0.local
+          AUTH0_AUDIENCE: https://api.test.local
+          EVENT_BUS_TRANSPORT: local
+          PORT: '0'
+
+      - name: E2E — worker-a-e2e
+        run: npx nx e2e worker-a-e2e
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6380
+          REDIS_PASSWORD: ''
+          AUTH0_DOMAIN: test.auth0.local
+          AUTH0_AUDIENCE: https://api.test.local
+          EVENT_BUS_TRANSPORT: local
+          SQS_STANDARD_QUEUE_URL: http://localhost:4567/000000000000/saas-backend-heavy-jobs
+          SQS_FIFO_QUEUE_URL: http://localhost:4567/000000000000/saas-backend-billing-events.fifo
+          SQS_ENDPOINT_URL: http://localhost:4567
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_REGION: us-east-1
+          PORT: '0'
+
+      # Add future e2e suites here following the same pattern:
+      # - name: E2E — <new-app>-e2e
+      #   run: npx nx e2e <new-app>-e2e
+      #   env: ...
+
+      # ── Teardown ────────────────────────────────────────────────────────
+      - name: Teardown test containers
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
