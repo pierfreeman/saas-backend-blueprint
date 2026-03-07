@@ -334,5 +334,261 @@ describe('SubscriptionService', () => {
 
       expect(billingRepository.updateOrgAndSnapshotTx).toHaveBeenCalledTimes(1);
     });
+
+    it('publishes SUBSCRIPTION_PLAN_CHANGED when subscription is still active after update', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(makeOrg());
+
+      await service.handleSubscriptionUpdated(
+        makeStripeSubscription({ status: 'active' }),
+        makeCtx({ eventType: 'customer.subscription.updated' }),
+      );
+
+      expect(eventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED,
+        }),
+      );
+    });
+
+    it('does not publish event when org is not found', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(null);
+
+      await service.handleSubscriptionUpdated(
+        makeStripeSubscription(),
+        makeCtx({ eventType: 'customer.subscription.updated' }),
+      );
+
+      expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── handleInvoicePaid ────────────────────────────────────────────────────
+
+  describe('handleInvoicePaid', () => {
+    const makeInvoice = (
+      overrides: Partial<Stripe.Invoice> = {},
+    ): Stripe.Invoice =>
+      ({
+        id: 'in_001',
+        object: 'invoice',
+        customer: 'cus_test_001',
+        amount_paid: 1000,
+        currency: 'usd',
+        attempt_count: 1,
+        ...overrides,
+      }) as unknown as Stripe.Invoice;
+
+    it('sets billingStatus to ACTIVE, logs activity and legal event, publishes domain event', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(makeOrg());
+
+      await service.handleInvoicePaid(makeInvoice());
+
+      expect(billingRepository.updateOrgBillingData).toHaveBeenCalledWith(
+        'org-001',
+        { billingStatus: PrismaBillingStatus.ACTIVE },
+      );
+      expect(activityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'invoice.payment_succeeded' }),
+      );
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'billing.invoice.payment_succeeded',
+        }),
+      );
+      expect(eventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: DOMAIN_EVENTS.BILLING_PAYMENT_SUCCEEDED,
+          payload: expect.objectContaining({ invoiceId: 'in_001' }),
+        }),
+      );
+    });
+
+    it('returns early without updating when customerId is missing', async () => {
+      await service.handleInvoicePaid(makeInvoice({ customer: null as never }));
+
+      expect(
+        billingRepository.findOrgByStripeCustomerId,
+      ).not.toHaveBeenCalled();
+      expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
+    });
+
+    it('returns early without updating when org is not found', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(null);
+
+      await service.handleInvoicePaid(makeInvoice());
+
+      expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
+      expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('extracts customerId when invoice.customer is an object', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(makeOrg());
+      const invoice = makeInvoice({
+        customer: { id: 'cus_test_001' } as Stripe.Customer,
+      });
+
+      await service.handleInvoicePaid(invoice);
+
+      expect(billingRepository.findOrgByStripeCustomerId).toHaveBeenCalledWith(
+        'cus_test_001',
+      );
+    });
+  });
+
+  // ─── handleInvoiceFailed ──────────────────────────────────────────────────
+
+  describe('handleInvoiceFailed', () => {
+    const makeInvoice = (
+      overrides: Partial<Stripe.Invoice> = {},
+    ): Stripe.Invoice =>
+      ({
+        id: 'in_fail_001',
+        object: 'invoice',
+        customer: 'cus_test_001',
+        amount_due: 1000,
+        currency: 'usd',
+        attempt_count: 2,
+        ...overrides,
+      }) as unknown as Stripe.Invoice;
+
+    it('sets billingStatus to PAST_DUE, logs activity and legal event, publishes domain event', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(makeOrg());
+
+      await service.handleInvoiceFailed(makeInvoice());
+
+      expect(billingRepository.updateOrgBillingData).toHaveBeenCalledWith(
+        'org-001',
+        { billingStatus: PrismaBillingStatus.PAST_DUE },
+      );
+      expect(activityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'invoice.payment_failed' }),
+      );
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'billing.invoice.payment_failed',
+        }),
+      );
+      expect(eventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: DOMAIN_EVENTS.BILLING_PAYMENT_FAILED,
+          payload: expect.objectContaining({ invoiceId: 'in_fail_001' }),
+        }),
+      );
+    });
+
+    it('returns early without updating when customerId is missing', async () => {
+      await service.handleInvoiceFailed(
+        makeInvoice({ customer: null as never }),
+      );
+
+      expect(
+        billingRepository.findOrgByStripeCustomerId,
+      ).not.toHaveBeenCalled();
+      expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
+    });
+
+    it('returns early without updating when org is not found', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(null);
+
+      await service.handleInvoiceFailed(makeInvoice());
+
+      expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
+      expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('extracts customerId when invoice.customer is an object', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(makeOrg());
+      const invoice = makeInvoice({
+        customer: { id: 'cus_test_001' } as Stripe.Customer,
+      });
+
+      await service.handleInvoiceFailed(invoice);
+
+      expect(billingRepository.findOrgByStripeCustomerId).toHaveBeenCalledWith(
+        'cus_test_001',
+      );
+    });
+  });
+
+  // ─── syncFromStripeSubscription — additional branches ─────────────────────
+
+  describe('syncFromStripeSubscription — additional branches', () => {
+    it('falls through to subscription.updated when plan unchanged and status unchanged', async () => {
+      // Same plan, same billing status → action = 'subscription.updated'
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(
+        makeOrg({ planId: 'price_pro', billingStatus: BillingStatus.ACTIVE }),
+      );
+
+      await service.syncFromStripeSubscription(
+        makeStripeSubscription({ status: 'active' }),
+        makeCtx({ eventType: 'customer.subscription.updated' }),
+      );
+
+      expect(activityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'subscription.updated' }),
+      );
+    });
+
+    it('uses ctx.previousPlanId to detect upgrade when org planId is null', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(
+        makeOrg({ planId: null, billingStatus: BillingStatus.ACTIVE }),
+      );
+
+      await service.syncFromStripeSubscription(
+        makeStripeSubscription({ status: 'active' }),
+        makeCtx({
+          eventType: 'customer.subscription.updated',
+          previousPlanId: 'price_basic',
+        }),
+      );
+
+      expect(activityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'subscription.upgraded' }),
+      );
+    });
+
+    it('handles customer as an object (non-string) by extracting .id', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(makeOrg());
+
+      const subWithObjectCustomer = makeStripeSubscription({
+        customer: { id: 'cus_test_001' } as Stripe.Customer,
+      });
+
+      await service.syncFromStripeSubscription(
+        subWithObjectCustomer,
+        makeCtx(),
+      );
+
+      expect(billingRepository.findOrgByStripeCustomerId).toHaveBeenCalledWith(
+        'cus_test_001',
+      );
+    });
+
+    it('falls back to new Date() for periodStart/End when SubscriptionItem has no timestamps', async () => {
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(makeOrg());
+
+      const subWithoutPeriod = makeStripeSubscription({
+        items: {
+          data: [
+            {
+              price: { id: 'price_pro' } as Stripe.Price,
+              quantity: 2,
+              // no current_period_start / current_period_end
+            } as Stripe.SubscriptionItem,
+          ],
+        } as Stripe.ApiList<Stripe.SubscriptionItem>,
+      });
+
+      await expect(
+        service.syncFromStripeSubscription(subWithoutPeriod, makeCtx()),
+      ).resolves.not.toThrow();
+
+      const [, , snapshotArg] = (
+        billingRepository.updateOrgAndSnapshotTx as jest.Mock
+      ).mock.calls[0];
+      // Should still be a Date instance
+      expect(snapshotArg.periodStart).toBeInstanceOf(Date);
+      expect(snapshotArg.periodEnd).toBeInstanceOf(Date);
+    });
   });
 });
