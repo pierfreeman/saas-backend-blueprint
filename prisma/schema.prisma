@@ -329,6 +329,16 @@ model Job {
 
 /// Immutable record of a processed Stripe webhook event.
 /// Used to guarantee idempotent webhook processing.
+///
+/// TODO: Implement a soft-delete / archival strategy for BillingEvent rows to
+/// prevent unbounded table growth in production.
+/// Suggested approach: add an `archivedAt DateTime?` column and a background
+/// job (e.g. a scheduled Lambda or a cron inside worker-a) that moves rows
+/// older than a configurable retention window (e.g. 90 days) to either:
+///   a) a cold `billing_events_archive` table in the same DB, or
+///   b) an S3 bucket (JSONL per day) with a DROP after export.
+/// The idempotency unique constraint on `stripeEventId` must be preserved
+/// (or mirrored) in whichever archive store is chosen.
 model BillingEvent {
   /// Internal UUID – primary key.
   id            String       @id @default(uuid()) @db.Uuid

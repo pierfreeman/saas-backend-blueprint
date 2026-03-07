@@ -36,6 +36,14 @@ import { LegalAuditService } from '@libs/legal-audit';
  * This endpoint is intentionally unauthenticated (Stripe cannot provide a Bearer
  * token). Security is provided exclusively by HMAC signature verification.
  *
+ * TODO: Apply @nestjs/throttler rate-limiter to POST /billing/webhook and the
+ * REST billing endpoints (BillingController). The webhook endpoint is public
+ * (no Bearer token) and is therefore a surface for volumetric abuse even though
+ * every request fails HMAC verification. Recommended: a dedicated ThrottlerGuard
+ * with a tight limit (e.g. 60 req/min per IP) on the webhook route and a
+ * slightly looser limit on the authenticated REST routes.
+ * See: https://docs.nestjs.com/security/rate-limiting
+ *
  * @route POST /billing/webhook
  */
 @ApiTags('Billing')

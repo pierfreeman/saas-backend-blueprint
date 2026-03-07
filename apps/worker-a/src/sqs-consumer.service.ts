@@ -154,6 +154,18 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
   /**
    * Routes a DomainEvent to the appropriate WorkerController handler.
    * Extend this switch when new event types are added.
+   *
+   * TODO: Add consumer branches for billing.* FIFO events so that downstream
+   * actions (transactional emails, Slack/webhook notifications, usage metering
+   * updates) are triggered automatically after each billing lifecycle change.
+   * The FIFO queue already receives these events from the API; only the
+   * consumer-side handler is missing. Suggested cases to add:
+   *   BILLING_CHECKOUT_COMPLETED  → send welcome / payment-confirmed email
+   *   BILLING_PAYMENT_FAILED      → send dunning email, alert ops channel
+   *   BILLING_SUBSCRIPTION_CANCELLED → send cancellation confirmation email
+   * Note: worker-a currently polls SQS_STANDARD_QUEUE_URL (Standard queue);
+   * billing events land on SQS_FIFO_QUEUE_URL — a second consumer loop or a
+   * dedicated worker service is needed to drain the FIFO queue.
    */
   private async dispatch(event: DomainEvent): Promise<void> {
     switch (event.eventType) {
