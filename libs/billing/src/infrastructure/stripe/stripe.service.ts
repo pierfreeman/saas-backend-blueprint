@@ -9,10 +9,25 @@ import { StripeClient } from './stripe.client';
 
 /**
  * StripeService
- * Application-level Stripe API wrapper with error handling and logging.
+ * Application-level Stripe API wrapper with error handling, logging, and
+ * exponential-backoff retry logic.
  *
  * All Stripe API calls go through this service. Raw Stripe errors are caught,
  * logged, and re-thrown as NestJS HTTP exceptions where appropriate.
+ *
+ * Retry policy (configurable via env vars):
+ *   STRIPE_MAX_RETRIES        — max retry attempts after the first failure (default: 3)
+ *   STRIPE_RETRY_BASE_DELAY_MS — initial backoff delay in ms (default: 500)
+ *
+ * Retryable conditions:
+ *   - StripeConnectionError   — network-level failures / timeouts
+ *   - StripeRateLimitError    — HTTP 429: back off and retry
+ *   - StripeAPIError 5xx      — transient server-side errors
+ *
+ * Non-retryable conditions (immediate re-throw):
+ *   - StripeAuthenticationError — misconfigured key
+ *   - StripeInvalidRequestError — bad input
+ *   - StripeCardError           — card-level user errors
  */
 @Injectable()
 export class StripeService {
@@ -27,6 +42,77 @@ export class StripeService {
     return this.stripeClient.stripe;
   }
 
+  // ─── Retry infrastructure ────────────────────────────────────────────────
+
+  /**
+   * Executes `fn` and retries with exponential backoff on transient Stripe
+   * errors.  Each delay is capped at 10 s and includes ±10 % random jitter
+   * to reduce thundering-herd effects.
+   *
+   * Delay sequence (base = 500 ms, no jitter):
+   *   attempt 1 → 500 ms
+   *   attempt 2 → 1 000 ms
+   *   attempt 3 → 2 000 ms   (maxRetries = 3 ⇒ 4 total calls)
+   */
+  private async withRetry<T>(
+    operationName: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const maxRetries =
+      this.configService.get<number>('STRIPE_MAX_RETRIES') ?? 3;
+    const baseDelayMs =
+      this.configService.get<number>('STRIPE_RETRY_BASE_DELAY_MS') ?? 500;
+    const maxDelayMs = 10_000;
+
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastError = err;
+
+        if (!this.isRetryable(err) || attempt === maxRetries) {
+          break;
+        }
+
+        const exponential = baseDelayMs * 2 ** attempt;
+        const jitter = Math.floor(Math.random() * baseDelayMs * 0.1);
+        const delayMs = Math.min(exponential + jitter, maxDelayMs);
+
+        this.logger.warn(
+          `[${operationName}] Stripe transient error (attempt ${attempt + 1}/${maxRetries + 1}), ` +
+            `retrying in ${delayMs} ms — ${(err as Error).message ?? String(err)}`,
+        );
+
+        await this.sleep(delayMs);
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * Returns true for error classes that indicate a transient failure that is
+   * safe to retry.
+   */
+  private isRetryable(err: unknown): boolean {
+    if (err instanceof Stripe.errors.StripeConnectionError) return true;
+    if (err instanceof Stripe.errors.StripeRateLimitError) return true;
+    if (
+      err instanceof Stripe.errors.StripeAPIError &&
+      err.statusCode != null &&
+      err.statusCode >= 500
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   /**
    * Creates a new Stripe customer.
    */
@@ -36,11 +122,9 @@ export class StripeService {
     metadata: Record<string, string> = {},
   ): Promise<Stripe.Customer> {
     try {
-      const customer = await this.stripe.customers.create({
-        email,
-        name,
-        metadata,
-      });
+      const customer = await this.withRetry('createCustomer', () =>
+        this.stripe.customers.create({ email, name, metadata }),
+      );
       this.logger.debug(`Stripe customer created: ${customer.id}`);
       return customer;
     } catch (err) {
@@ -67,20 +151,22 @@ export class StripeService {
       if (params.idempotencyKey) {
         requestOptions.idempotencyKey = params.idempotencyKey;
       }
-      const session = await this.stripe.checkout.sessions.create(
-        {
-          customer: params.customerId,
-          payment_method_types: ['card'],
-          line_items: [{ price: params.priceId, quantity: 1 }],
-          mode: 'subscription',
-          success_url: params.successUrl,
-          cancel_url: params.cancelUrl,
-          metadata: params.metadata ?? {},
-          subscription_data: {
+      const session = await this.withRetry('createCheckoutSession', () =>
+        this.stripe.checkout.sessions.create(
+          {
+            customer: params.customerId,
+            payment_method_types: ['card'],
+            line_items: [{ price: params.priceId, quantity: 1 }],
+            mode: 'subscription',
+            success_url: params.successUrl,
+            cancel_url: params.cancelUrl,
             metadata: params.metadata ?? {},
+            subscription_data: {
+              metadata: params.metadata ?? {},
+            },
           },
-        },
-        requestOptions,
+          requestOptions,
+        ),
       );
       this.logger.debug(`Stripe checkout session created: ${session.id}`);
       return session;
@@ -100,10 +186,12 @@ export class StripeService {
     returnUrl: string,
   ): Promise<Stripe.BillingPortal.Session> {
     try {
-      const session = await this.stripe.billingPortal.sessions.create({
-        customer: customerId,
-        return_url: returnUrl,
-      });
+      const session = await this.withRetry('createPortalSession', () =>
+        this.stripe.billingPortal.sessions.create({
+          customer: customerId,
+          return_url: returnUrl,
+        }),
+      );
       this.logger.debug(
         `Stripe portal session created for customer: ${customerId}`,
       );
@@ -123,7 +211,9 @@ export class StripeService {
     subscriptionId: string,
   ): Promise<Stripe.Subscription> {
     try {
-      return await this.stripe.subscriptions.retrieve(subscriptionId);
+      return await this.withRetry('retrieveSubscription', () =>
+        this.stripe.subscriptions.retrieve(subscriptionId),
+      );
     } catch (err) {
       this.logger.error(
         `Failed to retrieve subscription ${subscriptionId}`,
@@ -141,9 +231,11 @@ export class StripeService {
     subscriptionId: string,
   ): Promise<Stripe.Subscription> {
     try {
-      const sub = await this.stripe.subscriptions.update(subscriptionId, {
-        cancel_at_period_end: true,
-      });
+      const sub = await this.withRetry('cancelSubscription', () =>
+        this.stripe.subscriptions.update(subscriptionId, {
+          cancel_at_period_end: true,
+        }),
+      );
       this.logger.debug(
         `Stripe subscription scheduled for cancellation: ${subscriptionId}`,
       );

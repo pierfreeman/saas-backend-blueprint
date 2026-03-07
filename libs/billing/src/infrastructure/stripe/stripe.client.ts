@@ -28,7 +28,7 @@ export class StripeClient implements OnModuleInit {
 
     this.client = new Stripe(secretKey ?? 'sk_test_placeholder', {
       apiVersion: '2026-02-25.clover',
-      maxNetworkRetries: 3,
+      maxNetworkRetries: 0, // retries are managed at the StripeService layer
       timeout: 30_000,
       telemetry: false,
     });
