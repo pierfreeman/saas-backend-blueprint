@@ -88,7 +88,7 @@ export class BillingService {
     orgId: string,
     priceId: string,
     actorUserId: string,
-    options: { successUrl?: string; cancelUrl?: string } = {},
+    options: { successUrl?: string; cancelUrl?: string; idempotencyKey?: string } = {},
   ): Promise<{ url: string; sessionId: string }> {
     const org = await this.billingRepository.findOrgById(orgId);
 
@@ -111,6 +111,7 @@ export class BillingService {
       successUrl: options.successUrl ?? defaultSuccessUrl,
       cancelUrl: options.cancelUrl ?? defaultCancelUrl,
       metadata: { orgId },
+      idempotencyKey: options.idempotencyKey,
     });
 
     if (!session.url) {

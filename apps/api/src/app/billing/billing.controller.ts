@@ -4,6 +4,7 @@ import {
   Get,
   Body,
   Query,
+  Headers,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -16,6 +17,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiQuery,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { MembershipRole } from '@prisma/client';
 import { BillingService } from '@libs/billing';
@@ -76,7 +78,17 @@ export class BillingController {
     summary: 'Create a Stripe Checkout session',
     description:
       'Creates a Stripe Checkout session for purchasing a subscription plan. ' +
-      'Returns a redirect URL the user should be sent to.',
+      'Returns a redirect URL the user should be sent to. ' +
+      'Optionally accepts an Idempotency-Key header to prevent duplicate sessions ' +
+      'on retried requests — the key is forwarded directly to the Stripe API.',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    description:
+      'Optional client-generated UUID to prevent duplicate Checkout sessions on retried requests. ' +
+      'Forwarded verbatim to Stripe. Must be unique per logical checkout attempt.',
+    required: false,
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -86,6 +98,7 @@ export class BillingController {
   async createCheckoutSession(
     @Body() dto: CreateCheckoutSessionDto,
     @CurrentDbUserId() actorUserId: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<CheckoutSessionResponseDto> {
     return this.billingService.createCheckoutSession(
       dto.orgId,
@@ -94,6 +107,7 @@ export class BillingController {
       {
         successUrl: dto.successUrl,
         cancelUrl: dto.cancelUrl,
+        idempotencyKey,
       },
     );
   }

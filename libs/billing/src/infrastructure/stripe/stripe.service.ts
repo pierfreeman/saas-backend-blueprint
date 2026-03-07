@@ -60,20 +60,28 @@ export class StripeService {
     successUrl: string;
     cancelUrl: string;
     metadata?: Record<string, string>;
+    idempotencyKey?: string;
   }): Promise<Stripe.Checkout.Session> {
     try {
-      const session = await this.stripe.checkout.sessions.create({
-        customer: params.customerId,
-        payment_method_types: ['card'],
-        line_items: [{ price: params.priceId, quantity: 1 }],
-        mode: 'subscription',
-        success_url: params.successUrl,
-        cancel_url: params.cancelUrl,
-        metadata: params.metadata ?? {},
-        subscription_data: {
+      const requestOptions: Stripe.RequestOptions = {};
+      if (params.idempotencyKey) {
+        requestOptions.idempotencyKey = params.idempotencyKey;
+      }
+      const session = await this.stripe.checkout.sessions.create(
+        {
+          customer: params.customerId,
+          payment_method_types: ['card'],
+          line_items: [{ price: params.priceId, quantity: 1 }],
+          mode: 'subscription',
+          success_url: params.successUrl,
+          cancel_url: params.cancelUrl,
           metadata: params.metadata ?? {},
+          subscription_data: {
+            metadata: params.metadata ?? {},
+          },
         },
-      });
+        requestOptions,
+      );
       this.logger.debug(`Stripe checkout session created: ${session.id}`);
       return session;
     } catch (err) {
