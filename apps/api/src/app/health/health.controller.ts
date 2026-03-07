@@ -66,8 +66,24 @@ export class HealthController {
               },
               required: ['status'],
             },
+            stripe: {
+              type: 'object',
+              properties: {
+                status: {
+                  type: 'string',
+                  enum: ['ok', 'error', 'misconfigured'],
+                  example: 'ok',
+                },
+                responseTime: {
+                  type: 'number',
+                  description: 'Round-trip latency to Stripe API in ms.',
+                  example: 120,
+                },
+              },
+              required: ['status'],
+            },
           },
-          required: ['database', 'redis'],
+          required: ['database', 'redis', 'stripe'],
         },
       },
       required: ['status', 'timestamp', 'services'],
@@ -79,7 +95,7 @@ export class HealthController {
     services: {
       database: { status: string; responseTime?: number };
       redis: { status: string; responseTime?: number };
-      // stripe: { status: string };
+      stripe: { status: string; responseTime?: number };
     };
   }> {
     return this.healthService.checkHealth();

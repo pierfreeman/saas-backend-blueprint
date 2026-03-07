@@ -1,23 +1,20 @@
+import { StripeClient } from '@libs/billing';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-// import Stripe from 'stripe';
+import Stripe from 'stripe';
 
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
-  // private readonly stripe: Stripe;
 
   constructor(
     private readonly prisma: PrismaBusinessService,
     private readonly redis: CacheService,
     private readonly configService: ConfigService,
-  ) {
-    // this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY')!, {
-    //   apiVersion: '2026-01-28.clover',
-    // });
-  }
+    private readonly stripeClient: StripeClient,
+  ) {}
 
   async checkHealth(): Promise<{
     status: string;
@@ -25,7 +22,7 @@ export class HealthService {
     services: {
       database: { status: string; responseTime?: number };
       redis: { status: string; responseTime?: number };
-      stripe: { status: string };
+      stripe: { status: string; responseTime?: number };
     };
   }> {
     const dbHealth = await this.checkDatabase();
@@ -102,20 +99,27 @@ export class HealthService {
     }
   }
 
-  private async checkStripe(): Promise<{ status: string }> {
-    try {
-      // Simple check - verify API key format
-      // We don't want to actually call Stripe API on every health check
-      const apiKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-      if (
-        apiKey &&
-        (apiKey.startsWith('sk_test_') || apiKey.startsWith('sk_live_'))
-      ) {
-        return { status: 'ok' };
-      }
+  private async checkStripe(): Promise<{
+    status: string;
+    responseTime?: number;
+  }> {
+    const apiKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    if (
+      !apiKey ||
+      (!apiKey.startsWith('sk_test_') && !apiKey.startsWith('sk_live_'))
+    ) {
       return { status: 'misconfigured' };
-    } catch (error) {
-      this.logger.error('Stripe health check failed', error);
+    }
+
+    try {
+      const start = Date.now();
+      await this.stripeClient.stripe.accounts.retrieve();
+      return { status: 'ok', responseTime: Date.now() - start };
+    } catch (err) {
+      if (err instanceof Stripe.errors.StripeAuthenticationError) {
+        return { status: 'misconfigured' };
+      }
+      this.logger.error('Stripe health check failed', err);
       return { status: 'error' };
     }
   }

@@ -2,6 +2,8 @@ import { HealthService } from './health.service';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { ConfigService } from '@nestjs/config';
+import { StripeClient } from '@libs/billing';
+import Stripe from 'stripe';
 
 const mockPrisma = {
   $queryRaw: jest.fn(),
@@ -16,6 +18,11 @@ const mockConfigService = {
   get: jest.fn(),
 } as unknown as ConfigService;
 
+const mockStripeAccounts = { retrieve: jest.fn() };
+const mockStripeClient = {
+  stripe: { accounts: mockStripeAccounts },
+} as unknown as StripeClient;
+
 describe('HealthService', () => {
   let service: HealthService;
 
@@ -26,6 +33,7 @@ describe('HealthService', () => {
       mockPrisma,
       mockCacheService,
       mockConfigService,
+      mockStripeClient,
     );
   });
 
@@ -37,6 +45,9 @@ describe('HealthService', () => {
       mockPrisma.$queryRaw = jest.fn().mockResolvedValue([{ '?column?': 1 }]);
       mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
       mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc123');
+      mockStripeAccounts.retrieve = jest
+        .fn()
+        .mockResolvedValue({ id: 'acct_test' });
 
       const result = await service.checkHealth();
 
@@ -53,6 +64,7 @@ describe('HealthService', () => {
         .mockRejectedValue(new Error('Connection refused'));
       mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
       mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc');
+      mockStripeAccounts.retrieve = jest.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -67,6 +79,7 @@ describe('HealthService', () => {
         .fn()
         .mockRejectedValue(new Error('ECONNREFUSED'));
       mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc');
+      mockStripeAccounts.retrieve = jest.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -83,6 +96,7 @@ describe('HealthService', () => {
 
       expect(result.status).toBe('degraded');
       expect(result.services.stripe.status).toBe('misconfigured');
+      expect(mockStripeAccounts.retrieve).not.toHaveBeenCalled();
     });
 
     it('returns status "degraded" when Stripe key is malformed', async () => {
@@ -93,22 +107,68 @@ describe('HealthService', () => {
       const result = await service.checkHealth();
 
       expect(result.services.stripe.status).toBe('misconfigured');
+      expect(mockStripeAccounts.retrieve).not.toHaveBeenCalled();
     });
 
     it('accepts sk_live_ prefix as valid Stripe key', async () => {
       mockPrisma.$queryRaw = jest.fn().mockResolvedValue([]);
       mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
       mockConfigService.get = jest.fn().mockReturnValue('sk_live_xyz789');
+      mockStripeAccounts.retrieve = jest
+        .fn()
+        .mockResolvedValue({ id: 'acct_live' });
 
       const result = await service.checkHealth();
 
       expect(result.services.stripe.status).toBe('ok');
+      expect(mockStripeAccounts.retrieve).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns stripe "misconfigured" when Stripe returns StripeAuthenticationError', async () => {
+      mockPrisma.$queryRaw = jest.fn().mockResolvedValue([]);
+      mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
+      mockConfigService.get = jest.fn().mockReturnValue('sk_test_bad_key');
+      const authError = new Stripe.errors.StripeAuthenticationError({
+        message: 'No such API key',
+        type: 'invalid_request_error',
+      } as never);
+      mockStripeAccounts.retrieve = jest.fn().mockRejectedValue(authError);
+
+      const result = await service.checkHealth();
+
+      expect(result.services.stripe.status).toBe('misconfigured');
+    });
+
+    it('returns stripe "error" when Stripe throws a network error', async () => {
+      mockPrisma.$queryRaw = jest.fn().mockResolvedValue([]);
+      mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
+      mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc');
+      mockStripeAccounts.retrieve = jest
+        .fn()
+        .mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const result = await service.checkHealth();
+
+      expect(result.services.stripe.status).toBe('error');
+    });
+
+    it('includes responseTime for stripe when healthy', async () => {
+      mockPrisma.$queryRaw = jest.fn().mockResolvedValue([]);
+      mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
+      mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc');
+      mockStripeAccounts.retrieve = jest.fn().mockResolvedValue({});
+
+      const result = await service.checkHealth();
+
+      expect(typeof result.services.stripe.responseTime).toBe('number');
+      expect(result.services.stripe.responseTime).toBeGreaterThanOrEqual(0);
     });
 
     it('includes responseTime for database when healthy', async () => {
       mockPrisma.$queryRaw = jest.fn().mockResolvedValue([]);
       mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
       mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc');
+      mockStripeAccounts.retrieve = jest.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -120,6 +180,7 @@ describe('HealthService', () => {
       mockPrisma.$queryRaw = jest.fn().mockResolvedValue([]);
       mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
       mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc');
+      mockStripeAccounts.retrieve = jest.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -130,6 +191,7 @@ describe('HealthService', () => {
       mockPrisma.$queryRaw = jest.fn().mockRejectedValue(new Error('down'));
       mockRedisClient.ping = jest.fn().mockResolvedValue('PONG');
       mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc');
+      mockStripeAccounts.retrieve = jest.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
