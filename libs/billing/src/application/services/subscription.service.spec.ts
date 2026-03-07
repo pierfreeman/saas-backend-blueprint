@@ -73,6 +73,7 @@ describe('SubscriptionService', () => {
         {
           provide: BillingRepository,
           useValue: {
+            findOrgById: jest.fn(),
             findOrgByStripeCustomerId: jest.fn(),
             updateOrgBillingData: jest.fn().mockResolvedValue(undefined),
             updateOrgAndSnapshotTx: jest.fn().mockResolvedValue(undefined),
@@ -509,7 +510,188 @@ describe('SubscriptionService', () => {
       );
     });
   });
+  // ─── handleCheckoutCompleted ───────────────────────────────────────────
 
+  describe('handleCheckoutCompleted', () => {
+    const makeSession = (
+      overrides: Partial<Stripe.Checkout.Session> = {},
+    ): Stripe.Checkout.Session =>
+      ({
+        id: 'cs_001',
+        object: 'checkout.session',
+        customer: 'cus_test_001',
+        subscription: 'sub_new_001',
+        mode: 'subscription',
+        metadata: { orgId: 'org-001' },
+        ...overrides,
+      }) as unknown as Stripe.Checkout.Session;
+
+    const checkoutCtx = () => ({ stripeEventId: 'evt_checkout_001' });
+
+    beforeEach(() => {
+      (
+        billingRepository as jest.Mocked<BillingRepository> & {
+          findOrgById: jest.Mock;
+        }
+      ).findOrgById.mockResolvedValue(makeOrg());
+    });
+
+    it('persists billingStatus ACTIVE, stripeCustomerId, and subscriptionId', async () => {
+      (
+        billingRepository as jest.Mocked<BillingRepository> & {
+          findOrgById: jest.Mock;
+        }
+      ).findOrgById.mockResolvedValue(
+        makeOrg({ stripeCustomerId: null, subscriptionId: null }),
+      );
+
+      await service.handleCheckoutCompleted(makeSession(), checkoutCtx());
+
+      expect(billingRepository.updateOrgBillingData).toHaveBeenCalledWith(
+        'org-001',
+        {
+          billingStatus: PrismaBillingStatus.ACTIVE,
+          stripeCustomerId: 'cus_test_001',
+          subscriptionId: 'sub_new_001',
+        },
+      );
+    });
+
+    it('skips stripeCustomerId when org already has one', async () => {
+      (
+        billingRepository as jest.Mocked<BillingRepository> & {
+          findOrgById: jest.Mock;
+        }
+      ).findOrgById.mockResolvedValue(
+        makeOrg({ stripeCustomerId: 'cus_test_001', subscriptionId: null }),
+      );
+
+      await service.handleCheckoutCompleted(makeSession(), checkoutCtx());
+
+      const [, updateArg] = (
+        billingRepository.updateOrgBillingData as jest.Mock
+      ).mock.calls[0];
+      expect(updateArg).not.toHaveProperty('stripeCustomerId');
+      expect(updateArg).toMatchObject({
+        billingStatus: PrismaBillingStatus.ACTIVE,
+        subscriptionId: 'sub_new_001',
+      });
+    });
+
+    it('does not include subscriptionId when session has no subscription', async () => {
+      (
+        billingRepository as jest.Mocked<BillingRepository> & {
+          findOrgById: jest.Mock;
+        }
+      ).findOrgById.mockResolvedValue(
+        makeOrg({ stripeCustomerId: null, subscriptionId: null }),
+      );
+
+      await service.handleCheckoutCompleted(
+        makeSession({ subscription: null }),
+        checkoutCtx(),
+      );
+
+      const [, updateArg] = (
+        billingRepository.updateOrgBillingData as jest.Mock
+      ).mock.calls[0];
+      expect(updateArg).not.toHaveProperty('subscriptionId');
+      expect(updateArg).toMatchObject({
+        billingStatus: PrismaBillingStatus.ACTIVE,
+        stripeCustomerId: 'cus_test_001',
+      });
+    });
+
+    it('publishes BILLING_CHECKOUT_COMPLETED domain event', async () => {
+      await service.handleCheckoutCompleted(makeSession(), checkoutCtx());
+
+      expect(eventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: DOMAIN_EVENTS.BILLING_CHECKOUT_COMPLETED,
+          payload: expect.objectContaining({ orgId: 'org-001' }),
+        }),
+      );
+    });
+
+    it('returns early when session has no customer ID', async () => {
+      await service.handleCheckoutCompleted(
+        makeSession({ customer: null }),
+        checkoutCtx(),
+      );
+
+      expect(
+        (
+          billingRepository as jest.Mocked<BillingRepository> & {
+            findOrgById: jest.Mock;
+          }
+        ).findOrgById,
+      ).not.toHaveBeenCalled();
+      expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
+    });
+
+    it('returns early when session metadata has no orgId', async () => {
+      await service.handleCheckoutCompleted(
+        makeSession({ metadata: {} }),
+        checkoutCtx(),
+      );
+
+      expect(
+        (
+          billingRepository as jest.Mocked<BillingRepository> & {
+            findOrgById: jest.Mock;
+          }
+        ).findOrgById,
+      ).not.toHaveBeenCalled();
+      expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
+    });
+
+    it('returns early when org is not found', async () => {
+      (
+        billingRepository as jest.Mocked<BillingRepository> & {
+          findOrgById: jest.Mock;
+        }
+      ).findOrgById.mockResolvedValue(null);
+
+      await service.handleCheckoutCompleted(makeSession(), checkoutCtx());
+
+      expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
+      expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('extracts customerId from customer object (non-string)', async () => {
+      await service.handleCheckoutCompleted(
+        makeSession({ customer: { id: 'cus_test_001' } as Stripe.Customer }),
+        checkoutCtx(),
+      );
+
+      expect(billingRepository.updateOrgBillingData).toHaveBeenCalledWith(
+        'org-001',
+        expect.objectContaining({ billingStatus: PrismaBillingStatus.ACTIVE }),
+      );
+    });
+
+    it('extracts subscriptionId from subscription object (non-string)', async () => {
+      (
+        billingRepository as jest.Mocked<BillingRepository> & {
+          findOrgById: jest.Mock;
+        }
+      ).findOrgById.mockResolvedValue(
+        makeOrg({ stripeCustomerId: 'cus_test_001', subscriptionId: null }),
+      );
+
+      await service.handleCheckoutCompleted(
+        makeSession({
+          subscription: { id: 'sub_from_obj_001' } as Stripe.Subscription,
+        }),
+        checkoutCtx(),
+      );
+
+      expect(billingRepository.updateOrgBillingData).toHaveBeenCalledWith(
+        'org-001',
+        expect.objectContaining({ subscriptionId: 'sub_from_obj_001' }),
+      );
+    });
+  });
   // ─── syncFromStripeSubscription — additional branches ─────────────────────
 
   describe('syncFromStripeSubscription — additional branches', () => {

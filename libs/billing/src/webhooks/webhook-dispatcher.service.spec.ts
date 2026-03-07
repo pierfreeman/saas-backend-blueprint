@@ -1,25 +1,18 @@
 import { WebhookDispatcherService } from './webhook-dispatcher.service';
+import { CheckoutCompletedHandler } from './handlers/checkout-completed.handler';
 import { SubscriptionCreatedHandler } from './handlers/subscription-created.handler';
 import { SubscriptionUpdatedHandler } from './handlers/subscription-updated.handler';
 import { InvoicePaidHandler } from './handlers/invoice-paid.handler';
 import { InvoiceFailedHandler } from './handlers/invoice-failed.handler';
-import { BillingRepository } from '../infrastructure/repositories/billing.repository';
-import { ActivityLogService } from '@libs/activity-log';
-import { LegalAuditService } from '@libs/legal-audit';
 import Stripe from 'stripe';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
+const mockCheckoutCompletedHandler = { handle: jest.fn() };
 const mockSubscriptionCreatedHandler = { handle: jest.fn() };
 const mockSubscriptionUpdatedHandler = { handle: jest.fn() };
 const mockInvoicePaidHandler = { handle: jest.fn() };
 const mockInvoiceFailedHandler = { handle: jest.fn() };
-const mockBillingRepository = {
-  findOrgById: jest.fn(),
-  updateOrgBillingData: jest.fn(),
-};
-const mockActivityLog = { logActivity: jest.fn() };
-const mockLegalAudit = { recordEvent: jest.fn() };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,13 +46,11 @@ describe('WebhookDispatcherService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new WebhookDispatcherService(
+      mockCheckoutCompletedHandler as unknown as CheckoutCompletedHandler,
       mockSubscriptionCreatedHandler as unknown as SubscriptionCreatedHandler,
       mockSubscriptionUpdatedHandler as unknown as SubscriptionUpdatedHandler,
       mockInvoicePaidHandler as unknown as InvoicePaidHandler,
       mockInvoiceFailedHandler as unknown as InvoiceFailedHandler,
-      mockBillingRepository as unknown as BillingRepository,
-      mockActivityLog as unknown as ActivityLogService,
-      mockLegalAudit as unknown as LegalAuditService,
     );
   });
 
@@ -144,78 +135,15 @@ describe('WebhookDispatcherService', () => {
 
   // ── checkout.session.completed ─────────────────────────────────────────────
 
-  it('handles checkout.session.completed with a known orgId', async () => {
-    mockBillingRepository.findOrgById.mockResolvedValue({
-      stripeCustomerId: null,
-    });
-    mockBillingRepository.updateOrgBillingData.mockResolvedValue(undefined);
-
+  it('routes checkout.session.completed to CheckoutCompletedHandler', async () => {
+    mockCheckoutCompletedHandler.handle.mockResolvedValue(undefined);
     const event = makeEvent('checkout.session.completed', {
       id: 'cs_001',
       object: 'checkout.session',
-      customer: 'cus_001',
-      mode: 'subscription',
-      subscription: 'sub_001',
-      metadata: { orgId: 'org-1' },
     });
 
     await service.dispatch(event);
 
-    expect(mockBillingRepository.updateOrgBillingData).toHaveBeenCalledWith(
-      'org-1',
-      { stripeCustomerId: 'cus_001' },
-    );
-    expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'billing.checkout.completed' }),
-    );
-    expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: 'billing.checkout.completed' }),
-    );
-  });
-
-  it('skips updateOrgBillingData when org already has stripeCustomerId', async () => {
-    mockBillingRepository.findOrgById.mockResolvedValue({
-      stripeCustomerId: 'cus_001',
-    });
-
-    const event = makeEvent('checkout.session.completed', {
-      id: 'cs_002',
-      object: 'checkout.session',
-      customer: 'cus_001',
-      mode: 'subscription',
-      subscription: null,
-      metadata: { orgId: 'org-1' },
-    });
-
-    await service.dispatch(event);
-
-    expect(mockBillingRepository.updateOrgBillingData).not.toHaveBeenCalled();
-  });
-
-  it('handles checkout.session.completed without a customerId gracefully', async () => {
-    const event = makeEvent('checkout.session.completed', {
-      id: 'cs_003',
-      object: 'checkout.session',
-      customer: null,
-      mode: 'subscription',
-      metadata: {},
-    });
-
-    await expect(service.dispatch(event)).resolves.not.toThrow();
-    expect(mockBillingRepository.findOrgById).not.toHaveBeenCalled();
-  });
-
-  it('handles checkout.session.completed without orgId in metadata', async () => {
-    const event = makeEvent('checkout.session.completed', {
-      id: 'cs_004',
-      object: 'checkout.session',
-      customer: 'cus_999',
-      mode: 'subscription',
-      metadata: {},
-    });
-
-    await expect(service.dispatch(event)).resolves.not.toThrow();
-    expect(mockBillingRepository.findOrgById).not.toHaveBeenCalled();
-    expect(mockLegalAudit.recordEvent).toHaveBeenCalled();
+    expect(mockCheckoutCompletedHandler.handle).toHaveBeenCalledWith(event);
   });
 });

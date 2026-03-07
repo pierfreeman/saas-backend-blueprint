@@ -241,6 +241,108 @@ export class SubscriptionService {
   }
 
   /**
+   * Handles checkout.session.completed.
+   *
+   * Atomically persists stripeCustomerId (if not already set), subscriptionId,
+   * and sets billingStatus → ACTIVE, then publishes the BILLING_CHECKOUT_COMPLETED
+   * domain event so downstream consumers can react to the first successful payment.
+   */
+  async handleCheckoutCompleted(
+    session: Stripe.Checkout.Session,
+    ctx: { stripeEventId: string },
+  ): Promise<void> {
+    const customerId =
+      typeof session.customer === 'string'
+        ? session.customer
+        : session.customer?.id;
+
+    if (!customerId) {
+      this.logger.warn('checkout.session.completed: no customer ID in session');
+      return;
+    }
+
+    const orgId = session.metadata?.['orgId'];
+    if (!orgId) {
+      this.logger.warn(
+        'checkout.session.completed: no orgId in session metadata',
+      );
+      return;
+    }
+
+    const org = await this.billingRepository
+      .findOrgById(orgId)
+      .catch(() => null);
+    if (!org) {
+      this.logger.warn(
+        `checkout.session.completed: org ${orgId} not found — skipping`,
+      );
+      return;
+    }
+
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : ((session.subscription as Stripe.Subscription | null)?.id ?? null);
+
+    const updateData: {
+      billingStatus: PrismaBillingStatus;
+      stripeCustomerId?: string;
+      subscriptionId?: string | null;
+    } = { billingStatus: PrismaBillingStatus.ACTIVE };
+
+    if (!org.stripeCustomerId) {
+      updateData.stripeCustomerId = customerId;
+    }
+    if (subscriptionId) {
+      updateData.subscriptionId = subscriptionId;
+    }
+
+    await this.billingRepository.updateOrgBillingData(orgId, updateData);
+
+    this.activityLog.logActivity({
+      orgId,
+      action: 'billing.checkout.completed',
+      entityType: 'organization',
+      entityId: orgId,
+      metadata: {
+        sessionId: session.id,
+        stripeCustomerId: customerId,
+        subscriptionId,
+      },
+    });
+
+    this.legalAudit.recordEvent({
+      eventType: 'billing.checkout.completed',
+      orgId,
+      triggerType: 'system',
+      metadata: {
+        stripeEventId: ctx.stripeEventId,
+        sessionId: session.id,
+        stripeCustomerId: customerId,
+        mode: session.mode,
+      },
+    });
+
+    await this.eventBus.publish({
+      eventType: DOMAIN_EVENTS.BILLING_CHECKOUT_COMPLETED,
+      timestamp: new Date(),
+      payload: {
+        orgId,
+        stripeCustomerId: customerId,
+        subscriptionId,
+        sessionId: session.id,
+      },
+      tenantId: orgId,
+      messageGroupId: orgId,
+    });
+
+    this.logger.log(
+      `checkout.session.completed processed for org ${orgId}: ` +
+        `customer=${customerId}, subscription=${subscriptionId ?? 'none'}`,
+    );
+  }
+
+  /**
    * Handles the creation of a new subscription.
    * Syncs the subscription and dispatches a domain event.
    */

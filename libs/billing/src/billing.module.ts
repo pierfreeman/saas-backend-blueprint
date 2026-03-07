@@ -14,6 +14,7 @@ import { SubscriptionService } from './application/services/subscription.service
 
 // Webhooks
 import { WebhookDispatcherService } from './webhooks/webhook-dispatcher.service';
+import { CheckoutCompletedHandler } from './webhooks/handlers/checkout-completed.handler';
 import { SubscriptionCreatedHandler } from './webhooks/handlers/subscription-created.handler';
 import { SubscriptionUpdatedHandler } from './webhooks/handlers/subscription-updated.handler';
 import { InvoicePaidHandler } from './webhooks/handlers/invoice-paid.handler';
@@ -52,6 +53,7 @@ import { InvoiceFailedHandler } from './webhooks/handlers/invoice-failed.handler
 
     // Webhooks
     WebhookDispatcherService,
+    CheckoutCompletedHandler,
     SubscriptionCreatedHandler,
     SubscriptionUpdatedHandler,
     InvoicePaidHandler,

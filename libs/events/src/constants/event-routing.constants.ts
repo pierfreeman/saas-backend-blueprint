@@ -36,6 +36,7 @@ export const DOMAIN_EVENTS = {
   HEAVY_JOB_FAILED: 'heavy.job.failed',
 
   // Billing (FIFO queue — strict ordering required)
+  BILLING_CHECKOUT_COMPLETED: 'billing.checkout.completed',
   BILLING_SUBSCRIPTION_CREATED: 'billing.subscription.created',
   BILLING_SUBSCRIPTION_CANCELLED: 'billing.subscription.cancelled',
   BILLING_PAYMENT_SUCCEEDED: 'billing.payment.succeeded',
