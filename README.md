@@ -44,6 +44,7 @@ libs/
   prisma-business — PrismaBusinessService (extends PrismaClient → business DB)
   prisma-legal    — PrismaLegalService (extends PrismaClient → legal audit DB)
   redis           — CacheService (key/value, DB 1) and PubSubService (pub/sub, DB 0)
+  billing        — Stripe-based subscription billing (checkout, portal, webhooks, subscription sync)
 prisma/
   schema.prisma        — Business DB schema (User, Organization, Membership, ActivityLog, Job)
   schema.legal.prisma  — Legal audit DB schema (AuditEvent — append-only)
@@ -114,24 +115,31 @@ cp .env.example .env
 
 #### Optional variables
 
-| Variable                  | Default        | Description                                                     |
-| ------------------------- | -------------- | --------------------------------------------------------------- |
-| `PORT`                    | `3000`         | HTTP port the API listens on                                    |
-| `NODE_ENV`                | `development`  | Runtime environment                                             |
-| `POSTGRES_USER`           | `postgres`     | Postgres user (Docker Compose)                                  |
-| `POSTGRES_PASSWORD`       | `postgres`     | Postgres password (Docker Compose)                              |
-| `POSTGRES_DB`             | `saas_backend` | Postgres database name (Docker Compose)                         |
-| `POSTGRES_PORT`           | `5432`         | Host port mapped to business Postgres                           |
-| `LEGAL_POSTGRES_USER`     | `postgres`     | Legal Postgres user (Docker Compose)                            |
-| `LEGAL_POSTGRES_PASSWORD` | `postgres`     | Legal Postgres password (Docker Compose)                        |
-| `LEGAL_POSTGRES_DB`       | `saas_legal`   | Legal Postgres database name (Docker Compose)                   |
-| `LEGAL_POSTGRES_PORT`     | `5433`         | Host port mapped to legal Postgres                              |
-| `REDIS_PORT`              | `6379`         | Host port mapped to Redis (Docker Compose)                      |
-| `API_PORT`                | `3000`         | Host port mapped to the API (Docker Compose)                    |
-| `EVENT_BUS_TRANSPORT`     | `local`        | Event transport: `local` (EventEmitter) or `sqs`                |
-| `SQS_STANDARD_QUEUE_URL`  | —              | SQS Standard queue URL (required when `sqs`)                    |
-| `SQS_FIFO_QUEUE_URL`      | —              | SQS FIFO queue URL, must end in `.fifo` (required when `sqs`)   |
-| `SQS_ENDPOINT_URL`        | —              | LocalStack endpoint, e.g. `http://localhost:4566` (dev/CI only) |
+| Variable                     | Default                                 | Description                                                     |
+| ---------------------------- | --------------------------------------- | --------------------------------------------------------------- |
+| `PORT`                       | `3000`                                  | HTTP port the API listens on                                    |
+| `NODE_ENV`                   | `development`                           | Runtime environment                                             |
+| `POSTGRES_USER`              | `postgres`                              | Postgres user (Docker Compose)                                  |
+| `POSTGRES_PASSWORD`          | `postgres`                              | Postgres password (Docker Compose)                              |
+| `POSTGRES_DB`                | `saas_backend`                          | Postgres database name (Docker Compose)                         |
+| `POSTGRES_PORT`              | `5432`                                  | Host port mapped to business Postgres                           |
+| `LEGAL_POSTGRES_USER`        | `postgres`                              | Legal Postgres user (Docker Compose)                            |
+| `LEGAL_POSTGRES_PASSWORD`    | `postgres`                              | Legal Postgres password (Docker Compose)                        |
+| `LEGAL_POSTGRES_DB`          | `saas_legal`                            | Legal Postgres database name (Docker Compose)                   |
+| `LEGAL_POSTGRES_PORT`        | `5433`                                  | Host port mapped to legal Postgres                              |
+| `REDIS_PORT`                 | `6379`                                  | Host port mapped to Redis (Docker Compose)                      |
+| `API_PORT`                   | `3000`                                  | Host port mapped to the API (Docker Compose)                    |
+| `EVENT_BUS_TRANSPORT`        | `local`                                 | Event transport: `local` (EventEmitter) or `sqs`                |
+| `SQS_STANDARD_QUEUE_URL`     | —                                       | SQS Standard queue URL (required when `sqs`)                    |
+| `SQS_FIFO_QUEUE_URL`         | —                                       | SQS FIFO queue URL, must end in `.fifo` (required when `sqs`)   |
+| `SQS_ENDPOINT_URL`           | —                                       | LocalStack endpoint, e.g. `http://localhost:4566` (dev/CI only) |
+| `STRIPE_SECRET_KEY`          | —                                       | Stripe secret key (`sk_live_…` / `sk_test_…`)                   |
+| `STRIPE_WEBHOOK_SECRET`      | —                                       | Stripe webhook signing secret (`whsec_…` from Stripe Dashboard) |
+| `STRIPE_MAX_RETRIES`         | `3`                                     | Max Stripe API retry attempts (exponential backoff)             |
+| `STRIPE_RETRY_BASE_DELAY_MS` | `500`                                   | Base delay ms for Stripe retry backoff (doubles each attempt)   |
+| `BILLING_SUCCESS_URL`        | `http://localhost:3000/billing/success` | Redirect after successful Stripe checkout                       |
+| `BILLING_CANCEL_URL`         | `http://localhost:3000/billing/cancel`  | Redirect after cancelled Stripe checkout                        |
+| `BILLING_RETURN_URL`         | `http://localhost:3000/billing`         | Return URL for the Stripe customer portal                       |
 
 ### 4. Run database migrations
 
@@ -371,6 +379,40 @@ to connected WebSocket clients.
 
 Event names and payload interfaces are defined in `libs/events/src/constants/event-routing.constants.ts`.
 See [libs/events/README.md](libs/events/README.md) for the full reference.
+
+---
+
+## Billing & Stripe
+
+`@libs/billing` provides end-to-end Stripe subscription management. The HTTP layer lives in `apps/api/src/app/billing/`.
+
+### REST endpoints
+
+| Method | Path                    | Auth | Description                                      |
+| ------ | ----------------------- | ---- | ------------------------------------------------ |
+| `POST` | `/billing/checkout`     | JWT  | Create a Stripe Checkout Session, return URL     |
+| `POST` | `/billing/portal`       | JWT  | Create a Stripe Customer Portal session          |
+| `POST` | `/billing/cancel`       | JWT  | Schedule subscription cancellation at period end |
+| `GET`  | `/billing/subscription` | JWT  | Read current billing state for the org           |
+| `POST` | `/billing/webhook`      | none | Receive Stripe webhook events (HMAC-verified)    |
+
+All REST endpoints require `OWNER` role (`org.billing.manage` permission). The webhook endpoint is unauthenticated — security comes from Stripe HMAC signature verification.
+
+### Local development with Stripe CLI
+
+```sh
+# Forward Stripe events to local server
+stripe listen --forward-to localhost:3000/billing/webhook
+
+# Trigger test events
+stripe trigger checkout.session.completed
+stripe trigger customer.subscription.created
+stripe trigger invoice.payment_failed
+```
+
+The CLI prints a `whsec_…` secret — set it as `STRIPE_WEBHOOK_SECRET` in `.env`.
+
+For the full webhook pipeline, event-to-handler mapping, Stripe retry policy, and domain events, see [libs/billing/README.md](libs/billing/README.md).
 
 ---
 

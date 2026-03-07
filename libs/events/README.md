@@ -68,8 +68,14 @@ export class TasksService {
 
     // 1. Persist PENDING record so the job is immediately queryable via REST
     await this.prisma.job.create({
-      data: { id: jobId, orgId: tenantId, userId, type: 'heavy_job',
-              status: 'PENDING', payload: dto as unknown as Prisma.InputJsonValue },
+      data: {
+        id: jobId,
+        orgId: tenantId,
+        userId,
+        type: 'heavy_job',
+        status: 'PENDING',
+        payload: dto as unknown as Prisma.InputJsonValue,
+      },
     });
 
     try {
@@ -125,8 +131,8 @@ const msg: JobUpdateMessage = {
   status: JobStatus.DONE, // PENDING | PROCESSING | DONE | FAILED
   tenantId: 'org-1',
   userId: 'auth0|...',
-  result: { processed: true },      // only on DONE
-  error: undefined,                  // only on FAILED
+  result: { processed: true }, // only on DONE
+  error: undefined, // only on FAILED
   updatedAt: new Date().toISOString(),
 };
 ```
@@ -200,6 +206,7 @@ DOMAIN_EVENTS.HEAVY_JOB_COMPLETED; // 'heavy.job.completed'
 DOMAIN_EVENTS.HEAVY_JOB_FAILED; // 'heavy.job.failed'
 
 // FIFO queue events (billing / subscriptions)
+DOMAIN_EVENTS.BILLING_CHECKOUT_COMPLETED; // 'billing.checkout.completed'
 DOMAIN_EVENTS.BILLING_PAYMENT_SUCCEEDED;
 DOMAIN_EVENTS.BILLING_PAYMENT_FAILED;
 DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CREATED;

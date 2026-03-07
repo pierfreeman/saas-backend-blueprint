@@ -27,6 +27,7 @@ libs/billing/src/
 │       └── subscription.service.ts         # Stripe → DB synchronisation helpers
 ├── webhooks/
 │   ├── handlers/
+│   │   ├── checkout-completed.handler.ts   # Handles checkout.session.completed → SubscriptionService
 │   │   ├── subscription-created.handler.ts
 │   │   ├── subscription-updated.handler.ts
 │   │   ├── invoice-paid.handler.ts
@@ -89,14 +90,15 @@ Stripe ──► WebhookController ──► WebhookDispatcherService
 
 ### Subscription lifecycle
 
-| Stripe event                           | Handler                      | DB change                                                  |
-| -------------------------------------- | ---------------------------- | ---------------------------------------------------------- |
-| `customer.subscription.created`        | `SubscriptionCreatedHandler` | `billingStatus`, `planId`, `subscriptionId`, period fields |
-| `customer.subscription.updated`        | `SubscriptionUpdatedHandler` | same fields — reflect latest Stripe state                  |
-| `customer.subscription.deleted`        | `SubscriptionUpdatedHandler` | `billingStatus = CANCELED`                                 |
-| `customer.subscription.trial_will_end` | `SubscriptionUpdatedHandler` | fires `BILLING_TRIAL_ENDING` domain event                  |
-| `invoice.payment_succeeded`            | `InvoicePaidHandler`         | ensures `billingStatus = ACTIVE`                           |
-| `invoice.payment_failed`               | `InvoiceFailedHandler`       | `billingStatus = PAST_DUE`                                 |
+| Stripe event                           | Handler                      | DB change                                                                   |
+| -------------------------------------- | ---------------------------- | --------------------------------------------------------------------------- |
+| `checkout.session.completed`           | `CheckoutCompletedHandler`   | `stripeCustomerId` (if missing), `subscriptionId`, `billingStatus = ACTIVE` |
+| `customer.subscription.created`        | `SubscriptionCreatedHandler` | `billingStatus`, `planId`, `subscriptionId`, period fields                  |
+| `customer.subscription.updated`        | `SubscriptionUpdatedHandler` | same fields — reflect latest Stripe state                                   |
+| `customer.subscription.deleted`        | `SubscriptionUpdatedHandler` | `billingStatus = CANCELED`                                                  |
+| `customer.subscription.trial_will_end` | `SubscriptionUpdatedHandler` | fires `BILLING_TRIAL_ENDING` domain event                                   |
+| `invoice.payment_succeeded`            | `InvoicePaidHandler`         | ensures `billingStatus = ACTIVE`                                            |
+| `invoice.payment_failed`               | `InvoiceFailedHandler`       | `billingStatus = PAST_DUE`                                                  |
 
 ---
 
@@ -146,6 +148,7 @@ return 200
 
 | Action                 | Domain event constant                          |
 | ---------------------- | ---------------------------------------------- |
+| Checkout completed     | `DOMAIN_EVENTS.BILLING_CHECKOUT_COMPLETED`     |
 | Subscription created   | `DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CREATED`   |
 | Subscription updated   | `DOMAIN_EVENTS.BILLING_SUBSCRIPTION_UPDATED`   |
 | Subscription cancelled | `DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CANCELLED` |
@@ -161,10 +164,25 @@ In dev/test the `LocalTransport` delivers them in-process. In staging and produc
 
 Every state-changing operation writes to **both** log sinks (both are fire-and-forget — failures never block the primary flow):
 
-| Sink                 | When                                                                         |
-| -------------------- | ---------------------------------------------------------------------------- |
-| `ActivityLogService` | subscription created/updated/cancelled, invoice paid/failed, webhook receipt |
-| `LegalAuditService`  | subscription created, cancelled, invoice paid/failed (financial events)      |
+| Sink                 | When                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `ActivityLogService` | customer created, checkout created, portal accessed, checkout completed, subscription created/updated/cancelled, invoice paid/failed |
+| `LegalAuditService`  | customer created, checkout created, portal session created, checkout completed, subscription created/cancelled, invoice paid/failed  |
+
+---
+
+## Stripe retry & exponential backoff
+
+`StripeService` wraps every outbound Stripe SDK call in a `withRetry` helper. On transient errors it retries with exponential backoff before letting the error propagate.
+
+| Variable                     | Default | Description                                                 |
+| ---------------------------- | ------- | ----------------------------------------------------------- |
+| `STRIPE_MAX_RETRIES`         | `3`     | Maximum retry attempts (set to `0` to disable)              |
+| `STRIPE_RETRY_BASE_DELAY_MS` | `500`   | Delay before the first retry in ms; doubles on each attempt |
+
+Retryable conditions: `StripeConnectionError`, `StripeAPIError` (5xx), `StripeRateLimitError`. Non-retryable errors (4xx, invalid request, signature failure) surface immediately.
+
+The Stripe SDK's own `maxNetworkRetries` is set to `0` — all retry logic lives in the service layer so it is fully observable and unit-testable.
 
 ---
 
@@ -270,7 +288,7 @@ The CLI prints the webhook signing secret (`whsec_…`) to use as `STRIPE_WEBHOO
 ## Running tests
 
 ```bash
-# Unit tests (42 tests across 4 suites)
+# Unit tests (117 tests across 11 suites)
 npx nx run billing:test
 
 # Integration tests (requires Docker Compose test environment)
