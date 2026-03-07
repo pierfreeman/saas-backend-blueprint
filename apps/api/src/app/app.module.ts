@@ -19,6 +19,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { RBACModule } from './rbac/rbac.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ActivityLogAppModule } from './activity-log/activity-log-app.module';
+import { BillingAppModule } from './billing/billing-app.module';
 import { TenantMiddleware } from '@libs/common';
 
 @Module({
@@ -36,6 +37,7 @@ import { TenantMiddleware } from '@libs/common';
     HealthModule,
     TasksModule,
     ActivityLogAppModule,
+    BillingAppModule,
   ],
   controllers: [AppController],
   providers: [AppService],

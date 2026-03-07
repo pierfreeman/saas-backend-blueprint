@@ -65,6 +65,30 @@
       ],
       "@libs/events/*": [
         "libs/events/src/*"
+      ],
+      "@libs/billing": [
+        "libs/billing/src/index.ts"
+      ],
+      "@libs/billing/*": [
+        "libs/billing/src/*"
+      ],
+      "@apps/api": [
+        "apps/api/src"
+      ],
+      "@apps/api/*": [
+        "apps/api/src/*"
+      ],
+      "@apps/worker-a": [
+        "apps/worker-a/src"
+      ],
+      "@apps/worker-a/*": [
+        "apps/worker-a/src/*"
+      ],
+      "@test": [
+        "test"
+      ],
+      "@test/*": [
+        "test/*"
       ]
     }
   },

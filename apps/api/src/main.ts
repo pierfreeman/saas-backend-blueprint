@@ -11,7 +11,11 @@ import { AllExceptionsFilter } from '@libs/common';
 import { AppModule } from './app/app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // rawBody: true exposes request.rawBody (Buffer) on all routes.
+    // Required by WebhookController to verify Stripe HMAC signatures.
+    rawBody: true,
+  });
 
   // ── WebSocket adapter ───────────────────────────────────────────────────────
   // Required to enable socket.io-based WebSocket gateways (e.g. JobsGateway).
@@ -74,6 +78,7 @@ async function bootstrap() {
     .addTag('Memberships', 'Organization membership management endpoints')
     .addTag('Tasks', 'Task management and job status endpoints')
     .addTag('Activity Log', 'Activity log query endpoints')
+    .addTag('Billing', 'Subscription and billing management endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

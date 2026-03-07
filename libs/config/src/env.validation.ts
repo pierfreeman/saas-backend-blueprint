@@ -19,4 +19,10 @@ export const envValidationSchema = Joi.object({
   // Auth0
   AUTH0_DOMAIN: Joi.string().required(),
   AUTH0_AUDIENCE: Joi.string().required(),
+
+  // Stripe (optional — billing module checks at runtime)
+  STRIPE_SECRET_KEY: Joi.string().optional(),
+  STRIPE_WEBHOOK_SECRET: Joi.string().optional(),
+  STRIPE_PRICE_ID_BASIC: Joi.string().optional(),
+  STRIPE_PRICE_ID_PRO: Joi.string().optional(),
 });

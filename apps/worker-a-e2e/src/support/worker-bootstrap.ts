@@ -16,7 +16,9 @@
  */
 import { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { AppModule as WorkerAppModule } from '../../../../apps/worker-a/src/app.module';
+// E2e bootstrapping: importing the app module for NestFactory.createApplicationContext() is intentional.
+// eslint-disable-next-line @nx/enforce-module-boundaries
+import { AppModule as WorkerAppModule } from '@apps/worker-a/app.module';
 
 /**
  * Creates the worker application context for integration testing.

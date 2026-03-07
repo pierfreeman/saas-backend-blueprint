@@ -19,8 +19,8 @@ import { setupNockAuth, teardownNockAuth } from '../support/nock-auth';
 import {
   generateTestToken,
   generateExpiredToken,
-} from '../../../../test/utils/auth.helper';
-import { resetBusinessDb } from '../../../../test/utils/db-reset.helper';
+} from '@test/utils/auth.helper';
+import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 
 describe('Auth Flow (integration)', () => {

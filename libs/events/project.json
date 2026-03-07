@@ -3,7 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/events/src",
   "projectType": "library",
-  "tags": ["scope:lib", "type:events"],
+  "tags": ["type:lib", "scope:events"],
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",

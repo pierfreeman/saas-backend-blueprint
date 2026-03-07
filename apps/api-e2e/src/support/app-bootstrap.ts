@@ -28,7 +28,9 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AllExceptionsFilter } from '@libs/common';
-import { AppModule } from '../../../../apps/api/src/app/app.module';
+// E2e bootstrapping: importing the app module for NestFactory.create() is intentional.
+// eslint-disable-next-line @nx/enforce-module-boundaries
+import { AppModule } from '@apps/api/app/app.module';
 
 /**
  * Bootstraps the full NestJS application for integration testing.
@@ -37,6 +39,7 @@ import { AppModule } from '../../../../apps/api/src/app/app.module';
 export async function bootstrapTestApp(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn'], // reduce noise in test output
+    rawBody: true, // required for Stripe webhook signature verification
   });
 
   // Mirrors production bootstrap (main.ts)

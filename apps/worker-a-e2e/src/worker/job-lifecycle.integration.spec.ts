@@ -18,10 +18,12 @@
  */
 import { INestApplicationContext } from '@nestjs/common';
 import { bootstrapWorkerContext } from '../support/worker-bootstrap';
+// E2e bootstrapping: importing the worker controller directly for handler invocation is intentional.
+// eslint-disable-next-line @nx/enforce-module-boundaries
 import {
   WorkerController,
   HeavyJobPayload,
-} from '../../../../apps/worker-a/src/worker.controller';
+} from '@apps/worker-a/worker.controller';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';

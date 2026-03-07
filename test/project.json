@@ -1,0 +1,7 @@
+{
+  "name": "test-utils",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "test",
+  "tags": ["type:test-utils"]
+}

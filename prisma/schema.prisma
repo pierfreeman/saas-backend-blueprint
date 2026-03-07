@@ -32,6 +32,31 @@ enum JobStatus {
   @@schema("public")
 }
 
+/// Billing lifecycle status of an Organization's subscription.
+/// Mirrors Stripe subscription statuses with a NONE sentinel for no subscription.
+enum BillingStatus {
+  /// No subscription exists (free tier or never subscribed).
+  NONE
+  /// Currently in a free trial period.
+  TRIALING
+  /// Active, paid subscription.
+  ACTIVE
+  /// Payment failed; subscription will be canceled if not resolved.
+  PAST_DUE
+  /// Subscription was explicitly canceled (may still be active until period end).
+  CANCELED
+  /// Invoice is open and past due with final payment attempt failed.
+  UNPAID
+  /// First payment not yet made; subscription is being set up.
+  INCOMPLETE
+  /// Incomplete subscription expired without payment.
+  INCOMPLETE_EXPIRED
+  /// Subscription is paused (Stripe feature).
+  PAUSED
+
+  @@schema("public")
+}
+
 /// Lifecycle status of an Organization.
 enum OrganizationStatus {
   /// Organization is fully operational and can be accessed by all its members.
@@ -115,15 +140,33 @@ model Organization {
   status           OrganizationStatus @default(ACTIVE)
   /// Stripe customer ID, set when the organization subscribes to a paid plan.
   /// Null for free-tier organizations.
-  stripeCustomerId String?            @unique @map("stripe_customer_id")
+  stripeCustomerId          String?        @unique @map("stripe_customer_id")
+  /// Stripe subscription ID. Null until a subscription is created.
+  subscriptionId            String?        @unique @map("subscription_id")
+  /// Current billing lifecycle status. Mirrors Stripe subscription status.
+  billingStatus             BillingStatus  @default(NONE) @map("billing_status")
+  /// Stripe Price ID of the active plan (e.g. price_xxx). Null if no subscription.
+  planId                    String?        @map("plan_id")
+  /// Number of billable seats in the current subscription.
+  seatCount                 Int            @default(1) @map("seat_count")
+  /// Storage quota in bytes. Null means plan default applies.
+  storageLimit              BigInt?        @map("storage_limit")
+  /// Start of the current billing period (from Stripe).
+  subscriptionPeriodStart   DateTime?      @map("subscription_period_start")
+  /// End of the current billing period (from Stripe).
+  subscriptionPeriodEnd     DateTime?      @map("subscription_period_end")
+  /// If true, subscription cancels at the end of the current period.
+  cancelAtPeriodEnd         Boolean        @default(false) @map("cancel_at_period_end")
   /// Timestamp of organization creation.
-  createdAt        DateTime           @default(now()) @map("created_at")
+  createdAt                 DateTime       @default(now()) @map("created_at")
   /// Timestamp of the last update.
-  updatedAt        DateTime           @updatedAt @map("updated_at")
+  updatedAt                 DateTime       @updatedAt @map("updated_at")
 
   // ── Relations ──────────────────────────────────────────────────────────────
-  memberships  Membership[]
-  activityLogs ActivityLog[]
+  memberships            Membership[]
+  activityLogs           ActivityLog[]
+  billingEvents          BillingEvent[]
+  subscriptionSnapshots  SubscriptionSnapshot[]
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   /// Supports filtering organizations by lifecycle status (e.g. list all SUSPENDED orgs).
@@ -134,6 +177,10 @@ model Organization {
   @@index([name])
   /// Supports paginated admin listings ordered by creation date.
   @@index([createdAt(sort: Desc)])
+  /// Supports admin queries filtering organizations by billing status (e.g. list all PAST_DUE orgs).
+  @@index([billingStatus])
+  /// Supports paginated admin listings filtered by billing status, ordered by creation date.
+  @@index([billingStatus, createdAt(sort: Desc)])
   @@map("organizations")
   @@schema("public")
 }
@@ -271,5 +318,83 @@ model Job {
   /// Admin/ops query: global status sweep (e.g. stuck PROCESSING jobs).
   @@index([status, createdAt(sort: Desc)])
   @@map("jobs")
+  @@schema("public")
+}
+
+// ============================================================================
+// BILLING EVENT MODEL
+// Idempotency tracking for processed Stripe webhook events.
+// Prevents duplicate processing of retried or replayed webhooks.
+// ============================================================================
+
+/// Immutable record of a processed Stripe webhook event.
+/// Used to guarantee idempotent webhook processing.
+model BillingEvent {
+  /// Internal UUID – primary key.
+  id            String       @id @default(uuid()) @db.Uuid
+  /// FK → Organization. Cascade-delete removes billing events when the org is deleted.
+  orgId         String?      @map("org_id") @db.Uuid
+  /// Stripe event ID (e.g. evt_xxx). Unique constraint prevents duplicate processing.
+  stripeEventId String       @unique @map("stripe_event_id")
+  /// Timestamp when the event was first successfully processed.
+  processedAt   DateTime     @map("processed_at")
+  /// SHA-256 hash of the raw webhook payload for tamper detection.
+  payloadHash   String       @map("payload_hash")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Idempotency lookup by Stripe event ID (backed by unique constraint).
+  @@index([stripeEventId])
+  /// Admin/ops audit: list processed events by time.
+  @@index([processedAt(sort: Desc)])
+  @@map("billing_events")
+  @@schema("public")
+}
+
+// ============================================================================
+// SUBSCRIPTION SNAPSHOT MODEL
+// Append-only historical record of subscription state changes.
+// Written once per processed Stripe subscription lifecycle event.
+// Never updated — Organization remains the source of truth for current state.
+// Used only for internal analytics, debugging, support, and billing investigations.
+// ============================================================================
+
+/// Immutable point-in-time snapshot of a subscription state.
+/// Created for customer.subscription.created/updated/deleted Stripe events.
+model SubscriptionSnapshot {
+  /// Internal UUID – primary key.
+  id                   String       @id @default(uuid()) @db.Uuid
+  /// FK → Organization.
+  orgId                String       @map("org_id") @db.Uuid
+  /// Stripe subscription ID (e.g. sub_xxx).
+  stripeSubscriptionId String       @map("stripe_subscription_id")
+  /// Stripe Price ID of the plan at the time of the snapshot.
+  planId               String?      @map("plan_id")
+  /// Stripe subscription status string at the time of the snapshot.
+  status               String
+  /// Number of billable seats recorded at snapshot time.
+  seats                Int?
+  /// Maximum seats allowed by the plan (if available).
+  seatLimit            Int?         @map("seat_limit")
+  /// Start of the billing period recorded at snapshot time.
+  periodStart          DateTime     @map("period_start")
+  /// End of the billing period recorded at snapshot time.
+  periodEnd            DateTime     @map("period_end")
+  /// Immutable creation timestamp.
+  createdAt            DateTime     @default(now()) @map("created_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Lookup by org (general).
+  @@index([orgId])
+  /// Lookup by Stripe subscription ID for billing investigations.
+  @@index([stripeSubscriptionId])
+  /// Timeline query: "show subscription history for org X, newest first".
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("subscription_snapshots")
   @@schema("public")
 }
