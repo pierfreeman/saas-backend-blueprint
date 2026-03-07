@@ -4,7 +4,7 @@ import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { RBACCacheService } from '../rbac/services/rbac-cache.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { BillingStatus, MembershipRole, MembershipStatus } from '@prisma/client';
 
 const mockActivityLogService = {
   logActivity: jest.fn(),
@@ -16,8 +16,12 @@ const mockLegalAuditService = {
 
 
 const mockPrisma = {
+  organization: {
+    findUnique: jest.fn(),
+  },
   membership: {
     create: jest.fn(),
+    count: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -54,6 +58,10 @@ describe('MembershipsService', () => {
 
   describe('createMembership', () => {
     it('creates a membership and invalidates RBAC cache', async () => {
+      // Free-tier org — seat check is skipped.
+      mockPrisma.organization.findUnique = jest
+        .fn()
+        .mockResolvedValue({ billingStatus: BillingStatus.NONE, seatCount: 1 });
       mockPrisma.membership.create = jest
         .fn()
         .mockResolvedValue(baseMembership);
@@ -69,6 +77,85 @@ describe('MembershipsService', () => {
         data: { userId: 'u-1', orgId: 'org-1', role: 'MEMBER' },
       });
       expect(mockRbacCache.invalidate).toHaveBeenCalledWith('u-1', 'org-1');
+    });
+  });
+
+  describe('createMembership — seat limit enforcement', () => {
+    it('throws ForbiddenException when active member count equals seatCount on a paid plan', async () => {
+      mockPrisma.organization.findUnique = jest
+        .fn()
+        .mockResolvedValue({ billingStatus: BillingStatus.ACTIVE, seatCount: 3 });
+      mockPrisma.membership.count = jest.fn().mockResolvedValue(3);
+
+      await expect(
+        service.createMembership('org-1', { userId: 'u-2', role: MembershipRole.MEMBER }),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockPrisma.membership.count).toHaveBeenCalledWith({
+        where: {
+          orgId: 'org-1',
+          status: { in: [MembershipStatus.ACTIVE, MembershipStatus.INVITED] },
+        },
+      });
+      expect(mockPrisma.membership.create).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when active member count exceeds seatCount on a paid plan', async () => {
+      mockPrisma.organization.findUnique = jest
+        .fn()
+        .mockResolvedValue({ billingStatus: BillingStatus.ACTIVE, seatCount: 3 });
+      mockPrisma.membership.count = jest.fn().mockResolvedValue(5);
+
+      await expect(
+        service.createMembership('org-1', { userId: 'u-2', role: MembershipRole.MEMBER }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows membership creation when under seat limit on a paid plan', async () => {
+      mockPrisma.organization.findUnique = jest
+        .fn()
+        .mockResolvedValue({ billingStatus: BillingStatus.ACTIVE, seatCount: 3 });
+      mockPrisma.membership.count = jest.fn().mockResolvedValue(2);
+      mockPrisma.membership.create = jest.fn().mockResolvedValue(baseMembership);
+
+      const result = await service.createMembership('org-1', {
+        userId: 'u-2',
+        role: MembershipRole.MEMBER,
+      });
+
+      expect(result).toBe(baseMembership);
+    });
+
+    it('skips seat check when billingStatus is NONE (free tier)', async () => {
+      mockPrisma.organization.findUnique = jest
+        .fn()
+        .mockResolvedValue({ billingStatus: BillingStatus.NONE, seatCount: 1 });
+      mockPrisma.membership.create = jest.fn().mockResolvedValue(baseMembership);
+
+      await service.createMembership('org-1', { userId: 'u-2', role: MembershipRole.MEMBER });
+
+      // count must never be called for free-tier orgs
+      expect(mockPrisma.membership.count).not.toHaveBeenCalled();
+    });
+
+    it('skips seat check when org is not found (null)', async () => {
+      mockPrisma.organization.findUnique = jest.fn().mockResolvedValue(null);
+      mockPrisma.membership.create = jest.fn().mockResolvedValue(baseMembership);
+
+      await service.createMembership('org-1', { userId: 'u-2', role: MembershipRole.MEMBER });
+
+      expect(mockPrisma.membership.count).not.toHaveBeenCalled();
+    });
+
+    it('enforces seat limit when billingStatus is TRIALING', async () => {
+      mockPrisma.organization.findUnique = jest
+        .fn()
+        .mockResolvedValue({ billingStatus: BillingStatus.TRIALING, seatCount: 2 });
+      mockPrisma.membership.count = jest.fn().mockResolvedValue(2);
+
+      await expect(
+        service.createMembership('org-1', { userId: 'u-2', role: MembershipRole.MEMBER }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -179,6 +266,10 @@ describe('MembershipsService', () => {
       const serviceWithoutCache = new MembershipsService(
         mockPrisma, mockActivityLogService, mockLegalAuditService, undefined,
       );
+      // Free-tier org — seat check is skipped.
+      mockPrisma.organization.findUnique = jest
+        .fn()
+        .mockResolvedValue({ billingStatus: BillingStatus.NONE, seatCount: 1 });
       mockPrisma.membership.create = jest
         .fn()
         .mockResolvedValue(baseMembership);

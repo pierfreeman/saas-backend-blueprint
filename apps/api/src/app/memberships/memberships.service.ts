@@ -10,7 +10,7 @@ import {
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import { Membership, MembershipRole } from '@prisma/client';
+import { BillingStatus, Membership, MembershipRole, MembershipStatus } from '@prisma/client';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { RBACCacheService } from '../rbac/services/rbac-cache.service';
@@ -28,11 +28,44 @@ export class MembershipsService {
     private readonly rbacCache?: RBACCacheService,
   ) {}
 
+  /**
+   * Checks whether the organization has capacity for a new member.
+   * Enforced only when the org has a non-free billing status (i.e. an active
+   * or trialing Stripe subscription).  Free-tier orgs (NONE) are exempt.
+   *
+   * Counts memberships with status ACTIVE or INVITED against Organization.seatCount.
+   * Throws ForbiddenException when the limit is reached.
+   */
+  private async checkSeatLimit(orgId: string): Promise<void> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { billingStatus: true, seatCount: true },
+    });
+
+    // Free tier or org not found — no limit to enforce.
+    if (!org || org.billingStatus === BillingStatus.NONE) return;
+
+    const activeMemberCount = await this.prisma.membership.count({
+      where: {
+        orgId,
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.INVITED] },
+      },
+    });
+
+    if (activeMemberCount >= org.seatCount) {
+      throw new ForbiddenException(
+        `Seat limit reached (${org.seatCount}). Upgrade your plan to add more members.`,
+      );
+    }
+  }
+
   async createMembership(
     orgId: string,
     dto: CreateMembershipDto,
     actorUserId?: string,
   ): Promise<Membership> {
+    await this.checkSeatLimit(orgId);
+
     this.logger.log(
       `Adding user ${dto.userId} to org ${orgId} with role ${dto.role}`,
     );

@@ -113,7 +113,8 @@ export class MembershipsController {
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
-    description: 'Caller lacks ORG_MEMBERS_INVITE permission.',
+    description:
+      'Caller lacks ORG_MEMBERS_INVITE permission, or the organization has reached its seat limit.',
   })
   async create(
     @Param('orgId') orgId: string,
