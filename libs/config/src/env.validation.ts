@@ -20,6 +20,21 @@ export const envValidationSchema = Joi.object({
   AUTH0_DOMAIN: Joi.string().required(),
   AUTH0_AUDIENCE: Joi.string().required(),
 
+  // Event Bus
+  EVENT_BUS_TRANSPORT: Joi.string().valid('local', 'sqs').default('local'),
+  SQS_STANDARD_QUEUE_URL: Joi.string().when('EVENT_BUS_TRANSPORT', {
+    is: 'sqs',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  SQS_FIFO_QUEUE_URL: Joi.string().when('EVENT_BUS_TRANSPORT', {
+    is: 'sqs',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  SQS_ENDPOINT_URL: Joi.string().optional(),
+  AWS_REGION: Joi.string().default('eu-west-1'),
+
   // Stripe (optional — billing module checks at runtime)
   STRIPE_SECRET_KEY: Joi.string().optional(),
   STRIPE_WEBHOOK_SECRET: Joi.string().optional(),

@@ -128,6 +128,9 @@ describe('BillingService', () => {
       expect(legalAudit.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: 'billing.customer.created' }),
       );
+      expect(activityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'billing.customer.created' }),
+      );
     });
   });
 
@@ -152,6 +155,9 @@ describe('BillingService', () => {
       expect(result.sessionId).toBe('cs_test_001');
       expect(activityLog.logActivity).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'billing.checkout.created' }),
+      );
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'billing.checkout.created' }),
       );
     });
 

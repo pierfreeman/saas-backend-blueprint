@@ -75,6 +75,14 @@ export class BillingService {
       metadata: { stripeCustomerId: customer.id },
     });
 
+    this.activityLog.logActivity({
+      orgId,
+      action: 'billing.customer.created',
+      entityType: 'organization',
+      entityId: orgId,
+      metadata: { stripeCustomerId: customer.id },
+    });
+
     return customer.id;
   }
 
@@ -88,7 +96,11 @@ export class BillingService {
     orgId: string,
     priceId: string,
     actorUserId: string,
-    options: { successUrl?: string; cancelUrl?: string; idempotencyKey?: string } = {},
+    options: {
+      successUrl?: string;
+      cancelUrl?: string;
+      idempotencyKey?: string;
+    } = {},
   ): Promise<{ url: string; sessionId: string }> {
     const org = await this.billingRepository.findOrgById(orgId);
 
@@ -125,6 +137,13 @@ export class BillingService {
       entityType: 'organization',
       entityId: orgId,
       metadata: { priceId, sessionId: session.id },
+    });
+
+    this.legalAudit.recordEvent({
+      eventType: 'billing.checkout.created',
+      orgId,
+      triggerType: 'user_action',
+      metadata: { actorUserId, priceId, sessionId: session.id },
     });
 
     this.logger.log(`Checkout session created for org ${orgId}: ${session.id}`);
