@@ -9,6 +9,18 @@ import { BillingStatus } from '@prisma/client';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 import { BillingStatus as DomainBillingStatus } from '../../domain/enums/billing-status.enum';
 
+export interface SubscriptionSnapshotItem {
+  id: string;
+  stripeSubscriptionId: string;
+  planId: string | null;
+  status: string;
+  seats: number | null;
+  seatLimit: number | null;
+  periodStart: Date;
+  periodEnd: Date;
+  createdAt: Date;
+}
+
 export interface CreateSnapshotInput {
   orgId: string;
   stripeSubscriptionId: string;
@@ -244,6 +256,38 @@ export class BillingRepository {
     this.logger.debug(
       `Transactional update: org ${orgId} + snapshot for sub ${snapshot.stripeSubscriptionId}`,
     );
+  }
+
+  /**
+   * Returns a paginated, newest-first list of SubscriptionSnapshots for an org.
+   * Also returns the total count for pagination metadata.
+   */
+  async findSnapshotsByOrgId(
+    orgId: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ items: SubscriptionSnapshotItem[]; total: number }> {
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.subscriptionSnapshot.findMany({
+        where: { orgId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: {
+          id: true,
+          stripeSubscriptionId: true,
+          planId: true,
+          status: true,
+          seats: true,
+          seatLimit: true,
+          periodStart: true,
+          periodEnd: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.subscriptionSnapshot.count({ where: { orgId } }),
+    ]);
+    return { items, total };
   }
 
   /**

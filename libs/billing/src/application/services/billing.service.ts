@@ -9,7 +9,10 @@ import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { StripeService } from '../../infrastructure/stripe/stripe.service';
-import { BillingRepository } from '../../infrastructure/repositories/billing.repository';
+import {
+  BillingRepository,
+  SubscriptionSnapshotItem,
+} from '../../infrastructure/repositories/billing.repository';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 
 /**
@@ -182,6 +185,20 @@ export class BillingService {
    */
   async getSubscription(orgId: string): Promise<SubscriptionEntity> {
     return this.billingRepository.findOrgById(orgId);
+  }
+
+  /**
+   * Returns a paginated history of SubscriptionSnapshots for an organization.
+   * Snapshots are ordered newest-first and represent audit checkpoints written
+   * for each Stripe subscription lifecycle event.
+   */
+  async getSubscriptionHistory(
+    orgId: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ items: SubscriptionSnapshotItem[]; total: number }> {
+    await this.billingRepository.findOrgById(orgId); // validates org exists
+    return this.billingRepository.findSnapshotsByOrgId(orgId, limit, offset);
   }
 
   /**
