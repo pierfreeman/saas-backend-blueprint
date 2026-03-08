@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from '@libs/notifications';
 import { JwtAuthGuard, RequestUser } from '@libs/common';
+import { AuthService } from '../auth/auth.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { MarkManyReadDto } from './dto/mark-many-read.dto';
 import { QueryNotificationsDto } from './dto/query-notifications.dto';
@@ -13,6 +14,10 @@ import { QueryNotificationsDto } from './dto/query-notifications.dto';
 jest.mock('@libs/notifications', () => ({
   NotificationsService: class MockNotificationsService {},
 }));
+
+// AuthService is a plain NestJS class — no ESM issues. Mock at module level
+// so imports are resolved without PrismaBusinessService transitive deps.
+jest.mock('../auth/auth.service');
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +52,12 @@ const mockService = {
   deleteNotification: jest.fn(),
 };
 
+// findUserByAuth0Id resolves sub → { id: sub } so service assertions keep
+// matching the sub value used in makeReq() calls.
+const mockAuthService = {
+  findUserByAuth0Id: jest.fn((sub: string) => Promise.resolve({ id: sub })),
+};
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('NotificationsController', () => {
@@ -57,7 +68,10 @@ describe('NotificationsController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [NotificationsController],
-      providers: [{ provide: NotificationsService, useValue: mockService }],
+      providers: [
+        { provide: NotificationsService, useValue: mockService },
+        { provide: AuthService, useValue: mockAuthService },
+      ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -24,6 +25,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard, RequestUser } from '@libs/common';
 import { NotificationsService } from '@libs/notifications';
+import { AuthService } from '../auth/auth.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { MarkManyReadDto } from './dto/mark-many-read.dto';
 import { QueryNotificationsDto } from './dto/query-notifications.dto';
@@ -51,7 +53,10 @@ interface AuthenticatedRequest extends Request {
 export class NotificationsController {
   private readonly logger = new Logger(NotificationsController.name);
 
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly authService: AuthService,
+  ) {}
 
   // ── GET /notifications ────────────────────────────────────────────────────
 
@@ -69,7 +74,7 @@ export class NotificationsController {
     @Req() req: AuthenticatedRequest,
     @Query() query: QueryNotificationsDto,
   ) {
-    const userId = req.user.sub;
+    const { id: userId } = await this.resolveUser(req.user.sub);
     return this.notificationsService.getUserNotifications(
       userId,
       query.orgId ?? '',
@@ -97,7 +102,8 @@ export class NotificationsController {
     description: 'Missing or invalid JWT bearer token.',
   })
   async getUnreadCount(@Req() req: AuthenticatedRequest) {
-    const count = await this.notificationsService.getUnreadCount(req.user.sub);
+    const { id: userId } = await this.resolveUser(req.user.sub);
+    const count = await this.notificationsService.getUnreadCount(userId);
     return { count };
   }
 
@@ -155,7 +161,8 @@ export class NotificationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.notificationsService.markAsRead(id, req.user.sub);
+    const { id: userId } = await this.resolveUser(req.user.sub);
+    return this.notificationsService.markAsRead(id, userId);
   }
 
   // ── PATCH /notifications/read ─────────────────────────────────────────────
@@ -179,7 +186,8 @@ export class NotificationsController {
     @Body() dto: MarkManyReadDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    await this.notificationsService.markManyAsRead(dto.ids, req.user.sub);
+    const { id: userId } = await this.resolveUser(req.user.sub);
+    await this.notificationsService.markManyAsRead(dto.ids, userId);
   }
 
   // ── DELETE /notifications/:id ─────────────────────────────────────────────
@@ -209,6 +217,14 @@ export class NotificationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    await this.notificationsService.deleteNotification(id, req.user.sub);
+    const { id: userId } = await this.resolveUser(req.user.sub);
+    await this.notificationsService.deleteNotification(id, userId);
+  }
+
+  /** Resolves Auth0 sub → local DB user (mirrors organisations.controller pattern). */
+  private async resolveUser(auth0Id: string): Promise<{ id: string }> {
+    const user = await this.authService.findUserByAuth0Id(auth0Id);
+    if (!user) throw new NotFoundException('User not found');
+    return user;
   }
 }
