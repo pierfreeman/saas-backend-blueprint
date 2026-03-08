@@ -116,7 +116,8 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // ── Relations ──────────────────────────────────────────────────────────────
-  memberships Membership[]
+  memberships   Membership[]
+  notifications Notification[]
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   // @unique on auth0Id and email already produce implicit B-tree indexes.
@@ -406,5 +407,53 @@ model SubscriptionSnapshot {
   /// Timeline query: "show subscription history for org X, newest first".
   @@index([orgId, createdAt(sort: Desc)])
   @@map("subscription_snapshots")
+  @@schema("public")
+}
+
+// ============================================================================
+// NOTIFICATION MODEL
+// In-app notifications. Source of truth for realtime and unread-count badge.
+// Scoped to a (user, org) pair for multi-tenant isolation.
+// ============================================================================
+
+model Notification {
+  /// Internal UUID — primary key.
+  id        String    @id @default(uuid()) @db.Uuid
+
+  /// Organisation that owns this notification — tenant boundary.
+  orgId     String    @map("org_id") @db.Uuid
+  /// Recipient user.
+  userId    String    @map("user_id") @db.Uuid
+
+  /// Application-defined category (e.g. "invite", "billing", "alert").
+  type      String
+  /// Short notification title shown in the badge/list.
+  title     String
+  /// Full notification body text.
+  body      String    @db.Text
+  /// Optional structured metadata (action links, entity ids, …).
+  metadata  Json?
+
+  /// Timestamp when the user explicitly marked the notification as read.
+  /// Null means unread.
+  readAt    DateTime? @map("read_at")
+
+  /// Immutable creation timestamp.
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Tenant-level listing.
+  @@index([orgId])
+  /// User inbox listing.
+  @@index([userId])
+  /// Unread filter for a user.
+  @@index([userId, readAt])
+  /// Org activity feed ordered by date.
+  @@index([orgId, createdAt])
+
+  @@map("notifications")
   @@schema("public")
 }

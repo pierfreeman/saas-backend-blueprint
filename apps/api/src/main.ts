@@ -82,6 +82,7 @@ async function bootstrap() {
     )
     .addTag('Activity Log', 'Activity log query endpoints')
     .addTag('Billing', 'Subscription and billing management endpoints')
+    .addTag('Notifications', 'In-app notification management endpoints')
     .addTag('Tasks', 'Task management and job status endpoints')
     .build();
 

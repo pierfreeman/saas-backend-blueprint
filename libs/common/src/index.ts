@@ -1,8 +1,9 @@
 // Types
 export * from './types/tenant-context';
 
-// Auth interfaces
+// Auth interfaces and guards
 export * from './auth/request-user.interface';
+export * from './auth/jwt-auth.guard';
 
 // RBAC constants
 export * from './rbac/permissions.constants';

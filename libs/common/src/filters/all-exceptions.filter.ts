@@ -55,7 +55,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const message =
       typeof rawMessage === 'string'
         ? rawMessage
-        : ((rawMessage as Record<string, unknown>).message ?? rawMessage);
+        : ((rawMessage as Record<string, unknown>)['message'] ?? rawMessage);
 
     const label = `${request.method} ${request.url} → ${status}`;
 

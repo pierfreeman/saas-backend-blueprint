@@ -23,7 +23,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '@libs/common';
 import { Job, JobStatus } from '@prisma/client';
 
 /** Shape of the user object attached to the request by JwtStrategy.validate(). */

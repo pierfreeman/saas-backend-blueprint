@@ -16,7 +16,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '@libs/common';
 import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
 import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
 import { OrgContextGuard } from '../rbac/guards/org-context.guard';
@@ -54,7 +54,8 @@ export class ActivityLogController {
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
-    description: 'Caller does not belong to this organisation or has insufficient role.',
+    description:
+      'Caller does not belong to this organisation or has insufficient role.',
   })
   async list(
     @Param('orgId') orgId: string,

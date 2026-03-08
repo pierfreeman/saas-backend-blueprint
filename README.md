@@ -38,9 +38,10 @@ apps/
 libs/
   activity-log   — Tenant-visible operational event log (business DB, app_audit schema)
   legal-audit    — Immutable compliance event recorder (legal DB, ISO 27001 / GDPR)
-  common         — Shared utilities: RBAC constants, tenant context, exception filter
+  common         — Shared utilities: RBAC constants, tenant context, exception filter, JwtAuthGuard
   config         — NestJS ConfigModule wrappers (app, auth, database, redis)
   events         — EventBusService facade (LocalTransport / SQS), DomainEvent types, DOMAIN_EVENTS constants
+  notifications  — Real-time in-app notifications (Socket.IO gateway + REST API + Redis pub/sub)
   prisma-business — PrismaBusinessService (extends PrismaClient → business DB)
   prisma-legal    — PrismaLegalService (extends PrismaClient → legal audit DB)
   redis           — CacheService (key/value, DB 1) and PubSubService (pub/sub, DB 0)
@@ -465,6 +466,125 @@ socket.on('job:update', (msg: JobUpdateMessage) => {
 
 See `libs/events/src/interfaces/job-update-message.interface.ts` for the full
 `JobUpdateMessage` type.
+
+---
+
+## In-app notifications
+
+`@libs/notifications` delivers per-user, per-organisation, and broadcast notifications in real time via Socket.IO, with a REST fallback for mobile/non-persistent clients.
+
+### Architecture
+
+```
+NotificationsService.notifyUser / notifyManyUsers
+        │
+        └─ prisma.notification.create
+        └─ NotificationsPubSubService.publish
+                 │
+           Redis channel
+         notifications:user:<userId>
+         notifications:org:<orgId>
+         notifications:global
+                 │
+        NotificationsGateway (afterInit subscriber)
+                 │
+        Socket.IO room fanout
+         user:<userId>  /  org:<orgId>  /  all sockets
+```
+
+The gateway also runs a **Socket.IO Redis adapter** (dedicated pub/sub pair) so room fanout works correctly across multiple API pods.
+
+### WebSocket — namespace `/notifications`
+
+**Connection** — pass the Auth0 JWT in one of three ways (same as `/jobs`):
+
+```javascript
+// 1. Recommended
+const socket = io('http://localhost:3000/notifications', {
+  auth: { token: 'Bearer <jwt>' },
+});
+
+// 2. Query string
+const socket = io('http://localhost:3000/notifications?token=Bearer%20<jwt>');
+
+// 3. Authorization header (non-browser only)
+```
+
+On successful connection the gateway joins the socket to `user:<userId>` and `org:<orgId>` for every active membership.  
+An initial `notification:unread-count` event is emitted immediately after joining.
+
+#### Server → client events
+
+| Event                       | Payload                 | Description                                            |
+| --------------------------- | ----------------------- | ------------------------------------------------------ |
+| `notification:new`          | `NotificationMessage`   | Fired when a new notification is created for the user  |
+| `notification:unread-count` | `{ count: number }`     | Current unread count (sent on connect and after reads) |
+| `notification:list`         | `NotificationMessage[]` | Response to `notification:get-all`                     |
+
+#### Client → server events
+
+| Event                        | Payload                                                                     | Description                        |
+| ---------------------------- | --------------------------------------------------------------------------- | ---------------------------------- |
+| `notification:get-all`       | `{ orgId?: string; limit?: number; offset?: number; unreadOnly?: boolean }` | Fetch notification history         |
+| `notification:mark-read`     | `{ notificationId: string }`                                                | Mark a single notification as read |
+| `notification:mark-all-read` | `{ orgId: string }`                                                         | Mark all org notifications as read |
+
+```typescript
+import { NotificationMessage } from '@libs/notifications';
+
+socket.on('notification:new', (msg: NotificationMessage) => {
+  console.log(msg.title, msg.body);
+});
+
+socket.on('notification:unread-count', ({ count }: { count: number }) => {
+  updateBadge(count);
+});
+
+socket.emit('notification:mark-read', { notificationId: 'uuid-here' });
+socket.emit('notification:mark-all-read', { orgId: 'uuid-here' });
+```
+
+### REST endpoints
+
+| Method   | Path                          | Auth | Description                                |
+| -------- | ----------------------------- | ---- | ------------------------------------------ |
+| `GET`    | `/notifications`              | JWT  | List notifications (paginated, filterable) |
+| `GET`    | `/notifications/unread-count` | JWT  | Get current unread count                   |
+| `POST`   | `/notifications`              | JWT  | Create a notification (internal / admin)   |
+| `PATCH`  | `/notifications/:id/read`     | JWT  | Mark a single notification as read         |
+| `PATCH`  | `/notifications/read`         | JWT  | Mark multiple notifications as read (bulk) |
+| `DELETE` | `/notifications/:id`          | JWT  | Delete a notification                      |
+
+Query params for `GET /notifications`: `orgId`, `limit`, `offset`, `unreadOnly`.
+
+### Publishing from application code
+
+```typescript
+import { NotificationsService } from '@libs/notifications';
+
+// Single user
+await this.notificationsService.notifyUser({
+  userId: user.id,
+  orgId: org.id,
+  type: 'invite.accepted',
+  title: 'New member joined',
+  body: `${user.email} accepted the invitation.`,
+  metadata: { memberId: membership.id },
+});
+
+// Multiple users at once
+await this.notificationsService.notifyManyUsers({
+  userIds: adminIds,
+  orgId: org.id,
+  type: 'billing.payment_failed',
+  title: 'Payment failed',
+  body: 'Your subscription payment could not be processed.',
+});
+```
+
+Both methods persist the record to the `notifications` table **and** publish the event to the appropriate Redis channel so every pod forwards it to connected sockets in real time.
+
+> **TODO:** integrate `@nestjs/asyncapi` to generate an AsyncAPI spec for the `/notifications` WebSocket namespace (see `libs/notifications/src/realtime/gateway/notifications.gateway.ts`).
 
 ---
 

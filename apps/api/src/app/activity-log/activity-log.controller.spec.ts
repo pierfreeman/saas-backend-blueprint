@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ActivityLogController } from './activity-log.controller';
 import { ActivityLogService } from '@libs/activity-log';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '@libs/common';
 import { OrgContextGuard } from '../rbac/guards/org-context.guard';
 import { RBACGuard } from '../rbac/guards/rbac.guard';
 

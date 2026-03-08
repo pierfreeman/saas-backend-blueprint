@@ -5,7 +5,7 @@ import {
   ApiOperation,
   ApiResponse,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from './jwt-auth.guard';
+import { JwtAuthGuard } from '@libs/common';
 import { CurrentUser } from './current-user.decorator';
 import { RequestUser } from '@libs/common';
 import { AuthService } from './auth.service';

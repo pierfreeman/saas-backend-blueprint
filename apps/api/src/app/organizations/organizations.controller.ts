@@ -19,7 +19,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '@libs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { RequestUser } from '@libs/common';
 import { AuthService } from '../auth/auth.service';

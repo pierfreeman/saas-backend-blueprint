@@ -22,6 +22,7 @@ import { ActivityLogAppModule } from './activity-log/activity-log-app.module';
 import { BillingAppModule } from './billing/billing-app.module';
 import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { TenantMiddleware } from '@libs/common';
+import { NotificationsAppModule } from './notifications/notifications-app.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { TenantMiddleware } from '@libs/common';
     ActivityLogAppModule,
     BillingAppModule,
     FeatureFlagsModule,
+    NotificationsAppModule,
   ],
   controllers: [AppController],
   providers: [AppService],
