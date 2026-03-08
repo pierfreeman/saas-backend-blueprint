@@ -1,6 +1,9 @@
 // Types & constants
 export * from './types/notification.types';
 
+// WebSocket payload DTOs (AsyncAPI documentation + runtime type safety)
+export * from './realtime/dto/ws-payloads.dto';
+
 // Data-access services
 export { NotificationsService } from './data-access/notifications.service';
 export { NotificationsPubSubService } from './data-access/notifications-pubsub.service';

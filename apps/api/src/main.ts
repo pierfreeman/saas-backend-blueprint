@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AllExceptionsFilter } from '@libs/common';
+import { AsyncApiDocumentBuilder, AsyncApiModule } from 'nestjs-asyncapi';
 import { AppModule } from './app/app.module';
 
 async function bootstrap() {
@@ -89,6 +90,51 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
+  // ── AsyncAPI ──────────────────────────────────────────────────────────────────
+  // Generates an AsyncAPI 2.x specification for the `/notifications` Socket.IO
+  // namespace and serves an interactive explorer at /asyncapi.
+  const asyncApiConfig = new AsyncApiDocumentBuilder()
+    .setTitle('SaaS Backend — Notifications WebSocket')
+    .setContact(
+      'SaaS Backend',
+      'https://github.com/pierfreeman/saas-backend-blueprint',
+      'noreply@example.com',
+    )
+    .setLicense('MIT', 'https://opensource.org/licenses/MIT')
+    .setDescription(
+      '## Overview\n' +
+        'AsyncAPI 2.x specification for the real-time `/notifications` Socket.IO namespace.\n\n' +
+        '### Authentication\n' +
+        'Pass the Auth0 JWT bearer token in one of three ways (checked in order):\n' +
+        '1. **Auth option** — `io(url, { auth: { token: "Bearer <jwt>" } })` *(recommended)*\n' +
+        '2. **Query string** — `?token=Bearer%20<jwt>`\n' +
+        '3. **Authorization header** — `Authorization: Bearer <jwt>` *(non-browser only)*\n\n' +
+        '### Rooms\n' +
+        'On successful connection the gateway automatically joins each socket to:\n' +
+        '- `user:<userId>` — personal room for direct delivery.\n' +
+        '- `org:<orgId>` — one room per active organisation membership.\n\n' +
+        '### Channel directions\n' +
+        '| Direction | Channels |\n' +
+        '|-----------|---------|\n' +
+        '| Server → Client (subscribe) | `notification:new`, `notification:unread-count`, `notification:list` |\n' +
+        '| Client → Server (publish) | `notification:get-all`, `notification:mark-read`, `notification:mark-all-read` |',
+    )
+    .setVersion('1.0')
+    .setDefaultContentType('application/json')
+    .addBearerAuth()
+    .addServer('notifications-ws', {
+      url: 'ws://localhost:3000',
+      protocol: 'socket.io',
+      description: 'Local development — Socket.IO `/notifications` namespace',
+    })
+    .build();
+
+  const asyncApiDocument = await AsyncApiModule.createDocument(
+    app,
+    asyncApiConfig,
+  );
+  await AsyncApiModule.setup('asyncapi', app, asyncApiDocument);
+
   // ── Shutdown hooks ───────────────────────────────────────────────────────────
   app.enableShutdownHooks();
 
@@ -96,6 +142,8 @@ async function bootstrap() {
   const port = configService.get<number>('app.port') ?? 3000;
   await app.listen(port);
   Logger.log(`🚀 Application is running on: http://localhost:${port}`);
+  Logger.log(`📖 Swagger (REST):   http://localhost:${port}/docs`);
+  Logger.log(`📡 AsyncAPI (WebSocket): http://localhost:${port}/asyncapi`);
 }
 
 bootstrap();

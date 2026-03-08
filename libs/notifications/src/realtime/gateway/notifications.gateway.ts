@@ -14,16 +14,23 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import * as jwt from 'jsonwebtoken';
 import { JwksClient, SigningKey } from 'jwks-rsa';
+import { AsyncApiPub, AsyncApiSub } from 'nestjs-asyncapi';
 import { NotificationsService } from '../../data-access/notifications.service';
 import { NotificationsPubSubService } from '../../data-access/notifications-pubsub.service';
 import {
   RealtimeEvent,
   NotificationMessage,
 } from '../../types/notification.types';
+import {
+  NotificationMessageDto,
+  UnreadCountDto,
+  WsGetAllDto,
+  WsMarkReadDto,
+  WsMarkAllReadDto,
+} from '../dto/ws-payloads.dto';
 import { WsJwtGuard } from '../guards/ws-jwt.guard';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { ConfigService } from '@nestjs/config';
-// TODO: integrate @nestjs/asyncapi — decorate gateway methods with @AsyncApiSub (server→client) and @AsyncApiPub (client→server), and register AsyncApiModule in app.module.ts
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -144,6 +151,24 @@ export class NotificationsGateway
     );
   }
 
+  /**
+   * Emits the current unread count immediately after the socket
+   * successfully authenticates and joins its rooms.
+   *
+   * @event notification:unread-count
+   */
+  @AsyncApiSub({
+    channel: 'notification:unread-count',
+    operationId: 'receiveUnreadCount',
+    summary: 'Initial unread count pushed on connection',
+    description:
+      'Emitted immediately after the socket authenticates and joins its rooms. ' +
+      'Also re-emitted after every `notification:mark-read` and `notification:mark-all-read` operation.',
+    message: {
+      name: 'UnreadCount',
+      payload: UnreadCountDto,
+    },
+  })
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
     try {
       const token = this.extractToken(client);
@@ -231,6 +256,34 @@ export class NotificationsGateway
 
   // ── Message handlers ──────────────────────────────────────────────────────
 
+  /**
+   * Client requests a paginated notification list.
+   * Server responds by emitting `notification:list` on the same socket.
+   */
+  @AsyncApiPub({
+    channel: 'notification:get-all',
+    operationId: 'sendGetAll',
+    summary: 'Fetch paginated notification history',
+    description:
+      'The client sends this message to request a filtered, paginated list of ' +
+      'notifications. The server replies on the `notification:list` channel.',
+    message: {
+      name: 'WsGetAll',
+      payload: WsGetAllDto,
+    },
+  })
+  @AsyncApiSub({
+    channel: 'notification:list',
+    operationId: 'receiveNotificationList',
+    summary: 'Paginated notification list returned by the server',
+    description:
+      'Emitted by the server in response to a `notification:get-all` message. ' +
+      'Each item in the array conforms to the `NotificationMessageDto` schema.',
+    message: {
+      name: 'NotificationList',
+      payload: NotificationMessageDto,
+    },
+  })
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('notification:get-all')
   async handleGetAll(
@@ -252,6 +305,22 @@ export class NotificationsGateway
     client.emit('notification:list', notifications);
   }
 
+  /**
+   * Client marks a single notification as read.
+   * Server responds by emitting the updated `notification:unread-count`.
+   */
+  @AsyncApiPub({
+    channel: 'notification:mark-read',
+    operationId: 'sendMarkRead',
+    summary: 'Mark a single notification as read',
+    description:
+      'The client sends this message to mark one notification as read. ' +
+      'The server updates the record and re-emits `notification:unread-count` with the new count.',
+    message: {
+      name: 'WsMarkRead',
+      payload: WsMarkReadDto,
+    },
+  })
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('notification:mark-read')
   async handleMarkRead(
@@ -269,6 +338,22 @@ export class NotificationsGateway
     client.emit('notification:unread-count', { count });
   }
 
+  /**
+   * Client marks all notifications in an organisation as read.
+   * Server responds with `notification:unread-count` carrying `{ count: 0 }`.
+   */
+  @AsyncApiPub({
+    channel: 'notification:mark-all-read',
+    operationId: 'sendMarkAllRead',
+    summary: 'Mark all notifications in an organisation as read',
+    description:
+      'The client sends this message to mark every unread notification in the given ' +
+      'organisation as read. The server responds with `notification:unread-count: { count: 0 }`.',
+    message: {
+      name: 'WsMarkAllRead',
+      payload: WsMarkAllReadDto,
+    },
+  })
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('notification:mark-all-read')
   async handleMarkAllRead(
@@ -283,6 +368,23 @@ export class NotificationsGateway
 
   // ── Redis → Socket.IO bridges ─────────────────────────────────────────────
 
+  /**
+   * Forwards a `notification:new` event to the target user's room.
+   *
+   * @event notification:new
+   */
+  @AsyncApiSub({
+    channel: 'notification:new',
+    operationId: 'receiveNewNotification',
+    summary: 'New notification pushed to a specific user',
+    description:
+      'Emitted to `user:<userId>` whenever a new notification is created for that user ' +
+      '(user-scope Redis channel). Also emitted for org-scope and global broadcast events.',
+    message: {
+      name: 'NotificationMessage',
+      payload: NotificationMessageDto,
+    },
+  })
   private handleUserNotificationMessage(
     event: RealtimeEvent<NotificationMessage>,
   ): void {
