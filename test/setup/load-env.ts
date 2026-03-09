@@ -9,7 +9,7 @@
  * changes here ARE visible to all tests in this worker.
  */
 import * as dotenv from 'dotenv';
-import * as path from 'path';
+import * as path from 'node:path';
 
 // override: true is needed because NX pre-loads .env before running targets.
 dotenv.config({ path: path.join(process.cwd(), '.env.test'), override: true });

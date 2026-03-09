@@ -2,7 +2,7 @@ import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Job, Prisma } from '@prisma/client';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { CreateTaskDto } from './dto/create-task.dto';
 
 /**

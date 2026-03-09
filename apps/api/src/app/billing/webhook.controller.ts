@@ -11,7 +11,7 @@ import {
 import { RawBodyRequest } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { Request } from 'express';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import Stripe from 'stripe';
 import {
   StripeService,

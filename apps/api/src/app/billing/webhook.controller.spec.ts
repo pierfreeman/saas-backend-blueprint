@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import { Request } from 'express';
 import { RawBodyRequest } from '@nestjs/common';
 import Stripe from 'stripe';

@@ -29,7 +29,7 @@ import { PubSubService } from '@libs/redis';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
 import * as dotenv from 'dotenv';
-import * as path from 'path';
+import * as path from 'node:path';
 
 dotenv.config({ path: path.join(process.cwd(), '.env.test') });
 

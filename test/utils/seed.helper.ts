@@ -18,7 +18,7 @@ import {
   User,
   Membership,
 } from '@prisma/client';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 
 function shortId(): string {
   return crypto.randomUUID().slice(0, 8);

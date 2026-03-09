@@ -9,7 +9,7 @@
  * test workers via module-level variables; use files or globalThis for that.
  */
 import { execSync } from 'child_process';
-import * as path from 'path';
+import * as path from 'node:path';
 import * as dotenv from 'dotenv';
 
 module.exports = async function globalSetup() {

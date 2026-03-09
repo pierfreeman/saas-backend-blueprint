@@ -1,5 +1,5 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { DomainEvent } from './interfaces/domain-event.interface';
 import { IEventTransport } from './transports/transport.interface';
 import { FIFO_EVENT_PREFIXES } from './constants/event-routing.constants';

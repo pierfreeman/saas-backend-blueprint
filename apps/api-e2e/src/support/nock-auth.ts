@@ -14,9 +14,9 @@
  *   afterAll(() => teardownNockAuth());
  */
 import nock from 'nock';
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as crypto from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const TEST_DOMAIN = 'test.auth0.local';
 export const TEST_KID = 'test-key-1';

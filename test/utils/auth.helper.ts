@@ -9,8 +9,8 @@
  *   request.set('Authorization', `Bearer ${token}`);
  */
 import * as jwt from 'jsonwebtoken';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const TEST_PRIVATE_KEY = fs.readFileSync(
   path.join(__dirname, '../keys/test-private.pem'),
@@ -45,7 +45,10 @@ export function generateTestToken(options: TestTokenOptions = {}): string {
     TEST_PRIVATE_KEY,
     {
       algorithm: 'RS256',
-      expiresIn: options.expiresIn !== undefined ? (options.expiresIn as string | number) : '1h',
+      expiresIn:
+        options.expiresIn !== undefined
+          ? (options.expiresIn as string | number)
+          : '1h',
       keyid: TEST_KID,
     } as jwt.SignOptions,
   );
