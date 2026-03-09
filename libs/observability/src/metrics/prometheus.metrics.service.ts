@@ -107,15 +107,13 @@ export class PrometheusMetricsService {
     name: string,
     help: string,
     labels: string[] = [],
-    buckets?: number[],
+    _buckets?: number[],
   ): IHistogram {
     this.logger.debugCtx(
       `Histogram registered (placeholder): ${name}`,
       { metricName: name, labels: labels.join(',') },
       PrometheusMetricsService.name,
     );
-
-    void buckets; // will be used when prom-client is wired in
 
     return {
       observe: (_labels, _value) => {

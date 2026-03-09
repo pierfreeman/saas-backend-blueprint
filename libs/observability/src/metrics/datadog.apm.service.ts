@@ -104,23 +104,18 @@ export class DatadogApmService {
    * this.apm.gauge('billing.invoice.amount_usd', 149.99, { tenantId });
    */
   gauge(
-    metricName: string,
-    value: number,
-    tags?: Record<string, string>,
+    _metricName: string,
+    _value: number,
+    _tags?: Record<string, string>,
   ): void {
     // PLACEHOLDER — replace with: tracer.dogstatsd.gauge(metricName, value, tags)
-    void metricName;
-    void value;
-    void tags;
   }
 
   /**
    * Increment a custom counter metric.
    * No-op until dd-trace is integrated.
    */
-  increment(metricName: string, tags?: Record<string, string>): void {
+  increment(_metricName: string, _tags?: Record<string, string>): void {
     // PLACEHOLDER — replace with: tracer.dogstatsd.increment(metricName, 1, tags)
-    void metricName;
-    void tags;
   }
 }
