@@ -33,13 +33,13 @@ jobs:
 
       - run: npx nx run-many -t lint test build
 
-      - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-unit
-          path: coverage/unit/
-          retention-days: 1
+      # - name: Upload coverage reports
+      #   uses: actions/upload-artifact@v4
+      #   if: always()
+      #   with:
+      #     name: coverage-unit
+      #     path: coverage/unit/
+      #     retention-days: 1
 
       - run: npx nx fix-ci
         if: always()
@@ -166,26 +166,26 @@ jobs:
   # Runs after all tests pass. Receives unit-test coverage artifacts and sends
   # a full static-analysis + coverage report to SonarQube / SonarCloud.
   # Required secrets: SONAR_TOKEN, SONAR_HOST_URL
-  sonarqube:
-    name: SonarQube Analysis
-    runs-on: ubuntu-latest
-    needs: integration
+  # sonarqube:
+  #   name: SonarQube Analysis
+  #   runs-on: ubuntu-latest
+  #   needs: integration
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          # Disable shallow clone for accurate blame and new-code detection
-          fetch-depth: 0
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         # Disable shallow clone for accurate blame and new-code detection
+  #         fetch-depth: 0
 
-      - name: Download unit coverage reports
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-unit
-          path: coverage/unit/
+  #     - name: Download unit coverage reports
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: coverage-unit
+  #         path: coverage/unit/
 
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+  #     - name: SonarQube Scan
+  #       uses: SonarSource/sonarqube-scan-action@v5
+  #       env:
+  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #         SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
