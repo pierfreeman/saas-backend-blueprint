@@ -231,109 +231,27 @@ bootstrap().catch((error: unknown) => {
 
 ## Metrics (Prometheus — placeholder)
 
-The `PrometheusMetricsService` provides stub factories that compile and run
-without errors. Replace with real `prom-client` instances when ready.
+`PrometheusMetricsService` provides no-op stub factories (`createCounter`, `createHistogram`, `createGauge`) that compile and run without errors. Call sites can already wire up metrics without the real `prom-client` dependency.
 
-```ts
-@Injectable()
-export class BillingMetrics {
-  private readonly chargesTotal: ICounter;
-  private readonly invoiceAmount: IHistogram;
-
-  constructor(private readonly metrics: PrometheusMetricsService) {
-    this.chargesTotal = metrics.createCounter(
-      'billing_charges_total',
-      'Total Stripe charges attempted',
-      ['status', 'tenantId'],
-    );
-    this.invoiceAmount = metrics.createHistogram(
-      'billing_invoice_amount_usd',
-      'Invoice amount in USD',
-      ['tenantId'],
-    );
-  }
-
-  recordCharge(
-    tenantId: string,
-    amountUsd: number,
-    status: 'success' | 'failed',
-  ) {
-    this.chargesTotal.inc({ status, tenantId });
-    if (status === 'success') {
-      this.invoiceAmount.observe({ tenantId }, amountUsd);
-    }
-  }
-}
-```
-
-### Enabling real Prometheus
+### Future: enabling real Prometheus
 
 1. `npm install prom-client @willsoto/nestjs-prometheus`
 2. Replace stub bodies in `PrometheusMetricsService` with `new Counter(...)` etc.
-3. Add a `/metrics` GET endpoint:
-   ```ts
-   @Get('/metrics')
-   async getMetrics() {
-     return this.prometheusService.getMetrics();
-   }
-   ```
-4. Grafana dashboards:
-   - Node.js overview: [grafana.com/dashboards/11159](https://grafana.com/grafana/dashboards/11159)
-   - NestJS service: [grafana.com/dashboards/12156](https://grafana.com/grafana/dashboards/12156)
-   - Custom SaaS panels: `http_requests_total`, error rate by org, DB query p95
+3. Expose a `/metrics` endpoint and configure a Prometheus scrape job.
+4. Enable `PROMETHEUS_ENABLED=true`.
 
 ---
 
 ## APM (Datadog — placeholder)
 
-The `DatadogApmService` provides stub span / metric methods that are no-ops.
+`DatadogApmService` provides no-op stub methods (`startSpan`, `setTagsOnActiveSpan`, `finishSpan`). Call sites are already integrated; enabling tracing requires no refactoring.
 
-```ts
-@Injectable()
-export class OrganizationsService {
-  constructor(private readonly apm: DatadogApmService) {}
-
-  async createOrganization(dto: CreateOrgDto) {
-    const span = this.apm.startSpan('org.create', { resource: 'pg:insert' });
-    try {
-      const org = await this.prisma.organization.create({ data: dto });
-      this.apm.setTagsOnActiveSpan({ tenantId: org.id, status: 'created' });
-      return org;
-    } finally {
-      span.finish();
-    }
-  }
-}
-```
-
-### Enabling real Datadog APM
+### Future: enabling real Datadog APM
 
 1. `npm install dd-trace`
-2. Add at the **very top** of `main.ts` (before all other imports):
-   ```ts
-   import tracer from 'dd-trace';
-   tracer.init({
-     service: process.env['DATADOG_SERVICE_NAME'] ?? 'saas-api',
-     env: process.env['NODE_ENV'],
-     version: process.env['APP_VERSION'],
-     runtimeMetrics: true,
-     profiling: true,
-   });
-   ```
+2. Add `import tracer from 'dd-trace'; tracer.init({ ... })` at the very top of `main.ts`, before all other imports.
 3. Replace stub bodies in `DatadogApmService` with real `tracer.*` calls.
-4. Run the Datadog Agent as a sidecar (Docker) or DaemonSet (K8s):
-   ```yaml
-   # docker-compose.yml
-   datadog:
-     image: datadog/agent:latest
-     environment:
-       - DD_API_KEY=${DATADOG_API_KEY}
-       - DD_APM_ENABLED=true
-     ports:
-       - '8126:8126'
-   ```
-5. In Datadog UI: APM → Services → select `saas-api`.
-6. Grafana + Datadog: Settings → Data Sources → Datadog plugin.
+4. Run the Datadog Agent as a sidecar and set `DATADOG_ENABLED=true`.
 
 ---
 

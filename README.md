@@ -1,31 +1,62 @@
-# saas-backend
+# saas-backend-blueprint
 
-An [Nx](https://nx.dev) monorepo with NestJS applications backed by two PostgreSQL databases (via Prisma), Redis (cache + pub/sub), and background workers.
+Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) monorepo.
+
+**Tech stack**
+
+| Concern            | Choice                                               |
+| ------------------ | ---------------------------------------------------- |
+| Framework          | NestJS (TypeScript)                                  |
+| Monorepo           | Nx                                                   |
+| ORM / migrations   | Prisma                                               |
+| Databases          | PostgreSQL × 2 (business DB + legal audit DB)        |
+| Cache / pub-sub    | Redis (ioredis)                                      |
+| Authentication     | Auth0 — JWT RS256, JWKS endpoint                     |
+| Billing            | Stripe (checkout, portal, webhooks)                  |
+| Event system       | EventEmitter2 (local) / AWS SQS (production)         |
+| Background workers | NestJS standalone app, long-polls SQS Standard queue |
+| Real-time          | Socket.IO with Redis adapter (multi-pod)             |
+| Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles |
+
+**Features**
+
+- 🏢 Multi-tenancy with per-org isolation (`x-tenant-id` header → request-scoped context)
+- 🔐 Auth0 JWT authentication (RS256, JWKS, automatic user upsert on first login)
+- 👥 Static RBAC — four roles (OWNER › ADMIN › MEMBER › READ_ONLY), nine permissions
+- 💳 Stripe billing — checkout, customer portal, subscription lifecycle, webhook idempotency
+- 🚀 Plan-based feature gating with Redis cache and route-level `FeatureGuard`
+- ⚡ Async background jobs — create-then-enqueue, real-time status via WebSocket
+- 🔔 In-app notifications — Socket.IO namespace, REST API, Redis pub/sub fan-out
+- 📋 Two-tier audit logging — tenant-visible activity log + immutable legal audit trail (ISO 27001 / GDPR)
+- 🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
+- 📊 Structured observability — JSON logging, Sentry, Prometheus/Datadog stubs
+
+---
 
 ## Quick start
 
-Complete local setup from a fresh clone (~2 minutes):
+From a fresh clone (~2 minutes):
 
 ```sh
-# 1. Dependencies
 pnpm install
 
-# 2. Start both Postgres instances + Redis
+# Start infrastructure
 docker compose up -d postgres postgres-legal redis
 
-# 3. Environment (defaults work out of the box for local dev)
+# Configure environment (defaults work out of the box for local dev)
 cp .env.example .env
 
-# 4. Run all migrations
-npx prisma migrate dev                                  # business DB
-npx prisma migrate dev --config prisma.config.legal.ts  # legal audit DB
+# Run all migrations
+npx prisma migrate dev
+npx prisma migrate dev --config prisma.config.legal.ts
 
-# 5. Start the API
+# Start the API
 npx nx serve api
 ```
 
-The API is available at `http://localhost:3000` and Swagger docs at `http://localhost:3000/docs`.  
-For Auth0 setup and advanced options see the [Local development](#local-development) section below.
+API: `http://localhost:3000` — Swagger docs: `http://localhost:3000/docs`
+
+---
 
 ## Architecture
 
@@ -33,24 +64,28 @@ For Auth0 setup and advanced options see the [Local development](#local-developm
 apps/
   api          — HTTP API (NestJS, port 3000)
   api-e2e      — End-to-end tests for the API
-  worker-a     — Background worker (polls SQS Standard queue, processes heavy jobs)
+  worker-a     — Background worker (polls SQS Standard queue)
   worker-a-e2e — End-to-end tests for worker-a
+
 libs/
-  activity-log   — Tenant-visible operational event log (business DB, app_audit schema)
-  legal-audit    — Immutable compliance event recorder (legal DB, ISO 27001 / GDPR)
-  common         — Shared utilities: RBAC constants, tenant context, exception filter, JwtAuthGuard
-  config         — NestJS ConfigModule wrappers (app, auth, database, redis)
-  events         — EventBusService facade (LocalTransport / SQS), DomainEvent types, DOMAIN_EVENTS constants
-  notifications  — Real-time in-app notifications (Socket.IO gateway + REST API + Redis pub/sub)
-  prisma-business — PrismaBusinessService (extends PrismaClient → business DB)
-  prisma-legal    — PrismaLegalService (extends PrismaClient → legal audit DB)
-  redis           — CacheService (key/value, DB 1) and PubSubService (pub/sub, DB 0)
-  billing        — Stripe-based subscription billing (checkout, portal, webhooks, subscription sync)
+  activity-log    — Tenant-visible operational event log (business DB)
+  billing         — Stripe subscription management (checkout, portal, webhooks)
+  common          — Shared RBAC constants, tenant context, exception filter
+  config          — NestJS ConfigModule wrappers with Joi validation
+  events          — EventBusService facade (LocalTransport / SQS), DomainEvent types
+  legal-audit     — Immutable compliance event recorder (legal DB, ISO 27001 / GDPR)
+  notifications   — Real-time in-app notifications (Socket.IO + REST + Redis pub/sub)
+  observability   — Structured logging, Sentry, Prometheus/Datadog stubs
+  prisma-business — PrismaBusinessService → business DB
+  prisma-legal    — PrismaLegalService → legal audit DB
+  redis           — CacheService (DB 1) and PubSubService (DB 0)
+  security        — Rate limiting, brute-force protection, CORS, Helmet, CSRF
+
 prisma/
-  schema.prisma        — Business DB schema (User, Organization, Membership, ActivityLog, Job)
-  schema.legal.prisma  — Legal audit DB schema (AuditEvent — append-only)
-  migrations/          — Business DB migration history
-  migrations-legal/    — Legal audit DB migration history
+  schema.prisma        — Business DB: User, Organization, Membership, ActivityLog, Job
+  schema.legal.prisma  — Legal audit DB: AuditEvent (append-only)
+  migrations/
+  migrations-legal/
 ```
 
 ### Infrastructure
@@ -61,25 +96,53 @@ prisma/
 | PostgreSQL (legal)    | `postgres:17-alpine`                     | `5433`       |
 | Redis                 | `redis:7-alpine`                         | `6379`       |
 | LocalStack            | `localstack/localstack:3`                | `4566`       |
-| Migrate               | built from `apps/api/Dockerfile.migrate` | —            |
 | API                   | built from `apps/api/Dockerfile`         | `3000`       |
 | Worker A              | built from `apps/worker-a/Dockerfile`    | —            |
+| Migrate               | built from `apps/api/Dockerfile.migrate` | —            |
 
-The project uses **two separate PostgreSQL instances**:
+**Two-database design:** The business DB holds domain models (User, Organization, Membership, ActivityLog, Job). The legal audit DB holds append-only AuditEvents for compliance. The two databases are deliberately isolated — compliance logs survive even if the business database is wiped.
 
-- **Business DB** (`DATABASE_URL`) — domain models: User, Organization, Membership, ActivityLog, Job.
-- **Legal audit DB** (`LEGAL_AUDIT_DATABASE_URL`) — append-only compliance records: AuditEvent. This database is isolated so that compliance logs survive even if the business database is wiped or restored.
+---
 
-Migrations run as a one-shot service before the API starts. The migrate image is built independently from the API image — schema changes only rebuild the migrator, and app code changes only rebuild the API.
+## Features
+
+### Business
+
+| Feature       | Library                                               | Description                                                    |
+| ------------- | ----------------------------------------------------- | -------------------------------------------------------------- |
+| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`   |
+| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert    |
+| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY      |
+| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks  |
+| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard |
+| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket    |
+| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API  |
+| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER             |
+| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API    |
+
+### Architectural
+
+| Concern         | Library                                               | Description                                                              |
+| --------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| Event bus       | [`@libs/events`](libs/events/README.md)               | LocalTransport (dev) or SQS Standard/FIFO (prod), zero call-site changes |
+| Cache / pub-sub | [`@libs/redis`](libs/redis/README.md)                 | `CacheService` (TTL store) and `PubSubService` (broadcast channels)      |
+| Security        | [`@libs/security`](libs/security/README.md)           | Rate limiting, brute-force lockout, CSRF, Helmet headers, IP filtering   |
+| Observability   | [`@libs/observability`](libs/observability/README.md) | Structured JSON logging, Sentry, Prometheus/Datadog stubs                |
+| Config          | [`@libs/config`](libs/config/README.md)               | Global `ConfigModule` with Joi validation; typed namespaces              |
+| Health          | `apps/api/health`                                     | `/health`, `/health/liveness`, `/health/readiness` for K8s/ECS           |
+
+---
 
 ## Prerequisites
 
 - Node.js ≥ 20
 - Docker & Docker Compose v2
-- `npm` (or `pnpm`)
-- An Auth0 tenant — see **Authentication** section below
+- `pnpm`
+- An Auth0 tenant (see [Authentication](#authentication))
 
-## Local development
+---
+
+## Setup
 
 ### 1. Install dependencies
 
@@ -93,11 +156,9 @@ pnpm install
 docker compose up -d postgres postgres-legal redis
 ```
 
-> Default host ports: business DB → `5432`, legal audit DB → `5433`. Both match the defaults in `.env.example`.
+Default host ports: business DB → `5432`, legal audit DB → `5433`, Redis → `6379`.
 
 ### 3. Configure environment
-
-Copy `.env.example` to `.env` and adjust if needed:
 
 ```sh
 cp .env.example .env
@@ -116,55 +177,45 @@ cp .env.example .env
 
 #### Optional variables
 
-| Variable                     | Default                                 | Description                                                     |
-| ---------------------------- | --------------------------------------- | --------------------------------------------------------------- |
-| `PORT`                       | `3000`                                  | HTTP port the API listens on                                    |
-| `NODE_ENV`                   | `development`                           | Runtime environment                                             |
-| `POSTGRES_USER`              | `postgres`                              | Postgres user (Docker Compose)                                  |
-| `POSTGRES_PASSWORD`          | `postgres`                              | Postgres password (Docker Compose)                              |
-| `POSTGRES_DB`                | `saas_backend`                          | Postgres database name (Docker Compose)                         |
-| `POSTGRES_PORT`              | `5432`                                  | Host port mapped to business Postgres                           |
-| `LEGAL_POSTGRES_USER`        | `postgres`                              | Legal Postgres user (Docker Compose)                            |
-| `LEGAL_POSTGRES_PASSWORD`    | `postgres`                              | Legal Postgres password (Docker Compose)                        |
-| `LEGAL_POSTGRES_DB`          | `saas_legal`                            | Legal Postgres database name (Docker Compose)                   |
-| `LEGAL_POSTGRES_PORT`        | `5433`                                  | Host port mapped to legal Postgres                              |
-| `REDIS_PORT`                 | `6379`                                  | Host port mapped to Redis (Docker Compose)                      |
-| `API_PORT`                   | `3000`                                  | Host port mapped to the API (Docker Compose)                    |
-| `EVENT_BUS_TRANSPORT`        | `local`                                 | Event transport: `local` (EventEmitter) or `sqs`                |
-| `SQS_STANDARD_QUEUE_URL`     | —                                       | SQS Standard queue URL (required when `sqs`)                    |
-| `SQS_FIFO_QUEUE_URL`         | —                                       | SQS FIFO queue URL, must end in `.fifo` (required when `sqs`)   |
-| `SQS_ENDPOINT_URL`           | —                                       | LocalStack endpoint, e.g. `http://localhost:4566` (dev/CI only) |
-| `STRIPE_SECRET_KEY`          | —                                       | Stripe secret key (`sk_live_…` / `sk_test_…`)                   |
-| `STRIPE_WEBHOOK_SECRET`      | —                                       | Stripe webhook signing secret (`whsec_…` from Stripe Dashboard) |
-| `STRIPE_MAX_RETRIES`         | `3`                                     | Max Stripe API retry attempts (exponential backoff)             |
-| `STRIPE_RETRY_BASE_DELAY_MS` | `500`                                   | Base delay ms for Stripe retry backoff (doubles each attempt)   |
-| `BILLING_SUCCESS_URL`        | `http://localhost:3000/billing/success` | Redirect after successful Stripe checkout                       |
-| `BILLING_CANCEL_URL`         | `http://localhost:3000/billing/cancel`  | Redirect after cancelled Stripe checkout                        |
-| `BILLING_RETURN_URL`         | `http://localhost:3000/billing`         | Return URL for the Stripe customer portal                       |
+| Variable                   | Default        | Description                                                   |
+| -------------------------- | -------------- | ------------------------------------------------------------- |
+| `PORT`                     | `3000`         | HTTP port the API listens on                                  |
+| `NODE_ENV`                 | `development`  | Runtime environment                                           |
+| `EVENT_BUS_TRANSPORT`      | `local`        | `local` (EventEmitter) or `sqs`                               |
+| `SQS_STANDARD_QUEUE_URL`   | —              | Required when `EVENT_BUS_TRANSPORT=sqs`                       |
+| `SQS_FIFO_QUEUE_URL`       | —              | Required when `EVENT_BUS_TRANSPORT=sqs` (must end in `.fifo`) |
+| `SQS_ENDPOINT_URL`         | —              | LocalStack endpoint, e.g. `http://localhost:4566`             |
+| `STRIPE_SECRET_KEY`        | —              | Stripe secret key                                             |
+| `STRIPE_WEBHOOK_SECRET`    | —              | Stripe webhook signing secret (`whsec_…`)                     |
+| `STRIPE_PRICE_ID_PRO`      | —              | Stripe Price ID → ENTERPRISE tier                             |
+| `STRIPE_PRICE_ID_BASIC`    | —              | Stripe Price ID → PRO tier                                    |
+| `SENTRY_DSN`               | —              | Sentry project DSN                                            |
+| `CORS_ALLOWED_ORIGINS`     | _(all in dev)_ | Comma-separated allowed origins (required in production)      |
+| `RATE_LIMIT_MAX_PER_IP`    | `100`          | Rate limit requests per window per IP                         |
+| `BRUTE_FORCE_MAX_ATTEMPTS` | `5`            | Auth failures before IP lockout                               |
+
+For the complete variable list for each subsystem, see the relevant library README.
 
 ### 4. Run database migrations
 
-Each database has a dedicated Prisma config file at the workspace root.
-
 ```sh
-# Business database — prisma.config.ts is auto-detected:
+# Business database (prisma.config.ts auto-detected):
 npx prisma migrate dev
 
-# Legal audit database — pass the dedicated config:
+# Legal audit database:
 npx prisma migrate dev --config prisma.config.legal.ts
 ```
 
-> Append `--name <describe_your_change>` when you want to create a new migration. Omitting it causes Prisma to prompt interactively.
+Append `--name <description>` to create a named migration.
 
 ### 5. Serve applications
 
 ```sh
-# API
-npx nx serve api
-
-# Workers
-npx nx serve worker-a
+npx nx serve api       # HTTP API on :3000
+npx nx serve worker-a  # background worker (polls SQS)
 ```
+
+---
 
 ## Docker (full stack)
 
@@ -172,67 +223,33 @@ npx nx serve worker-a
 docker compose up --build
 ```
 
-This starts Postgres, Redis, runs migrations (`apps/api/Dockerfile.migrate`), then starts the API and both workers.
-Migrations, API, and workers are built from **separate Dockerfiles**, so changing app code does not rebuild the migrator image.
+Starts Postgres × 2, Redis, runs migrations (`Dockerfile.migrate`), then starts the API and workers. The migrate image and app images are built separately — schema changes don't rebuild the app, and code changes don't rebuild the migrator.
 
-Workers (`worker-a`) poll the **SQS Standard queue** for `heavy.job.created` events and process them asynchronously. They expose no HTTP port. In local mode (`EVENT_BUS_TRANSPORT=local`) the in-process EventEmitter is used instead and no SQS infrastructure is required.
-
-> **Daily workflow tip** — when the Prisma schema has not changed, skip the migrate service entirely:
->
-> ```sh
-> # Restart only the API
-> docker compose up -d --no-deps --build api
->
-> # Restart only the workers
-> docker compose up -d --no-deps --build worker-a
-> ```
-
-To override defaults, set variables in a `.env` file:
-
-```dotenv
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=saas_backend
-POSTGRES_PORT=5432
-LEGAL_POSTGRES_USER=postgres
-LEGAL_POSTGRES_PASSWORD=postgres
-LEGAL_POSTGRES_DB=saas_legal
-LEGAL_POSTGRES_PORT=5433
-REDIS_PORT=6379
-API_PORT=3000
+```sh
+# Rebuild and restart a single service without touching the migrator
+docker compose up -d --no-deps --build api
+docker compose up -d --no-deps --build worker-a
 ```
 
 ---
 
 ## Authentication
 
-The API uses **Auth0** as the identity provider. All protected endpoints require a JWT bearer token issued by your Auth0 tenant.
-
-### Setup
+The API uses **Auth0** as the identity provider. All protected endpoints require a JWT Bearer token.
 
 1. Create an Auth0 API in the dashboard and set an audience (e.g. `https://api.your-app.com`).
-2. Add to `.env`:
-   ```dotenv
-   AUTH0_DOMAIN=your-tenant.auth0.com
-   AUTH0_AUDIENCE=https://api.your-app.com
-   ```
-3. Obtain a token (e.g. via Auth0's Machine-to-Machine or the SPA flow) and pass it as `Authorization: Bearer <token>`.
+2. Add `AUTH0_DOMAIN` and `AUTH0_AUDIENCE` to `.env`.
+3. Obtain a token (Machine-to-Machine app or SPA flow) and send it as `Authorization: Bearer <token>`.
 
-On first call to `GET /auth/me`, the user is upserted into the local database using the `sub` JWT claim as the unique key.
+On first call to `GET /auth/me` the user is upserted using the `sub` JWT claim.
 
 ---
 
-## RBAC — Role & Permission system
+## RBAC
 
-Authorization is **static** (no database-driven role/permission tables). Roles and their permissions are defined in `libs/common/src/rbac/`.
+Authorization is static — no database-driven role tables.
 
-### Role hierarchy
-
-```
-OWNER > ADMIN > MEMBER > READ_ONLY
-```
-
-### Permission map
+**Role hierarchy:** `OWNER > ADMIN > MEMBER > READ_ONLY`
 
 | Permission                | OWNER | ADMIN | MEMBER | READ_ONLY |
 | ------------------------- | :---: | :---: | :----: | :-------: |
@@ -246,528 +263,98 @@ OWNER > ADMIN > MEMBER > READ_ONLY
 | `analytics.view`          |   ✓   |   ✓   |   ✓    |           |
 | `analytics.export`        |   ✓   |   ✓   |        |           |
 
-### Adding a new permission
+To add a permission: add the constant in `libs/common/src/rbac/permissions.constants.ts`, assign it in `roles.constants.ts`, then guard the endpoint with `@RequirePermissions([PERMISSIONS.YOUR_PERMISSION])`.
 
-1. Add the constant to `libs/common/src/rbac/permissions.constants.ts`.
-2. Assign it to the appropriate roles in `libs/common/src/rbac/roles.constants.ts` (`ROLE_PERMISSIONS`).
-3. Guard the endpoint with `@RequirePermissions([PERMISSIONS.YOUR_NEW_PERMISSION])`.
+See [`@libs/common`](libs/common/README.md) for RBAC helpers and tenant context utilities.
 
 ---
 
-## Activity log
+## Async jobs
 
-`@libs/activity-log` records **tenant-visible operational events** in the `app_audit.activity_logs` table of the business database.  
-Every entry is scoped to an organisation and queryable by ADMIN/OWNER roles via `GET /organizations/:orgId/activity-log`.
-
-Key design rules:
-
-- All writes are fire-and-forget — failures are logged but never propagated.
-- Logs are cascade-deleted when the owning organisation is deleted.
-- Does **not** store IP addresses, user agents, or correlation IDs — those belong in the legal audit database.
-
-```typescript
-import { ActivityLogService } from '@libs/activity-log';
-
-this.activityLogService.logActivity({
-  orgId: org.id,
-  actorId: user.id,
-  actorRole: 'ADMIN',
-  action: 'membership.role.changed',
-  entityType: 'Membership',
-  entityId: membership.id,
-  metadata: { from: 'MEMBER', to: 'ADMIN' },
-});
-```
-
-The `action` field uses dot-notation strings (e.g. `org.created`, `membership.role.changed`, `org.deleted`).  
-`metadata` must **never** contain PII or credentials — sanitise before passing.
-
-Activity log records are queryable by ADMIN and OWNER roles:
-
-| Method | Path                                 | Description                               |
-| ------ | ------------------------------------ | ----------------------------------------- |
-| `GET`  | `/organizations/:orgId/activity-log` | Returns paginated activity log for an org |
-
----
-
-## Legal audit trail
-
-`@libs/legal-audit` records **immutable compliance events** in a **separate** legal audit PostgreSQL database.  
-It satisfies ISO 27001:2022 A.8.15/A.8.16 and GDPR Art. 5(2)/Art. 30 accountability obligations.
-
-Key design rules:
-
-- Strictly append-only — no UPDATE or DELETE operations, ever.
-- Records persist after organisation deletion (no FK constraint, no cascade).
-- All writes are fire-and-forget — failures are swallowed internally.
-- **Not queryable via the public API** — direct DB access by authorised personnel / SIEM tooling only.
-- Must not store raw PII — callers must sanitise before calling.
-- Completely independent of `ActivityLogModule`.
-
-```typescript
-import { LegalAuditService } from '@libs/legal-audit';
-
-this.legalAuditService.recordEvent({
-  eventType: 'org.created',
-  orgId: org.id,
-  actorRole: 'OWNER',
-  triggerType: 'user_action',
-  metadata: { orgName: org.name },
-});
-```
-
-Valid `triggerType` values: `'user_action'` | `'system'` | `'api'` | `'scheduler'`.
-
-### Two-database separation
-
-| Database       | Library                 | Prisma schema                | ENV var                    |
-| -------------- | ----------------------- | ---------------------------- | -------------------------- |
-| Business DB    | `@libs/prisma-business` | `prisma/schema.prisma`       | `DATABASE_URL`             |
-| Legal audit DB | `@libs/prisma-legal`    | `prisma/schema.legal.prisma` | `LEGAL_AUDIT_DATABASE_URL` |
-
-`PrismaBusinessService` and `PrismaLegalService` each extend their own generated `PrismaClient` (from `@prisma/client` and `@prisma/legal-client` respectively), ensuring no accidental cross-contamination between the two databases.
-
----
-
-## Async jobs (SQS + persistence)
-
-The full lifecycle of a heavy job:
+Jobs follow a create-then-enqueue pattern so every job is immediately queryable:
 
 ```
 POST /tasks/heavy-job
-   │
-   ├─ prisma.job.create (status: PENDING)   ← immediately queryable
-   └─ EventBusService.publish → SQS queue
-                                    │
+  ├─ prisma.job.create(PENDING)        ← queryable instantly via REST
+  └─ EventBusService.publish → SQS
                               Worker polls SQS
-                                    │
-                    ┌───────────────┴────────────────┐
-                    │                                │
-              job.update(PROCESSING)          job.update(DONE|FAILED)
-              pubSub.publish(job:update:*)    pubSub.publish(job:update:*)
-                    │                                │
-              JobsGateway                     JobsGateway
-         (pattern-subscribes Redis)      emits "job:update" to socket rooms
-                    │
-              WebSocket clients
+                                ├─ job.update(PROCESSING) → Redis pub/sub → WebSocket
+                                └─ job.update(DONE|FAILED) → Redis pub/sub → WebSocket
 ```
 
-### Job state machine
+**State machine:** `PENDING → PROCESSING → DONE | FAILED`
 
-```
-PENDING → PROCESSING → DONE
-                     ↘ FAILED
-```
+WebSocket namespace `/jobs` — rooms: `user:{userId}`, `tenant:{tenantId}` — event: `job:update`.
 
-Each transition writes to the `jobs` table **and** publishes a `JobUpdateMessage`
-to the Redis channel `job:update:{tenantId}`, which the `JobsGateway` fans out
-to connected WebSocket clients.
-
-### REST endpoints
-
-| Method | Path               | Description                                   |
-| ------ | ------------------ | --------------------------------------------- |
-| `POST` | `/tasks/heavy-job` | Create and enqueue a job; returns `{ jobId }` |
-| `GET`  | `/tasks/:jobId`    | Poll current job status (for non-WS clients)  |
-
-### Adding a new job type
-
-1. Add the new constant to `DOMAIN_EVENTS` in `libs/events/src/constants/event-routing.constants.ts`.
-2. Create a PENDING row in `jobs` before publishing (see `TasksService.createHeavyJob`).
-3. Publish from the API via `EventBusService.publish({ eventType: DOMAIN_EVENTS.YOUR_EVENT, payload, tenantId })`.
-4. Handle in the relevant worker's `SqsConsumerService.dispatch()` switch.
-5. In the worker handler, update the job row and publish a `JobUpdateMessage` to Redis.
-
-Event names and payload interfaces are defined in `libs/events/src/constants/event-routing.constants.ts`.
-See [libs/events/README.md](libs/events/README.md) for the full reference.
-
----
-
-## Billing & Stripe
-
-`@libs/billing` provides end-to-end Stripe subscription management. The HTTP layer lives in `apps/api/src/app/billing/`.
-
-### REST endpoints
-
-| Method | Path                    | Auth | Description                                      |
-| ------ | ----------------------- | ---- | ------------------------------------------------ |
-| `POST` | `/billing/checkout`     | JWT  | Create a Stripe Checkout Session, return URL     |
-| `POST` | `/billing/portal`       | JWT  | Create a Stripe Customer Portal session          |
-| `POST` | `/billing/cancel`       | JWT  | Schedule subscription cancellation at period end |
-| `GET`  | `/billing/subscription` | JWT  | Read current billing state for the org           |
-| `POST` | `/billing/webhook`      | none | Receive Stripe webhook events (HMAC-verified)    |
-
-All REST endpoints require `OWNER` role (`org.billing.manage` permission). The webhook endpoint is unauthenticated — security comes from Stripe HMAC signature verification.
-
-### Local development with Stripe CLI
-
-```sh
-# Forward Stripe events to local server
-stripe listen --forward-to localhost:3000/billing/webhook
-
-# Trigger test events
-stripe trigger checkout.session.completed
-stripe trigger customer.subscription.created
-stripe trigger invoice.payment_failed
-```
-
-The CLI prints a `whsec_…` secret — set it as `STRIPE_WEBHOOK_SECRET` in `.env`.
-
-For the full webhook pipeline, event-to-handler mapping, Stripe retry policy, and domain events, see [libs/billing/README.md](libs/billing/README.md).
-
----
-
-## Real-time notifications (WebSocket)
-
-The API exposes a Socket.IO server for real-time job status updates.
-
-### Connection
-
-```
-wss://your-api/jobs
-```
-
-Pass the Auth0 JWT in one of three ways (checked in order):
-
-```javascript
-// 1. Socket.IO auth option (recommended)
-const socket = io('http://localhost:3000/jobs', {
-  auth: { token: 'Bearer <jwt>' },
-});
-
-// 2. Query parameter
-const socket = io('http://localhost:3000/jobs?token=Bearer%20<jwt>');
-
-// 3. Authorization header (not available in browsers)
-```
-
-### Rooms
-
-On successful connection the gateway automatically joins the client to:
-
-| Room                | Receives                                |
-| ------------------- | --------------------------------------- |
-| `user:{userId}`     | Updates for jobs submitted by that user |
-| `tenant:{tenantId}` | All job updates within the organisation |
-
-### Emitted events
-
-| Event        | Payload            | Description                         |
-| ------------ | ------------------ | ----------------------------------- |
-| `job:update` | `JobUpdateMessage` | Fired on every job state transition |
-
-```typescript
-import { JobUpdateMessage } from '@libs/events';
-
-socket.on('job:update', (msg: JobUpdateMessage) => {
-  console.log(msg.jobId, msg.status); // 'PROCESSING' | 'DONE' | 'FAILED'
-});
-```
-
-See `libs/events/src/interfaces/job-update-message.interface.ts` for the full
-`JobUpdateMessage` type.
-
----
-
-## In-app notifications
-
-`@libs/notifications` delivers per-user, per-organisation, and broadcast notifications in real time via Socket.IO, with a REST fallback for mobile/non-persistent clients.
-
-### Architecture
-
-```
-NotificationsService.notifyUser / notifyManyUsers
-        │
-        └─ prisma.notification.create
-        └─ NotificationsPubSubService.publish
-                 │
-           Redis channel
-         notifications:user:<userId>
-         notifications:org:<orgId>
-         notifications:global
-                 │
-        NotificationsGateway (afterInit subscriber)
-                 │
-        Socket.IO room fanout
-         user:<userId>  /  org:<orgId>  /  all sockets
-```
-
-The gateway also runs a **Socket.IO Redis adapter** (dedicated pub/sub pair) so room fanout works correctly across multiple API pods.
-
-### WebSocket — namespace `/notifications`
-
-**Connection** — pass the Auth0 JWT in one of three ways (same as `/jobs`):
-
-```javascript
-// 1. Recommended
-const socket = io('http://localhost:3000/notifications', {
-  auth: { token: 'Bearer <jwt>' },
-});
-
-// 2. Query string
-const socket = io('http://localhost:3000/notifications?token=Bearer%20<jwt>');
-
-// 3. Authorization header (non-browser only)
-```
-
-On successful connection the gateway joins the socket to `user:<userId>` and `org:<orgId>` for every active membership.  
-An initial `notification:unread-count` event is emitted immediately after joining.
-
-#### Server → client events
-
-| Event                       | Payload                 | Description                                            |
-| --------------------------- | ----------------------- | ------------------------------------------------------ |
-| `notification:new`          | `NotificationMessage`   | Fired when a new notification is created for the user  |
-| `notification:unread-count` | `{ count: number }`     | Current unread count (sent on connect and after reads) |
-| `notification:list`         | `NotificationMessage[]` | Response to `notification:get-all`                     |
-
-#### Client → server events
-
-| Event                        | Payload                                                                     | Description                        |
-| ---------------------------- | --------------------------------------------------------------------------- | ---------------------------------- |
-| `notification:get-all`       | `{ orgId?: string; limit?: number; offset?: number; unreadOnly?: boolean }` | Fetch notification history         |
-| `notification:mark-read`     | `{ notificationId: string }`                                                | Mark a single notification as read |
-| `notification:mark-all-read` | `{ orgId: string }`                                                         | Mark all org notifications as read |
-
-```typescript
-import { NotificationMessage } from '@libs/notifications';
-
-socket.on('notification:new', (msg: NotificationMessage) => {
-  console.log(msg.title, msg.body);
-});
-
-socket.on('notification:unread-count', ({ count }: { count: number }) => {
-  updateBadge(count);
-});
-
-socket.emit('notification:mark-read', { notificationId: 'uuid-here' });
-socket.emit('notification:mark-all-read', { orgId: 'uuid-here' });
-```
-
-### REST endpoints
-
-| Method   | Path                          | Auth | Description                                |
-| -------- | ----------------------------- | ---- | ------------------------------------------ |
-| `GET`    | `/notifications`              | JWT  | List notifications (paginated, filterable) |
-| `GET`    | `/notifications/unread-count` | JWT  | Get current unread count                   |
-| `POST`   | `/notifications`              | JWT  | Create a notification (internal / admin)   |
-| `PATCH`  | `/notifications/:id/read`     | JWT  | Mark a single notification as read         |
-| `PATCH`  | `/notifications/read`         | JWT  | Mark multiple notifications as read (bulk) |
-| `DELETE` | `/notifications/:id`          | JWT  | Delete a notification                      |
-
-Query params for `GET /notifications`: `orgId`, `limit`, `offset`, `unreadOnly`.
-
-### Publishing from application code
-
-```typescript
-import { NotificationsService } from '@libs/notifications';
-
-// Single user
-await this.notificationsService.notifyUser({
-  userId: user.id,
-  orgId: org.id,
-  type: 'invite.accepted',
-  title: 'New member joined',
-  body: `${user.email} accepted the invitation.`,
-  metadata: { memberId: membership.id },
-});
-
-// Multiple users at once
-await this.notificationsService.notifyManyUsers({
-  userIds: adminIds,
-  orgId: org.id,
-  type: 'billing.payment_failed',
-  title: 'Payment failed',
-  body: 'Your subscription payment could not be processed.',
-});
-```
-
-Both methods persist the record to the `notifications` table **and** publish the event to the appropriate Redis channel so every pod forwards it to connected sockets in real time.
-
-### AsyncAPI specification
-
-The WebSocket namespace is documented with an [AsyncAPI 2.x](https://www.asyncapi.com/) spec generated by [`nestjs-asyncapi`](https://github.com/flamewow/nestjs-asyncapi).
-When the API is running, an interactive explorer is served at:
-
-```
-http://localhost:3000/asyncapi
-```
-
-The spec covers all six channels across both directions:
-
-| Direction       | Channel                      | Description                                                      |
-| --------------- | ---------------------------- | ---------------------------------------------------------------- |
-| Server → Client | `notification:new`           | New notification pushed to a user / org / all sockets            |
-| Server → Client | `notification:unread-count`  | Current unread count (on connect and after every read operation) |
-| Server → Client | `notification:list`          | Paginated list returned in response to `notification:get-all`    |
-| Client → Server | `notification:get-all`       | Request paginated notification history                           |
-| Client → Server | `notification:mark-read`     | Mark a single notification as read                               |
-| Client → Server | `notification:mark-all-read` | Mark all notifications in an organisation as read                |
-
-Payload DTOs are defined in `libs/notifications/src/realtime/dto/ws-payloads.dto.ts` and exported from `@libs/notifications`.
+See [`@libs/events`](libs/events/README.md) for event routing, the `DomainEvent` interface, and worker patterns.
 
 ---
 
 ## Testing
 
-The project has two independent test suites. They run against different infrastructure and must not be executed at the same time (they share the test databases).
+Two independent suites. Do not run them in parallel — they share test databases.
 
 ### Unit tests
 
-Run all unit tests across every app and library in the monorepo:
-
 ```sh
-npm run test:unit
-```
-
-Run a single project:
-
-```sh
-npx nx test api
-npx nx test worker-a
-npx nx test events   # any lib name works
-```
-
-Watch mode (useful during active development):
-
-```sh
-npm run test:watch   # watches the api project; change the project name as needed
+npm run test:unit           # all projects
+npx nx test api             # single project
+npm run test:watch          # watch mode
 ```
 
 ### Integration tests
 
-Integration tests spin up the full NestJS application against real Postgres and Redis containers. Start the test infrastructure first:
-
 ```sh
-# Start test containers (Postgres × 2 on ports 5440/5441, Redis on 6380, LocalStack on 4566)
-npm run test:infra:up
+npm run test:infra:up       # start test containers (Postgres ×2, Redis, LocalStack)
+npm run test:migrate        # apply migrations to test DBs (once per fresh container)
 
-# Apply migrations to the test databases (run once per fresh container, or after schema changes)
-npm run test:migrate
-```
-
-Then run the suites:
-
-```sh
-# Both suites sequentially (recommended — they share the test DBs)
-npm run test:integration
-
-# API integration tests only
+npm run test:integration    # both suites sequentially
 npm run test:integration:api
-
-# Worker integration tests only
 npm run test:integration:worker
-```
 
-Tear down when done:
-
-```sh
 npm run test:infra:down
 ```
 
-> **Why sequential?** Both `api-e2e` and `worker-a-e2e` connect to the same test database. Running them in parallel causes race conditions between `cleanDatabase()` calls and in-flight job processing. `--parallel=1` prevents this.
+> Both `api-e2e` and `worker-a-e2e` share the test database. `--parallel=1` is enforced to prevent race conditions between `cleanDatabase()` calls and in-flight job processing.
 
 ### Coverage
 
-Generate HTML coverage reports:
-
 ```sh
-# Unit tests → coverage/unit/
-npm run test:coverage
-
-# Integration tests → coverage/integration/
-npm run test:integration:coverage
+npm run test:coverage              # unit → coverage/unit/
+npm run test:integration:coverage  # integration → coverage/integration/
+npm run coverage:serve             # serve reports at http://localhost:4321
 ```
 
-Serve the reports locally at `http://localhost:4321`:
+---
 
-```sh
-npm run coverage:serve
-```
-
-Navigate to:
-
-| URL                                               | Contents                      |
-| ------------------------------------------------- | ----------------------------- |
-| `http://localhost:4321/unit/apps/api/`            | API unit coverage             |
-| `http://localhost:4321/unit/apps/worker-a/`       | Worker-A unit coverage        |
-| `http://localhost:4321/unit/libs/<name>/`         | Per-library unit coverage     |
-| `http://localhost:4321/integration/api-e2e/`      | API integration coverage      |
-| `http://localhost:4321/integration/worker-a-e2e/` | Worker-A integration coverage |
-
-### Common Nx tasks
-
-```sh
-# Build
-npx nx build api
-
-# Lint
-npx nx lint api
-npx nx run-many -t lint
-
-# Visualise project graph
-npx nx graph
-
-# Show all targets for a project
-npx nx show project api
-```
+## Development tools
 
 ### Swagger / OpenAPI
-
-When the API is running, the interactive docs are available at:
 
 ```
 http://localhost:3000/docs
 ```
 
-### Prisma Studio (database browser)
-
-Both config files auto-load connection URLs from `.env` via `dotenv/config`:
+### Prisma Studio
 
 ```sh
-# Business database:
-npx prisma studio
-
-# Legal audit database:
-npx prisma studio --config prisma.config.legal.ts
+npx prisma studio                                   # business DB
+npx prisma studio --config prisma.config.legal.ts  # legal audit DB
 ```
 
-### Prisma migration (local development)
+### Nx tasks
 
 ```sh
-# Business database (prisma.config.ts auto-detected):
-npx prisma migrate dev --name describe_your_change
-
-# Legal audit database:
-npx prisma migrate dev --config prisma.config.legal.ts --name describe_your_change
+npx nx build api
+npx nx lint api
+npx nx run-many -t lint
+npx nx graph                  # visualise project dependency graph
+npx nx show project api       # list all targets for a project
 ```
 
-> **Prisma config** — Two config files live at the workspace root: `prisma.config.ts` (business DB, auto-detected) and `prisma.config.legal.ts` (legal audit DB, pass with `--config`). Both load their connection URL from `.env` via `dotenv/config` — no manual environment variable prefixes needed.
-
-## Adding projects
+### Adding a new project
 
 ```sh
-# New NestJS app
-npx nx g @nx/nest:app my-app
-
-# New shared library
-npx nx g @nx/node:lib my-lib
-```
-
-### Adding a new shared library — checklist
-
-1. Generate: `npx nx g @nx/node:lib my-lib`
-2. Export the public API through `libs/my-lib/src/index.ts`
-3. Register the path alias in `tsconfig.base.json`:
-   ```json
-   "@libs/my-lib": ["libs/my-lib/src/index.ts"]
-   ```
-4. Write a `README.md` in `libs/my-lib/` documenting purpose, public API, and usage examples.
-
-## CI
-
-The workspace ships a GitHub Actions workflow (`.github/workflows/ci.yml`) that runs lint, test, and build on affected projects. Connect to Nx Cloud for remote caching and distributed task execution:
-
-```sh
-npx nx connect
+npx nx g @nx/nest:app my-app   # new NestJS application
+npx nx g @nx/node:lib my-lib   # new shared library
 ```
