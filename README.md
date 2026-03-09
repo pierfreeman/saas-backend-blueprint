@@ -1,5 +1,7 @@
 # saas-backend-blueprint
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=pierfreeman_saas-backend-blueprint&metric=alert_status&token=e7e95a4604df254e30ff23cda7a716fd7306d87d)](https://sonarcloud.io/summary/new_code?id=pierfreeman_saas-backend-blueprint)
+
 Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) monorepo.
 
 **Tech stack**
@@ -108,17 +110,17 @@ prisma/
 
 ### Business
 
-| Feature       | Library                                               | Description                                                    |
-| ------------- | ----------------------------------------------------- | -------------------------------------------------------------- |
-| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`   |
+| Feature       | Library                                               | Description                                                                                                |
+| ------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                               |
 | Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning |
-| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY      |
-| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks  |
-| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard |
-| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket    |
-| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API  |
-| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER             |
-| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API    |
+| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                  |
+| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                              |
+| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                             |
+| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                |
+| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                              |
+| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                         |
+| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                |
 
 ### Architectural
 
