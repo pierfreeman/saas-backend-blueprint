@@ -90,6 +90,12 @@
       "@apps/api/*": [
         "apps/api/src/*"
       ],
+      "@libs/observability": [
+        "libs/observability/src/index.ts"
+      ],
+      "@libs/observability/*": [
+        "libs/observability/src/*"
+      ],
       "@apps/worker-a": [
         "apps/worker-a/src"
       ],

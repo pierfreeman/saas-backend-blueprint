@@ -3,6 +3,7 @@ import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
 import { ConfigModule } from '@libs/config';
 import { EventsModule } from '@libs/events';
+import { ObservabilityModule } from '@libs/observability';
 import { WorkerController } from './worker.controller';
 import { SqsConsumerService } from './sqs-consumer.service';
 
@@ -12,7 +13,13 @@ import { SqsConsumerService } from './sqs-consumer.service';
  * Redis is still imported for cache and pub/sub socket channels.
  */
 @Module({
-  imports: [ConfigModule, PrismaBusinessModule, RedisModule, EventsModule],
+  imports: [
+    ConfigModule,
+    ObservabilityModule,
+    PrismaBusinessModule,
+    RedisModule,
+    EventsModule,
+  ],
   providers: [WorkerController, SqsConsumerService],
 })
 export class AppModule {}

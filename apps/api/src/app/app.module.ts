@@ -1,13 +1,15 @@
+import { ActivityLogModule } from '@libs/activity-log';
+import { TenantMiddleware } from '@libs/common';
+import { ConfigModule } from '@libs/config';
+import { EventsModule } from '@libs/events';
+import { LegalAuditModule } from '@libs/legal-audit';
+import { ObservabilityModule } from '@libs/observability';
 import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
-import { ConfigModule } from '@libs/config';
-import { ActivityLogModule } from '@libs/activity-log';
-import { LegalAuditModule } from '@libs/legal-audit';
-import { EventsModule } from '@libs/events';
-import { SecurityModule } from '@libs/security';
 import {
   PayloadSanitizationMiddleware,
   RequestSizeLimitMiddleware,
+  SecurityModule,
 } from '@libs/security';
 import {
   MiddlewareConsumer,
@@ -15,23 +17,23 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { ActivityLogAppModule } from './activity-log/activity-log-app.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { BillingAppModule } from './billing/billing-app.module';
+import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { HealthModule } from './health/health.module';
 import { MembershipsModule } from './memberships/memberships.module';
+import { NotificationsAppModule } from './notifications/notifications-app.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { RBACModule } from './rbac/rbac.module';
 import { TasksModule } from './tasks/tasks.module';
-import { ActivityLogAppModule } from './activity-log/activity-log-app.module';
-import { BillingAppModule } from './billing/billing-app.module';
-import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
-import { TenantMiddleware } from '@libs/common';
-import { NotificationsAppModule } from './notifications/notifications-app.module';
 
 @Module({
   imports: [
     ConfigModule,
+    ObservabilityModule,
     PrismaBusinessModule,
     RedisModule,
     EventsModule,

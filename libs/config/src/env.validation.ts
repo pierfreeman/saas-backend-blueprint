@@ -84,4 +84,26 @@ export const envValidationSchema = Joi.object({
   STRIPE_PRICE_ID_PRO: Joi.string().optional(),
   STRIPE_MAX_RETRIES: Joi.number().integer().min(0).max(10).default(3),
   STRIPE_RETRY_BASE_DELAY_MS: Joi.number().integer().min(0).default(500),
+
+  // ── Observability ─────────────────────────────────────────────────────────
+  // Sentry error monitoring
+  SENTRY_DSN: Joi.string().uri().allow('').optional(),
+  SENTRY_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).default(0.1),
+
+  // Structured logging
+  LOG_LEVEL: Joi.string()
+    .valid('verbose', 'debug', 'log', 'warn', 'error', 'fatal')
+    .default('log'),
+  LOG_FORMAT: Joi.string().valid('json', 'pretty').optional(),
+
+  // Release / version tracking
+  APP_VERSION: Joi.string().allow('').optional(),
+
+  // Prometheus metrics (placeholder)
+  PROMETHEUS_ENABLED: Joi.string().valid('true', 'false').default('false'),
+
+  // Datadog APM (placeholder)
+  DATADOG_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  DATADOG_SERVICE_NAME: Joi.string().optional(),
 });

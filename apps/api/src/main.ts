@@ -1,13 +1,37 @@
 /**
  * API bootstrap
+ *
+ * Sentry MUST be initialised before NestFactory.create() so that its
+ * async-context tracking is active from the very first import.
  */
+
+// ── Sentry initialisation (must be first) ────────────────────────────────────
+import * as Sentry from '@sentry/node';
+
+Sentry.init({
+  dsn: process.env['SENTRY_DSN'] ?? '',
+  enabled:
+    process.env['SENTRY_ENABLED'] !== 'false' &&
+    process.env['NODE_ENV'] !== 'test',
+  environment: process.env['NODE_ENV'] ?? 'development',
+  release: process.env['APP_VERSION'] ?? 'unknown',
+  tracesSampleRate: parseFloat(
+    process.env['SENTRY_TRACES_SAMPLE_RATE'] ?? '0.1',
+  ),
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import { AllExceptionsFilter } from '@libs/common';
+import {
+  ObservabilityLoggerService,
+  ObservabilityExceptionFilter,
+  RequestLoggingInterceptor,
+  SentryInterceptor,
+} from '@libs/observability';
 import {
   RateLimitInterceptor,
   SecurityAuditInterceptor,
@@ -123,14 +147,24 @@ async function bootstrap() {
     }),
   );
 
-  // ── Global exception filter ─────────────────────────────────────────────────
-  // Returns a consistent { statusCode, timestamp, path, method, message } shape
-  app.useGlobalFilters(new AllExceptionsFilter());
+  // ── App logger ──────────────────────────────────────────────────────────────
+  // Replace NestJS's default ConsoleLogger with the structured observability
+  // logger so all internal NestJS messages also go through JSON / pretty format.
+  app.useLogger(app.get(ObservabilityLoggerService));
 
-  // ── Global security interceptors ────────────────────────────────────────────
-  // Applied in order: rate-limit → CSRF → audit
-  // These are retrieved from the DI container so they have access to services.
+  // ── Global exception filter ─────────────────────────────────────────────────
+  // ObservabilityExceptionFilter extends AllExceptionsFilter with:
+  //   - Structured JSON logging (tenantId, orgId, actorRole, path, statusCode)
+  //   - Sentry capture for 5xx errors with multi-tenant scope
+  app.useGlobalFilters(app.get(ObservabilityExceptionFilter));
+
+  // ── Global interceptors ──────────────────────────────────────────────────────
+  // Order: request-log → Sentry → rate-limit → CSRF → audit
+  // Observability interceptors run first so request metadata is always captured,
+  // even if a downstream interceptor short-circuits the chain.
   app.useGlobalInterceptors(
+    app.get(RequestLoggingInterceptor),
+    app.get(SentryInterceptor),
     app.get(RateLimitInterceptor),
     app.get(CsrfInterceptor),
     app.get(SecurityAuditInterceptor),
@@ -237,9 +271,15 @@ async function bootstrap() {
 
   const port = configService.get<number>('app.port') ?? 3000;
   await app.listen(port);
-  Logger.log(`🚀 Application is running on: http://localhost:${port}`);
-  Logger.log(`📖 Swagger (REST):   http://localhost:${port}/docs`);
-  Logger.log(`📡 AsyncAPI (WebSocket): http://localhost:${port}/asyncapi`);
+
+  const logger = app.get(ObservabilityLoggerService);
+  logger.logCtx(
+    `Application running on http://localhost:${port}`,
+    { path: `/`, method: 'BOOT' },
+    'Bootstrap',
+  );
+  logger.logCtx(`Swagger:  http://localhost:${port}/docs`, {}, 'Bootstrap');
+  logger.logCtx(`AsyncAPI: http://localhost:${port}/asyncapi`, {}, 'Bootstrap');
 }
 
 bootstrap();

@@ -4,6 +4,7 @@ import appConfig from './app.config';
 import authConfig from './auth.config';
 import databaseConfig from './database.config';
 import redisConfig from './redis.config';
+import observabilityConfig from '../../observability/src/config/observability.config';
 import { envValidationSchema } from './env.validation';
 
 /**
@@ -31,7 +32,13 @@ import { envValidationSchema } from './env.validation';
   imports: [
     NestConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, authConfig, databaseConfig, redisConfig],
+      load: [
+        appConfig,
+        authConfig,
+        databaseConfig,
+        redisConfig,
+        observabilityConfig,
+      ],
       envFilePath: '.env',
       validationSchema: envValidationSchema,
       validationOptions: {

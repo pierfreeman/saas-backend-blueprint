@@ -1,0 +1,27 @@
+{
+  "name": "observability",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/observability/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:observability"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/observability"],
+      "options": {
+        "jestConfig": "libs/observability/jest.config.cts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/observability/tsconfig.json --noEmit"
+      }
+    }
+  }
+}
