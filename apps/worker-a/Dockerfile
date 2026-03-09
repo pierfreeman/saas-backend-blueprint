@@ -31,4 +31,10 @@ COPY --from=builder /workspace/dist/apps/worker-a .
 
 RUN npx prisma generate
 
+# Drop root privileges. The built-in "node" user (uid 1000) ships with the
+# official node image. Ownership is set before the USER switch so that the
+# process can read its own files at runtime.
+RUN chown -R node:node /app
+USER node
+
 CMD ["node", "main.js"]
