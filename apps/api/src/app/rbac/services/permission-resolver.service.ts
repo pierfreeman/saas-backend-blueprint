@@ -38,7 +38,7 @@ export class PermissionResolverService {
   async hasPermission(
     userId: string,
     orgId: string,
-    permission: PermissionKey | string,
+    permission: PermissionKey | (string & {}),
   ): Promise<boolean> {
     const permissions = await this.resolvePermissions(userId, orgId);
     return permissions.includes(permission);
@@ -47,7 +47,7 @@ export class PermissionResolverService {
   async hasAnyPermission(
     userId: string,
     orgId: string,
-    permissions: (PermissionKey | string)[],
+    permissions: (PermissionKey | (string & {}))[],
   ): Promise<boolean> {
     const userPermissions = await this.resolvePermissions(userId, orgId);
     return permissions.some((p) => userPermissions.includes(p));
@@ -56,7 +56,7 @@ export class PermissionResolverService {
   async hasAllPermissions(
     userId: string,
     orgId: string,
-    permissions: (PermissionKey | string)[],
+    permissions: (PermissionKey | (string & {}))[],
   ): Promise<boolean> {
     const userPermissions = await this.resolvePermissions(userId, orgId);
     return permissions.every((p) => userPermissions.includes(p));

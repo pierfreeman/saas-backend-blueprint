@@ -6,7 +6,7 @@ export const PERMISSIONS_KEY = 'rbac:permissions';
 export type PermissionMode = 'ANY' | 'ALL';
 
 export interface PermissionsMetadata {
-  permissions: (PermissionKey | string)[];
+  permissions: (PermissionKey | (string & {}))[];
   mode: PermissionMode;
 }
 
@@ -26,7 +26,7 @@ export interface PermissionsMetadata {
  * ```
  */
 export const RequirePermissions = (
-  permissions: (PermissionKey | string)[],
+  permissions: (PermissionKey | (string & {}))[],
   mode: PermissionMode = 'ANY',
 ) =>
   SetMetadata<string, PermissionsMetadata>(PERMISSIONS_KEY, {

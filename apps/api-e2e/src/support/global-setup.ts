@@ -3,7 +3,7 @@ import { waitForPortOpen } from '@nx/node/utils';
 // eslint-disable-next-line no-var, @typescript-eslint/no-unused-vars
 var __TEARDOWN_MESSAGE__: string;
 
-module.exports = async function () {
+module.exports = async function globalSetup() {
   // Start services that that the app needs to run (e.g. database, docker-compose, etc.).
   console.log('\nSetting up...\n');
 

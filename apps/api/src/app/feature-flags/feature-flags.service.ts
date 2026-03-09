@@ -91,9 +91,7 @@ export class FeatureFlagsService implements OnModuleInit {
    */
   onModuleInit(): void {
     const handler = async (event: DomainEvent): Promise<void> => {
-      const orgId = (event.payload as Record<string, unknown>)['orgId'] as
-        | string
-        | undefined;
+      const orgId = event.payload['orgId'] as string | undefined;
       if (orgId) {
         await this.invalidateEntitlements(orgId);
         this.logger.debug(

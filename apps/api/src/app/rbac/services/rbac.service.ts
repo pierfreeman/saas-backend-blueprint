@@ -64,7 +64,7 @@ export class RBACService {
   async hasPermission(
     userId: string,
     orgId: string,
-    permission: PermissionKey | string,
+    permission: PermissionKey | (string & {}),
   ): Promise<boolean> {
     const context = await this.resolveContext(userId, orgId);
     if (!context || context.status !== MembershipStatus.ACTIVE) return false;
@@ -74,7 +74,7 @@ export class RBACService {
   async hasAnyPermission(
     userId: string,
     orgId: string,
-    permissions: (PermissionKey | string)[],
+    permissions: (PermissionKey | (string & {}))[],
   ): Promise<boolean> {
     const context = await this.resolveContext(userId, orgId);
     if (!context || context.status !== MembershipStatus.ACTIVE) return false;
@@ -84,7 +84,7 @@ export class RBACService {
   async hasAllPermissions(
     userId: string,
     orgId: string,
-    permissions: (PermissionKey | string)[],
+    permissions: (PermissionKey | (string & {}))[],
   ): Promise<boolean> {
     const context = await this.resolveContext(userId, orgId);
     if (!context || context.status !== MembershipStatus.ACTIVE) return false;

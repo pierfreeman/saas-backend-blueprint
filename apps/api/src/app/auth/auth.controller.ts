@@ -1,14 +1,13 @@
+import { JwtAuthGuard, RequestUser } from '@libs/common';
 import { Controller, Get, HttpStatus, UseGuards } from '@nestjs/common';
 import {
-  ApiTags,
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@libs/common';
-import { CurrentUser } from './current-user.decorator';
-import { RequestUser } from '@libs/common';
 import { AuthService } from './auth.service';
+import { CurrentUser } from './current-user.decorator';
 
 @ApiTags('Authentication')
 @ApiBearerAuth()

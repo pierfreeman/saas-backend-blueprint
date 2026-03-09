@@ -1,6 +1,6 @@
 import type { PaginatedActivityLogResult } from '@libs/activity-log';
 import { ActivityLogService } from '@libs/activity-log';
-import { PERMISSIONS } from '@libs/common';
+import { JwtAuthGuard, PERMISSIONS } from '@libs/common';
 import {
   Controller,
   Get,
@@ -16,7 +16,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@libs/common';
 import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
 import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
 import { OrgContextGuard } from '../rbac/guards/org-context.guard';

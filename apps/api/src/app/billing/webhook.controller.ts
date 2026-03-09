@@ -1,24 +1,24 @@
 import {
+  BillingRepository,
+  StripeService,
+  WebhookDispatcherService,
+} from '@libs/billing';
+import { LegalAuditService } from '@libs/legal-audit';
+import {
+  BadRequestException,
   Controller,
-  Post,
-  Req,
   Headers,
   HttpCode,
   HttpStatus,
-  BadRequestException,
   Logger,
+  Post,
+  RawBodyRequest,
+  Req,
 } from '@nestjs/common';
-import { RawBodyRequest } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { createHash } from 'node:crypto';
 import Stripe from 'stripe';
-import {
-  StripeService,
-  WebhookDispatcherService,
-  BillingRepository,
-} from '@libs/billing';
-import { LegalAuditService } from '@libs/legal-audit';
 
 /**
  * WebhookController
