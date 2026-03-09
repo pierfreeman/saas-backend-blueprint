@@ -37,7 +37,7 @@ export class QueryNotificationsDto {
   @Min(1)
   @Max(100)
   @IsOptional()
-  @Transform(({ value }) => parseInt(value as string, 10))
+  @Transform(({ value }) => Number.parseInt(value as string, 10))
   limit?: number;
 
   @ApiPropertyOptional({
@@ -47,6 +47,6 @@ export class QueryNotificationsDto {
   @IsInt()
   @Min(0)
   @IsOptional()
-  @Transform(({ value }) => parseInt(value as string, 10))
+  @Transform(({ value }) => Number.parseInt(value as string, 10))
   offset?: number;
 }

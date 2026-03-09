@@ -124,7 +124,7 @@ export class NotificationsGateway
     // Attach dedicated Redis adapter connections for cross-pod Socket.IO room
     // synchronisation. These clients must not be shared with NotificationsPubSubService.
     const redisHost = process.env['REDIS_HOST'] ?? 'localhost';
-    const redisPort = parseInt(process.env['REDIS_PORT'] ?? '6379', 10);
+    const redisPort = Number.parseInt(process.env['REDIS_PORT'] ?? '6379', 10);
     const pubClient = new Redis({ host: redisHost, port: redisPort });
     const subClient = pubClient.duplicate();
     // `afterInit` receives the Namespace, not the root Server, when a named

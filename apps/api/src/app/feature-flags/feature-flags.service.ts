@@ -70,7 +70,7 @@ const PLAN_LIMITS: Record<PlanTier, Record<LimitKey, number>> = {
 @Injectable()
 export class FeatureFlagsService implements OnModuleInit {
   private readonly logger = new Logger(FeatureFlagsService.name);
-  private readonly cacheTtl = parseInt(
+  private readonly cacheTtl = Number.parseInt(
     process.env['FEATURE_FLAGS_CACHE_TTL'] ?? '600',
     10,
   );

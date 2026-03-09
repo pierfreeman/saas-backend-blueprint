@@ -150,7 +150,7 @@ export class NotificationsService implements OnModuleDestroy {
     const raw = await this.cache.getClient().get(UNREAD_CACHE_KEY(userId));
 
     if (raw !== null) {
-      return Math.max(0, parseInt(raw, 10));
+      return Math.max(0, Number.parseInt(raw, 10));
     }
 
     // Cache miss — recalculate from DB.

@@ -50,7 +50,7 @@ Sentry.init({
     process.env['NODE_ENV'] !== 'test',
   environment: process.env['NODE_ENV'] ?? 'development',
   release: process.env['APP_VERSION'] ?? 'unknown',
-  tracesSampleRate: parseFloat(
+  tracesSampleRate: Number.parseFloat(
     process.env['SENTRY_TRACES_SAMPLE_RATE'] ?? '0.1',
   ),
 });

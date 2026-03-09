@@ -20,7 +20,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   constructor() {
     this.client = new Redis({
       host: process.env['REDIS_HOST'] || 'localhost',
-      port: parseInt(process.env['REDIS_PORT'] || '6379'),
+      port: Number.parseInt(process.env['REDIS_PORT'] || '6379'),
       db: 1, // Use different DB for cache
       retryStrategy: (times: number) => {
         const delay = Math.min(times * 50, 2000);

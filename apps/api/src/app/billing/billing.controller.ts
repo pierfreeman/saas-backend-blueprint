@@ -274,10 +274,10 @@ export class BillingController {
     @Query('offset') offsetStr?: string,
   ): Promise<BillingHistoryResponseDto> {
     const limit = Math.min(
-      Math.max(parseInt(limitStr ?? '50', 10) || 50, 1),
+      Math.max(Number.parseInt(limitStr ?? '50', 10) || 50, 1),
       200,
     );
-    const offset = Math.max(parseInt(offsetStr ?? '0', 10) || 0, 0);
+    const offset = Math.max(Number.parseInt(offsetStr ?? '0', 10) || 0, 0);
     const { items, total } = await this.billingService.getSubscriptionHistory(
       orgId,
       limit,

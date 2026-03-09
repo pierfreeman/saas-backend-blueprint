@@ -291,7 +291,7 @@ describe('BillingController', () => {
     });
 
     it('falls back to default 50 when limit=0 (falsy parse result)', async () => {
-      // parseInt('0') || 50 === 50 because 0 is falsy
+      // Number.parseInt('0') || 50 === 50 because 0 is falsy
       billingService.getSubscriptionHistory.mockResolvedValue({
         items: [],
         total: 0,
