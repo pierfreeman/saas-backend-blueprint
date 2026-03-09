@@ -21,7 +21,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 **Features**
 
 - 🏢 Multi-tenancy with per-org isolation (`x-tenant-id` header → request-scoped context)
-- 🔐 Auth0 JWT authentication (RS256, JWKS, automatic user upsert on first login)
+- 🔐 Auth0 JWT authentication (RS256, JWKS, automatic user + personal org provisioning on first login)
 - 👥 Static RBAC — four roles (OWNER › ADMIN › MEMBER › READ_ONLY), nine permissions
 - 💳 Stripe billing — checkout, customer portal, subscription lifecycle, webhook idempotency
 - 🚀 Plan-based feature gating with Redis cache and route-level `FeatureGuard`
@@ -111,7 +111,7 @@ prisma/
 | Feature       | Library                                               | Description                                                    |
 | ------------- | ----------------------------------------------------- | -------------------------------------------------------------- |
 | Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`   |
-| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert    |
+| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning |
 | RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY      |
 | Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks  |
 | Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard |

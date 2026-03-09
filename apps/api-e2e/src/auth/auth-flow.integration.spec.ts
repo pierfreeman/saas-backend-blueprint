@@ -11,6 +11,10 @@
  *  4. Expired token → 401
  *  5. Missing Authorization header → 401
  *  6. Malformed token → 401
+ *
+ * Onboarding auto-provisioning:
+ *  7. First login creates user + personal org + OWNER membership
+ *  8. Re-login does not duplicate org or membership
  */
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
@@ -22,6 +26,11 @@ import {
 } from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import {
+  BillingStatus,
+  MembershipRole,
+  MembershipStatus,
+} from '@prisma/client';
 
 describe('Auth Flow (integration)', () => {
   let app: INestApplication;
@@ -121,5 +130,65 @@ describe('Auth Flow (integration)', () => {
       .set('Authorization', 'Bearer this.is.not.a.valid.jwt');
 
     expect(res.status).toBe(401);
+  });
+
+  // ─── Onboarding auto-provisioning ─────────────────────────────────────────
+
+  describe('User onboarding auto-provisioning', () => {
+    it('first login provisions personal org + OWNER membership', async () => {
+      const auth0Id = 'auth0|onboarding-new-001';
+      const email = 'onboarding-new-001@test.local';
+      const token = generateTestToken({ sub: auth0Id, email });
+
+      const res = await agent
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+
+      // user exists
+      const user = await prisma.user.findUnique({ where: { auth0Id } });
+      expect(user).not.toBeNull();
+
+      // exactly one membership for this user
+      const memberships = await prisma.membership.findMany({
+        where: { userId: user!.id },
+      });
+      expect(memberships).toHaveLength(1);
+      expect(memberships[0].role).toBe(MembershipRole.OWNER);
+      expect(memberships[0].status).toBe(MembershipStatus.ACTIVE);
+
+      // the linked org is named "Personal Workspace" and starts on the FREE tier
+      const org = await prisma.organization.findUnique({
+        where: { id: memberships[0].orgId },
+      });
+      expect(org).not.toBeNull();
+      expect(org!.name).toBe('Personal Workspace');
+      expect(org!.billingStatus).toBe(BillingStatus.NONE);
+    });
+
+    it('re-login does not create duplicate org or membership', async () => {
+      const auth0Id = 'auth0|onboarding-repeat-001';
+      const email = 'onboarding-repeat-001@test.local';
+      const token = generateTestToken({ sub: auth0Id, email });
+
+      // first login — provisions user + org + membership
+      await agent.get('/auth/me').set('Authorization', `Bearer ${token}`);
+      // second login — should be idempotent
+      await agent.get('/auth/me').set('Authorization', `Bearer ${token}`);
+
+      const user = await prisma.user.findUnique({ where: { auth0Id } });
+      expect(user).not.toBeNull();
+
+      const membershipCount = await prisma.membership.count({
+        where: { userId: user!.id },
+      });
+      expect(membershipCount).toBe(1);
+
+      const orgCount = await prisma.organization.count({
+        where: { memberships: { some: { userId: user!.id } } },
+      });
+      expect(orgCount).toBe(1);
+    });
   });
 });
