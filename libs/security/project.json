@@ -1,0 +1,27 @@
+{
+  "name": "security",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/security/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/security"],
+      "options": {
+        "jestConfig": "libs/security/jest.config.cts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/security/tsconfig.json --noEmit"
+      }
+    }
+  },
+  "tags": ["type:lib", "scope:security"]
+}

@@ -78,6 +78,12 @@
       "@libs/notifications/*": [
         "libs/notifications/src/*"
       ],
+      "@libs/security": [
+        "libs/security/src/index.ts"
+      ],
+      "@libs/security/*": [
+        "libs/security/src/*"
+      ],
       "@apps/api": [
         "apps/api/src"
       ],

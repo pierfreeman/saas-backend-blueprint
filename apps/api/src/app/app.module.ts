@@ -4,6 +4,7 @@ import { ConfigModule } from '@libs/config';
 import { ActivityLogModule } from '@libs/activity-log';
 import { LegalAuditModule } from '@libs/legal-audit';
 import { EventsModule } from '@libs/events';
+import { SecurityModule } from '@libs/security';
 import {
   MiddlewareConsumer,
   Module,
@@ -32,6 +33,7 @@ import { NotificationsAppModule } from './notifications/notifications-app.module
     EventsModule,
     ActivityLogModule,
     LegalAuditModule,
+    SecurityModule,
     AuthModule,
     OrganizationsModule,
     MembershipsModule,

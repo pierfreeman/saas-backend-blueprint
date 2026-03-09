@@ -8,7 +8,13 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AllExceptionsFilter } from '@libs/common';
+import {
+  RateLimitInterceptor,
+  SecurityAuditInterceptor,
+  CsrfInterceptor,
+} from '@libs/security';
 import { AsyncApiDocumentBuilder, AsyncApiModule } from 'nestjs-asyncapi';
+import helmet from 'helmet';
 import { AppModule } from './app/app.module';
 
 async function bootstrap() {
@@ -16,6 +22,88 @@ async function bootstrap() {
     // rawBody: true exposes request.rawBody (Buffer) on all routes.
     // Required by WebhookController to verify Stripe HMAC signatures.
     rawBody: true,
+  });
+
+  const configService = app.get(ConfigService);
+
+  // ── Security Headers (Helmet) ────────────────────────────────────────────────
+  // Applied as raw Express middleware before any NestJS-level processing.
+  // Defence-in-depth: these headers are set even if a WAF/CDN is in front.
+  const isProduction =
+    configService.get<string>('app.nodeEnv') === 'production';
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          upgradeInsecureRequests: isProduction ? [] : null,
+        },
+      },
+      strictTransportSecurity: isProduction
+        ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+        : false,
+      xContentTypeOptions: true,
+      frameguard: { action: 'deny' },
+      xXssProtection: false, // Disabled: CSP is the modern replacement
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      crossOriginEmbedderPolicy: true,
+      crossOriginOpenerPolicy: { policy: 'same-origin' },
+      crossOriginResourcePolicy: { policy: 'same-origin' },
+      hidePoweredBy: true,
+      dnsPrefetchControl: { allow: false },
+      ieNoOpen: true,
+    }),
+  );
+
+  // ── CORS ────────────────────────────────────────────────────────────────────
+  // Uses NestJS's built-in CORS handler (wraps the `cors` npm package).
+  // Reads allowed origins from CORS_ALLOWED_ORIGINS env var.
+  // Falls back to same-origin in production, open in development.
+  const rawOrigins = configService.get<string>('security.cors.allowedOrigins');
+  const allowedOrigins: string[] = Array.isArray(rawOrigins)
+    ? rawOrigins
+    : typeof rawOrigins === 'string' && rawOrigins
+      ? rawOrigins
+          .split(',')
+          .map((o) => o.trim())
+          .filter(Boolean)
+      : [];
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      // Allow requests without Origin (e.g. server-to-server, curl, Swagger)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.length === 0 && !isProduction) {
+        // Development: allow all origins
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      Logger.warn(`CORS: blocked request from origin: ${origin}`, 'Bootstrap');
+      return callback(new Error('Not allowed by CORS'), false);
+    },
+    credentials:
+      configService.get<boolean>('security.cors.credentials') ?? true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-org-id',
+      'x-tenant-id',
+      'x-csrf-token',
+    ],
+    maxAge: 86400, // 24h preflight cache
   });
 
   // ── WebSocket adapter ───────────────────────────────────────────────────────
@@ -38,6 +126,15 @@ async function bootstrap() {
   // ── Global exception filter ─────────────────────────────────────────────────
   // Returns a consistent { statusCode, timestamp, path, method, message } shape
   app.useGlobalFilters(new AllExceptionsFilter());
+
+  // ── Global security interceptors ────────────────────────────────────────────
+  // Applied in order: rate-limit → CSRF → audit
+  // These are retrieved from the DI container so they have access to services.
+  app.useGlobalInterceptors(
+    app.get(RateLimitInterceptor),
+    app.get(CsrfInterceptor),
+    app.get(SecurityAuditInterceptor),
+  );
 
   // ── Swagger ──────────────────────────────────────────────────────────────────
   const config = new DocumentBuilder()
@@ -138,7 +235,6 @@ async function bootstrap() {
   // ── Shutdown hooks ───────────────────────────────────────────────────────────
   app.enableShutdownHooks();
 
-  const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port') ?? 3000;
   await app.listen(port);
   Logger.log(`🚀 Application is running on: http://localhost:${port}`);

@@ -35,6 +35,40 @@ export const envValidationSchema = Joi.object({
   SQS_ENDPOINT_URL: Joi.string().optional(),
   AWS_REGION: Joi.string().default('eu-west-1'),
 
+  // ── Security ─────────────────────────────────────────────────────────────
+  // CORS
+  CORS_ALLOWED_ORIGINS: Joi.string().allow('').optional(),
+  CORS_CREDENTIALS: Joi.string().valid('true', 'false').default('true'),
+
+  // Rate Limiting
+  RATE_LIMIT_TTL: Joi.number().integer().min(1).default(60),
+  RATE_LIMIT_MAX_PER_IP: Joi.number().integer().min(1).default(100),
+  RATE_LIMIT_MAX_PER_USER: Joi.number().integer().min(1).default(200),
+  RATE_LIMIT_MAX_PER_TENANT: Joi.number().integer().min(1).default(1000),
+
+  // Brute-Force Protection
+  BRUTE_FORCE_MAX_ATTEMPTS: Joi.number().integer().min(1).default(5),
+  BRUTE_FORCE_LOCKOUT_TTL: Joi.number().integer().min(1).default(900),
+  BRUTE_FORCE_TRACKING_TTL: Joi.number().integer().min(1).default(3600),
+
+  // CSRF (disabled by default; only needed for cookie-based auth flows)
+  CSRF_PROTECTION_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  CSRF_COOKIE_NAME: Joi.string().default('__csrf'),
+  CSRF_HEADER_NAME: Joi.string().default('x-csrf-token'),
+
+  // IP Filter (optional enterprise feature)
+  IP_ALLOWLIST_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  IP_ALLOWLIST: Joi.string().allow('').optional(),
+  IP_DENYLIST_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  IP_DENYLIST: Joi.string().allow('').optional(),
+
+  // WebSocket Rate Limiting
+  WS_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  WS_RATE_LIMIT_MAX_MESSAGES_PER_MINUTE: Joi.number()
+    .integer()
+    .min(1)
+    .default(60),
+
   // Stripe (optional — billing module checks at runtime)
   STRIPE_SECRET_KEY: Joi.string().optional(),
   STRIPE_WEBHOOK_SECRET: Joi.string().optional(),
