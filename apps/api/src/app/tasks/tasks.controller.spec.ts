@@ -11,10 +11,13 @@ import { Request } from 'express';
 
 const dto: CreateTaskDto = { name: 'job', data: { x: 1 } };
 
+const TEST_ORG_ID = 'org-1';
+const TEST_USER_ID = 'user-1';
+
 const baseJob = {
   id: 'job-uuid-1',
-  orgId: 'org-1',
-  userId: 'user-1',
+  orgId: TEST_ORG_ID,
+  userId: TEST_USER_ID,
   type: 'heavy_job',
   status: JobStatus.DONE,
   payload: {},
@@ -28,7 +31,7 @@ const baseJob = {
 };
 
 /** Minimal Express Request stub with a JWT user attached. */
-const makeReq = (sub = 'user-1'): Partial<Request> => ({
+const makeReq = (sub = TEST_USER_ID): Partial<Request> => ({
   user: { sub, email: 'user@test.com' } as any,
 });
 
@@ -66,8 +69,8 @@ describe('TasksController', () => {
       tasksService.createHeavyJob.mockResolvedValue({ jobId: 'job_123' });
       const result = await controller.createHeavyJob(
         dto,
-        'org-1',
         makeReq() as Request,
+        TEST_ORG_ID,
       );
       expect(result).toMatchObject({
         jobId: 'job_123',
@@ -76,27 +79,27 @@ describe('TasksController', () => {
       });
       expect(result.timestamp).toBeDefined();
       expect(tasksService.createHeavyJob).toHaveBeenCalledWith(
-        'org-1',
+        TEST_ORG_ID,
         dto,
-        'user-1',
+        TEST_USER_ID,
       );
     });
 
     it('uses "default" as tenantId when @CurrentTenant returns undefined', async () => {
       tasksService.createHeavyJob.mockResolvedValue({ jobId: 'job_456' });
-      await controller.createHeavyJob(dto, undefined, makeReq() as Request);
+      await controller.createHeavyJob(dto, makeReq() as Request, undefined);
       expect(tasksService.createHeavyJob).toHaveBeenCalledWith(
         'default',
         dto,
-        'user-1',
+        TEST_USER_ID,
       );
     });
 
     it('passes undefined userId when req.user is absent', async () => {
       tasksService.createHeavyJob.mockResolvedValue({ jobId: 'job_789' });
-      await controller.createHeavyJob(dto, 'org-1', {} as Request);
+      await controller.createHeavyJob(dto, {} as Request, TEST_ORG_ID);
       expect(tasksService.createHeavyJob).toHaveBeenCalledWith(
-        'org-1',
+        TEST_ORG_ID,
         dto,
         undefined,
       );
@@ -105,7 +108,7 @@ describe('TasksController', () => {
     it('propagates service errors', async () => {
       tasksService.createHeavyJob.mockRejectedValue(new Error('queue full'));
       await expect(
-        controller.createHeavyJob(dto, 'org-1', makeReq() as Request),
+        controller.createHeavyJob(dto, makeReq() as Request, TEST_ORG_ID),
       ).rejects.toThrow('queue full');
     });
   });
@@ -116,7 +119,7 @@ describe('TasksController', () => {
     it('returns a JobStatusDto mapped from the Prisma Job', async () => {
       tasksService.findJobById.mockResolvedValue(baseJob as any);
 
-      const result = await controller.getJobStatus('job-uuid-1', 'org-1');
+      const result = await controller.getJobStatus('job-uuid-1', TEST_ORG_ID);
 
       expect(result).toMatchObject({
         jobId: 'job-uuid-1',
@@ -128,7 +131,7 @@ describe('TasksController', () => {
       expect(result.error).toBeUndefined();
       expect(tasksService.findJobById).toHaveBeenCalledWith(
         'job-uuid-1',
-        'org-1',
+        TEST_ORG_ID,
       );
     });
 
@@ -147,7 +150,7 @@ describe('TasksController', () => {
       );
 
       await expect(
-        controller.getJobStatus('job-uuid-1', 'org-1'),
+        controller.getJobStatus('job-uuid-1', TEST_ORG_ID),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -156,7 +159,7 @@ describe('TasksController', () => {
         ...baseJob,
         error: null,
       } as any);
-      const result = await controller.getJobStatus('job-uuid-1', 'org-1');
+      const result = await controller.getJobStatus('job-uuid-1', TEST_ORG_ID);
       expect(result.error).toBeUndefined();
     });
 
@@ -166,7 +169,7 @@ describe('TasksController', () => {
         result: null,
         status: JobStatus.PROCESSING,
       } as any);
-      const result = await controller.getJobStatus('job-uuid-1', 'org-1');
+      const result = await controller.getJobStatus('job-uuid-1', TEST_ORG_ID);
       expect(result.result).toBeUndefined();
     });
   });
