@@ -1,6 +1,6 @@
 import { waitForPortOpen } from '@nx/node/utils';
 
-/* eslint-disable */
+// eslint-disable-next-line no-var, @typescript-eslint/no-unused-vars
 var __TEARDOWN_MESSAGE__: string;
 
 module.exports = async function () {
