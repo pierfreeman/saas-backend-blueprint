@@ -13,9 +13,9 @@ COPY tsconfig.base.json nx.json jest.preset.js ./
 COPY apps ./apps
 COPY libs ./libs
 
-RUN npx prisma generate
-RUN npx prisma generate --schema prisma/schema.legal.prisma
-RUN npx nx run api:build --configuration=production --skip-nx-cache
+RUN npx prisma generate && \
+    npx prisma generate --schema prisma/schema.legal.prisma && \
+    npx nx run api:build --configuration=production --skip-nx-cache
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
 FROM node:lts-alpine AS production
@@ -36,13 +36,12 @@ COPY --from=builder /workspace/node_modules ./node_modules
 COPY --from=builder /workspace/dist/apps/api .
 
 # Generate Prisma client for this exact runtime (same as saas-backend-blueprint approach)
-RUN npx prisma generate && \
-    npx prisma generate --schema prisma/schema.legal.prisma
-
 # Drop root privileges. The built-in "node" user (uid 1000) ships with the
 # official node image. Ownership is set before the USER switch so that the
 # process can read its own files at runtime.
-RUN chown -R node:node /app
+RUN npx prisma generate && \
+    npx prisma generate --schema prisma/schema.legal.prisma && \
+    chown -R node:node /app
 USER node
 
 EXPOSE 3000

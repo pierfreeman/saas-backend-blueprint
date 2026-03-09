@@ -41,7 +41,7 @@ export class LegalAuditService {
     this.persist(event).catch((err: unknown) => {
       this.logger.error(
         `LegalAuditService unhandled rejection for "${event.eventType}": ${
-          err instanceof Error ? err.message : String(err)
+          err instanceof Error ? err.message : JSON.stringify(err)
         }`,
       );
     });
