@@ -48,8 +48,12 @@ const XSS_PATTERNS: RegExp[] = [
   /<\s*script(\s|\/|>)/gi,
   // javascript: URI scheme
   /javascript\s*:/gi,
-  // Inline DOM event handlers (onclick=, onload=, onerror=, …)
-  /on(?:abort|blur|change|click|dblclick|error|focus|input|keydown|keypress|keyup|load|mousedown|mouseenter|mouseleave|mousemove|mouseout|mouseover|mouseup|reset|resize|scroll|select|submit|unload)\s*=/gi,
+  // Inline DOM event handlers — split into two patterns to keep regex
+  // complexity under the allowed threshold (sonar typescript:S5843).
+  // Group 1: document / keyboard / focus / form events
+  /on(?:abort|blur|change|click|dblclick|error|focus|input|keydown|keypress|keyup|load)\s*=/gi,
+  // Group 2: mouse / UI / lifecycle events
+  /on(?:mousedown|mouseenter|mouseleave|mousemove|mouseout|mouseover|mouseup|reset|resize|scroll|select|submit|unload)\s*=/gi,
   // Dangerous embeddable elements
   // NOTE: \s*(?:\/\s*)? instead of \s*\/?\s* to prevent super-linear
   // backtracking: two adjacent \s* groups competing over the same spaces

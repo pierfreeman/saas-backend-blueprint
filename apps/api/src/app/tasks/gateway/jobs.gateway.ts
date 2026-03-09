@@ -55,7 +55,7 @@ export class JobsGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
-  private server!: Server;
+  private readonly server!: Server;
 
   private readonly logger = new Logger(JobsGateway.name);
 

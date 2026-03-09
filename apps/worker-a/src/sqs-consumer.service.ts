@@ -35,8 +35,8 @@ import { WorkerController, HeavyJobPayload } from './worker.controller';
 export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SqsConsumerService.name);
 
-  private client: SQSClient;
-  private queueUrl: string;
+  private readonly client: SQSClient;
+  private readonly queueUrl: string;
   private running = false;
 
   constructor(private readonly workerController: WorkerController) {

@@ -113,18 +113,17 @@ export class TasksController {
   })
   async createHeavyJob(
     @Body() createTaskDto: CreateTaskDto,
-    @CurrentTenant('tenantId') tenantId: string | undefined,
+    @CurrentTenant('tenantId') tenantId = 'default',
     @Req() req: Request,
   ) {
-    const resolvedTenantId = tenantId ?? 'default';
     const userId = (req.user as RequestUser | undefined)?.sub;
 
     this.logger.log(
-      `Creating heavy job | tenant: ${resolvedTenantId} | user: ${userId ?? 'system'}`,
+      `Creating heavy job | tenant: ${tenantId} | user: ${userId ?? 'system'}`,
     );
 
     const result = await this.tasksService.createHeavyJob(
-      resolvedTenantId,
+      tenantId,
       createTaskDto,
       userId,
     );
@@ -184,13 +183,9 @@ export class TasksController {
   })
   async getJobStatus(
     @Param('jobId', new ParseUUIDPipe({ version: '4' })) jobId: string,
-    @CurrentTenant('tenantId') tenantId: string | undefined,
+    @CurrentTenant('tenantId') tenantId = 'default',
   ): Promise<JobStatusDto> {
-    const resolvedTenantId = tenantId ?? 'default';
-    const job: Job = await this.tasksService.findJobById(
-      jobId,
-      resolvedTenantId,
-    );
+    const job: Job = await this.tasksService.findJobById(jobId, tenantId);
 
     return {
       id: job.id,

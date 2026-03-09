@@ -15,7 +15,7 @@ import Redis from 'ioredis';
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CacheService.name);
-  private client: Redis;
+  private readonly client: Redis;
 
   constructor() {
     this.client = new Redis({

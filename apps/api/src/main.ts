@@ -40,7 +40,7 @@ import {
 import helmet from 'helmet';
 import { AppModule } from './app/app.module';
 
-async function bootstrap() {
+(async () => {
   const app = await NestFactory.create(AppModule, {
     // rawBody: true exposes request.rawBody (Buffer) on all routes.
     // Required by WebhookController to verify Stripe HMAC signatures.
@@ -93,14 +93,17 @@ async function bootstrap() {
   // Reads allowed origins from CORS_ALLOWED_ORIGINS env var.
   // Falls back to same-origin in production, open in development.
   const rawOrigins = configService.get<string>('security.cors.allowedOrigins');
-  const allowedOrigins: string[] = Array.isArray(rawOrigins)
-    ? rawOrigins
-    : typeof rawOrigins === 'string' && rawOrigins
-      ? rawOrigins
-          .split(',')
-          .map((o) => o.trim())
-          .filter(Boolean)
-      : [];
+  let allowedOrigins: string[];
+  if (Array.isArray(rawOrigins)) {
+    allowedOrigins = rawOrigins;
+  } else if (typeof rawOrigins === 'string' && rawOrigins) {
+    allowedOrigins = rawOrigins
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+  } else {
+    allowedOrigins = [];
+  }
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -233,6 +236,4 @@ async function bootstrap() {
     'Bootstrap',
   );
   logger.logCtx(`Swagger:  http://localhost:${port}/docs`, {}, 'Bootstrap');
-}
-
-bootstrap();
+})();

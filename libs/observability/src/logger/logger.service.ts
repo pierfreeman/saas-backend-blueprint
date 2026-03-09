@@ -138,12 +138,8 @@ export class ObservabilityLoggerService implements LoggerService {
   private emit(level: LogLevel, message: unknown, params: unknown[]): void {
     const [first, ...rest] = params;
     // NestJS standard: last string param is the class-name context label
-    const label =
-      typeof first === 'string'
-        ? first
-        : typeof rest[0] === 'string'
-          ? rest[0]
-          : undefined;
+    const labelFromFirst = typeof first === 'string' ? first : undefined;
+    const label = labelFromFirst ?? (typeof rest[0] === 'string' ? rest[0] : undefined);
 
     // Error stack comes as second arg from NestJS internal logger
     const errorStack =

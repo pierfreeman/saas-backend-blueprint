@@ -10,7 +10,12 @@ import {
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import { BillingStatus, Membership, MembershipRole, MembershipStatus } from '@prisma/client';
+import {
+  BillingStatus,
+  Membership,
+  MembershipRole,
+  MembershipStatus,
+} from '@prisma/client';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { RBACCacheService } from '../rbac/services/rbac-cache.service';
@@ -91,7 +96,12 @@ export class MembershipsService {
       eventType: 'membership.created',
       orgId,
       triggerType: 'user',
-      metadata: { membershipId: membership.id, targetUserId: dto.userId, role: dto.role, actorUserId: actorUserId ?? null },
+      metadata: {
+        membershipId: membership.id,
+        targetUserId: dto.userId,
+        role: dto.role,
+        actorUserId: actorUserId ?? null,
+      },
     });
 
     return membership;
@@ -143,7 +153,7 @@ export class MembershipsService {
       where: { id },
     });
 
-    if (!membership || membership.orgId !== orgId) {
+    if (membership?.orgId !== orgId) {
       throw new NotFoundException('Membership not found');
     }
 
@@ -163,7 +173,11 @@ export class MembershipsService {
       action: 'membership.role_changed',
       entityType: 'membership',
       entityId: id,
-      metadata: { targetUserId: membership.userId, previousRole, newRole: dto.role },
+      metadata: {
+        targetUserId: membership.userId,
+        previousRole,
+        newRole: dto.role,
+      },
     });
 
     // ISO 27001 A.9.2 - legal compliance record (privilege change)
@@ -171,7 +185,13 @@ export class MembershipsService {
       eventType: 'membership.role_changed',
       orgId,
       triggerType: 'user',
-      metadata: { membershipId: id, targetUserId: membership.userId, previousRole, newRole: dto.role, actorUserId: actorUserId ?? null },
+      metadata: {
+        membershipId: id,
+        targetUserId: membership.userId,
+        previousRole,
+        newRole: dto.role,
+        actorUserId: actorUserId ?? null,
+      },
     });
 
     return updated;
@@ -186,7 +206,7 @@ export class MembershipsService {
       where: { id },
     });
 
-    if (!membership || membership.orgId !== orgId) {
+    if (membership?.orgId !== orgId) {
       throw new NotFoundException('Membership not found');
     }
 
@@ -209,7 +229,12 @@ export class MembershipsService {
       eventType: 'membership.deleted',
       orgId,
       triggerType: 'user',
-      metadata: { membershipId: id, targetUserId: membership.userId, role: membership.role, actorUserId: actorUserId ?? null },
+      metadata: {
+        membershipId: id,
+        targetUserId: membership.userId,
+        role: membership.role,
+        actorUserId: actorUserId ?? null,
+      },
     });
   }
 

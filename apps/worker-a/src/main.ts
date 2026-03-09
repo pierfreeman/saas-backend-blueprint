@@ -25,7 +25,7 @@ import { NestFactory } from '@nestjs/core';
 import { ObservabilityLoggerService } from '@libs/observability';
 import { AppModule } from './app.module';
 
-async function bootstrap() {
+(async () => {
   // Run as a standalone application context (no HTTP server).
   // SQS long-polling is handled by SqsConsumerService which starts on module init.
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -42,9 +42,7 @@ async function bootstrap() {
     {},
     'Bootstrap',
   );
-}
-
-bootstrap().catch((error: unknown) => {
+})().catch((error: unknown) => {
   Sentry.captureException(error);
   process.stderr.write(
     `Worker-Compute-A failed to start: ${error instanceof Error ? error.stack : String(error)}\n`,
