@@ -66,3 +66,10 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Snyk
+.snyk
+
+# SonarQube
+.sonarlint/
+.scannerwork/
