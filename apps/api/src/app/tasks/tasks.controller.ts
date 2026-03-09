@@ -1,21 +1,17 @@
+import { CurrentTenant, JwtAuthGuard } from '@libs/common';
 import {
-  Controller,
-  Post,
-  Get,
-  Param,
   Body,
+  Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
-  UseGuards,
-  Req,
+  Param,
   ParseUUIDPipe,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
-import { TasksService } from './tasks.service';
-import { CreateTaskDto } from './dto/create-task.dto';
-import { JobStatusDto } from './dto/job-status.dto';
-import { CurrentTenant } from '@libs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -23,8 +19,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@libs/common';
 import { Job, JobStatus } from '@prisma/client';
+import { Request } from 'express';
+import { CreateTaskDto } from './dto/create-task.dto';
+import { JobStatusDto } from './dto/job-status.dto';
+import { TasksService } from './tasks.service';
 
 /** Shape of the user object attached to the request by JwtStrategy.validate(). */
 interface RequestUser {

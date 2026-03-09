@@ -1,36 +1,34 @@
+import { JwtAuthGuard, PERMISSIONS, RequestUser } from '@libs/common';
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
   Body,
-  Param,
-  UseGuards,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
   NotFoundException,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
   ApiBearerAuth,
   ApiOperation,
-  ApiResponse,
   ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
-import { JwtAuthGuard } from '@libs/common';
-import { CurrentUser } from '../auth/current-user.decorator';
-import { RequestUser } from '@libs/common';
 import { AuthService } from '../auth/auth.service';
-import { OrganizationsService } from './organizations.service';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
-import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
 import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
-import { PERMISSIONS } from '@libs/common';
+import { OrgContextGuard } from '../rbac/guards/org-context.guard';
+import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { OrganizationsService } from './organizations.service';
 
 @ApiTags('Organizations')
 @ApiBearerAuth()
