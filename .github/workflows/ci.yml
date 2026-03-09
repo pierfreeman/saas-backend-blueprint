@@ -186,14 +186,10 @@ jobs:
           name: coverage-unit
           path: coverage/unit/
 
-      - name: Fix coverage report paths
-        # lcov.info files contain absolute paths from the unit runner
-        # (/home/runner/work/…). The sonarqube-scan-action container mounts
-        # the workspace at /github/workspace, so paths must be rewritten to
-        # avoid "Could not resolve file paths" warnings and 0% coverage.
-        run: |
-          find coverage/unit -name 'lcov.info' \
-            -exec sed -i "s|${GITHUB_WORKSPACE}|/github/workspace|g" {} +
+      # No path-rewrite needed: sonarqube-scan-action@v6 runs the scanner
+      # natively on the runner (not inside Docker). $GITHUB_WORKSPACE is
+      # identical in both the unit job and this job, so the absolute SF:
+      # paths in the lcov files already match the source tree here.
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
