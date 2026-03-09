@@ -3,14 +3,13 @@ import { ApiProperty } from '@nestjs/swagger';
 /**
  * WebSocket payload DTOs for the `/notifications` Socket.IO namespace.
  *
- * These classes carry `@ApiProperty` decorators so that `nestjs-asyncapi`
- * can reflect their schema when building the AsyncAPI document.  They mirror
- * the TypeScript interfaces in `notification.types.ts` but as instantiatable
- * classes.
+ * These classes mirror the TypeScript interfaces in `notification.types.ts`
+ * but as instantiatable classes with `@ApiProperty` decorators for schema
+ * reflection (e.g. Swagger documentation).
  *
  * Naming convention:
- *   - `*Dto`      — server → client payload (AsyncApiSub)
- *   - `WsGet*Dto` / `WsMark*Dto` — client → server payload (AsyncApiPub)
+ *   - `*Dto`      — server → client payload
+ *   - `WsGet*Dto` / `WsMark*Dto` — client → server payload
  */
 
 // ── Server → client (clients subscribe) ──────────────────────────────────────

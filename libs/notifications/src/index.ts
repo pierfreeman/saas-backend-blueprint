@@ -1,7 +1,7 @@
 // Types & constants
 export * from './types/notification.types';
 
-// WebSocket payload DTOs (AsyncAPI documentation + runtime type safety)
+// WebSocket payload DTOs (runtime type safety + Swagger schema reflection)
 export * from './realtime/dto/ws-payloads.dto';
 
 // Data-access services
