@@ -150,11 +150,15 @@ export class ObservabilityLoggerService implements LoggerService {
 
     let err: Error | undefined;
     if (errorStack) {
-      err = new Error(JSON.stringify(message));
+      err = new Error(
+        typeof message === 'string' ? message : JSON.stringify(message),
+      );
       err.stack = errorStack;
     }
 
-    this.write(level, JSON.stringify(message), {}, err, label);
+    const messageStr =
+      typeof message === 'string' ? message : JSON.stringify(message);
+    this.write(level, messageStr, {}, err, label);
   }
 
   private write(
@@ -201,7 +205,11 @@ export class ObservabilityLoggerService implements LoggerService {
         name: error.name,
         message: error.message,
         // Emit only first stack frame to avoid log bloat; use Sentry for full traces
-        stack: error.stack?.split('\n').slice(0, 3).join(String.raw`\n`) ?? '',
+        stack:
+          error.stack
+            ?.split('\n')
+            .slice(0, 3)
+            .join(String.raw`\n`) ?? '',
       };
     }
 

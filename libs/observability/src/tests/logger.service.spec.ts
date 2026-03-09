@@ -97,7 +97,7 @@ describe('ObservabilityLoggerService', () => {
     });
 
     it('errorCtx handles non-Error unknown gracefully', () => {
-      service.errorCtx('Unknown failure', 'not an error object', {});
+      service.errorCtx('Unknown failure', 'not an error object' as unknown as Error, {});
       expect(stderrSpy).toHaveBeenCalled();
     });
 
