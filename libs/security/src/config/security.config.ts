@@ -99,4 +99,20 @@ export default registerAs('security', () => ({
       10,
     ),
   },
+
+  /**
+   * Maximum accepted request body size.
+   * Accepts human-readable strings: "2mb", "500kb", "1024" (bytes).
+   * Enforced by RequestSizeLimitMiddleware before body is parsed.
+   */
+  maxBodySize: process.env['MAX_BODY_SIZE'] ?? '2mb',
+
+  payloadSanitization: {
+    /**
+     * Enable payload sanitization middleware.
+     * Detects SQL injection, NoSQL operator injection, and XSS fragments.
+     * Disable only in environments where input is fully trusted (e.g., internal tooling).
+     */
+    enabled: process.env['PAYLOAD_SANITIZATION_ENABLED'] !== 'false',
+  },
 }));

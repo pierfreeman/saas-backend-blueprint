@@ -62,6 +62,14 @@ export const envValidationSchema = Joi.object({
   IP_DENYLIST_ENABLED: Joi.string().valid('true', 'false').default('false'),
   IP_DENYLIST: Joi.string().allow('').optional(),
 
+  // Request Body Size Limit
+  MAX_BODY_SIZE: Joi.string().default('2mb'),
+
+  // Payload Sanitization (SQL/NoSQL/XSS pattern detection)
+  PAYLOAD_SANITIZATION_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('true'),
+
   // WebSocket Rate Limiting
   WS_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('true'),
   WS_RATE_LIMIT_MAX_MESSAGES_PER_MINUTE: Joi.number()

@@ -6,6 +6,10 @@ import { LegalAuditModule } from '@libs/legal-audit';
 import { EventsModule } from '@libs/events';
 import { SecurityModule } from '@libs/security';
 import {
+  PayloadSanitizationMiddleware,
+  RequestSizeLimitMiddleware,
+} from '@libs/security';
+import {
   MiddlewareConsumer,
   Module,
   NestModule,
@@ -51,6 +55,17 @@ import { NotificationsAppModule } from './notifications/notifications-app.module
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
+      // 1. Reject oversized payloads before body is parsed (fast path)
+      .apply(RequestSizeLimitMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+    consumer
+      // 2. Sanitize SQL/NoSQL/XSS patterns in body, query, params
+      .apply(PayloadSanitizationMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+    consumer
+      // 3. Resolve tenant context from JWT/header (business logic)
       .apply(TenantMiddleware)
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }

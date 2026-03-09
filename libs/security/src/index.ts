@@ -11,6 +11,8 @@ export * from './services/brute-force.service';
 // Middleware
 export * from './middleware/cors.middleware';
 export * from './middleware/helmet.middleware';
+export * from './middleware/payload-sanitization.middleware';
+export * from './middleware/request-size-limit.middleware';
 
 // Guards
 export * from './guards/brute-force.guard';

@@ -6,6 +6,8 @@ import { RateLimitService } from './services/rate-limit.service';
 import { BruteForceService } from './services/brute-force.service';
 import { CorsMiddleware } from './middleware/cors.middleware';
 import { HelmetMiddleware } from './middleware/helmet.middleware';
+import { PayloadSanitizationMiddleware } from './middleware/payload-sanitization.middleware';
+import { RequestSizeLimitMiddleware } from './middleware/request-size-limit.middleware';
 import { RateLimitInterceptor } from './interceptors/rate-limit.interceptor';
 import { CsrfInterceptor } from './interceptors/csrf.interceptor';
 import { SecurityAuditInterceptor } from './interceptors/security-audit.interceptor';
@@ -54,6 +56,8 @@ import { WsJwtGuard } from './guards/ws-jwt.guard';
     // Middleware (injectable for DI, applied in app.module.ts)
     CorsMiddleware,
     HelmetMiddleware,
+    RequestSizeLimitMiddleware,
+    PayloadSanitizationMiddleware,
     // Interceptors
     RateLimitInterceptor,
     CsrfInterceptor,
@@ -68,6 +72,8 @@ import { WsJwtGuard } from './guards/ws-jwt.guard';
     BruteForceService,
     CorsMiddleware,
     HelmetMiddleware,
+    RequestSizeLimitMiddleware,
+    PayloadSanitizationMiddleware,
     RateLimitInterceptor,
     CsrfInterceptor,
     SecurityAuditInterceptor,
