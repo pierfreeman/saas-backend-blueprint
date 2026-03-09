@@ -113,8 +113,8 @@ export class TasksController {
   })
   async createHeavyJob(
     @Body() createTaskDto: CreateTaskDto,
-    @CurrentTenant('tenantId') tenantId = 'default',
     @Req() req: Request,
+    @CurrentTenant('tenantId') tenantId = 'default',
   ) {
     const userId = (req.user as RequestUser | undefined)?.sub;
 

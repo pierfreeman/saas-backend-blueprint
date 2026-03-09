@@ -1,3 +1,6 @@
+import { PrismaBusinessService } from '@libs/prisma-business';
+import { Logger, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ConnectedSocket,
   MessageBody,
@@ -8,28 +11,18 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Logger, UseGuards } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import * as jwt from 'jsonwebtoken';
 import { JwksClient, SigningKey } from 'jwks-rsa';
-import { NotificationsService } from '../../data-access/notifications.service';
+import { Server, Socket } from 'socket.io';
 import { NotificationsPubSubService } from '../../data-access/notifications-pubsub.service';
+import { NotificationsService } from '../../data-access/notifications.service';
 import {
-  RealtimeEvent,
   NotificationMessage,
+  RealtimeEvent,
 } from '../../types/notification.types';
-import {
-  NotificationMessageDto,
-  UnreadCountDto,
-  WsGetAllDto,
-  WsMarkReadDto,
-  WsMarkAllReadDto,
-} from '../dto/ws-payloads.dto';
 import { WsJwtGuard } from '../guards/ws-jwt.guard';
-import { PrismaBusinessService } from '@libs/prisma-business';
-import { ConfigService } from '@nestjs/config';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;

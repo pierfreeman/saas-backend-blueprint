@@ -62,7 +62,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (status >= 500) {
       this.logger.error(
         label,
-        exception instanceof Error ? exception.stack : String(exception),
+        exception instanceof Error
+          ? exception.stack
+          : JSON.stringify(exception),
       );
     } else if (!SILENT_PATHS.has(request.url)) {
       this.logger.warn(label);

@@ -44,7 +44,7 @@ export class ActivityLogService {
     this.persist(event).catch((err: unknown) => {
       this.logger.error(
         `logActivity unhandled rejection for "${event.action}": ${
-          err instanceof Error ? err.message : String(err)
+          err instanceof Error ? err.message : JSON.stringify(err)
         }`,
       );
     });
@@ -77,7 +77,7 @@ export class ActivityLogService {
     } catch (error) {
       this.logger.error(
         `Failed to persist activity log for action "${event.action}": ${
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error ? error.message : JSON.stringify(error)
         }`,
       );
     }
@@ -93,13 +93,7 @@ export class ActivityLogService {
     orgId: string,
     options: ActivityLogQueryOptions = {},
   ): Promise<PaginatedActivityLogResult> {
-    const {
-      limit = 100,
-      offset = 0,
-      action,
-      fromDate,
-      toDate,
-    } = options;
+    const { limit = 100, offset = 0, action, fromDate, toDate } = options;
 
     const where: Prisma.ActivityLogWhereInput = {
       orgId,

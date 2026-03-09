@@ -1,10 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { BillingStatus } from '@prisma/client';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 import { BillingStatus as DomainBillingStatus } from '../../domain/enums/billing-status.enum';

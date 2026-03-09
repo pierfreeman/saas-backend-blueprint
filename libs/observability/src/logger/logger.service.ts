@@ -107,7 +107,7 @@ export class ObservabilityLoggerService implements LoggerService {
    */
   errorCtx(
     message: string,
-    error: Error | unknown,
+    error: Error,
     meta: LogContext,
     label?: string,
   ): void {
@@ -139,7 +139,8 @@ export class ObservabilityLoggerService implements LoggerService {
     const [first, ...rest] = params;
     // NestJS standard: last string param is the class-name context label
     const labelFromFirst = typeof first === 'string' ? first : undefined;
-    const label = labelFromFirst ?? (typeof rest[0] === 'string' ? rest[0] : undefined);
+    const label =
+      labelFromFirst ?? (typeof rest[0] === 'string' ? rest[0] : undefined);
 
     // Error stack comes as second arg from NestJS internal logger
     const errorStack =
@@ -149,11 +150,11 @@ export class ObservabilityLoggerService implements LoggerService {
 
     let err: Error | undefined;
     if (errorStack) {
-      err = new Error(String(message));
+      err = new Error(JSON.stringify(message));
       err.stack = errorStack;
     }
 
-    this.write(level, String(message), {}, err, label);
+    this.write(level, JSON.stringify(message), {}, err, label);
   }
 
   private write(
@@ -200,7 +201,7 @@ export class ObservabilityLoggerService implements LoggerService {
         name: error.name,
         message: error.message,
         // Emit only first stack frame to avoid log bloat; use Sentry for full traces
-        stack: error.stack?.split('\n').slice(0, 3).join('\\n') ?? '',
+        stack: error.stack?.split('\n').slice(0, 3).join(String.raw`\n`) ?? '',
       };
     }
 

@@ -31,7 +31,7 @@ export class SentryService {
    * @example
    * this.sentry.captureException(err, { tenantId, orgId, actorRole });
    */
-  captureException(exception: Error | unknown, context?: SentryContext): void {
+  captureException(exception: unknown, context?: SentryContext): void {
     Sentry.withScope((scope) => {
       this.applyContext(scope, context);
       Sentry.captureException(exception);

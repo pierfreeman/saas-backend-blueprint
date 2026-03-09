@@ -36,8 +36,8 @@ COPY --from=builder /workspace/node_modules ./node_modules
 COPY --from=builder /workspace/dist/apps/api .
 
 # Generate Prisma client for this exact runtime (same as saas-backend-blueprint approach)
-RUN npx prisma generate
-RUN npx prisma generate --schema prisma/schema.legal.prisma
+RUN npx prisma generate && \
+    npx prisma generate --schema prisma/schema.legal.prisma
 
 # Drop root privileges. The built-in "node" user (uid 1000) ships with the
 # official node image. Ownership is set before the USER switch so that the

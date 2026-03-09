@@ -5,6 +5,8 @@ import { ObservabilityLoggerService } from '../logger/logger.service';
  * Span options that mirror the Datadog tracer `StartSpanOptions` shape.
  * Replace with real types from `dd-trace` when wiring up.
  */
+export type TagValue = string | number | boolean;
+
 export interface SpanOptions {
   resource?: string;
   tags?: Record<string, string | number>;
@@ -15,7 +17,7 @@ export interface SpanOptions {
  * Span handle returned by `startSpan`.
  */
 export interface ISpan {
-  setTag(key: string, value: string | number | boolean): void;
+  setTag(key: string, value: TagValue): void;
   finish(): void;
 }
 
@@ -78,7 +80,7 @@ export class DatadogApmService {
     );
 
     return {
-      setTag: (_key: string, _value: string | number | boolean) => {
+      setTag: (_key: string, _value: TagValue) => {
         /* PLACEHOLDER */
       },
       finish: () => {
@@ -91,9 +93,8 @@ export class DatadogApmService {
    * Add tags to the active (current) span.
    * No-op until dd-trace is integrated.
    */
-  setTagsOnActiveSpan(tags: Record<string, string | number | boolean>): void {
+  setTagsOnActiveSpan(_tags: Record<string, TagValue>): void {
     // PLACEHOLDER — replace with: tracer.scope().active()?.addTags(tags)
-    void tags;
   }
 
   /**

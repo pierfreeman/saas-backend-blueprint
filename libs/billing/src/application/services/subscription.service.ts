@@ -125,8 +125,8 @@ export class SubscriptionService {
       seats: priceItem?.quantity ?? null,
       seatLimit: null, // Not exposed natively by Stripe; set via product metadata if needed
       periodStart:
-        periodStart != null ? new Date(periodStart * 1000) : new Date(),
-      periodEnd: periodEnd != null ? new Date(periodEnd * 1000) : new Date(),
+        periodStart == null ? new Date() : new Date(periodStart * 1000),
+      periodEnd: periodEnd == null ? new Date() : new Date(periodEnd * 1000),
     };
   }
 
@@ -282,7 +282,7 @@ export class SubscriptionService {
     const subscriptionId =
       typeof session.subscription === 'string'
         ? session.subscription
-        : ((session.subscription as Stripe.Subscription | null)?.id ?? null);
+        : (session.subscription?.id ?? null);
 
     const updateData: {
       billingStatus: PrismaBillingStatus;

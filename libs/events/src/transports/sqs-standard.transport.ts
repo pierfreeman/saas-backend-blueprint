@@ -42,13 +42,13 @@ export class SqsStandardTransport implements IEventTransport, OnModuleInit {
 
     this.queueUrl = process.env['SQS_STANDARD_QUEUE_URL'] ?? '';
 
-    if (!this.queueUrl) {
-      this.logger.warn(
-        'SQS_STANDARD_QUEUE_URL is not configured — Standard events will be dropped',
-      );
-    } else {
+    if (this.queueUrl) {
       this.logger.log(
         `SQS Standard Transport ready | region: ${region} | queue: ${this.queueUrl}`,
+      );
+    } else {
+      this.logger.warn(
+        'SQS_STANDARD_QUEUE_URL is not configured — Standard events will be dropped',
       );
     }
   }

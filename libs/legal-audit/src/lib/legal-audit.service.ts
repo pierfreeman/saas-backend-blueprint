@@ -61,7 +61,7 @@ export class LegalAuditService {
     } catch (error) {
       this.logger.error(
         `Failed to persist legal audit event "${event.eventType}": ${
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error ? error.message : JSON.stringify(error)
         }`,
       );
     }

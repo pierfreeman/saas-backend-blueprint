@@ -45,7 +45,7 @@ import { AppModule } from './app.module';
 })().catch((error: unknown) => {
   Sentry.captureException(error);
   process.stderr.write(
-    `Worker-Compute-A failed to start: ${error instanceof Error ? error.stack : String(error)}\n`,
+    `Worker-Compute-A failed to start: ${error instanceof Error ? error.stack : JSON.stringify(error)}\n`,
   );
   process.exit(1);
 });

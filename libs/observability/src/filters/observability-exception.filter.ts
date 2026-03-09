@@ -95,7 +95,9 @@ export class ObservabilityExceptionFilter implements ExceptionFilter {
     if (status >= 500) {
       this.logger.errorCtx(
         label,
-        exception instanceof Error ? exception : new Error(String(exception)),
+        exception instanceof Error
+          ? exception
+          : new Error(JSON.stringify(exception)),
         meta,
         ObservabilityExceptionFilter.name,
       );

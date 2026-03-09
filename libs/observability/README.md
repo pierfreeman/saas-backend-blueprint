@@ -222,7 +222,7 @@ export class WorkerService {
 // In main.ts of worker apps
 bootstrap().catch((error: unknown) => {
   Sentry.captureException(error);
-  process.stderr.write(`Fatal: ${String(error)}\n`);
+  process.stderr.write(`Fatal: ${JSON.stringify(error)}\n`);
   process.exit(1);
 });
 ```

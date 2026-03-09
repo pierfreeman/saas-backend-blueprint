@@ -43,13 +43,13 @@ export class SqsFifoTransport implements IEventTransport, OnModuleInit {
 
     this.queueUrl = process.env['SQS_FIFO_QUEUE_URL'] ?? '';
 
-    if (!this.queueUrl) {
-      this.logger.warn(
-        'SQS_FIFO_QUEUE_URL is not configured — FIFO events will be dropped',
-      );
-    } else {
+    if (this.queueUrl) {
       this.logger.log(
         `SQS FIFO Transport ready | region: ${region} | queue: ${this.queueUrl}`,
+      );
+    } else {
+      this.logger.warn(
+        'SQS_FIFO_QUEUE_URL is not configured — FIFO events will be dropped',
       );
     }
   }
@@ -73,7 +73,7 @@ export class SqsFifoTransport implements IEventTransport, OnModuleInit {
 
     // MessageDeduplicationId: uses eventId to prevent duplicates
     // within the 5-minute SQS FIFO deduplication window.
-    const deduplicationId = event.eventId!;
+    const deduplicationId = event.eventId ?? messageGroupId;
 
     const command = new SendMessageCommand({
       QueueUrl: this.queueUrl,
