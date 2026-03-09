@@ -2,7 +2,6 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ObservabilityExceptionFilter } from '../filters/observability-exception.filter';
 import { ObservabilityLoggerService } from '../logger/logger.service';
-import { SentryService } from '../sentry/sentry.service';
 
 function makeHost(
   overrides: {
@@ -30,7 +29,6 @@ function makeHost(
 describe('ObservabilityExceptionFilter', () => {
   let filter: ObservabilityExceptionFilter;
   let logger: jest.Mocked<ObservabilityLoggerService>;
-  let sentry: jest.Mocked<SentryService>;
 
   beforeEach(async () => {
     const mockLogger: jest.Mocked<Partial<ObservabilityLoggerService>> = {
@@ -44,17 +42,10 @@ describe('ObservabilityExceptionFilter', () => {
       debug: jest.fn(),
     };
 
-    const mockSentry: jest.Mocked<SentryService> = {
-      captureException: jest.fn(),
-      captureMessage: jest.fn(),
-      withScope: jest.fn(),
-    } as unknown as jest.Mocked<SentryService>;
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ObservabilityExceptionFilter,
         { provide: ObservabilityLoggerService, useValue: mockLogger },
-        { provide: SentryService, useValue: mockSentry },
       ],
     }).compile();
 
@@ -62,7 +53,6 @@ describe('ObservabilityExceptionFilter', () => {
       ObservabilityExceptionFilter,
     );
     logger = module.get(ObservabilityLoggerService);
-    sentry = module.get(SentryService);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -77,7 +67,7 @@ describe('ObservabilityExceptionFilter', () => {
     expect(statusCode).toBe(500);
   });
 
-  it('logs error and calls Sentry for 5xx', () => {
+  it('logs errorCtx for 5xx with the original Error instance', () => {
     const host = makeHost({
       tenantContext: { tenantId: 'tid-1', userId: 'user-1', role: 'OWNER' },
     });
@@ -85,23 +75,10 @@ describe('ObservabilityExceptionFilter', () => {
     filter.catch(err, host as any);
 
     expect(logger.errorCtx).toHaveBeenCalledTimes(1);
-    expect(sentry.captureException).toHaveBeenCalledTimes(1);
-
-    const [capturedError, sentryContext] =
-      sentry.captureException.mock.calls[0];
-    expect(capturedError).toBe(err);
-    expect((sentryContext as Record<string, string>)['tenantId']).toBe('tid-1');
-  });
-
-  it('attaches actorRole and tenantId to Sentry context', () => {
-    const host = makeHost({
-      tenantContext: { tenantId: 'tid-multi', role: 'MEMBER' },
-    });
-    filter.catch(new Error('server error'), host as any);
-
-    const [, sentryCtx] = sentry.captureException.mock.calls[0];
-    expect((sentryCtx as Record<string, string>)['actorRole']).toBe('MEMBER');
-    expect((sentryCtx as Record<string, string>)['tenantId']).toBe('tid-multi');
+    const [, capturedErr, meta] = logger.errorCtx.mock.calls[0];
+    expect(capturedErr).toBe(err);
+    expect((meta as Record<string, string>)['tenantId']).toBe('tid-1');
+    expect((meta as Record<string, string>)['actorRole']).toBe('OWNER');
   });
 
   it('returns correct status code for 400 HttpException', () => {
@@ -115,7 +92,7 @@ describe('ObservabilityExceptionFilter', () => {
     expect(statusCode).toBe(400);
   });
 
-  it('warns (not errors) for 4xx and does NOT send to Sentry', () => {
+  it('warns (not errors) for 4xx and does NOT invoke logger.errorCtx', () => {
     const host = makeHost({ url: '/api/missing' });
     filter.catch(
       new HttpException('Not found', HttpStatus.NOT_FOUND),
@@ -124,15 +101,14 @@ describe('ObservabilityExceptionFilter', () => {
 
     expect(logger.warnCtx).toHaveBeenCalledTimes(1);
     expect(logger.errorCtx).not.toHaveBeenCalled();
-    expect(sentry.captureException).not.toHaveBeenCalled();
   });
 
-  it('silently suppresses /favicon.ico (no logs, no Sentry)', () => {
+  it('silently suppresses /favicon.ico (no logs)', () => {
     const host = makeHost({ url: '/favicon.ico' });
     filter.catch(new HttpException('Not found', 404), host as any);
 
     expect(logger.warnCtx).not.toHaveBeenCalled();
-    expect(sentry.captureException).not.toHaveBeenCalled();
+    expect(logger.errorCtx).not.toHaveBeenCalled();
   });
 
   it('returns consistent JSON error shape', () => {

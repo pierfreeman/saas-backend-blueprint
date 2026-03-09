@@ -27,7 +27,12 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import { AllExceptionsFilter } from '@libs/common';
+import {
+  ObservabilityExceptionFilter,
+  ObservabilityLoggerService,
+  RequestLoggingInterceptor,
+  SentryInterceptor,
+} from '@libs/observability';
 // E2e bootstrapping: importing the app module for NestFactory.create() is intentional.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import { AppModule } from '@apps/api/app/app.module';
@@ -54,7 +59,13 @@ export async function bootstrapTestApp(): Promise<INestApplication> {
     }),
   );
 
-  app.useGlobalFilters(new AllExceptionsFilter());
+  // Observability: structured logging + Sentry filter (mirrors main.ts)
+  app.useLogger(app.get(ObservabilityLoggerService));
+  app.useGlobalFilters(app.get(ObservabilityExceptionFilter));
+  app.useGlobalInterceptors(
+    app.get(RequestLoggingInterceptor),
+    app.get(SentryInterceptor),
+  );
 
   // Init without listening — supertest provides its own HTTP server
   await app.init();

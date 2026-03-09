@@ -1,6 +1,8 @@
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
+  HttpStatus,
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
@@ -47,10 +49,15 @@ export class RequestLoggingInterceptor implements NestInterceptor {
         next: () => {
           this.logRequest(req, res.statusCode, Date.now() - startAt);
         },
-        error: () => {
-          // Error details are logged by ObservabilityExceptionFilter;
-          // log the request metadata here so it's correlated in the same trace.
-          this.logRequest(req, res.statusCode || 500, Date.now() - startAt);
+        error: (err: unknown) => {
+          // Derive the real status from the exception — at this point in the
+          // pipeline the exception filter has not yet set res.statusCode, so
+          // reading res.statusCode would always return Express's default of 200.
+          const status =
+            err instanceof HttpException
+              ? err.getStatus()
+              : HttpStatus.INTERNAL_SERVER_ERROR;
+          this.logRequest(req, status, Date.now() - startAt);
         },
       }),
     );

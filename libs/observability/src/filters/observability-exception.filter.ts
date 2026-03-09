@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ObservabilityLoggerService } from '../logger/logger.service';
-import { SentryService } from '../sentry/sentry.service';
 import { LogContext } from '../logger/logger.interfaces';
 
 interface RequestWithContext extends Request {
@@ -47,16 +46,20 @@ const SILENT_PATHS = new Set([
  *   - SILENT_PATHS → suppressed
  *   - other 4xx → WARN  (no stack)
  *
+ * Sentry capture
+ * ────────────────────────────────────────────────────────────────────────────
+ * This filter intentionally does NOT capture to Sentry. That is the
+ * responsibility of SentryInterceptor, which runs earlier in the pipeline and
+ * has access to the same request context. Separating the concerns prevents
+ * duplicate Sentry events when both interceptor and filter are registered.
+ *
  * Registration in main.ts (replaces AllExceptionsFilter):
  *   app.useGlobalFilters(app.get(ObservabilityExceptionFilter));
  */
 @Catch()
 @Injectable()
 export class ObservabilityExceptionFilter implements ExceptionFilter {
-  constructor(
-    private readonly logger: ObservabilityLoggerService,
-    private readonly sentry: SentryService,
-  ) {}
+  constructor(private readonly logger: ObservabilityLoggerService) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -96,12 +99,6 @@ export class ObservabilityExceptionFilter implements ExceptionFilter {
         meta,
         ObservabilityExceptionFilter.name,
       );
-      this.sentry.captureException(exception, {
-        tenantId: meta.tenantId,
-        orgId: meta.tenantId,
-        actorRole: meta.actorRole,
-        userId: meta.userId,
-      });
     } else if (!SILENT_PATHS.has(request.url)) {
       this.logger.warnCtx(label, meta, ObservabilityExceptionFilter.name);
     }
