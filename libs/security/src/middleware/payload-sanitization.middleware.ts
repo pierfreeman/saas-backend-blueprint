@@ -51,7 +51,10 @@ const XSS_PATTERNS: RegExp[] = [
   // Inline DOM event handlers (onclick=, onload=, onerror=, …)
   /on(?:abort|blur|change|click|dblclick|error|focus|input|keydown|keypress|keyup|load|mousedown|mouseenter|mouseleave|mousemove|mouseout|mouseover|mouseup|reset|resize|scroll|select|submit|unload)\s*=/gi,
   // Dangerous embeddable elements
-  /<\s*\/?\s*(?:iframe|object|embed|applet|meta|link|base)\b[^>]*>/gi,
+  // NOTE: \s*(?:\/\s*)? instead of \s*\/?\s* to prevent super-linear
+  // backtracking: two adjacent \s* groups competing over the same spaces
+  // would create O(n²) backtracking on crafted inputs (ReDoS).
+  /<\s*(?:\/\s*)?(?:iframe|object|embed|applet|meta|link|base)\b[^>]*>/gi,
   // Expression() in CSS (used in old IE)
   /expression\s*\(/gi,
 ];
