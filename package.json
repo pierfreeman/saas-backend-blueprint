@@ -1,6 +1,6 @@
 {
   "name": "@saas-backend/source",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "scripts": {
     "build": "nx run-many --target=build --projects=api,worker-compute-a,worker-compute-b --parallel=1",
