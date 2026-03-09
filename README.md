@@ -1,8 +1,6 @@
 # saas-backend-blueprint
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=pierfreeman_saas-backend-blueprint&metric=alert_status&token=e7e95a4604df254e30ff23cda7a716fd7306d87d)](https://sonarcloud.io/summary/new_code?id=pierfreeman_saas-backend-blueprint)
-
-[![CI](https://github.com/pierfreeman/saas-backend-blueprint/actions/workflows/ci.yml/badge.svg)](https://github.com/pierfreeman/saas-backend-blueprint/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=pierfreeman_saas-backend-blueprint&metric=alert_status&token=e7e95a4604df254e30ff23cda7a716fd7306d87d)](https://sonarcloud.io/summary/new_code?id=pierfreeman_saas-backend-blueprint) [![CI](https://github.com/pierfreeman/saas-backend-blueprint/actions/workflows/ci.yml/badge.svg)](https://github.com/pierfreeman/saas-backend-blueprint/actions/workflows/ci.yml)
 
 Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) monorepo.
 
