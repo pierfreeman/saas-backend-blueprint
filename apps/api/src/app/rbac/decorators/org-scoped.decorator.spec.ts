@@ -9,7 +9,9 @@ function applyToClass(decorator: ClassDecorator): boolean | undefined {
 
 function applyToMethod(decorator: MethodDecorator): boolean | undefined {
   class Target {
-    handler() {}
+    handler() {
+      return;
+    }
   }
   const descriptor = Object.getOwnPropertyDescriptor(
     Target.prototype,

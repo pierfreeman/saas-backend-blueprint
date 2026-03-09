@@ -12,7 +12,9 @@ import { Reflector } from '@nestjs/core';
 // -----------------------------------------------------------------------
 function applyToMethod(decorator: MethodDecorator) {
   class Target {
-    handler() {}
+    handler() {
+      return;
+    }
   }
   const descriptor = Object.getOwnPropertyDescriptor(
     Target.prototype,

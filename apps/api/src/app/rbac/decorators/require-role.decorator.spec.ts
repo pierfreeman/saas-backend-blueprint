@@ -6,7 +6,9 @@ function applyToMethod(
   decorator: MethodDecorator,
 ): MembershipRole[] | undefined {
   class Target {
-    handler() {}
+    handler() {
+      return;
+    }
   }
   const descriptor = Object.getOwnPropertyDescriptor(
     Target.prototype,
@@ -48,10 +50,14 @@ describe('RequireRole decorator', () => {
 
   it('each invocation is independent (no shared state)', () => {
     class A {
-      handlerA() {}
+      handlerA() {
+        return;
+      }
     }
     class B {
-      handlerB() {}
+      handlerB() {
+        return;
+      }
     }
     const decA = RequireRole('OWNER');
     const decB = RequireRole('MEMBER');

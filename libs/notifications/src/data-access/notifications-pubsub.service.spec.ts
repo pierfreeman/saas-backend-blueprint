@@ -255,7 +255,7 @@ describe('NotificationsPubSubService', () => {
       const [publisher] = getInstances();
       const logSpy = jest
         .spyOn((service as any).logger, 'log')
-        .mockImplementation(() => {});
+        .mockImplementation(jest.fn());
 
       const connectCb = getListener(publisher, 'connect');
       expect(connectCb).toBeDefined();
@@ -270,7 +270,7 @@ describe('NotificationsPubSubService', () => {
       const [, subscriber] = getInstances();
       const logSpy = jest
         .spyOn((service as any).logger, 'log')
-        .mockImplementation(() => {});
+        .mockImplementation(jest.fn());
 
       const connectCb = getListener(subscriber, 'connect');
       expect(connectCb).toBeDefined();
@@ -285,7 +285,7 @@ describe('NotificationsPubSubService', () => {
       const [publisher] = getInstances();
       const errorSpy = jest
         .spyOn((service as any).logger, 'error')
-        .mockImplementation(() => {});
+        .mockImplementation(jest.fn());
 
       const errorCb = getListener(publisher, 'error') as
         | ((e: Error) => void)
@@ -303,7 +303,7 @@ describe('NotificationsPubSubService', () => {
       const [, subscriber] = getInstances();
       const errorSpy = jest
         .spyOn((service as any).logger, 'error')
-        .mockImplementation(() => {});
+        .mockImplementation(jest.fn());
 
       const errorCb = getListener(subscriber, 'error') as
         | ((e: Error) => void)
@@ -326,7 +326,7 @@ describe('NotificationsPubSubService', () => {
       const handler = jest.fn();
       const errorSpy = jest
         .spyOn((service as any).logger, 'error')
-        .mockImplementation(() => {});
+        .mockImplementation(jest.fn());
 
       service.subscribeToGlobal(handler);
 
