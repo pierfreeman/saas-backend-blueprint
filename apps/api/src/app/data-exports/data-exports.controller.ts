@@ -151,10 +151,13 @@ export class DataExportsController {
   ): Promise<ExportStatusDto> {
     const job = await this.dataExportsService.getExportStatus(jobId, orgId);
 
+    // Parse result JSON to extract downloadUrl if available
+    const result = job.result as { downloadUrl?: string } | null;
+
     return {
       id: job.id,
       status: job.status,
-      downloadUrl: job.result?.downloadUrl,
+      downloadUrl: result?.downloadUrl,
       error: job.error ?? undefined,
       createdAt: job.createdAt,
       finishedAt: job.finishedAt,

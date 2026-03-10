@@ -229,7 +229,7 @@ export class WorkerController {
         metadata: {
           jobId,
           format,
-          recordCount: exportData.summary.totalRecords,
+          recordCount: (exportData as any).summary?.totalRecords || 0,
         },
       });
 
