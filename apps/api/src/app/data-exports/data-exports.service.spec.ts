@@ -9,7 +9,7 @@ import { ExportFormat } from './dto/create-export.dto';
 
 describe('DataExportsService', () => {
   let service: DataExportsService;
-  let prisma: jest.Mocked<PrismaBusinessService>;
+  let prisma: any;
   let eventBus: jest.Mocked<EventBusService>;
   let activityLog: jest.Mocked<ActivityLogService>;
 
@@ -125,9 +125,7 @@ describe('DataExportsService', () => {
           orgId: 'org-456',
           format: ExportFormat.JSON,
         },
-        metadata: expect.objectContaining({
-          source: 'data-exports.service',
-        }),
+        timestamp: expect.any(Date),
       });
     });
 

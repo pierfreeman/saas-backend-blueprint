@@ -72,10 +72,7 @@ export class DataExportsService {
         orgId,
         format,
       },
-      metadata: {
-        timestamp: new Date().toISOString(),
-        source: 'data-exports.service',
-      },
+      timestamp: new Date(),
     });
 
     this.logger.log(`Data export job created | jobId: ${job.id}`);
