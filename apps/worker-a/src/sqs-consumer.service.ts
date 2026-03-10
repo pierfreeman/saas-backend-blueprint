@@ -11,7 +11,7 @@ import {
   Message,
 } from '@aws-sdk/client-sqs';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
-import { WorkerController, HeavyJobPayload } from './worker.controller';
+import { WorkerController, HeavyJobPayload, DataExportPayload } from './worker.controller';
 
 /**
  * SqsConsumerService
@@ -172,6 +172,12 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
       case DOMAIN_EVENTS.HEAVY_JOB_CREATED:
         await this.workerController.handleHeavyJobCreated(
           event as unknown as DomainEvent<HeavyJobPayload>,
+        );
+        break;
+
+      case DOMAIN_EVENTS.DATA_EXPORT_REQUESTED:
+        await this.workerController.handleDataExportRequested(
+          event as unknown as DomainEvent<DataExportPayload>,
         );
         break;
 

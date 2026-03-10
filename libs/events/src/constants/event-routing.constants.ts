@@ -35,6 +35,11 @@ export const DOMAIN_EVENTS = {
   HEAVY_JOB_COMPLETED: 'heavy.job.completed',
   HEAVY_JOB_FAILED: 'heavy.job.failed',
 
+  // Data export (Standard queue)
+  DATA_EXPORT_REQUESTED: 'data.export.requested',
+  DATA_EXPORT_COMPLETED: 'data.export.completed',
+  DATA_EXPORT_FAILED: 'data.export.failed',
+
   // Billing (FIFO queue — strict ordering required)
   BILLING_CHECKOUT_COMPLETED: 'billing.checkout.completed',
   BILLING_SUBSCRIPTION_CREATED: 'billing.subscription.created',

@@ -22,6 +22,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BillingAppModule } from './billing/billing-app.module';
+import { DataExportsModule } from './data-exports/data-exports.module';
 import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { HealthModule } from './health/health.module';
 import { MembershipsModule } from './memberships/memberships.module';
@@ -48,6 +49,7 @@ import { TasksModule } from './tasks/tasks.module';
     TasksModule,
     ActivityLogAppModule,
     BillingAppModule,
+    DataExportsModule,
     FeatureFlagsModule,
     NotificationsAppModule,
   ],

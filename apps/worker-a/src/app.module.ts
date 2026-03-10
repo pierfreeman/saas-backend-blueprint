@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ActivityLogModule } from '@libs/activity-log';
 import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
 import { ConfigModule } from '@libs/config';
@@ -19,6 +20,7 @@ import { SqsConsumerService } from './sqs-consumer.service';
     PrismaBusinessModule,
     RedisModule,
     EventsModule,
+    ActivityLogModule,
   ],
   providers: [WorkerController, SqsConsumerService],
 })

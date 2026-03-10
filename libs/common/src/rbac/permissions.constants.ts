@@ -19,6 +19,9 @@ export const PERMISSIONS = {
   // Analytics
   ANALYTICS_VIEW: 'analytics.view',
   ANALYTICS_EXPORT: 'analytics.export',
+
+  // Data Export (GDPR/ISO27001 compliance)
+  ORG_DATA_EXPORT: 'org.data.export',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

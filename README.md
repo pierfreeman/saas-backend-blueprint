@@ -30,6 +30,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 - ⚡ Async background jobs — create-then-enqueue, real-time status via WebSocket
 - 🔔 In-app notifications — Socket.IO namespace, REST API, Redis pub/sub fan-out
 - 📋 Two-tier audit logging — tenant-visible activity log + immutable legal audit trail (ISO 27001 / GDPR)
+- 📦 Data export — GDPR/ISO27001 compliance exports for organization owners (async job processing)
 - 🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
 - 📊 Structured observability — JSON logging, Sentry, Prometheus/Datadog stubs
 
