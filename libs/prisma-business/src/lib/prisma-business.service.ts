@@ -77,13 +77,13 @@ export class PrismaBusinessService
         typeof key === 'string' && !key.startsWith('_') && !key.startsWith('$'),
     );
 
-    await Promise.all(
-      models.map((modelKey) => {
-        const model = this[modelKey as keyof this] as {
-          deleteMany?: () => Promise<unknown>;
-        };
-        return model.deleteMany ? model.deleteMany() : Promise.resolve();
-      }),
-    );
+    for (const modelKey of models) {
+      const model = this[modelKey as keyof this] as {
+        deleteMany?: () => Promise<unknown>;
+      };
+      if (model.deleteMany) {
+        await model.deleteMany();
+      }
+    }
   }
 }
