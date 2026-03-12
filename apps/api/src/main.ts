@@ -214,6 +214,7 @@ const config = new DocumentBuilder()
   .addTag('Activity Log', 'Activity log query endpoints')
   .addTag('Billing', 'Subscription and billing management endpoints')
   .addTag('Notifications', 'In-app notification management endpoints')
+  .addTag('Storage', 'File upload and management endpoints')
   .addTag('Tasks', 'Task management and job status endpoints')
   .build();
 
