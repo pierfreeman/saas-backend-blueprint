@@ -40,17 +40,17 @@ services:
       timeout: 5s
       retries: 10
 
-  # ─── LocalStack (SQS — Test) ───────────────────────────────────────────────────
+  # ─── LocalStack (SQS, S3 — Test) ──────────────────────────────────────────────
   localstack-test:
     image: localstack/localstack:3
     ports:
       - '4567:4566'
     environment:
-      SERVICES: sqs
+      SERVICES: sqs,s3
       DEFAULT_REGION: us-east-1
       PERSISTENCE: 0
     volumes:
-      - ./scripts/localstack-test-init.sh:/etc/localstack/init/ready.d/01-sqs.sh:ro
+      - ./scripts/localstack-test-init.sh:/etc/localstack/init/ready.d/01-init.sh:ro
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
       interval: 5s
