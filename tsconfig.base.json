@@ -113,6 +113,12 @@
       ],
       "@libs/storage/*": [
         "libs/storage/src/*"
+      ],
+      "@libs/email": [
+        "libs/email/src/index.ts"
+      ],
+      "@libs/email/*": [
+        "libs/email/src/*"
       ]
     }
   },

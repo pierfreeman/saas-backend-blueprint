@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>System Alert</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  {{#if recipientName}}
+  <p>Hello {{recipientName}},</p>
+  {{else}}
+  <p>Hello,</p>
+  {{/if}}
+
+  <div style="border-left: 4px solid #EF4444; padding: 12px 16px; background: #FEF2F2; margin: 20px 0;">
+    <p style="margin: 0; font-weight: bold; color: #991B1B;">{{alertType}}</p>
+    <p style="margin: 8px 0 0; color: #7F1D1D;">{{message}}</p>
+  </div>
+
+  {{#if orgName}}
+  <p style="color: #666; font-size: 14px;">Organisation: <strong>{{orgName}}</strong></p>
+  {{/if}}
+
+  {{#if timestamp}}
+  <p style="color: #666; font-size: 14px;">Time: {{timestamp}}</p>
+  {{/if}}
+
+  <p style="color: #666; font-size: 12px; margin-top: 40px;">
+    This is an automated system alert. Please do not reply to this email.
+  </p>
+</body>
+</html>

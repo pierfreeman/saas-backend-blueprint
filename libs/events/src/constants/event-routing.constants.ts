@@ -46,6 +46,10 @@ export const DOMAIN_EVENTS = {
   SUBSCRIPTION_ACTIVATED: 'subscription.activated',
   SUBSCRIPTION_EXPIRED: 'subscription.expired',
   SUBSCRIPTION_PLAN_CHANGED: 'subscription.plan.changed',
+
+  // User & organisation events (Standard queue — email triggers)
+  USER_INVITED: 'user.invited',
+  EXPORT_COMPLETED: 'export.completed',
 } as const;
 
 export type DomainEventType =

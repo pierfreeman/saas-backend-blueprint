@@ -1,0 +1,27 @@
+{
+  "name": "email",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/email/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:email"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/email"],
+      "options": {
+        "jestConfig": "libs/email/jest.config.cts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/email/tsconfig.lib.json --noEmit"
+      }
+    }
+  }
+}

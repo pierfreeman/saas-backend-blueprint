@@ -106,4 +106,14 @@ export const envValidationSchema = Joi.object({
   // Datadog APM (placeholder)
   DATADOG_ENABLED: Joi.string().valid('true', 'false').default('false'),
   DATADOG_SERVICE_NAME: Joi.string().optional(),
+
+  // ── Email ─────────────────────────────────────────────────────────────────
+  EMAIL_PROVIDER: Joi.string().valid('sendgrid').default('sendgrid'),
+  SENDGRID_API_KEY: Joi.string().when('EMAIL_PROVIDER', {
+    is: 'sendgrid',
+    then: Joi.string().optional().allow(''),
+    otherwise: Joi.optional(),
+  }),
+  EMAIL_FROM_ADDRESS: Joi.string().email().optional().allow(''),
+  EMAIL_FROM_NAME: Joi.string().optional().allow(''),
 });
