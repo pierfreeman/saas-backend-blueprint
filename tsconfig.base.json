@@ -108,8 +108,11 @@
       "@test/*": [
         "test/*"
       ],
-      "@saas-backend/storage": [
+      "@libs/storage": [
         "libs/storage/src/index.ts"
+      ],
+      "@libs/storage/*": [
+        "libs/storage/src/*"
       ]
     }
   },
