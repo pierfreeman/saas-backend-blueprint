@@ -18,6 +18,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 | Event system       | EventEmitter2 (local) / AWS SQS (production)         |
 | Background workers | NestJS standalone app, long-polls SQS Standard queue |
 | Real-time          | Socket.IO with Redis adapter (multi-pod)             |
+| File storage       | AWS S3 (presigned URLs, multi-tenant isolation)      |
 | Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles |
 
 **Features**
@@ -30,7 +31,8 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 - ⚡ Async background jobs — create-then-enqueue, real-time status via WebSocket
 - 🔔 In-app notifications — Socket.IO namespace, REST API, Redis pub/sub fan-out
 - 📋 Two-tier audit logging — tenant-visible activity log + immutable legal audit trail (ISO 27001 / GDPR)
-- 🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
+- �️ S3 file storage — presigned upload/download URLs, per-org isolation, quota enforcement, cleanup scheduler
+- �🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
 - 📊 Structured observability — JSON logging, Sentry, Prometheus/Datadog stubs
 
 ---
@@ -82,6 +84,7 @@ libs/
   prisma-legal    — PrismaLegalService → legal audit DB
   redis           — CacheService (DB 1) and PubSubService (DB 0)
   security        — Rate limiting, brute-force protection, CORS, Helmet, CSRF
+  storage         — S3 file storage (presigned URLs, multi-tenant isolation, quota)
 
 prisma/
   schema.prisma        — Business DB: User, Organization, Membership, ActivityLog, Job
@@ -97,7 +100,7 @@ prisma/
 | PostgreSQL (business) | `postgres:17-alpine`                     | `5432`       |
 | PostgreSQL (legal)    | `postgres:17-alpine`                     | `5433`       |
 | Redis                 | `redis:7-alpine`                         | `6379`       |
-| LocalStack            | `localstack/localstack:3`                | `4566`       |
+| LocalStack (S3, SQS)  | `localstack/localstack:3`                | `4566`       |
 | API                   | built from `apps/api/Dockerfile`         | `3000`       |
 | Worker A              | built from `apps/worker-a/Dockerfile`    | —            |
 | Migrate               | built from `apps/api/Dockerfile.migrate` | —            |
@@ -121,6 +124,7 @@ prisma/
 | Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                              |
 | Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                         |
 | Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                |
+| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                      |
 
 ### Architectural
 
@@ -195,6 +199,11 @@ cp .env.example .env
 | `CORS_ALLOWED_ORIGINS`     | _(all in dev)_ | Comma-separated allowed origins (required in production)      |
 | `RATE_LIMIT_MAX_PER_IP`    | `100`          | Rate limit requests per window per IP                         |
 | `BRUTE_FORCE_MAX_ATTEMPTS` | `5`            | Auth failures before IP lockout                               |
+| `AWS_REGION`               | `us-east-1`    | AWS region for S3                                             |
+| `AWS_ACCESS_KEY_ID`        | —              | AWS access key (use `test` for LocalStack)                    |
+| `AWS_SECRET_ACCESS_KEY`    | —              | AWS secret key (use `test` for LocalStack)                    |
+| `AWS_S3_BUCKET`            | —              | S3 bucket name                                                |
+| `AWS_S3_ENDPOINT`          | —              | Override endpoint, e.g. `http://localhost:4566` (LocalStack)  |
 
 For the complete variable list for each subsystem, see the relevant library README.
 
