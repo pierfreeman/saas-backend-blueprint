@@ -28,6 +28,7 @@ import { MembershipsModule } from './memberships/memberships.module';
 import { NotificationsAppModule } from './notifications/notifications-app.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { RBACModule } from './rbac/rbac.module';
+import { StorageAppModule } from './storage/storage-app.module';
 import { TasksModule } from './tasks/tasks.module';
 
 @Module({
@@ -50,6 +51,7 @@ import { TasksModule } from './tasks/tasks.module';
     BillingAppModule,
     FeatureFlagsModule,
     NotificationsAppModule,
+    StorageAppModule,
   ],
   controllers: [AppController],
   providers: [AppService],

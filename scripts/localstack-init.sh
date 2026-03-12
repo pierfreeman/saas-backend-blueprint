@@ -3,7 +3,7 @@
 # LocalStack initialization script
 # Runs automatically on LocalStack startup (mounted in /etc/localstack/init/ready.d/)
 #
-# Creates all SQS queues needed for local development.
+# Creates all SQS queues and S3 buckets needed for local development.
 # `awslocal` is a wrapper that pre-configures the endpoint and dummy credentials
 # so no extra flags are required.
 # ---------------------------------------------------------------------------
@@ -34,3 +34,12 @@ awslocal sqs create-queue \
 echo "[localstack-init] SQS queues created successfully."
 echo "[localstack-init] Standard : http://localhost:4566/000000000000/saas-backend-heavy-jobs"
 echo "[localstack-init] FIFO     : http://localhost:4566/000000000000/saas-backend-billing-events.fifo"
+
+echo "[localstack-init] Creating S3 buckets..."
+
+# S3 bucket for file storage
+awslocal s3 mb s3://saas-backend-storage
+
+echo "[localstack-init] S3 buckets created successfully."
+echo "[localstack-init] Storage  : s3://saas-backend-storage"
+

@@ -57,18 +57,18 @@ services:
       timeout: 5s
       retries: 10
 
-  # ─── LocalStack (SQS) ──────────────────────────────────────────────────────────
+  # ─── LocalStack (SQS, S3) ──────────────────────────────────────────────────────
   localstack:
     image: localstack/localstack:3
     restart: unless-stopped
     ports:
       - '4566:4566'
     environment:
-      SERVICES: sqs
+      SERVICES: sqs,s3
       DEFAULT_REGION: us-east-1
       PERSISTENCE: 0
     volumes:
-      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/01-sqs.sh:ro
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/01-init.sh:ro
       - localstack_data:/var/lib/localstack
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
@@ -128,6 +128,9 @@ services:
       SQS_ENDPOINT_URL: http://localstack:4566
       SQS_STANDARD_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-heavy-jobs
       SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-billing-events.fifo
+      # --- S3 via LocalStack ---
+      AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_S3_BUCKET: saas-backend-storage
     depends_on:
       migrate:
         condition: service_completed_successfully
