@@ -83,40 +83,13 @@ export class RBACGuard implements CanActivate {
 
     // Permission check (cached)
     if (permissionsMetadata) {
-      const { permissions, mode } = permissionsMetadata;
-      const userPermissions = await this.permissionResolver.resolvePermissions(
+      return this.checkPermissions(
+        request,
         userId,
         orgId,
+        membership.role,
+        permissionsMetadata,
       );
-
-      // Inject into request for downstream use (e.g. audit logging)
-      request.rbacPermissions = userPermissions;
-      request.rbacRole = membership.role;
-
-      // Keep tenantContext in sync
-      if (request.tenantContext) {
-        request.tenantContext.permissions = userPermissions;
-        request.tenantContext.role = membership.role;
-      }
-
-      const hasAccess =
-        mode === 'ALL'
-          ? permissions.every((p) => userPermissions.includes(p))
-          : permissions.some((p) => userPermissions.includes(p));
-
-      if (!hasAccess) {
-        this.logger.warn(
-          `User ${userId} denied: required [${permissions.join(', ')}] (${mode}), has [${userPermissions.join(', ')}]`,
-        );
-        throw new ForbiddenException(
-          'You do not have permission to perform this action',
-        );
-      }
-
-      this.logger.debug(
-        `Access granted by permissions: ${permissions.join(', ')}`,
-      );
-      return true;
     }
 
     // Roles specified but none matched
@@ -127,6 +100,49 @@ export class RBACGuard implements CanActivate {
       throw new ForbiddenException('You do not have the required role');
     }
 
+    return true;
+  }
+
+  private async checkPermissions(
+    request: RequestWithOrgContext,
+    userId: string,
+    orgId: string,
+    role: string,
+    permissionsMetadata: PermissionsMetadata,
+  ): Promise<boolean> {
+    const { permissions, mode } = permissionsMetadata;
+    const userPermissions = await this.permissionResolver.resolvePermissions(
+      userId,
+      orgId,
+    );
+
+    // Inject into request for downstream use (e.g. audit logging)
+    request.rbacPermissions = userPermissions;
+    request.rbacRole = role;
+
+    // Keep tenantContext in sync
+    if (request.tenantContext) {
+      request.tenantContext.permissions = userPermissions;
+      request.tenantContext.role = role;
+    }
+
+    const hasAccess =
+      mode === 'ALL'
+        ? permissions.every((p) => userPermissions.includes(p))
+        : permissions.some((p) => userPermissions.includes(p));
+
+    if (!hasAccess) {
+      this.logger.warn(
+        `User ${userId} denied: required [${permissions.join(', ')}] (${mode}), has [${userPermissions.join(', ')}]`,
+      );
+      throw new ForbiddenException(
+        'You do not have permission to perform this action',
+      );
+    }
+
+    this.logger.debug(
+      `Access granted by permissions: ${permissions.join(', ')}`,
+    );
     return true;
   }
 }
