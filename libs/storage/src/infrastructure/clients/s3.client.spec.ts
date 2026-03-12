@@ -26,7 +26,10 @@ describe('S3StorageClient', () => {
     });
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [S3StorageClient, { provide: ConfigService, useValue: configService }],
+      providers: [
+        S3StorageClient,
+        { provide: ConfigService, useValue: configService },
+      ],
     }).compile();
 
     client = module.get<S3StorageClient>(S3StorageClient);
@@ -52,9 +55,82 @@ describe('S3StorageClient', () => {
   });
 
   it('should generate presigned download URL', async () => {
-    const url = await client.generatePresignedDownloadUrl('org/test-org/test-file', 3600);
+    const url = await client.generatePresignedDownloadUrl(
+      'org/test-org/test-file',
+      3600,
+    );
     expect(url).toBeDefined();
     expect(url).toContain('test-bucket');
     expect(url).toContain('X-Amz-Signature');
+  });
+
+  // ── deleteObject ──────────────────────────────────────────────────────────
+
+  describe('deleteObject', () => {
+    it('sends a DeleteObjectCommand and resolves', async () => {
+      const mockSend = jest.fn().mockResolvedValue({});
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+      };
+
+      await expect(
+        client.deleteObject('org/test-org/file-1'),
+      ).resolves.toBeUndefined();
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('propagates errors from S3', async () => {
+      const mockSend = jest
+        .fn()
+        .mockRejectedValue(new Error('S3 delete failed'));
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+      };
+
+      await expect(client.deleteObject('org/test-org/file-1')).rejects.toThrow(
+        'S3 delete failed',
+      );
+    });
+  });
+
+  // ── objectExists ──────────────────────────────────────────────────────────
+
+  describe('objectExists', () => {
+    it('returns true when HeadObject succeeds', async () => {
+      const mockSend = jest.fn().mockResolvedValue({});
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+      };
+
+      const result = await client.objectExists('org/test-org/file-1');
+      expect(result).toBe(true);
+    });
+
+    it('returns false when error.name is NotFound', async () => {
+      const notFound = Object.assign(new Error('Not Found'), {
+        name: 'NotFound',
+      });
+      const mockSend = jest.fn().mockRejectedValue(notFound);
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+      };
+
+      const result = await client.objectExists('org/test-org/missing-file');
+      expect(result).toBe(false);
+    });
+
+    it('rethrows errors that are not NotFound', async () => {
+      const accessDenied = Object.assign(new Error('Access Denied'), {
+        name: 'AccessDenied',
+      });
+      const mockSend = jest.fn().mockRejectedValue(accessDenied);
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+      };
+
+      await expect(client.objectExists('org/test-org/file-1')).rejects.toThrow(
+        'Access Denied',
+      );
+    });
   });
 });
