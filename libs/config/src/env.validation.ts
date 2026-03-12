@@ -114,6 +114,6 @@ export const envValidationSchema = Joi.object({
     then: Joi.string().optional().allow(''),
     otherwise: Joi.optional(),
   }),
-  EMAIL_FROM_ADDRESS: Joi.string().email().optional().allow(''),
+  EMAIL_FROM_ADDRESS: Joi.string().email().optional(),
   EMAIL_FROM_NAME: Joi.string().optional().allow(''),
 });

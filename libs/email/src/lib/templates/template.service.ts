@@ -12,8 +12,9 @@ import type {
  * NestJS service wrapper around TemplateRenderer.
  * Provides template rendering as an injectable dependency.
  *
- * The templates directory is resolved relative to this file at module init,
- * so the service works both in source (ts-jest) and compiled (dist) contexts.
+ * In both source (ts-jest) and compiled (dist) contexts, `__dirname` resolves
+ * to the directory that contains this file, which is the same directory where
+ * the `.hbs` template files are located (`templates/`).
  */
 @Injectable()
 export class TemplateService {

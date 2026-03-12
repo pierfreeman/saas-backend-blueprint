@@ -85,7 +85,9 @@ export class EmailService {
 
     const errors = await validate(dto);
     if (errors.length > 0) {
-      const msg = errors.map((e) => Object.values(e.constraints ?? {}).join(', ')).join('; ');
+      const msg = errors
+        .flatMap((e) => Object.values(e.constraints ?? {}))
+        .join('; ');
       this.logger.error(`Email DTO validation failed: ${msg}`);
       this.auditFailure(input, `Validation error: ${msg}`);
       return;
