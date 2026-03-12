@@ -1,7 +1,11 @@
 {
   "name": "@saas-backend/source",
-  "version": "0.1.0",
-  "license": "MIT",
+  "version": "0.1.1",
+  "description": "Source code for the SaaS backend application",
+  "author": "Piercarlo Serena <piercarlo.serena@gmail.com>",
+  "repository": "https://github.com/pierfreeman/saas-backend-blueprint",
+  "bugs": "https://github.com/pierfreeman/saas-backend-blueprint/issues",
+  "license": "UNLICENSED",
   "scripts": {
     "build": "nx run-many --target=build --projects=api,worker-compute-a,worker-compute-b --parallel=1",
     "build:all": "nx run-many --target=build --all --parallel=1",
