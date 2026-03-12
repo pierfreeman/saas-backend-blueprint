@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { StorageConfig } from '@libs/config';
-import { UploadPolicy, StorageQuota } from '../../storage.types';
+import { UploadPolicy, StorageQuota, PlanType } from '../../storage.types';
 import { StorageRepository } from '../../infrastructure/repositories/storage.repository';
 
 /**
@@ -25,7 +25,7 @@ export class UploadPolicyService {
   /**
    * Get the upload policy for an organization based on their plan.
    */
-  getUploadPolicy(planType: 'free' | 'pro' | 'enterprise'): UploadPolicy {
+  getUploadPolicy(planType: PlanType): UploadPolicy {
     const quotas =
       this.configService.get<StorageConfig['quotas']>('storage.quotas')!;
 
@@ -52,7 +52,7 @@ export class UploadPolicyService {
    */
   async getStorageQuota(
     orgId: string,
-    planType: 'free' | 'pro' | 'enterprise',
+    planType: PlanType,
     orgStorageLimit?: bigint | null,
   ): Promise<StorageQuota> {
     const quotas =
@@ -107,7 +107,7 @@ export class UploadPolicyService {
     filename: string,
     mimeType: string,
     sizeBytes: number,
-    planType: 'free' | 'pro' | 'enterprise',
+    planType: PlanType,
     orgStorageLimit?: bigint | null,
   ): Promise<void> {
     // Validate file size
@@ -121,9 +121,7 @@ export class UploadPolicyService {
     // Validate MIME type if restricted
     if (policy.allowedMimeTypes && policy.allowedMimeTypes.length > 0) {
       if (!policy.allowedMimeTypes.includes(mimeType)) {
-        throw new BadRequestException(
-          `MIME type '${mimeType}' is not allowed`,
-        );
+        throw new BadRequestException(`MIME type '${mimeType}' is not allowed`);
       }
     }
 
@@ -134,14 +132,13 @@ export class UploadPolicyService {
     }
 
     // Validate storage quota
-    const quota = await this.getStorageQuota(
-      orgId,
-      planType,
-      orgStorageLimit,
-    );
+    const quota = await this.getStorageQuota(orgId, planType, orgStorageLimit);
 
     // Check file count limit
-    if (quota.fileCountLimit !== null && quota.fileCount >= quota.fileCountLimit) {
+    if (
+      quota.fileCountLimit !== null &&
+      quota.fileCount >= quota.fileCountLimit
+    ) {
       throw new ForbiddenException(
         `File count limit (${quota.fileCountLimit}) reached`,
       );
@@ -170,6 +167,6 @@ export class UploadPolicyService {
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 }

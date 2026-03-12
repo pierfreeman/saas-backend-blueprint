@@ -1,5 +1,7 @@
 import { FileStatus, StorageProvider } from './domain/enums/storage.enums';
 
+export type PlanType = 'free' | 'pro' | 'enterprise';
+
 /**
  * Request to generate an upload URL.
  */

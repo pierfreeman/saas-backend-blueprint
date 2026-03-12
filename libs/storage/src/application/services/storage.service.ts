@@ -1,30 +1,30 @@
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import {
+  BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
-  ForbiddenException,
-  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
-import type { StorageConfig } from '@libs/config';
-import { ActivityLogService } from '@libs/activity-log';
-import { LegalAuditService } from '@libs/legal-audit';
-import { StorageProvider, FileStatus } from '../../domain/enums/storage.enums';
 import { IStorageProvider } from '../../domain/entities/storage-provider.interface';
+import { FileStatus, StorageProvider } from '../../domain/enums/storage.enums';
 import { S3Provider } from '../../infrastructure/providers/s3.provider';
 import { StorageRepository } from '../../infrastructure/repositories/storage.repository';
-import { UploadPolicyService } from './upload-policy.service';
 import {
-  GenerateUploadUrlRequest,
-  GenerateUploadUrlResponse,
   ConfirmUploadRequest,
   ConfirmUploadResponse,
-  GenerateDownloadUrlRequest,
-  GenerateDownloadUrlResponse,
   DeleteFileRequest,
   FileMetadata,
+  GenerateDownloadUrlRequest,
+  GenerateDownloadUrlResponse,
+  GenerateUploadUrlRequest,
+  GenerateUploadUrlResponse,
+  PlanType,
 } from '../../storage.types';
+import { UploadPolicyService } from './upload-policy.service';
 
 /**
  * Main storage service for managing file uploads and downloads.
@@ -43,10 +43,13 @@ export class StorageService {
     private readonly activityLog: ActivityLogService,
     private readonly legalAudit: LegalAuditService,
   ) {
-    const defaultProviderStr =
-      this.configService.get<string>('storage.defaultProvider');
+    const defaultProviderStr = this.configService.get<string>(
+      'storage.defaultProvider',
+    );
     this.defaultProvider =
-      defaultProviderStr === 'AZURE' ? StorageProvider.AZURE : StorageProvider.S3;
+      defaultProviderStr === 'AZURE'
+        ? StorageProvider.AZURE
+        : StorageProvider.S3;
   }
 
   /**
@@ -54,7 +57,7 @@ export class StorageService {
    */
   async generateUploadUrl(
     request: GenerateUploadUrlRequest,
-    planType: 'free' | 'pro' | 'enterprise' = 'free',
+    planType: PlanType = 'free',
     orgStorageLimit?: bigint | null,
   ): Promise<GenerateUploadUrlResponse> {
     const { orgId, userId, filename, mimeType, size } = request;
@@ -75,8 +78,9 @@ export class StorageService {
 
     // Get presigned URL expiration
     const expirationSeconds =
-      this.configService.get<number>('storage.presignedUrl.expirationSeconds') ??
-      3600;
+      this.configService.get<number>(
+        'storage.presignedUrl.expirationSeconds',
+      ) ?? 3600;
     const expiresAt = new Date(Date.now() + expirationSeconds * 1000);
 
     // Get storage provider
@@ -134,7 +138,9 @@ export class StorageService {
   /**
    * Confirm that a file upload has been completed.
    */
-  async confirmUpload(request: ConfirmUploadRequest): Promise<ConfirmUploadResponse> {
+  async confirmUpload(
+    request: ConfirmUploadRequest,
+  ): Promise<ConfirmUploadResponse> {
     const { fileId, orgId, userId } = request;
 
     // Verify file exists and belongs to org
@@ -153,7 +159,9 @@ export class StorageService {
     // Verify not expired
     if (file.expiresAt && file.expiresAt < new Date()) {
       await this.storageRepository.markExpired(fileId);
-      throw new BadRequestException(`File ${fileId} upload session has expired`);
+      throw new BadRequestException(
+        `File ${fileId} upload session has expired`,
+      );
     }
 
     // Verify file exists in storage
@@ -191,7 +199,7 @@ export class StorageService {
     return {
       fileId: confirmedFile.id,
       status: confirmedFile.status,
-      confirmedAt: confirmedFile.confirmedAt!,
+      confirmedAt: confirmedFile.confirmedAt ?? new Date(),
     };
   }
 
@@ -218,8 +226,9 @@ export class StorageService {
 
     // Get presigned URL expiration
     const expirationSeconds =
-      this.configService.get<number>('storage.presignedUrl.expirationSeconds') ??
-      3600;
+      this.configService.get<number>(
+        'storage.presignedUrl.expirationSeconds',
+      ) ?? 3600;
     const expiresAt = new Date(Date.now() + expirationSeconds * 1000);
 
     // Generate presigned download URL

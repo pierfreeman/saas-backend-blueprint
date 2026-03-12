@@ -66,17 +66,17 @@ export default registerAs(
       endpoint: process.env['AZURE_STORAGE_ENDPOINT'],
     },
     uploadSession: {
-      expirationHours: parseInt(
+      expirationHours: Number.parseInt(
         process.env['UPLOAD_SESSION_EXPIRATION_HOURS'] ?? '24',
         10,
       ),
-      retentionDays: parseInt(
+      retentionDays: Number.parseInt(
         process.env['UPLOAD_SESSION_RETENTION_DAYS'] ?? '7',
         10,
       ),
     },
     presignedUrl: {
-      expirationSeconds: parseInt(
+      expirationSeconds: Number.parseInt(
         process.env['PRESIGNED_URL_EXPIRATION_SECONDS'] ?? '3600',
         10,
       ),
@@ -84,35 +84,35 @@ export default registerAs(
     quotas: {
       freePlan: {
         storageLimitGb: process.env['FREE_PLAN_STORAGE_LIMIT_GB']
-          ? parseFloat(process.env['FREE_PLAN_STORAGE_LIMIT_GB'])
+          ? Number.parseFloat(process.env['FREE_PLAN_STORAGE_LIMIT_GB'])
           : 1,
         fileCountLimit: process.env['FREE_PLAN_FILE_COUNT_LIMIT']
-          ? parseInt(process.env['FREE_PLAN_FILE_COUNT_LIMIT'], 10)
+          ? Number.parseInt(process.env['FREE_PLAN_FILE_COUNT_LIMIT'], 10)
           : 100,
         maxFileSizeGb: process.env['FREE_PLAN_MAX_FILE_SIZE_GB']
-          ? parseFloat(process.env['FREE_PLAN_MAX_FILE_SIZE_GB'])
+          ? Number.parseFloat(process.env['FREE_PLAN_MAX_FILE_SIZE_GB'])
           : 0.1,
       },
       proPlan: {
         storageLimitGb: process.env['PRO_PLAN_STORAGE_LIMIT_GB']
-          ? parseFloat(process.env['PRO_PLAN_STORAGE_LIMIT_GB'])
+          ? Number.parseFloat(process.env['PRO_PLAN_STORAGE_LIMIT_GB'])
           : 50,
         fileCountLimit: process.env['PRO_PLAN_FILE_COUNT_LIMIT']
-          ? parseInt(process.env['PRO_PLAN_FILE_COUNT_LIMIT'], 10)
+          ? Number.parseInt(process.env['PRO_PLAN_FILE_COUNT_LIMIT'], 10)
           : 10000,
         maxFileSizeGb: process.env['PRO_PLAN_MAX_FILE_SIZE_GB']
-          ? parseFloat(process.env['PRO_PLAN_MAX_FILE_SIZE_GB'])
+          ? Number.parseFloat(process.env['PRO_PLAN_MAX_FILE_SIZE_GB'])
           : 20,
       },
       enterprisePlan: {
         storageLimitGb: process.env['ENTERPRISE_PLAN_STORAGE_LIMIT_GB']
-          ? parseFloat(process.env['ENTERPRISE_PLAN_STORAGE_LIMIT_GB'])
+          ? Number.parseFloat(process.env['ENTERPRISE_PLAN_STORAGE_LIMIT_GB'])
           : undefined,
         fileCountLimit: process.env['ENTERPRISE_PLAN_FILE_COUNT_LIMIT']
-          ? parseInt(process.env['ENTERPRISE_PLAN_FILE_COUNT_LIMIT'], 10)
+          ? Number.parseInt(process.env['ENTERPRISE_PLAN_FILE_COUNT_LIMIT'], 10)
           : undefined,
         maxFileSizeGb: process.env['ENTERPRISE_PLAN_MAX_FILE_SIZE_GB']
-          ? parseFloat(process.env['ENTERPRISE_PLAN_MAX_FILE_SIZE_GB'])
+          ? Number.parseFloat(process.env['ENTERPRISE_PLAN_MAX_FILE_SIZE_GB'])
           : 100,
       },
     },
