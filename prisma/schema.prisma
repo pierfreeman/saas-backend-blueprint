@@ -168,6 +168,7 @@ model Organization {
   activityLogs           ActivityLog[]
   billingEvents          BillingEvent[]
   subscriptionSnapshots  SubscriptionSnapshot[]
+  files                  File[]
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   /// Supports filtering organizations by lifecycle status (e.g. list all SUSPENDED orgs).
@@ -455,5 +456,70 @@ model Notification {
   @@index([orgId, createdAt])
 
   @@map("notifications")
+  @@schema("public")
+}
+
+// ============================================================================
+// FILE MODEL
+// Metadata for files stored in external storage (S3, Azure Blob, etc.).
+// The actual file bytes are NEVER stored in the database.
+// Scoped to organization for multi-tenant isolation.
+// ============================================================================
+
+/// Lifecycle status of a file upload.
+enum FileStatus {
+  /// Upload session created, presigned URL generated, awaiting client upload.
+  PENDING
+  /// Client has confirmed upload completion; file is available.
+  COMPLETED
+  /// Upload session expired without confirmation.
+  EXPIRED
+  /// Upload was explicitly aborted by the user.
+  ABORTED
+
+  @@schema("public")
+}
+
+model File {
+  /// Internal UUID – primary key.
+  id          String     @id @default(uuid()) @db.Uuid
+  /// FK → Organization. Cascade-delete removes files when the org is deleted.
+  orgId       String     @map("org_id") @db.Uuid
+  /// User who uploaded the file.
+  uploadedBy  String     @map("uploaded_by") @db.Uuid
+  /// Storage key (path in S3/Azure): org/{orgId}/{fileId}
+  storageKey  String     @unique @map("storage_key")
+  /// Storage provider: S3, AZURE, etc.
+  provider    String
+  /// Original filename provided by the client.
+  filename    String
+  /// File size in bytes (null until confirmed).
+  size        BigInt?
+  /// MIME type (e.g. application/pdf, image/png).
+  mimeType    String?    @map("mime_type")
+  /// Upload lifecycle status.
+  status      FileStatus @default(PENDING)
+  /// Presigned URL expiration timestamp.
+  expiresAt   DateTime?  @map("expires_at")
+  /// Timestamp when upload was confirmed.
+  confirmedAt DateTime?  @map("confirmed_at")
+  /// Immutable creation timestamp.
+  createdAt   DateTime   @default(now()) @map("created_at")
+  /// Timestamp of the last update.
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Primary tenant query: "list all files for org X, newest first".
+  @@index([orgId, createdAt(sort: Desc)])
+  /// Status-filtered tenant query: "show all COMPLETED files for org X".
+  @@index([orgId, status])
+  /// User activity: "show all files uploaded by user Y".
+  @@index([uploadedBy, createdAt(sort: Desc)])
+  /// Cleanup job: find expired pending uploads.
+  @@index([status, expiresAt])
+  @@map("files")
   @@schema("public")
 }
