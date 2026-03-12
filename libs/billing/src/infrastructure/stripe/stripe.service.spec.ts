@@ -160,6 +160,94 @@ describe('StripeService', () => {
     });
   });
 
+  // ── createPortalSession ─────────────────────────────────────────────────
+
+  describe('createPortalSession', () => {
+    it('creates a portal session with correct params', async () => {
+      const session = {
+        id: 'bps_test_001',
+        url: 'https://billing.stripe.com/session/bps_test_001',
+      };
+      mockStripeInstance.billingPortal.sessions.create.mockResolvedValue(
+        session,
+      );
+
+      const result = await service.createPortalSession(
+        'cus_001',
+        'https://app.test/settings/billing',
+      );
+
+      expect(result).toEqual(session);
+      expect(
+        mockStripeInstance.billingPortal.sessions.create,
+      ).toHaveBeenCalledWith({
+        customer: 'cus_001',
+        return_url: 'https://app.test/settings/billing',
+      });
+    });
+
+    it('throws InternalServerErrorException on Stripe API failure', async () => {
+      mockStripeInstance.billingPortal.sessions.create.mockRejectedValue(
+        new Error('Stripe error'),
+      );
+
+      await expect(
+        service.createPortalSession('cus_001', 'https://app.test/billing'),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  // ── retrieveSubscription ────────────────────────────────────────────────
+
+  describe('retrieveSubscription', () => {
+    it('retrieves the subscription by ID', async () => {
+      const sub = { id: 'sub_001', status: 'active' };
+      mockStripeInstance.subscriptions.retrieve.mockResolvedValue(sub);
+
+      const result = await service.retrieveSubscription('sub_001');
+
+      expect(result).toEqual(sub);
+      expect(mockStripeInstance.subscriptions.retrieve).toHaveBeenCalledWith(
+        'sub_001',
+      );
+    });
+
+    it('throws InternalServerErrorException on Stripe API failure', async () => {
+      mockStripeInstance.subscriptions.retrieve.mockRejectedValue(
+        new Error('Stripe error'),
+      );
+
+      await expect(service.retrieveSubscription('sub_001')).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+  });
+
+  // ── createCheckoutSession — idempotency key ─────────────────────────────
+
+  describe('createCheckoutSession — idempotency', () => {
+    it('forwards idempotencyKey as Stripe request option', async () => {
+      const session = {
+        id: 'cs_test_002',
+        url: 'https://checkout.stripe.com/2',
+      };
+      mockStripeInstance.checkout.sessions.create.mockResolvedValue(session);
+
+      await service.createCheckoutSession({
+        customerId: 'cus_001',
+        priceId: 'price_pro',
+        successUrl: 'https://app.test/success',
+        cancelUrl: 'https://app.test/cancel',
+        idempotencyKey: 'idem-key-abc123',
+      });
+
+      expect(mockStripeInstance.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({ idempotencyKey: 'idem-key-abc123' }),
+      );
+    });
+  });
+
   // ─── constructWebhookEvent ───────────────────────────────────────────────────
 
   describe('constructWebhookEvent', () => {

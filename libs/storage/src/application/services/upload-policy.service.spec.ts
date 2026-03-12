@@ -156,5 +156,83 @@ describe('UploadPolicyService', () => {
         ),
       ).resolves.not.toThrow();
     });
+
+    it('should validate upload for pro plan (covers pro branch in getStorageQuota)', async () => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'video.mp4',
+          'video/mp4',
+          1 * 1024 * 1024 * 1024, // 1GB
+          'pro',
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('uses org-specific storage limit override when provided', async () => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+      const customLimit = BigInt(10 * 1024 * 1024 * 1024); // 10GB org override
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'test.pdf',
+          'application/pdf',
+          1024 * 1024,
+          'free',
+          customLimit,
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('throws BadRequestException when MIME type not in allowedMimeTypes', async () => {
+      jest.spyOn(service, 'getUploadPolicy').mockReturnValue({
+        maxFileSizeBytes: 100 * 1024 * 1024,
+        allowedMimeTypes: ['image/png', 'image/jpeg'],
+      });
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'document.pdf',
+          'application/pdf',
+          1024,
+          'free',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when MIME type is in forbiddenMimeTypes', async () => {
+      jest.spyOn(service, 'getUploadPolicy').mockReturnValue({
+        maxFileSizeBytes: 100 * 1024 * 1024,
+        forbiddenMimeTypes: ['application/x-msdownload', 'application/x-sh'],
+      });
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'script.sh',
+          'application/x-sh',
+          1024,
+          'free',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });

@@ -97,7 +97,11 @@ describe('ObservabilityLoggerService', () => {
     });
 
     it('errorCtx handles non-Error unknown gracefully', () => {
-      service.errorCtx('Unknown failure', 'not an error object' as unknown as Error, {});
+      service.errorCtx(
+        'Unknown failure',
+        'not an error object' as unknown as Error,
+        {},
+      );
       expect(stderrSpy).toHaveBeenCalled();
     });
 
@@ -106,6 +110,22 @@ describe('ObservabilityLoggerService', () => {
       // debug level might be filtered; just ensure no throw
       // If filtered, neither stdout nor stderr is written — that's fine
       expect(() => true).not.toThrow();
+    });
+
+    it('verbose() emits a verbose line without throwing', () => {
+      service.verbose('verbose msg', 'TestContext');
+      // verbose is below the default log level — no output expected, no throw
+      expect(() => true).not.toThrow();
+    });
+
+    it('fatal() emits a fatal line to stderr', () => {
+      service.fatal('critical failure', 'TestContext');
+      // fatal is always above the min level
+      const allOutput = [
+        ...stdoutSpy.mock.calls.map((c: string[]) => String(c[0])),
+        ...stderrSpy.mock.calls.map((c: string[]) => String(c[0])),
+      ].join('');
+      expect(allOutput).toContain('critical failure');
     });
   });
 

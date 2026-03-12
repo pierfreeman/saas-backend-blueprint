@@ -42,6 +42,7 @@ describe('BillingService', () => {
             findOrgById: jest.fn(),
             updateOrgBillingData: jest.fn(),
             createBillingEvent: jest.fn(),
+            findSnapshotsByOrgId: jest.fn(),
           },
         },
         {
@@ -284,6 +285,52 @@ describe('BillingService', () => {
       expect(billingRepository.findOrgById).toHaveBeenCalledWith(
         'org-uuid-001',
       );
+    });
+  });
+  // ── getSubscriptionHistory ──────────────────────────────────────────────────────
+
+  describe('getSubscriptionHistory', () => {
+    it('returns paginated snapshots from the repository', async () => {
+      billingRepository.findOrgById.mockResolvedValue(mockOrg());
+      const snapshots = {
+        items: [
+          {
+            id: 'snap-001',
+            stripeSubscriptionId: 'sub_001',
+            planId: 'price_pro',
+            status: 'active',
+            seats: 1,
+            seatLimit: null,
+            periodStart: new Date(),
+            periodEnd: new Date(),
+            createdAt: new Date(),
+          },
+        ],
+        total: 1,
+      };
+      billingRepository.findSnapshotsByOrgId.mockResolvedValue(snapshots);
+
+      const result = await service.getSubscriptionHistory(
+        'org-uuid-001',
+        10,
+        0,
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(1);
+      expect(billingRepository.findOrgById).toHaveBeenCalledWith(
+        'org-uuid-001',
+      );
+    });
+
+    it('propagates NotFoundException when org does not exist', async () => {
+      billingRepository.findOrgById.mockRejectedValue(
+        new NotFoundException('Organization not found'),
+      );
+
+      await expect(
+        service.getSubscriptionHistory('org-uuid-missing', 10, 0),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
