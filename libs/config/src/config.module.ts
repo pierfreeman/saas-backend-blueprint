@@ -5,6 +5,7 @@ import authConfig from './auth.config';
 import databaseConfig from './database.config';
 import redisConfig from './redis.config';
 import storageConfig from './storage.config';
+import emailConfig from './email.config';
 import observabilityConfig from '../../observability/src/config/observability.config';
 import { envValidationSchema } from './env.validation';
 
@@ -39,6 +40,7 @@ import { envValidationSchema } from './env.validation';
         databaseConfig,
         redisConfig,
         storageConfig,
+        emailConfig,
         observabilityConfig,
       ],
       envFilePath: '.env',
