@@ -31,7 +31,8 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 - ⚡ Async background jobs — create-then-enqueue, real-time status via WebSocket
 - 🔔 In-app notifications — Socket.IO namespace, REST API, Redis pub/sub fan-out
 - 📋 Two-tier audit logging — tenant-visible activity log + immutable legal audit trail (ISO 27001 / GDPR)
-- �️ S3 file storage — presigned upload/download URLs, per-org isolation, quota enforcement, cleanup scheduler
+- ✉️ Event-driven transactional email — SendGrid/SMTP, Handlebars templates, automatic audit logging
+- 🗄️ S3 file storage — presigned upload/download URLs, per-org isolation, quota enforcement, cleanup scheduler
 - �🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
 - 📊 Structured observability — JSON logging, Sentry, Prometheus/Datadog stubs
 
@@ -76,6 +77,7 @@ libs/
   billing         — Stripe subscription management (checkout, portal, webhooks)
   common          — Shared RBAC constants, tenant context, exception filter
   config          — NestJS ConfigModule wrappers with Joi validation
+  email           — Event-driven transactional email (SendGrid/SMTP, Handlebars templates)
   events          — EventBusService facade (LocalTransport / SQS), DomainEvent types
   legal-audit     — Immutable compliance event recorder (legal DB, ISO 27001 / GDPR)
   notifications   — Real-time in-app notifications (Socket.IO + REST + Redis pub/sub)
@@ -113,18 +115,19 @@ prisma/
 
 ### Business
 
-| Feature       | Library                                               | Description                                                                                                |
-| ------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                               |
-| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning |
-| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                  |
-| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                              |
-| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                             |
-| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                |
-| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                              |
-| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                         |
-| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                |
-| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                      |
+| Feature       | Library                                               | Description                                                                                                 |
+| ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                |
+| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning  |
+| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                   |
+| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                               |
+| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                              |
+| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                 |
+| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                               |
+| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; SendGrid/SMTP providers; Handlebars templates; fire-and-forget with audit |
+| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                          |
+| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                 |
+| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                       |
 
 ### Architectural
 
@@ -195,6 +198,11 @@ cp .env.example .env
 | `STRIPE_WEBHOOK_SECRET`    | —              | Stripe webhook signing secret (`whsec_…`)                     |
 | `STRIPE_PRICE_ID_PRO`      | —              | Stripe Price ID → ENTERPRISE tier                             |
 | `STRIPE_PRICE_ID_BASIC`    | —              | Stripe Price ID → PRO tier                                    |
+| `EMAIL_PROVIDER`           | `sendgrid`     | Email provider: `sendgrid` or `smtp`                          |
+| `EMAIL_FROM_ADDRESS`       | —              | Sender email address                                          |
+| `EMAIL_FROM_NAME`          | —              | Sender display name                                           |
+| `SENDGRID_API_KEY`         | —              | SendGrid API key (required when `EMAIL_PROVIDER=sendgrid`)    |
+| `SMTP_HOST`                | —              | SMTP host (required when `EMAIL_PROVIDER=smtp`)               |
 | `SENTRY_DSN`               | —              | Sentry project DSN                                            |
 | `CORS_ALLOWED_ORIGINS`     | _(all in dev)_ | Comma-separated allowed origins (required in production)      |
 | `RATE_LIMIT_MAX_PER_IP`    | `100`          | Rate limit requests per window per IP                         |

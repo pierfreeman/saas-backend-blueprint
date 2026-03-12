@@ -3,7 +3,26 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/email/src",
   "projectType": "library",
-  "tags": [],
-  "// targets": "to see all targets run: nx show project email --web",
-  "targets": {}
+  "tags": ["type:lib", "scope:email"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/email/tsconfig.json --noEmit"
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/email"],
+      "options": {
+        "jestConfig": "libs/email/jest.config.cts",
+        "passWithNoTests": true
+      }
+    }
+  }
 }

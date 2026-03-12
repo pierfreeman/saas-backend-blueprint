@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DomainEvent } from '@saas-backend/events';
+import { DomainEvent } from '@libs/events';
 import { EmailService } from '../../email.service';
 
 /**
  * Payload for UserInvitedEvent
  */
 export interface UserInvitedPayload {
+  [key: string]: unknown;
   inviteeName: string;
   inviteeEmail: string;
   inviterName: string;

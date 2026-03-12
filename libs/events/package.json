@@ -1,5 +1,5 @@
 {
-  "name": "@saas-backend/events",
+  "name": "@libs/events",
   "version": "0.0.1",
   "private": true,
   "type": "commonjs",

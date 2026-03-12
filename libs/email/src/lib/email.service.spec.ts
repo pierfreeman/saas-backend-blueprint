@@ -1,10 +1,12 @@
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EmailService } from './email.service';
-import { EMAIL_PROVIDER, EmailProvider } from './providers/email-provider.interface';
+import {
+  EMAIL_PROVIDER,
+  EmailProvider,
+} from './providers/email-provider.interface';
 import { TemplateRendererService } from './templates/template-renderer.service';
-import { ActivityLogService } from '@saas-backend/activity-log';
-import { LegalAuditService } from '@saas-backend/legal-audit';
-import { SendEmailDto } from './dto/send-email.dto';
 
 describe('EmailService', () => {
   let service: EmailService;
@@ -24,11 +26,11 @@ describe('EmailService', () => {
     };
 
     const mockActivityLog = {
-      logEvent: jest.fn().mockResolvedValue(undefined),
+      logActivity: jest.fn().mockResolvedValue(undefined),
     };
 
     const mockLegalAudit = {
-      logEvent: jest.fn().mockResolvedValue(undefined),
+      recordEvent: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -135,7 +137,7 @@ describe('EmailService', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(activityLog.logEvent).toHaveBeenCalledWith(
+      expect(activityLog.logActivity).toHaveBeenCalledWith(
         expect.objectContaining({
           orgId: 'org-123',
           actorId: 'user-456',
@@ -155,7 +157,7 @@ describe('EmailService', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(legalAudit.logEvent).toHaveBeenCalledWith(
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: 'email.sent',
           orgId: 'org-123',
@@ -177,12 +179,12 @@ describe('EmailService', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Should log failure
-      expect(activityLog.logEvent).toHaveBeenCalledWith(
+      expect(activityLog.logActivity).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'email.failed',
         }),
       );
-      expect(legalAudit.logEvent).toHaveBeenCalledWith(
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: 'email.failed',
         }),
@@ -202,7 +204,7 @@ describe('EmailService', () => {
       expect(emailProvider.sendEmail).not.toHaveBeenCalled();
 
       // Should log failure
-      expect(legalAudit.logEvent).toHaveBeenCalledWith(
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: 'email.failed',
         }),
@@ -223,15 +225,15 @@ describe('EmailService', () => {
 
       expect(emailProvider.sendEmail).toHaveBeenCalled();
       // Activity log should not be called without orgId
-      expect(activityLog.logEvent).not.toHaveBeenCalled();
+      expect(activityLog.logActivity).not.toHaveBeenCalled();
       // Legal audit should still be called
-      expect(legalAudit.logEvent).toHaveBeenCalled();
+      expect(legalAudit.recordEvent).toHaveBeenCalled();
     });
 
     it('should handle activity log failures gracefully', async () => {
-      activityLog.logEvent.mockRejectedValueOnce(
-        new Error('Activity log error'),
-      );
+      activityLog.logActivity.mockImplementationOnce(() => {
+        throw new Error('Activity log error');
+      });
 
       await service.sendTransactionalEmail(validParams);
 
@@ -242,9 +244,9 @@ describe('EmailService', () => {
     });
 
     it('should handle legal audit failures gracefully', async () => {
-      legalAudit.logEvent.mockRejectedValueOnce(
-        new Error('Legal audit error'),
-      );
+      legalAudit.recordEvent.mockImplementationOnce(() => {
+        throw new Error('Legal audit error');
+      });
 
       await service.sendTransactionalEmail(validParams);
 

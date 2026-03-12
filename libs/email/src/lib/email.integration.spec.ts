@@ -1,14 +1,21 @@
+import { DOMAIN_EVENTS, DomainEvent } from '@libs/events';
+import { ConfigModule } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ActivityLogModule } from '@saas-backend/activity-log';
-import { LegalAuditModule } from '@saas-backend/legal-audit';
-import { DOMAIN_EVENTS, DomainEvent } from '@saas-backend/events';
+import * as SendGridMail from '@sendgrid/mail';
 import { EmailModule } from './email.module';
 import { EmailService } from './email.service';
-import { UserInvitedEmailHandler, UserInvitedPayload } from './events/handlers/user-invited.handler';
-import { ExportCompletedEmailHandler, ExportCompletedPayload } from './events/handlers/export-completed.handler';
-import { EMAIL_PROVIDER, EmailProvider } from './providers/email-provider.interface';
-import * as SendGridMail from '@sendgrid/mail';
+import {
+  ExportCompletedEmailHandler,
+  ExportCompletedPayload,
+} from './events/handlers/export-completed.handler';
+import {
+  UserInvitedEmailHandler,
+  UserInvitedPayload,
+} from './events/handlers/user-invited.handler';
+import {
+  EMAIL_PROVIDER,
+  EmailProvider,
+} from './providers/email-provider.interface';
 
 // Mock SendGrid module
 jest.mock('@sendgrid/mail');
@@ -22,7 +29,9 @@ describe('Email Integration Tests', () => {
 
   beforeEach(async () => {
     // Mock SendGrid
-    (SendGridMail.send as jest.Mock) = jest.fn().mockResolvedValue([{ statusCode: 202 }]);
+    (SendGridMail.send as jest.Mock) = jest
+      .fn()
+      .mockResolvedValue([{ statusCode: 202 }]);
     (SendGridMail.setApiKey as jest.Mock) = jest.fn();
 
     module = await Test.createTestingModule({
@@ -49,8 +58,12 @@ describe('Email Integration Tests', () => {
     }).compile();
 
     emailService = module.get<EmailService>(EmailService);
-    userInvitedHandler = module.get<UserInvitedEmailHandler>(UserInvitedEmailHandler);
-    exportCompletedHandler = module.get<ExportCompletedEmailHandler>(ExportCompletedEmailHandler);
+    userInvitedHandler = module.get<UserInvitedEmailHandler>(
+      UserInvitedEmailHandler,
+    );
+    exportCompletedHandler = module.get<ExportCompletedEmailHandler>(
+      ExportCompletedEmailHandler,
+    );
     emailProvider = module.get<EmailProvider>(EMAIL_PROVIDER);
   });
 
@@ -93,7 +106,9 @@ describe('Email Integration Tests', () => {
     });
 
     it('should not throw error if email sending fails', async () => {
-      (SendGridMail.send as jest.Mock) = jest.fn().mockRejectedValue(new Error('SendGrid error'));
+      (SendGridMail.send as jest.Mock) = jest
+        .fn()
+        .mockRejectedValue(new Error('SendGrid error'));
 
       const event: DomainEvent<UserInvitedPayload> = {
         eventType: DOMAIN_EVENTS.USER_INVITED,
@@ -112,6 +127,9 @@ describe('Email Integration Tests', () => {
 
       // Should not throw
       await expect(userInvitedHandler.handle(event)).resolves.not.toThrow();
+
+      // Wait for fire-and-forget to complete before module teardown
+      await new Promise((resolve) => setTimeout(resolve, 200));
     });
   });
 
@@ -151,7 +169,9 @@ describe('Email Integration Tests', () => {
     });
 
     it('should not throw error if email sending fails', async () => {
-      (SendGridMail.send as jest.Mock) = jest.fn().mockRejectedValue(new Error('SendGrid error'));
+      (SendGridMail.send as jest.Mock) = jest
+        .fn()
+        .mockRejectedValue(new Error('SendGrid error'));
 
       const event: DomainEvent<ExportCompletedPayload> = {
         eventType: DOMAIN_EVENTS.EXPORT_COMPLETED,
@@ -172,6 +192,9 @@ describe('Email Integration Tests', () => {
 
       // Should not throw
       await expect(exportCompletedHandler.handle(event)).resolves.not.toThrow();
+
+      // Wait for fire-and-forget to complete before module teardown
+      await new Promise((resolve) => setTimeout(resolve, 200));
     });
   });
 

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ActivityLogService } from '@saas-backend/activity-log';
-import { LegalAuditService } from '@saas-backend/legal-audit';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import {
   EmailProvider,
   EMAIL_PROVIDER,
@@ -125,37 +125,29 @@ export class EmailService {
   ): void {
     // Activity log (business-visible)
     if (orgId) {
-      this.activityLog
-        .logEvent({
-          orgId,
-          actorId: userId,
-          action: 'email.sent',
-          entityType: 'email',
-          metadata: {
-            template: templateName,
-            recipient,
-            status: 'sent',
-          },
-        })
-        .catch((err) => {
-          this.logger.error('Failed to log email success to activity log', err);
-        });
+      this.activityLog.logActivity({
+        orgId,
+        actorId: userId,
+        action: 'email.sent',
+        entityType: 'email',
+        metadata: {
+          template: templateName,
+          recipient,
+          status: 'sent',
+        },
+      });
     }
 
     // Legal audit (compliance)
-    this.legalAudit
-      .logEvent({
-        eventType: 'email.sent',
-        orgId,
-        triggerType: 'system',
-        metadata: {
-          template: templateName,
-          recipientHash: this.hashEmail(recipient), // Don't store raw PII
-        },
-      })
-      .catch((err) => {
-        this.logger.error('Failed to log email success to legal audit', err);
-      });
+    this.legalAudit.recordEvent({
+      eventType: 'email.sent',
+      orgId,
+      triggerType: 'system',
+      metadata: {
+        template: templateName,
+        recipientHash: this.hashEmail(recipient), // Don't store raw PII
+      },
+    });
   }
 
   /**
@@ -173,39 +165,31 @@ export class EmailService {
 
     // Activity log (business-visible)
     if (orgId) {
-      this.activityLog
-        .logEvent({
-          orgId,
-          actorId: userId,
-          action: 'email.failed',
-          entityType: 'email',
-          metadata: {
-            template: templateName,
-            recipient,
-            status: 'failed',
-            error: errorMessage,
-          },
-        })
-        .catch((err) => {
-          this.logger.error('Failed to log email failure to activity log', err);
-        });
+      this.activityLog.logActivity({
+        orgId,
+        actorId: userId,
+        action: 'email.failed',
+        entityType: 'email',
+        metadata: {
+          template: templateName,
+          recipient,
+          status: 'failed',
+          error: errorMessage,
+        },
+      });
     }
 
     // Legal audit (compliance)
-    this.legalAudit
-      .logEvent({
-        eventType: 'email.failed',
-        orgId,
-        triggerType: 'system',
-        metadata: {
-          template: templateName,
-          recipientHash: this.hashEmail(recipient),
-          error: errorMessage,
-        },
-      })
-      .catch((err) => {
-        this.logger.error('Failed to log email failure to legal audit', err);
-      });
+    this.legalAudit.recordEvent({
+      eventType: 'email.failed',
+      orgId,
+      triggerType: 'system',
+      metadata: {
+        template: templateName,
+        recipientHash: this.hashEmail(recipient),
+        error: errorMessage,
+      },
+    });
   }
 
   /**

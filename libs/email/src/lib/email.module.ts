@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ActivityLogModule } from '@saas-backend/activity-log';
-import { LegalAuditModule } from '@saas-backend/legal-audit';
+import { ActivityLogModule } from '@libs/activity-log';
+import { LegalAuditModule } from '@libs/legal-audit';
 import { EmailService } from './email.service';
 import { TemplateRendererService } from './templates/template-renderer.service';
 import { EMAIL_PROVIDER } from './providers/email-provider.interface';

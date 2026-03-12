@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DomainEvent } from '@saas-backend/events';
+import { DomainEvent } from '@libs/events';
 import { EmailService } from '../../email.service';
 
 /**
  * Payload for ExportCompletedEvent
  */
 export interface ExportCompletedPayload {
+  [key: string]: unknown;
   userName: string;
   userEmail: string;
   userId: string;

@@ -4,7 +4,7 @@ Event-driven transactional email system for the SaaS Backend Blueprint.
 
 ## Overview
 
-The `@saas-backend/email` library provides production-ready transactional email capabilities using an event-driven architecture. It decouples business logic from email delivery, ensuring loose coupling and scalability.
+The `@libs/email` library provides production-ready transactional email capabilities using an event-driven architecture. It decouples business logic from email delivery, ensuring loose coupling and scalability.
 
 ### Key Features
 
@@ -33,6 +33,7 @@ External Email Service
 ```
 
 This design ensures:
+
 - Business logic remains independent of email infrastructure
 - Email provider can be swapped without changing application code
 - Email failures don't crash request handlers or block workflows
@@ -45,7 +46,7 @@ The library is already set up as an Nx library. To use it in your application:
 
 ```typescript
 // In your app module (e.g., apps/api/src/app/app.module.ts)
-import { EmailModule } from '@saas-backend/email';
+import { EmailModule } from '@libs/email';
 
 @Module({
   imports: [
@@ -94,12 +95,14 @@ Environment variables are validated at startup using Joi schemas defined in `lib
 The SendGrid provider uses the official `@sendgrid/mail` SDK.
 
 **Advantages**:
+
 - Simple API
 - Built-in deliverability optimization
 - Detailed analytics
 - No server maintenance
 
 **Setup**:
+
 1. Create a SendGrid account at https://sendgrid.com
 2. Generate an API key with "Mail Send" permissions
 3. Add `SENDGRID_API_KEY` to `.env`
@@ -108,6 +111,7 @@ The SendGrid provider uses the official `@sendgrid/mail` SDK.
 ### Future Providers
 
 The provider interface allows adding:
+
 - AWS SES
 - Postmark
 - Resend
@@ -115,6 +119,7 @@ The provider interface allows adding:
 - Custom SMTP
 
 To add a new provider:
+
 1. Implement `EmailProvider` interface in `libs/email/src/lib/providers/`
 2. Update factory in `EmailModule` to instantiate your provider
 3. Add configuration to `libs/config/src/email.config.ts`
@@ -128,6 +133,7 @@ To add a new provider:
 Templates are stored in `libs/email/src/lib/templates/*.hbs` using Handlebars syntax.
 
 **Available Templates**:
+
 - `user-invite.hbs` - User invitation emails
 - `auth-login-link.hbs` - Authentication magic links
 - `export-ready.hbs` - Data export completion notifications
@@ -136,12 +142,14 @@ Templates are stored in `libs/email/src/lib/templates/*.hbs` using Handlebars sy
 ### Template Rendering
 
 The `TemplateRendererService` provides:
+
 - Template loading from filesystem
 - Compilation and caching (for performance)
 - Data interpolation with Handlebars
 - HTML escaping for security
 
 **Custom Handlebars Helpers**:
+
 - `{{formatDate date}}` - Format dates (e.g., "March 12, 2026")
 - `{{uppercase str}}` - Convert to uppercase
 - `{{eq a b}}` - Equality check for conditionals
@@ -153,13 +161,12 @@ The `TemplateRendererService` provides:
 3. Use Handlebars syntax for dynamic content:
 
 ```handlebars
-<!DOCTYPE html>
 <html>
-<body>
-  <h1>Hello {{userName}}!</h1>
-  <p>{{message}}</p>
-  <a href="{{actionUrl}}">Click Here</a>
-</body>
+  <body>
+    <h1>Hello {{userName}}!</h1>
+    <p>{{message}}</p>
+    <a href='{{actionUrl}}'>Click Here</a>
+  </body>
 </html>
 ```
 
@@ -173,7 +180,7 @@ Emit domain events from your services; email handlers automatically send emails:
 
 ```typescript
 // In your service (e.g., libs/billing/src/application/services/subscription.service.ts)
-import { EventBusService, DOMAIN_EVENTS } from '@saas-backend/events';
+import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 
 @Injectable()
 export class SubscriptionService {
@@ -212,7 +219,7 @@ The `UserInvitedEmailHandler` listens for this event and sends the email automat
 For scenarios where you need to send emails directly:
 
 ```typescript
-import { EmailService } from '@saas-backend/email';
+import { EmailService } from '@libs/email';
 
 @Injectable()
 export class YourService {
@@ -231,7 +238,7 @@ export class YourService {
         inviteUrl: 'https://app.example.com/invite/abc123',
         expiresAt: new Date('2026-04-01'),
       },
-      orgId: 'org-123',  // Optional: for audit logging
+      orgId: 'org-123', // Optional: for audit logging
       userId: 'user-456', // Optional: for audit logging
     });
   }
@@ -281,18 +288,21 @@ export const DOMAIN_EVENTS = {
 Every email send attempt is automatically logged to two systems:
 
 ### Activity Log (Business-Visible)
+
 - Visible to organization admins
 - Tracks: recipient, template, timestamp, success/failure
 - Queryable via API
 - Used for operational monitoring
 
 ### Legal Audit (Compliance)
+
 - Immutable, append-only
 - Stores hashed recipient (no raw PII)
 - Survives organization deletion
 - Compliance: GDPR Art. 5(2), ISO 27001
 
 **Example Audit Events**:
+
 ```json
 {
   "eventType": "email.sent",
@@ -322,17 +332,18 @@ await emailService.sendTransactionalEmail({ ... });
 
 ### Error Scenarios
 
-| Scenario | Behavior |
-|----------|----------|
-| Invalid recipient email | Logged as error, email not sent |
-| Template rendering fails | Logged to audit, email not sent |
-| Provider API error | Logged to audit, marked as failed |
-| Activity log failure | Email still sent, error logged |
-| Legal audit failure | Email still sent, error logged |
+| Scenario                 | Behavior                          |
+| ------------------------ | --------------------------------- |
+| Invalid recipient email  | Logged as error, email not sent   |
+| Template rendering fails | Logged to audit, email not sent   |
+| Provider API error       | Logged to audit, marked as failed |
+| Activity log failure     | Email still sent, error logged    |
+| Legal audit failure      | Email still sent, error logged    |
 
 ### Retry Logic
 
 Currently, failed emails are not automatically retried. For production systems, consider:
+
 - Implementing retry queues (e.g., SQS with DLQ)
 - Using provider-level retry (SendGrid has built-in retries)
 - Monitoring failed email audit logs
@@ -348,13 +359,14 @@ Emails can be scoped to organizations via `orgId`:
 ```typescript
 await emailService.sendTransactionalEmail({
   // ...
-  orgId: 'org-123',  // Enables org-specific audit logging
+  orgId: 'org-123', // Enables org-specific audit logging
 });
 ```
 
 ### Future Enhancements
 
 The architecture supports:
+
 - **Organization Branding**: Custom logos, colors per organization
 - **Custom Domains**: Send emails from `noreply@customer-domain.com`
 - **Template Overrides**: Organization-specific template variations
@@ -368,6 +380,15 @@ The architecture supports:
 
 ```bash
 nx test email
+```
+
+### Run Integration Tests
+
+Integration tests require the Postgres and Redis containers running:
+
+```bash
+docker compose up -d postgres postgres-legal redis
+nx test email -- --testPathPattern=email.integration
 ```
 
 ### Run with Coverage
@@ -411,12 +432,14 @@ expect(mockSend).toHaveBeenCalledWith(
 ### Testing Without Sending Real Emails
 
 **Option 1: Use SendGrid Sandbox Mode**
+
 ```bash
 # In SendGrid dashboard, enable "sandbox mode"
 # Emails will be accepted but not delivered
 ```
 
 **Option 2: Use MailHog (Local SMTP Server)**
+
 ```bash
 # Run MailHog via Docker
 docker run -d -p 1025:1025 -p 8025:8025 mailhog/mailhog
@@ -456,12 +479,14 @@ Before deploying to production:
 ### Emails Not Sending
 
 1. **Check Configuration**
+
    ```bash
    # Verify environment variables are loaded
    echo $SENDGRID_API_KEY
    ```
 
 2. **Check Logs**
+
    ```bash
    # Look for SendGrid errors in application logs
    grep "SendGrid" logs/app.log
@@ -484,6 +509,7 @@ Error: Template not found: my-template.hbs
 **Cause**: Invalid or missing API key
 
 **Solution**:
+
 - Regenerate API key in SendGrid dashboard
 - Ensure API key has "Mail Send" permission
 - Update `SENDGRID_API_KEY` in `.env`
@@ -510,6 +536,7 @@ Proprietary - Part of the SaaS Backend Blueprint
 ## Support
 
 For issues or questions:
+
 - Check application logs for error details
 - Review SendGrid dashboard for delivery issues
 - Contact the platform team for architecture questions

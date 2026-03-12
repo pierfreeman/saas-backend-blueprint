@@ -109,7 +109,9 @@ export const envValidationSchema = Joi.object({
 
   // ── Email ─────────────────────────────────────────────────────────────────
   EMAIL_PROVIDER: Joi.string().valid('sendgrid', 'smtp').default('sendgrid'),
-  EMAIL_FROM_ADDRESS: Joi.string().email().default('noreply@example.com'),
+  EMAIL_FROM_ADDRESS: Joi.string()
+    .email({ tlds: { allow: false } })
+    .default('noreply@example.com'),
   EMAIL_FROM_NAME: Joi.string().default('SaaS Backend'),
 
   // SendGrid
