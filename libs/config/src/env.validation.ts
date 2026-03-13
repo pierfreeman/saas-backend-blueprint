@@ -106,4 +106,41 @@ export const envValidationSchema = Joi.object({
   // Datadog APM (placeholder)
   DATADOG_ENABLED: Joi.string().valid('true', 'false').default('false'),
   DATADOG_SERVICE_NAME: Joi.string().optional(),
+
+  // ── Email ─────────────────────────────────────────────────────────────────
+  EMAIL_PROVIDER: Joi.string().valid('sendgrid', 'smtp').default('sendgrid'),
+  EMAIL_FROM_ADDRESS: Joi.string()
+    .email({ tlds: { allow: false } })
+    .default('noreply@example.com'),
+  EMAIL_FROM_NAME: Joi.string().default('SaaS Backend'),
+
+  // SendGrid
+  SENDGRID_API_KEY: Joi.string().when('EMAIL_PROVIDER', {
+    is: 'sendgrid',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+
+  // SMTP
+  SMTP_HOST: Joi.string().when('EMAIL_PROVIDER', {
+    is: 'smtp',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  SMTP_PORT: Joi.number().when('EMAIL_PROVIDER', {
+    is: 'smtp',
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  SMTP_SECURE: Joi.string().valid('true', 'false').default('false'),
+  SMTP_USER: Joi.string().when('EMAIL_PROVIDER', {
+    is: 'smtp',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  SMTP_PASS: Joi.string().when('EMAIL_PROVIDER', {
+    is: 'smtp',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
 });

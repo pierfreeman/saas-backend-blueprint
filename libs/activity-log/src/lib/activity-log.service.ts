@@ -35,13 +35,14 @@ export class ActivityLogService {
   // ── Write ────────────────────────────────────────────────────────────────────
 
   /**
-   * Fire-and-forget activity log write.
-   * Does not return a value and never throws — failures are swallowed
-   * and logged internally to ensure audit failures cannot break the
-   * business operation that triggered them.
+   * Activity log write — returns a promise that resolves once the record is
+   * persisted (or silently after swallowing any DB error). The returned
+   * promise never rejects, so the caller can safely `await` it without
+   * wrapping in try/catch, or ignore the promise for pure fire-and-forget
+   * semantics.
    */
-  logActivity(event: ActivityLogEvent): void {
-    this.persist(event).catch((err: unknown) => {
+  logActivity(event: ActivityLogEvent): Promise<void> {
+    return this.persist(event).catch((err: unknown) => {
       this.logger.error(
         `logActivity unhandled rejection for "${event.action}": ${
           err instanceof Error ? err.message : JSON.stringify(err)

@@ -205,7 +205,7 @@ export class SubscriptionService {
     );
 
     // ── 3: ActivityLog ───────────────────────────────────────────────────────
-    this.activityLog.logActivity({
+    await this.activityLog.logActivity({
       orgId: org.orgId,
       action: activityAction,
       entityType: 'organization',
@@ -299,7 +299,7 @@ export class SubscriptionService {
 
     await this.billingRepository.updateOrgBillingData(orgId, updateData);
 
-    this.activityLog.logActivity({
+    await this.activityLog.logActivity({
       orgId,
       action: 'billing.checkout.completed',
       entityType: 'organization',
@@ -423,7 +423,7 @@ export class SubscriptionService {
       billingStatus: PrismaBillingStatus.ACTIVE,
     });
 
-    this.activityLog.logActivity({
+    await this.activityLog.logActivity({
       orgId: org.orgId,
       action: 'invoice.payment_succeeded',
       entityType: 'organization',
@@ -484,7 +484,7 @@ export class SubscriptionService {
       billingStatus: PrismaBillingStatus.PAST_DUE,
     });
 
-    this.activityLog.logActivity({
+    await this.activityLog.logActivity({
       orgId: org.orgId,
       action: 'invoice.payment_failed',
       entityType: 'organization',
