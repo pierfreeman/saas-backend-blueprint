@@ -17,10 +17,11 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ── Job 1: Lint · Unit Tests · Build ──────────────────────────────────────
+  # ── Job 1: Lint · Typecheck · Build · Unit Tests ────────────────────────────
   unit:
-    name: Lint · Unit Tests · Build
+    name: Lint · Typecheck · Build · Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,13 +35,22 @@ jobs:
 
       - run: npm ci
 
-      - run: npx nx run-many -t lint
+      - name: Restore NX cache
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            nx-${{ runner.os }}-
 
-      - run: npx nx run-many -t typecheck
+      - run: npx nx run-many -t lint --nx-bail
 
-      - run: npx nx run-many -t build
+      - run: npx nx run-many -t typecheck --nx-bail
 
-      - run: npx nx run-many -t test --coverage
+      - run: npx nx run-many -t build --nx-bail
+
+      - run: npx nx run-many -t test --coverage --nx-bail
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
@@ -70,7 +80,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: 24
           cache: 'npm'
 
       - name: Install dependencies
@@ -82,34 +92,19 @@ jobs:
 
       - name: Wait for PostgreSQL (business)
         run: |
-          until docker compose -f docker-compose.test.yml exec -T postgres-test \
-            pg_isready -U postgres -d saas_test; do
-            echo "Waiting for business DB..."
-            sleep 2
-          done
+          timeout 60 bash -c 'until docker compose -f docker-compose.test.yml exec -T postgres-test pg_isready -U postgres -d saas_test; do echo "Waiting for business DB..."; sleep 2; done'
 
       - name: Wait for PostgreSQL (legal)
         run: |
-          until docker compose -f docker-compose.test.yml exec -T postgres-legal-test \
-            pg_isready -U postgres -d legal_test; do
-            echo "Waiting for legal DB..."
-            sleep 2
-          done
+          timeout 60 bash -c 'until docker compose -f docker-compose.test.yml exec -T postgres-legal-test pg_isready -U postgres -d legal_test; do echo "Waiting for legal DB..."; sleep 2; done'
 
       - name: Wait for Redis
         run: |
-          until docker compose -f docker-compose.test.yml exec -T redis-test \
-            redis-cli ping; do
-            echo "Waiting for Redis..."
-            sleep 2
-          done
+          timeout 60 bash -c 'until docker compose -f docker-compose.test.yml exec -T redis-test redis-cli ping; do echo "Waiting for Redis..."; sleep 2; done'
 
       - name: Wait for LocalStack
         run: |
-          until curl -sf http://localhost:4567/_localstack/health | grep -q '"sqs": *"available"'; do
-            echo "Waiting for LocalStack SQS..."
-            sleep 3
-          done
+          timeout 90 bash -c 'until curl -sf http://localhost:4567/_localstack/health | grep -q \'"sqs": *"available"\'; do echo "Waiting for LocalStack SQS..."; sleep 3; done'
 
       # ── Generate Prisma clients ─────────────────────────────────────────
       - name: Generate Prisma clients
