@@ -214,7 +214,7 @@ export class EmailService {
     if (lastDot <= 0 || lastDot === domain.length - 1) return false;
 
     for (let i = 0; i < email.length; i++) {
-      const c = email.charCodeAt(i);
+      const c = email.codePointAt(i) ?? 0;
       if (c === 32 || c === 9 || c === 10 || c === 13) return false;
     }
 
