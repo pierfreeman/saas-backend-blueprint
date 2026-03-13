@@ -193,14 +193,32 @@ export class EmailService {
   }
 
   /**
-   * Validate email format
+   * Validate email format without regex to avoid ReDoS risk.
+   * Checks: single '@' not at position 0, non-empty local part,
+   * domain contains a '.' not at edges, and no whitespace characters.
    */
   private isValidEmail(email: string): boolean {
-    // RFC 5321 caps valid addresses at 254 chars; this bounds worst-case regex
-    // backtracking to O(n²) over a small constant, preventing ReDoS.
-    if (email.length > 254) return false;
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    if (email.length === 0 || email.length > 254) return false;
+
+    const atIndex = email.indexOf('@');
+    if (atIndex <= 0 || atIndex !== email.lastIndexOf('@')) return false;
+    if (atIndex > 64) return false;
+
+    const local = email.slice(0, atIndex);
+    const domain = email.slice(atIndex + 1);
+
+    if (local.startsWith('.') || local.endsWith('.') || local.includes('..'))
+      return false;
+
+    const lastDot = domain.lastIndexOf('.');
+    if (lastDot <= 0 || lastDot === domain.length - 1) return false;
+
+    for (let i = 0; i < email.length; i++) {
+      const c = email.charCodeAt(i);
+      if (c === 32 || c === 9 || c === 10 || c === 13) return false;
+    }
+
+    return true;
   }
 
   /**
