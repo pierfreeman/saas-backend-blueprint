@@ -92,19 +92,19 @@ jobs:
 
       - name: Wait for PostgreSQL (business)
         run: |
-          timeout 60 bash -c 'until docker compose -f docker-compose.test.yml exec -T postgres-test pg_isready -U postgres -d saas_test; do echo "Waiting for business DB..."; sleep 2; done'
+          until docker compose -f docker-compose.test.yml exec -T postgres-test pg_isready -U postgres -d saas_test; do echo "Waiting for business DB..."; sleep 2; done
 
       - name: Wait for PostgreSQL (legal)
         run: |
-          timeout 60 bash -c 'until docker compose -f docker-compose.test.yml exec -T postgres-legal-test pg_isready -U postgres -d legal_test; do echo "Waiting for legal DB..."; sleep 2; done'
+          until docker compose -f docker-compose.test.yml exec -T postgres-legal-test pg_isready -U postgres -d legal_test; do echo "Waiting for legal DB..."; sleep 2; done
 
       - name: Wait for Redis
         run: |
-          timeout 60 bash -c 'until docker compose -f docker-compose.test.yml exec -T redis-test redis-cli ping; do echo "Waiting for Redis..."; sleep 2; done'
+          until docker compose -f docker-compose.test.yml exec -T redis-test redis-cli ping; do echo "Waiting for Redis..."; sleep 2; done
 
       - name: Wait for LocalStack
         run: |
-          timeout 90 bash -c 'until curl -sf http://localhost:4567/_localstack/health | grep -q \'"sqs": *"available"\'; do echo "Waiting for LocalStack SQS..."; sleep 3; done'
+          until curl -sf http://localhost:4567/_localstack/health | grep -q '"sqs": *"available"'; do echo "Waiting for LocalStack SQS..."; sleep 3; done
 
       # ── Generate Prisma clients ─────────────────────────────────────────
       - name: Generate Prisma clients
