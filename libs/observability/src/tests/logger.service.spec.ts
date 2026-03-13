@@ -5,8 +5,17 @@ describe('ObservabilityLoggerService', () => {
   let service: ObservabilityLoggerService;
   let stdoutSpy: jest.SpyInstance;
   let stderrSpy: jest.SpyInstance;
+  let savedLogLevel: string | undefined;
+  let savedLogFormat: string | undefined;
 
   beforeEach(async () => {
+    // NX loads .env.test (which sets LOG_LEVEL=error) for the test target.
+    // Clear these before constructing the service so shouldLog() isn't filtered.
+    savedLogLevel = process.env['LOG_LEVEL'];
+    savedLogFormat = process.env['LOG_FORMAT'];
+    delete process.env['LOG_LEVEL'];
+    delete process.env['LOG_FORMAT'];
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [ObservabilityLoggerService],
     }).compile();
@@ -19,6 +28,16 @@ describe('ObservabilityLoggerService', () => {
   afterEach(() => {
     jest.clearAllMocks();
     jest.restoreAllMocks();
+    if (savedLogLevel !== undefined) {
+      process.env['LOG_LEVEL'] = savedLogLevel;
+    } else {
+      delete process.env['LOG_LEVEL'];
+    }
+    if (savedLogFormat !== undefined) {
+      process.env['LOG_FORMAT'] = savedLogFormat;
+    } else {
+      delete process.env['LOG_FORMAT'];
+    }
   });
 
   // ── pretty mode (default in test env) ───────────────────────────────────────
