@@ -2,7 +2,7 @@ module.exports = {
   displayName: 'email',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['\\.integration\\.spec\\.ts$'],
+  testPathIgnorePatterns: [String.raw`\.integration\.spec\.ts$`],
   transform: {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
   },
