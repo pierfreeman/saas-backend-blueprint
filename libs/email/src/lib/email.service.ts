@@ -196,6 +196,9 @@ export class EmailService {
    * Validate email format
    */
   private isValidEmail(email: string): boolean {
+    // RFC 5321 caps valid addresses at 254 chars; this bounds worst-case regex
+    // backtracking to O(n²) over a small constant, preventing ReDoS.
+    if (email.length > 254) return false;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   }
