@@ -21,13 +21,13 @@ export class SendGridProvider implements EmailProvider {
     this.fromAddress = this.configService.get<string>('email.from.address')!;
     this.fromName = this.configService.get<string>('email.from.name')!;
 
-    if (!apiKey) {
+    if (apiKey) {
+      SendGridMail.setApiKey(apiKey);
+      this.logger.log('SendGrid provider initialized');
+    } else {
       this.logger.warn(
         'SendGrid API key not configured. Email sending will fail.',
       );
-    } else {
-      SendGridMail.setApiKey(apiKey);
-      this.logger.log('SendGrid provider initialized');
     }
   }
 

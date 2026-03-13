@@ -28,15 +28,15 @@ describe('ObservabilityLoggerService', () => {
   afterEach(() => {
     jest.clearAllMocks();
     jest.restoreAllMocks();
-    if (savedLogLevel !== undefined) {
-      process.env['LOG_LEVEL'] = savedLogLevel;
-    } else {
+    if (savedLogLevel === undefined) {
       delete process.env['LOG_LEVEL'];
-    }
-    if (savedLogFormat !== undefined) {
-      process.env['LOG_FORMAT'] = savedLogFormat;
     } else {
+      process.env['LOG_LEVEL'] = savedLogLevel;
+    }
+    if (savedLogFormat === undefined) {
       delete process.env['LOG_FORMAT'];
+    } else {
+      process.env['LOG_FORMAT'] = savedLogFormat;
     }
   });
 
