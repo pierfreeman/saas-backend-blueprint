@@ -7,7 +7,7 @@ module.exports = {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../coverage/libs/email',
+  coverageDirectory: '../../coverage/unit/libs/email',
   moduleNameMapper: {
     '^@libs/activity-log$': '<rootDir>/../../libs/activity-log/src/index.ts',
     '^@libs/legal-audit$': '<rootDir>/../../libs/legal-audit/src/index.ts',
