@@ -144,6 +144,7 @@ export class OrgDeletionService {
       payload: eventPayload as Record<string, unknown>,
       tenantId: orgId,
       userId,
+      timestamp: new Date(),
     });
 
     this.logger.log(

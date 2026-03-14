@@ -44,7 +44,7 @@ export class OrgDeletionWorkerService {
     const stripeKey = this.config.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey && !stripeKey.startsWith('sk_test_...')) {
       this.stripe = new Stripe(stripeKey, {
-        apiVersion: '2025-02-24.acacia',
+        apiVersion: '2026-02-25.clover',
       });
     }
   }
@@ -79,6 +79,7 @@ export class OrgDeletionWorkerService {
         startedAt,
       } as unknown as Record<string, unknown>,
       tenantId: orgId,
+      timestamp: new Date(),
     });
 
     try {
@@ -145,6 +146,7 @@ export class OrgDeletionWorkerService {
           completedAt,
         } as unknown as Record<string, unknown>,
         tenantId: orgId,
+        timestamp: new Date(),
       });
 
       // Record legal audit event (permanent)
@@ -177,6 +179,7 @@ export class OrgDeletionWorkerService {
           failedAt: new Date(),
         } as unknown as Record<string, unknown>,
         tenantId: orgId,
+        timestamp: new Date(),
       });
 
       // Record failure in legal audit
