@@ -64,6 +64,10 @@ enum OrganizationStatus {
   /// Organization has been administratively suspended (e.g. billing failure,
   /// policy violation). Members cannot access org resources while suspended.
   SUSPENDED
+  /// Organization deletion has been requested and scheduled; awaiting background worker execution.
+  PENDING_DELETION
+  /// Organization has been fully deleted; all tenant data removed. Legal audit records remain.
+  DELETED
 
   @@schema("public")
 }
@@ -158,6 +162,15 @@ model Organization {
   subscriptionPeriodEnd     DateTime?      @map("subscription_period_end")
   /// If true, subscription cancels at the end of the current period.
   cancelAtPeriodEnd         Boolean        @default(false) @map("cancel_at_period_end")
+  /// Timestamp when organization deletion was requested (user or system trigger).
+  deletionRequestedAt       DateTime?      @map("deletion_requested_at")
+  /// Timestamp when the deletion job is scheduled to execute (requestedAt + retention period).
+  deletionScheduledAt       DateTime?      @map("deletion_scheduled_at")
+  /// Timestamp when deletion completed successfully (status = DELETED).
+  deletionCompletedAt       DateTime?      @map("deletion_completed_at")
+  /// Custom retention period in days for this organization. Overrides default if set.
+  /// Used for enterprise agreements or subscription-specific requirements.
+  retentionPeriodDays       Int?           @map("retention_period_days")
   /// Timestamp of organization creation.
   createdAt                 DateTime       @default(now()) @map("created_at")
   /// Timestamp of the last update.

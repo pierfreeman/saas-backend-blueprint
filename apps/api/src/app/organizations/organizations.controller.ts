@@ -19,11 +19,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Organization } from '@prisma/client';
+import { Organization, MembershipRole } from '@prisma/client';
+import { OrgDeletionService, DeletionTrigger } from '@libs/org-deletion';
 import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
 import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
+import { RequireRole } from '../rbac/decorators/require-role.decorator';
 import { OrgContextGuard } from '../rbac/guards/org-context.guard';
 import { RBACGuard } from '../rbac/guards/rbac.guard';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -38,6 +40,7 @@ export class OrganizationsController {
   constructor(
     private readonly organizationsService: OrganizationsService,
     private readonly authService: AuthService,
+    private readonly orgDeletionService: OrgDeletionService,
   ) {}
 
   @Post()
@@ -278,16 +281,91 @@ export class OrganizationsController {
     return this.organizationsService.updateOrganization(id, dto, dbUser.id);
   }
 
+  @Post(':id/delete')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequireRole(MembershipRole.OWNER)
+  @ApiOperation({
+    summary: 'Request organization deletion',
+    description:
+      'Schedules organization deletion with a retention period (default 30 days). ' +
+      'The organization status is immediately set to PENDING_DELETION, ' +
+      'but actual data deletion happens asynchronously after the retention period. ' +
+      'This complies with GDPR Right to Erasure requirements. ' +
+      'Only OWNER role can request deletion.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Organization UUID',
+    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
+  })
+  @ApiResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Deletion request accepted and scheduled.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Organization deletion requested successfully',
+        },
+        scheduledAt: {
+          type: 'string',
+          format: 'date-time',
+          example: '2026-04-13T14:06:00.000Z',
+        },
+      },
+      required: ['message', 'scheduledAt'],
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Organization is already being deleted or has been deleted.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Only OWNER role can request organization deletion.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Organization not found.',
+  })
+  async requestDeletion(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ): Promise<{ message: string; scheduledAt: Date }> {
+    const dbUser = await this.resolveUser(user.sub);
+    await this.orgDeletionService.requestDeletion(
+      id,
+      DeletionTrigger.USER_REQUEST,
+      dbUser.id,
+    );
+
+    // Fetch the organization to get the scheduled deletion time
+    const org = await this.organizationsService.findById(id);
+
+    return {
+      message: 'Organization deletion requested successfully',
+      scheduledAt: org.deletionScheduledAt!,
+    };
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @OrgScoped()
   @UseGuards(OrgContextGuard, RBACGuard)
   @RequirePermissions([PERMISSIONS.ORG_MANAGE])
   @ApiOperation({
-    summary: 'Delete an organization',
+    summary: 'Delete an organization (immediate, deprecated)',
     description:
-      'Permanently deletes an organization and all its associated data ' +
-      '(memberships, audit events). This action is irreversible. ' +
+      'DEPRECATED: Use POST /organizations/:id/delete instead. ' +
+      'This endpoint immediately deletes an organization without retention period. ' +
+      'Kept for backward compatibility only. ' +
       'Requires ORG_MANAGE permission (OWNER only).',
   })
   @ApiParam({

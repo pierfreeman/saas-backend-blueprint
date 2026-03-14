@@ -2,6 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, JobUpdateMessage } from '@libs/events';
+import {
+  OrgDeletionWorkerService,
+  OrgDeletionRequestedEventPayload,
+} from '@libs/org-deletion';
 import { JobStatus, Prisma } from '@prisma/client';
 
 /**
@@ -38,6 +42,7 @@ export class WorkerController {
   constructor(
     private readonly prisma: PrismaBusinessService,
     private readonly pubSub: PubSubService,
+    private readonly orgDeletionWorker: OrgDeletionWorkerService,
   ) {}
 
   /**
@@ -142,5 +147,27 @@ export class WorkerController {
       jobId: payload.jobId,
       completedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Handles organization deletion requests.
+   * Delegates to OrgDeletionWorkerService for actual cleanup execution.
+   */
+  async handleOrgDeletionRequested(
+    event: DomainEvent<OrgDeletionRequestedEventPayload>,
+  ): Promise<void> {
+    const { orgId, trigger, orgName, requestedAt } = event.payload;
+
+    this.logger.log(
+      `[Worker-Compute-A] Received org deletion request: ${orgId} | trigger: ${trigger}`,
+    );
+
+    // Execute the deletion workflow
+    await this.orgDeletionWorker.executeDeletion(
+      orgId,
+      trigger,
+      orgName,
+      requestedAt,
+    );
   }
 }
