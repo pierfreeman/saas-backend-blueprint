@@ -61,11 +61,11 @@ export class OrgDeletionSchedulerService {
             `Triggering deletion for suspended organization ${org.id}`,
           );
 
-          // Use system user ID (null) for automatic deletions
+          // Use undefined for automatic deletions (system-triggered)
           await this.deletionService.requestDeletion(
             org.id,
             DeletionTrigger.SUBSCRIPTION_EXPIRY,
-            null,
+            undefined,
           );
 
           this.logger.log(
