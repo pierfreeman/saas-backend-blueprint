@@ -6,7 +6,7 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
-    "tslib": "^2.3.0",
+    "tslib": "^2.8.1",
     "@aws-sdk/client-sqs": "*",
     "eventemitter2": "^6.4.9"
   }
