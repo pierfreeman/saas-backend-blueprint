@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { StorageService } from './storage.service';
 import { S3Provider } from '../../infrastructure/providers/s3.provider';
@@ -36,6 +40,7 @@ describe('StorageService', () => {
       confirmUpload: jest.fn(),
       deleteFile: jest.fn(),
       findByOrg: jest.fn(),
+      findByPrefix: jest.fn(),
       markExpired: jest.fn(),
     } as unknown as jest.Mocked<StorageRepository>;
 
@@ -188,7 +193,9 @@ describe('StorageService', () => {
 
       expect(result.fileId).toBe(mockRequest.fileId);
       expect(result.status).toBe(FileStatus.COMPLETED);
-      expect(storageRepository.confirmUpload).toHaveBeenCalledWith(mockRequest.fileId);
+      expect(storageRepository.confirmUpload).toHaveBeenCalledWith(
+        mockRequest.fileId,
+      );
       expect(activityLog.logActivity).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'file.upload.confirmed',
@@ -205,7 +212,9 @@ describe('StorageService', () => {
 
       storageRepository.findByIdAndOrg.mockResolvedValue(null);
 
-      await expect(service.confirmUpload(mockRequest)).rejects.toThrow(NotFoundException);
+      await expect(service.confirmUpload(mockRequest)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw BadRequestException if file not in PENDING state', async () => {
@@ -233,7 +242,9 @@ describe('StorageService', () => {
 
       storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
 
-      await expect(service.confirmUpload(mockRequest)).rejects.toThrow(BadRequestException);
+      await expect(service.confirmUpload(mockRequest)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if file expired', async () => {
@@ -262,8 +273,12 @@ describe('StorageService', () => {
       storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
       storageRepository.markExpired.mockResolvedValue(mockFile);
 
-      await expect(service.confirmUpload(mockRequest)).rejects.toThrow(BadRequestException);
-      expect(storageRepository.markExpired).toHaveBeenCalledWith(mockRequest.fileId);
+      await expect(service.confirmUpload(mockRequest)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(storageRepository.markExpired).toHaveBeenCalledWith(
+        mockRequest.fileId,
+      );
     });
 
     it('should throw BadRequestException if file not in storage', async () => {
@@ -292,7 +307,9 @@ describe('StorageService', () => {
       storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
       s3Provider.objectExists.mockResolvedValue(false);
 
-      await expect(service.confirmUpload(mockRequest)).rejects.toThrow(BadRequestException);
+      await expect(service.confirmUpload(mockRequest)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -320,7 +337,8 @@ describe('StorageService', () => {
         updatedAt: new Date(),
       };
 
-      const mockDownloadUrl = 'https://s3.amazonaws.com/bucket/key?signature=xyz';
+      const mockDownloadUrl =
+        'https://s3.amazonaws.com/bucket/key?signature=xyz';
 
       storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
       s3Provider.generateDownloadUrl.mockResolvedValue(mockDownloadUrl);
@@ -413,7 +431,9 @@ describe('StorageService', () => {
       await service.deleteFile(mockRequest);
 
       expect(s3Provider.deleteObject).toHaveBeenCalledWith(mockFile.storageKey);
-      expect(storageRepository.deleteFile).toHaveBeenCalledWith(mockRequest.fileId);
+      expect(storageRepository.deleteFile).toHaveBeenCalledWith(
+        mockRequest.fileId,
+      );
       expect(activityLog.logActivity).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'file.deleted',
@@ -455,7 +475,9 @@ describe('StorageService', () => {
 
       await service.deleteFile(mockRequest);
 
-      expect(storageRepository.deleteFile).toHaveBeenCalledWith(mockRequest.fileId);
+      expect(storageRepository.deleteFile).toHaveBeenCalledWith(
+        mockRequest.fileId,
+      );
     });
 
     it('should throw NotFoundException if file not found', async () => {
@@ -467,7 +489,9 @@ describe('StorageService', () => {
 
       storageRepository.findByIdAndOrg.mockResolvedValue(null);
 
-      await expect(service.deleteFile(mockRequest)).rejects.toThrow(NotFoundException);
+      await expect(service.deleteFile(mockRequest)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -494,7 +518,10 @@ describe('StorageService', () => {
       const result = await service.getFile('file-123', 'org-456');
 
       expect(result).toEqual(mockFile);
-      expect(storageRepository.findByIdAndOrg).toHaveBeenCalledWith('file-123', 'org-456');
+      expect(storageRepository.findByIdAndOrg).toHaveBeenCalledWith(
+        'file-123',
+        'org-456',
+      );
     });
 
     it('should throw NotFoundException if file not found', async () => {
@@ -543,13 +570,73 @@ describe('StorageService', () => {
 
       storageRepository.findByOrg.mockResolvedValue(mockFiles);
 
-      const result = await service.listFiles('org-123', { limit: 10, offset: 0 });
+      const result = await service.listFiles('org-123', {
+        limit: 10,
+        offset: 0,
+      });
 
       expect(result).toEqual(mockFiles);
       expect(storageRepository.findByOrg).toHaveBeenCalledWith('org-123', {
         limit: 10,
         offset: 0,
       });
+    });
+  });
+
+  describe('deleteFolder', () => {
+    const prefix = 'org/org-456';
+
+    const makeFile = (overrides: Record<string, unknown> = {}) => ({
+      id: 'file-1',
+      orgId: 'org-456',
+      uploadedBy: 'user-789',
+      storageKey: `${prefix}/file-1`,
+      provider: StorageProvider.S3,
+      filename: 'test.pdf',
+      size: BigInt(1048576),
+      mimeType: 'application/pdf',
+      status: FileStatus.COMPLETED,
+      expiresAt: null,
+      confirmedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    });
+
+    it('deletes storage objects for COMPLETED files', async () => {
+      const file = makeFile();
+      storageRepository.findByPrefix.mockResolvedValue([file as any]);
+      s3Provider.deleteObject.mockResolvedValue(undefined);
+
+      await service.deleteFolder(prefix);
+
+      expect(storageRepository.findByPrefix).toHaveBeenCalledWith(prefix);
+      expect(s3Provider.deleteObject).toHaveBeenCalledWith(file.storageKey);
+    });
+
+    it('skips non-COMPLETED files without calling deleteObject', async () => {
+      const pendingFile = makeFile({ status: FileStatus.PENDING });
+      storageRepository.findByPrefix.mockResolvedValue([pendingFile as any]);
+
+      await service.deleteFolder(prefix);
+
+      expect(s3Provider.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('warns and continues when deleteObject throws for a COMPLETED file', async () => {
+      const file = makeFile();
+      storageRepository.findByPrefix.mockResolvedValue([file as any]);
+      s3Provider.deleteObject.mockRejectedValue(new Error('S3 unavailable'));
+
+      await expect(service.deleteFolder(prefix)).resolves.not.toThrow();
+    });
+
+    it('does nothing when no files are found under the prefix', async () => {
+      storageRepository.findByPrefix.mockResolvedValue([]);
+
+      await service.deleteFolder(prefix);
+
+      expect(s3Provider.deleteObject).not.toHaveBeenCalled();
     });
   });
 });

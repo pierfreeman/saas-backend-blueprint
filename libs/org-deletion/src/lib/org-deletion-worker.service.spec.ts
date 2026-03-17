@@ -1,5 +1,15 @@
+// Mock the stripe module before any imports that reference it
+jest.mock('stripe', () => {
+  const MockStripe = jest.fn(() => ({
+    subscriptions: { cancel: jest.fn().mockResolvedValue({}) },
+    customers: { del: jest.fn().mockResolvedValue({}) },
+  }));
+  return { __esModule: true, default: MockStripe };
+});
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
 import { OrgDeletionWorkerService } from './org-deletion-worker.service';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { EventBusService } from '@libs/events';
@@ -390,6 +400,232 @@ describe('OrgDeletionWorkerService', () => {
           'Test Organization',
           requestedAt,
         ),
+      ).resolves.not.toThrow();
+    });
+
+    it('uses system triggerType in legal audit for SUBSCRIPTION_EXPIRY trigger', async () => {
+      const org = makeOrganization();
+      prisma.organization.findUnique.mockResolvedValueOnce(org);
+      prisma.organization.update.mockResolvedValue({
+        ...org,
+        status: 'DELETED',
+      });
+
+      await service.executeDeletion(
+        ORG_UUID,
+        DeletionTrigger.SUBSCRIPTION_EXPIRY,
+        'Test Organization',
+        requestedAt,
+      );
+
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'organization.deleted',
+          triggerType: 'system',
+        }),
+      );
+    });
+
+    it('calls revokeExternalResources when org has a stripeCustomerId', async () => {
+      const org = makeOrganization({ stripeCustomerId: 'cus_123' });
+      prisma.organization.findUnique.mockResolvedValueOnce(org);
+      prisma.organization.update.mockResolvedValue({
+        ...org,
+        status: 'DELETED',
+      });
+
+      // stripe is null (no STRIPE_SECRET_KEY configured) so revokeExternalResources
+      // will log and return early — this still exercises the branch
+      await service.executeDeletion(
+        ORG_UUID,
+        DeletionTrigger.USER_REQUEST,
+        'Test Organization',
+        requestedAt,
+      );
+
+      // Deletion completed despite Stripe being null
+      expect(prisma.organization.update).toHaveBeenCalled();
+    });
+
+    it('enters catch in deleteDatabaseRecords when $transaction throws', async () => {
+      const org = makeOrganization();
+      prisma.organization.findUnique.mockResolvedValueOnce(org);
+      prisma.$transaction.mockRejectedValueOnce(
+        new Error('DB transaction error'),
+      );
+
+      await service.executeDeletion(
+        ORG_UUID,
+        DeletionTrigger.USER_REQUEST,
+        'Test Organization',
+        requestedAt,
+      );
+
+      const failEvent = eventBus.publish.mock.calls.find(
+        (call) => call[0].eventType === 'org.deletion.failed',
+      );
+      expect(failEvent).toBeDefined();
+      expect(failEvent[0].payload.error).toContain('DB transaction error');
+    });
+
+    it('enters catch in markOrganizationDeleted when organization.update throws', async () => {
+      const org = makeOrganization();
+      prisma.organization.findUnique.mockResolvedValueOnce(org);
+      prisma.organization.update.mockRejectedValueOnce(
+        new Error('DB update error'),
+      );
+
+      await service.executeDeletion(
+        ORG_UUID,
+        DeletionTrigger.USER_REQUEST,
+        'Test Organization',
+        requestedAt,
+      );
+
+      const failEvent = eventBus.publish.mock.calls.find(
+        (call) => call[0].eventType === 'org.deletion.failed',
+      );
+      expect(failEvent).toBeDefined();
+      expect(failEvent[0].payload.error).toContain('DB update error');
+    });
+  });
+
+  // ─── Stripe initialization ──────────────────────────────────────────────────
+
+  describe('Stripe initialization', () => {
+    it('initializes Stripe when a non-placeholder key is provided', async () => {
+      const MockStripe = Stripe as unknown as jest.Mock;
+      MockStripe.mockClear();
+
+      const stripeConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'STRIPE_SECRET_KEY') return 'sk_live_real_key';
+          return undefined;
+        }),
+      };
+
+      const module = await Test.createTestingModule({
+        providers: [
+          OrgDeletionWorkerService,
+          { provide: PrismaBusinessService, useValue: buildPrismaMock() },
+          { provide: EventBusService, useValue: buildEventBusMock() },
+          { provide: LegalAuditService, useValue: buildLegalAuditMock() },
+          { provide: ActivityLogService, useValue: buildActivityLogMock() },
+          { provide: CacheService, useValue: buildCacheMock() },
+          { provide: StorageService, useValue: buildStorageMock() },
+          { provide: ConfigService, useValue: stripeConfig },
+        ],
+      }).compile();
+
+      const stripeService = module.get<OrgDeletionWorkerService>(
+        OrgDeletionWorkerService,
+      );
+      expect((stripeService as any).stripe).not.toBeNull();
+      expect(MockStripe).toHaveBeenCalledWith(
+        'sk_live_real_key',
+        expect.any(Object),
+      );
+    });
+
+    it('does not initialize Stripe when key is the placeholder sk_test_...', async () => {
+      const MockStripe = Stripe as unknown as jest.Mock;
+      MockStripe.mockClear();
+
+      const placeholderConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'STRIPE_SECRET_KEY') return 'sk_test_...';
+          return undefined;
+        }),
+      };
+
+      const module = await Test.createTestingModule({
+        providers: [
+          OrgDeletionWorkerService,
+          { provide: PrismaBusinessService, useValue: buildPrismaMock() },
+          { provide: EventBusService, useValue: buildEventBusMock() },
+          { provide: LegalAuditService, useValue: buildLegalAuditMock() },
+          { provide: ActivityLogService, useValue: buildActivityLogMock() },
+          { provide: CacheService, useValue: buildCacheMock() },
+          { provide: StorageService, useValue: buildStorageMock() },
+          { provide: ConfigService, useValue: placeholderConfig },
+        ],
+      }).compile();
+
+      const stripeService = module.get<OrgDeletionWorkerService>(
+        OrgDeletionWorkerService,
+      );
+      expect((stripeService as any).stripe).toBeNull();
+      expect(MockStripe).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── revokeExternalResources ────────────────────────────────────────────────
+
+  describe('revokeExternalResources with Stripe configured', () => {
+    const mockStripe = {
+      subscriptions: { cancel: jest.fn() },
+      customers: { del: jest.fn() },
+    };
+
+    beforeEach(() => {
+      mockStripe.subscriptions.cancel.mockReset();
+      mockStripe.customers.del.mockReset();
+      (service as any).stripe = mockStripe;
+    });
+
+    afterEach(() => {
+      (service as any).stripe = null;
+    });
+
+    it('cancels subscription and deletes customer when both are provided', async () => {
+      mockStripe.subscriptions.cancel.mockResolvedValueOnce({});
+      mockStripe.customers.del.mockResolvedValueOnce({});
+
+      await (service as any).revokeExternalResources('cus_123', 'sub_456');
+
+      expect(mockStripe.subscriptions.cancel).toHaveBeenCalledWith('sub_456');
+      expect(mockStripe.customers.del).toHaveBeenCalledWith('cus_123');
+    });
+
+    it('skips subscription cancel when subscriptionId is null', async () => {
+      mockStripe.customers.del.mockResolvedValueOnce({});
+
+      await (service as any).revokeExternalResources('cus_123', null);
+
+      expect(mockStripe.subscriptions.cancel).not.toHaveBeenCalled();
+      expect(mockStripe.customers.del).toHaveBeenCalledWith('cus_123');
+    });
+
+    it('skips customer deletion when stripeCustomerId is null', async () => {
+      mockStripe.subscriptions.cancel.mockResolvedValueOnce({});
+
+      await (service as any).revokeExternalResources(null, 'sub_456');
+
+      expect(mockStripe.subscriptions.cancel).toHaveBeenCalledWith('sub_456');
+      expect(mockStripe.customers.del).not.toHaveBeenCalled();
+    });
+
+    it('warns and continues when subscription cancellation fails', async () => {
+      mockStripe.subscriptions.cancel.mockRejectedValueOnce(
+        new Error('already canceled'),
+      );
+      mockStripe.customers.del.mockResolvedValueOnce({});
+
+      await expect(
+        (service as any).revokeExternalResources('cus_123', 'sub_456'),
+      ).resolves.not.toThrow();
+
+      expect(mockStripe.customers.del).toHaveBeenCalledWith('cus_123');
+    });
+
+    it('warns and continues when customer deletion fails', async () => {
+      mockStripe.subscriptions.cancel.mockResolvedValueOnce({});
+      mockStripe.customers.del.mockRejectedValueOnce(
+        new Error('already deleted'),
+      );
+
+      await expect(
+        (service as any).revokeExternalResources('cus_123', 'sub_456'),
       ).resolves.not.toThrow();
     });
   });

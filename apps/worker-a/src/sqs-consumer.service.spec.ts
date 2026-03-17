@@ -14,6 +14,7 @@ jest.mock('@aws-sdk/client-sqs', () => ({
 function makeController(): jest.Mocked<WorkerController> {
   return {
     handleHeavyJobCreated: jest.fn().mockResolvedValue(undefined),
+    handleOrgDeletionRequested: jest.fn().mockResolvedValue(undefined),
   } as unknown as jest.Mocked<WorkerController>;
 }
 
@@ -30,7 +31,11 @@ function makeEvent(
   };
 }
 
-function makeSqsMessage(body: unknown, receiptHandle = 'rh-1', messageId = 'msg-1') {
+function makeSqsMessage(
+  body: unknown,
+  receiptHandle = 'rh-1',
+  messageId = 'msg-1',
+) {
   return {
     Body: JSON.stringify(body),
     ReceiptHandle: receiptHandle,
@@ -43,7 +48,8 @@ describe('SqsConsumerService', () => {
   let controller: jest.Mocked<WorkerController>;
   let service: SqsConsumerService;
 
-  const QUEUE_URL = 'http://localstack:4566/000000000000/saas-backend-heavy-jobs';
+  const QUEUE_URL =
+    'http://localstack:4566/000000000000/saas-backend-heavy-jobs';
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -63,7 +69,9 @@ describe('SqsConsumerService', () => {
       process.env['SQS_STANDARD_QUEUE_URL'] = QUEUE_URL;
       // Create the instance first, then spy on its prototype method
       const svc = new SqsConsumerService(controller);
-      const pollSpy = jest.spyOn(svc as any, 'poll').mockResolvedValue(undefined);
+      const pollSpy = jest
+        .spyOn(svc as any, 'poll')
+        .mockResolvedValue(undefined);
 
       svc.onModuleInit();
 
@@ -99,7 +107,9 @@ describe('SqsConsumerService', () => {
     });
 
     it('does NOT delete the message when the handler throws', async () => {
-      controller.handleHeavyJobCreated.mockRejectedValueOnce(new Error('handler error'));
+      controller.handleHeavyJobCreated.mockRejectedValueOnce(
+        new Error('handler error'),
+      );
       const msg = makeSqsMessage(makeEvent());
 
       await (service as any).processMessage(msg);
@@ -113,7 +123,11 @@ describe('SqsConsumerService', () => {
     });
 
     it('skips and logs when Body is invalid JSON', async () => {
-      const msg = { Body: '{invalid-json}', ReceiptHandle: 'rh', MessageId: 'mid' };
+      const msg = {
+        Body: '{invalid-json}',
+        ReceiptHandle: 'rh',
+        MessageId: 'mid',
+      };
       await expect((service as any).processMessage(msg)).resolves.not.toThrow();
       expect(controller.handleHeavyJobCreated).not.toHaveBeenCalled();
     });
@@ -141,10 +155,10 @@ describe('SqsConsumerService', () => {
       // First receive returns one message; delete succeeds; second receive stops the loop
       mockSend
         .mockResolvedValueOnce({ Messages: [msg] }) // ReceiveMessageCommand
-        .mockResolvedValueOnce({})                   // DeleteMessageCommand
+        .mockResolvedValueOnce({}) // DeleteMessageCommand
         .mockImplementationOnce(() => {
           (service as any).running = false;
-          return Promise.resolve({ Messages: [] });  // second ReceiveMessageCommand → exit loop
+          return Promise.resolve({ Messages: [] }); // second ReceiveMessageCommand → exit loop
         });
 
       await (service as any).poll();
@@ -180,6 +194,14 @@ describe('SqsConsumerService', () => {
       const event = makeEvent();
       await (service as any).dispatch(event);
       expect(controller.handleHeavyJobCreated).toHaveBeenCalledWith(event);
+    });
+
+    it('routes ORG_DELETION_REQUESTED to WorkerController', async () => {
+      const event = makeEvent({
+        eventType: DOMAIN_EVENTS.ORG_DELETION_REQUESTED,
+      });
+      await (service as any).dispatch(event);
+      expect(controller.handleOrgDeletionRequested).toHaveBeenCalledWith(event);
     });
 
     it('logs a warning and does not throw for unknown event types', async () => {
