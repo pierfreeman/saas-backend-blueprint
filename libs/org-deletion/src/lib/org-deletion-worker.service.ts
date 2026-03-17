@@ -1,21 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaBusinessService } from '@libs/prisma-business';
 import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { StorageService } from '@libs/storage';
-import { OrganizationStatus } from '@prisma/client';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { OrganizationStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import {
-  ORG_DELETION_EVENT_TYPES,
   DeletionTrigger,
+  ORG_DELETION_EVENT_TYPES,
 } from './constants/org-deletion-event.constants';
-import {
-  OrgDeletionStartedEventPayload,
-  OrgDeletionCompletedEventPayload,
-  OrgDeletionFailedEventPayload,
-} from './interfaces/org-deletion-event.interface';
 
 /**
  * Worker service responsible for executing organization deletion.
@@ -64,9 +59,7 @@ export class OrgDeletionWorkerService {
     orgName: string,
     requestedAt: Date,
   ): Promise<void> {
-    this.logger.log(
-      `Starting deletion for organization ${orgId} (${orgName})`,
-    );
+    this.logger.log(`Starting deletion for organization ${orgId} (${orgName})`);
 
     const startedAt = new Date();
 
@@ -153,7 +146,8 @@ export class OrgDeletionWorkerService {
       this.legalAudit.recordEvent({
         eventType: 'organization.deleted',
         orgId,
-        triggerType: trigger === DeletionTrigger.USER_REQUEST ? 'user' : 'system',
+        triggerType:
+          trigger === DeletionTrigger.USER_REQUEST ? 'user' : 'system',
         metadata: {
           organizationId: orgId,
           organizationName: orgName,
@@ -186,7 +180,8 @@ export class OrgDeletionWorkerService {
       this.legalAudit.recordEvent({
         eventType: 'organization.deletion.failed',
         orgId,
-        triggerType: trigger === DeletionTrigger.USER_REQUEST ? 'user' : 'system',
+        triggerType:
+          trigger === DeletionTrigger.USER_REQUEST ? 'user' : 'system',
         metadata: {
           organizationId: orgId,
           organizationName: orgName,
@@ -195,9 +190,6 @@ export class OrgDeletionWorkerService {
           failedAt: new Date().toISOString(),
         },
       });
-
-      // Re-throw to trigger retry
-      throw error;
     }
   }
 
@@ -206,44 +198,10 @@ export class OrgDeletionWorkerService {
    */
   private async deleteStorageFiles(orgId: string): Promise<void> {
     this.logger.log(`Deleting storage files for organization ${orgId}`);
-
-    try {
-      // Get all files for the organization
-      const files = await this.prisma.file.findMany({
-        where: { orgId },
-        select: { id: true, storageKey: true },
-      });
-
-      this.logger.log(
-        `Found ${files.length} files to delete for organization ${orgId}`,
-      );
-
-      // Delete each file (StorageService handles both S3 and metadata)
-      for (const file of files) {
-        try {
-          await this.storage.deleteFile({
-            fileId: file.id,
-            orgId,
-            userId: 'system', // System-initiated deletion
-          });
-        } catch (error) {
-          // Log but don't fail - file might already be deleted
-          this.logger.warn(
-            `Failed to delete file ${file.id} (${file.storageKey}): ${error instanceof Error ? error.message : 'Unknown error'}`,
-          );
-        }
-      }
-
-      this.logger.log(
-        `Storage files deletion completed for organization ${orgId}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error during storage files deletion for organization ${orgId}`,
-        error,
-      );
-      // Don't throw - continue with other cleanup steps
-    }
+    await this.storage.deleteFolder(`org/${orgId}`);
+    this.logger.log(
+      `Storage files deletion completed for organization ${orgId}`,
+    );
   }
 
   /**
@@ -295,37 +253,8 @@ export class OrgDeletionWorkerService {
    */
   private async clearRedisCache(orgId: string): Promise<void> {
     this.logger.log(`Clearing Redis cache for organization ${orgId}`);
-
-    try {
-      // Pattern: tenant:{orgId}:*
-      const pattern = `tenant:${orgId}:*`;
-      const keys = await this.cache.keys(pattern);
-
-      if (keys && keys.length > 0) {
-        this.logger.log(
-          `Found ${keys.length} Redis keys to delete for organization ${orgId}`,
-        );
-
-        // Delete all keys matching the pattern
-        for (const key of keys) {
-          try {
-            await this.cache.del(key);
-          } catch (error) {
-            this.logger.warn(
-              `Failed to delete Redis key ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            );
-          }
-        }
-      }
-
-      this.logger.log(`Redis cache cleared for organization ${orgId}`);
-    } catch (error) {
-      this.logger.error(
-        `Error during Redis cache cleanup for organization ${orgId}`,
-        error,
-      );
-      // Don't throw - continue with other cleanup steps
-    }
+    await this.cache.deleteByPattern(`tenant:${orgId}:*`);
+    this.logger.log(`Redis cache cleared for organization ${orgId}`);
   }
 
   /**
@@ -338,33 +267,15 @@ export class OrgDeletionWorkerService {
     try {
       // Delete in transaction to ensure atomicity
       await this.prisma.$transaction(async (tx) => {
-        // Delete jobs explicitly (no cascade relationship)
-        const jobsDeleted = await tx.job.deleteMany({ where: { orgId } });
-        this.logger.log(
-          `Deleted ${jobsDeleted.count} jobs for organization ${orgId}`,
-        );
-
-        // Delete notifications (no cascade from org)
-        const notificationsDeleted = await tx.notification.deleteMany({
-          where: { orgId },
-        });
-        this.logger.log(
-          `Deleted ${notificationsDeleted.count} notifications for organization ${orgId}`,
-        );
-
-        // Organization deletion cascades:
-        // - Memberships (onDelete: Cascade)
-        // - ActivityLogs (onDelete: Cascade)
-        // - Files (onDelete: Cascade)
-        // - SubscriptionSnapshots (onDelete: Cascade)
-        // BillingEvents set orgId to null (onDelete: SetNull)
-
-        // Note: We don't delete the organization here - that's done in markOrganizationDeleted
+        await tx.file.deleteMany({ where: { orgId } });
+        await tx.notification.deleteMany({ where: { orgId } });
+        await tx.job.deleteMany({ where: { orgId } });
+        await tx.activityLog.deleteMany({ where: { orgId } });
+        await tx.membership.deleteMany({ where: { orgId } });
+        // Note: organization row is updated (not deleted) in markOrganizationDeleted
       });
 
-      this.logger.log(
-        `Database records deleted for organization ${orgId}`,
-      );
+      this.logger.log(`Database records deleted for organization ${orgId}`);
     } catch (error) {
       this.logger.error(
         `Error during database cleanup for organization ${orgId}`,
@@ -378,9 +289,7 @@ export class OrgDeletionWorkerService {
    * Mark organization as DELETED and set completion timestamp.
    */
   private async markOrganizationDeleted(orgId: string): Promise<void> {
-    this.logger.log(
-      `Marking organization ${orgId} as DELETED`,
-    );
+    this.logger.log(`Marking organization ${orgId} as DELETED`);
 
     try {
       await this.prisma.organization.update({
@@ -391,9 +300,7 @@ export class OrgDeletionWorkerService {
         },
       });
 
-      this.logger.log(
-        `Organization ${orgId} marked as DELETED`,
-      );
+      this.logger.log(`Organization ${orgId} marked as DELETED`);
     } catch (error) {
       this.logger.error(
         `Error marking organization ${orgId} as DELETED`,

@@ -1,8 +1,9 @@
+import { RequestUser } from '@libs/common';
+import { OrgDeletionService } from '@libs/org-deletion';
+import { NotFoundException } from '@nestjs/common';
+import { AuthService } from '../auth/auth.service';
 import { OrganizationsController } from './organizations.controller';
 import { OrganizationsService } from './organizations.service';
-import { AuthService } from '../auth/auth.service';
-import { NotFoundException } from '@nestjs/common';
-import { RequestUser } from '@libs/common';
 
 const mockOrganizationsService = {
   createOrganization: jest.fn(),
@@ -15,6 +16,10 @@ const mockOrganizationsService = {
 const mockAuthService = {
   findUserByAuth0Id: jest.fn(),
 } as unknown as AuthService;
+
+const mockOrgDeletionService = {
+  scheduleOrgDeletion: jest.fn(),
+} as unknown as OrgDeletionService;
 
 const jwtUser: RequestUser = { sub: 'auth0|u1', email: 'user@example.com' };
 const dbUser = { id: 'db-u-1', auth0Id: 'auth0|u1', email: 'user@example.com' };
@@ -33,6 +38,7 @@ describe('OrganizationsController', () => {
     controller = new OrganizationsController(
       mockOrganizationsService,
       mockAuthService,
+      mockOrgDeletionService,
     );
   });
 

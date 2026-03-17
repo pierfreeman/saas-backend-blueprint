@@ -15,28 +15,44 @@ const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
 const USER_UUID = 'b2c3d4e5-f6a7-4890-bc12-de3456fa7890';
 
 function buildPrismaMock() {
-  return {
+  const prisma = {
     organization: {
       findUnique: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
     },
-    membership: {
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-    },
-    activityLog: {
-      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-    },
     job: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
-    notification: {
+    user: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    apiKey: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    webhook: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     file: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    notification: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    activityLog: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    membership: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    $transaction: jest.fn(),
   };
+
+  prisma.$transaction.mockImplementation(
+    async (cb: (tx: typeof prisma) => Promise<unknown>) => cb(prisma),
+  );
+
+  return prisma;
 }
 
 function buildEventBusMock() {
@@ -251,7 +267,9 @@ describe('OrgDeletionWorkerService', () => {
         requestedAt,
       );
 
-      expect(cache.deleteByPattern).toHaveBeenCalledWith(`tenant:${ORG_UUID}:*`);
+      expect(cache.deleteByPattern).toHaveBeenCalledWith(
+        `tenant:${ORG_UUID}:*`,
+      );
     });
 
     it('marks organization as DELETED with completedAt timestamp', async () => {

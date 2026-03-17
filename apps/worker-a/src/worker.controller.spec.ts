@@ -1,6 +1,7 @@
 import { WorkerController, HeavyJobPayload } from './worker.controller';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PubSubService } from '@libs/redis';
+import { OrgDeletionWorkerService } from '@libs/org-deletion';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
 
@@ -30,6 +31,10 @@ const mockPubSub = {
   publish: jest.fn(),
 } as unknown as PubSubService;
 
+const mockOrgDeletionWorker = {
+  scheduleDeletion: jest.fn(),
+} as unknown as OrgDeletionWorkerService;
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('WorkerController', () => {
@@ -39,7 +44,7 @@ describe('WorkerController', () => {
     jest.clearAllMocks();
     (mockPrisma.job.update as jest.Mock).mockResolvedValue({});
     (mockPubSub.publish as jest.Mock).mockResolvedValue(undefined);
-    controller = new WorkerController(mockPrisma, mockPubSub);
+    controller = new WorkerController(mockPrisma, mockPubSub, mockOrgDeletionWorker);
   });
 
   describe('handleHeavyJobCreated', () => {
