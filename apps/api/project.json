@@ -10,6 +10,7 @@
       "outputs": ["{workspaceRoot}/dist/apps/api"],
       "options": {
         "command": "webpack-cli build",
+        "args": [],
         "env": { "NODE_ENV": "production" },
         "cwd": "apps/api"
       },
