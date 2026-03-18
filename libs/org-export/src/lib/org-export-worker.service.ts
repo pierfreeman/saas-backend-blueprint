@@ -5,15 +5,10 @@ import { StorageService } from '@libs/storage';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExportStatus, JobStatus } from '@prisma/client';
-import { createGzip } from 'node:zlib';
-import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { createGzip } from 'node:zlib';
 import { ORG_EXPORT_EVENT_TYPES } from './constants/org-export-event.constants';
-import {
-  OrgExportCompletedEventPayload,
-  OrgExportFailedEventPayload,
-  OrgExportStartedEventPayload,
-} from './interfaces/org-export-event.interface';
 
 /**
  * Worker service responsible for executing organization data export.
@@ -279,7 +274,9 @@ export class OrgExportWorkerService {
    * Aggregate all organization data for export.
    * Queries all relevant tables filtering by orgId.
    */
-  private async aggregateOrgData(orgId: string): Promise<Record<string, unknown>> {
+  private async aggregateOrgData(
+    orgId: string,
+  ): Promise<Record<string, unknown>> {
     // Query all data in parallel for efficiency
     const [
       organization,
