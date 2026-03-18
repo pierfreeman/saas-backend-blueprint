@@ -1,0 +1,28 @@
+{
+  "name": "org-export",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/org-export/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:org-export"],
+  "// targets": "to see all targets run: nx show project org-export --web",
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/org-export"],
+      "options": {
+        "jestConfig": "libs/org-export/jest.config.cts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/org-export/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

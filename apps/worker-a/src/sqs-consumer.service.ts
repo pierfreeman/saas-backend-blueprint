@@ -179,6 +179,10 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
         await this.workerController.handleOrgDeletionRequested(event as any);
         break;
 
+      case 'org.export.requested':
+        await this.workerController.handleOrgExportRequested(event as any);
+        break;
+
       default:
         this.logger.warn(
           `No handler registered for event type "${event.eventType}" — message will be deleted`,

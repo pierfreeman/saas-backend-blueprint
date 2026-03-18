@@ -32,6 +32,23 @@ enum JobStatus {
   @@schema("public")
 }
 
+/// Status of an organization data export.
+/// Transitions: PENDING → PROCESSING → COMPLETED | FAILED | EXPIRED
+enum ExportStatus {
+  /// Export has been requested and is waiting to be processed.
+  PENDING
+  /// Worker is actively generating the export file.
+  PROCESSING
+  /// Export file has been generated and is ready for download.
+  COMPLETED
+  /// Export generation failed due to an error.
+  FAILED
+  /// Export file has expired and is no longer available for download.
+  EXPIRED
+
+  @@schema("public")
+}
+
 /// Billing lifecycle status of an Organization's subscription.
 /// Mirrors Stripe subscription statuses with a NONE sentinel for no subscription.
 enum BillingStatus {
@@ -333,6 +350,53 @@ model Job {
   /// Admin/ops query: global status sweep (e.g. stuck PROCESSING jobs).
   @@index([status, createdAt(sort: Desc)])
   @@map("jobs")
+  @@schema("public")
+}
+
+// ============================================================================
+// ORGANIZATION EXPORT MODEL
+// Tracks organization data export requests for GDPR/ISO 27001 compliance.
+// Links to Job for async processing; maintains domain-specific state.
+// ============================================================================
+
+/// Organization data export record for GDPR Right to Data Portability.
+/// Tracks export lifecycle from request to completion/expiration.
+model OrgExport {
+  /// Internal UUID – primary key.
+  id                String       @id @default(uuid()) @db.Uuid
+  /// FK → Organization (plain string, no relation, survives org deletion for audit).
+  orgId             String       @map("org_id")
+  /// FK → Job (unique 1:1 relationship with the async job processing this export).
+  jobId             String       @unique @map("job_id") @db.Uuid
+  /// Auth0 subject of the user who requested the export.
+  requestedByUserId String       @map("requested_by_user_id")
+  /// Current status of the export.
+  status            ExportStatus @default(PENDING)
+  /// Signed URL to download the export file (set when status = COMPLETED).
+  fileUrl           String?      @map("file_url")
+  /// Size of the export file in bytes (set when status = COMPLETED).
+  fileSize          BigInt?      @map("file_size")
+  /// Timestamp when the signed download URL expires.
+  expiresAt         DateTime?    @map("expires_at")
+  /// Timestamp when the export was requested.
+  createdAt         DateTime     @default(now()) @map("created_at")
+  /// Timestamp when the export completed successfully.
+  completedAt       DateTime?    @map("completed_at")
+  /// Timestamp when the export failed.
+  failedAt          DateTime?    @map("failed_at")
+  /// Human-readable error message if status = FAILED.
+  error             String?
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Primary tenant query: "list all exports for org X, newest first".
+  @@index([orgId, createdAt(sort: Desc)])
+  /// Status-filtered tenant query: "show me all COMPLETED exports for org X".
+  @@index([orgId, status])
+  /// User activity query: "show me all exports requested by user Y".
+  @@index([requestedByUserId, createdAt(sort: Desc)])
+  /// Admin/ops query: find exports that have expired.
+  @@index([status, expiresAt])
+  @@map("org_exports")
   @@schema("public")
 }
 

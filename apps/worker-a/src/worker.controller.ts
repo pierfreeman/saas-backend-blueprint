@@ -6,6 +6,10 @@ import {
   OrgDeletionWorkerService,
   OrgDeletionRequestedEventPayload,
 } from '@libs/org-deletion';
+import {
+  OrgExportWorkerService,
+  OrgExportRequestedEventPayload,
+} from '@libs/org-export';
 import { JobStatus, Prisma } from '@prisma/client';
 
 /**
@@ -43,6 +47,7 @@ export class WorkerController {
     private readonly prisma: PrismaBusinessService,
     private readonly pubSub: PubSubService,
     private readonly orgDeletionWorker: OrgDeletionWorkerService,
+    private readonly orgExportWorker: OrgExportWorkerService,
   ) {}
 
   /**
@@ -167,6 +172,31 @@ export class WorkerController {
       orgId,
       trigger,
       orgName,
+      requestedAt,
+    );
+  }
+
+  /**
+   * Handles organization export requests.
+   * Delegates to OrgExportWorkerService for export generation.
+   */
+  async handleOrgExportRequested(
+    event: DomainEvent<OrgExportRequestedEventPayload>,
+  ): Promise<void> {
+    const { orgId, exportId, jobId, orgName, requestedByUserId, requestedAt } =
+      event.payload;
+
+    this.logger.log(
+      `[Worker-Compute-A] Received org export request: ${exportId} for org ${orgId}`,
+    );
+
+    // Execute the export workflow
+    await this.orgExportWorker.executeExport(
+      orgId,
+      exportId,
+      jobId,
+      orgName,
+      requestedByUserId,
       requestedAt,
     );
   }

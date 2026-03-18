@@ -21,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { Organization, MembershipRole } from '@prisma/client';
 import { OrgDeletionService, DeletionTrigger } from '@libs/org-deletion';
+import { OrgExportService } from '@libs/org-export';
 import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
@@ -41,6 +42,7 @@ export class OrganizationsController {
     private readonly organizationsService: OrganizationsService,
     private readonly authService: AuthService,
     private readonly orgDeletionService: OrgDeletionService,
+    private readonly orgExportService: OrgExportService,
   ) {}
 
   @Post()
@@ -353,6 +355,142 @@ export class OrganizationsController {
       message: 'Organization deletion requested successfully',
       scheduledAt: org.deletionScheduledAt!,
     };
+  }
+
+  @Post(':id/export')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
+  @ApiOperation({
+    summary: 'Request organization data export',
+    description:
+      'Requests a data export for the organization (GDPR Right to Data Portability). ' +
+      'Creates an export job that will asynchronously generate a compressed JSON file ' +
+      'containing all organization data. The export will be available for download via ' +
+      'a signed URL for 24 hours. Only OWNER and ADMIN roles can request exports.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Organization UUID',
+    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
+  })
+  @ApiResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Export request accepted and queued for processing.',
+    schema: {
+      type: 'object',
+      properties: {
+        exportId: {
+          type: 'string',
+          format: 'uuid',
+          example: 'b2c3d4e5-f6g7-5890-bc12-de3456gh7890',
+        },
+        message: {
+          type: 'string',
+          example: 'Export request accepted',
+        },
+      },
+      required: ['exportId', 'message'],
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Only OWNER and ADMIN roles can request exports.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Organization not found.',
+  })
+  async requestExport(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ): Promise<{ exportId: string; message: string }> {
+    const dbUser = await this.resolveUser(user.sub);
+    const exportId = await this.orgExportService.requestExport(id, dbUser.id);
+
+    return {
+      exportId,
+      message: 'Export request accepted',
+    };
+  }
+
+  @Get(':id/exports/:exportId')
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
+  @ApiOperation({
+    summary: 'Get export status',
+    description:
+      'Retrieves the status and details of a specific export. ' +
+      'If the export is completed, includes a signed download URL.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Organization UUID',
+    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
+  })
+  @ApiParam({
+    name: 'exportId',
+    description: 'Export UUID',
+    example: 'b2c3d4e5-f6g7-5890-bc12-de3456gh7890',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Export details retrieved successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Only OWNER and ADMIN roles can view exports.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Export not found.',
+  })
+  async getExport(
+    @Param('id') orgId: string,
+    @Param('exportId') exportId: string,
+  ) {
+    return this.orgExportService.getExport(exportId, orgId);
+  }
+
+  @Get(':id/exports')
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
+  @ApiOperation({
+    summary: 'List organization exports',
+    description:
+      'Lists all exports for the organization, ordered by creation date (newest first). ' +
+      'Supports pagination.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Organization UUID',
+    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Export list retrieved successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Only OWNER and ADMIN roles can view exports.',
+  })
+  async listExports(@Param('id') orgId: string) {
+    return this.orgExportService.listExports(orgId);
   }
 
   @Delete(':id')
