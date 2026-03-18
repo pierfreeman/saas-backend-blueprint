@@ -82,10 +82,12 @@ export class OrgDeletionService {
     // Calculate retention period
     const retentionDays = org.retentionPeriodDays ?? this.defaultRetentionDays;
     const now = new Date();
-    const scheduledAt = new Date(now.getTime() + retentionDays * 24 * 60 * 60 * 1000);
+    const scheduledAt = new Date(
+      now.getTime() + retentionDays * 24 * 60 * 60 * 1000,
+    );
 
     // Update organization status and deletion timestamps
-    const updated = await this.prisma.organization.update({
+    await this.prisma.organization.update({
       where: { id: orgId },
       data: {
         status: OrganizationStatus.PENDING_DELETION,
@@ -147,9 +149,7 @@ export class OrgDeletionService {
       timestamp: new Date(),
     });
 
-    this.logger.log(
-      `Deletion event emitted for organization ${orgId}`,
-    );
+    this.logger.log(`Deletion event emitted for organization ${orgId}`);
   }
 
   /**
@@ -189,7 +189,8 @@ export class OrgDeletionService {
       const retentionDays =
         org.retentionPeriodDays ?? this.defaultRetentionDays;
       const retentionEnd = new Date(
-        org.subscriptionPeriodEnd!.getTime() + retentionDays * 24 * 60 * 60 * 1000,
+        org.subscriptionPeriodEnd!.getTime() +
+          retentionDays * 24 * 60 * 60 * 1000,
       );
       return now >= retentionEnd;
     });

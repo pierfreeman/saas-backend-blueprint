@@ -65,7 +65,6 @@ export class OrgDeletionSchedulerService {
           await this.deletionService.requestDeletion(
             org.id,
             DeletionTrigger.SUBSCRIPTION_EXPIRY,
-            undefined,
           );
 
           this.logger.log(
