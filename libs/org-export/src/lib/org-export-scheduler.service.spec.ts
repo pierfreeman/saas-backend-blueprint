@@ -50,6 +50,15 @@ describe('OrgExportSchedulerService', () => {
   // ─── markExpiredExports ─────────────────────────────────────────────────────
 
   describe('markExpiredExports', () => {
+    beforeEach(() => {
+      // Mock console.error to suppress error logs during tests
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     it('finds exports that are COMPLETED and have expired', async () => {
       const now = new Date('2026-01-02T00:00:00Z');
       jest.useFakeTimers().setSystemTime(now);
@@ -136,6 +145,9 @@ describe('OrgExportSchedulerService', () => {
       const now = new Date('2026-01-02T00:00:00Z');
       jest.useFakeTimers().setSystemTime(now);
 
+      // Mock with empty array to avoid undefined error
+      prisma.orgExport.findMany.mockResolvedValueOnce([]);
+
       await service.markExpiredExports();
 
       expect(prisma.orgExport.findMany).toHaveBeenCalledWith(
@@ -152,6 +164,9 @@ describe('OrgExportSchedulerService', () => {
     it('ignores exports with null expiresAt', async () => {
       const now = new Date('2026-01-02T00:00:00Z');
       jest.useFakeTimers().setSystemTime(now);
+
+      // Mock with empty array to avoid undefined error
+      prisma.orgExport.findMany.mockResolvedValueOnce([]);
 
       await service.markExpiredExports();
 

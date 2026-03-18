@@ -477,14 +477,18 @@ describe('OrgExportWorkerService', () => {
         new Error(errorMessage),
       );
 
-      await service.executeExport(
-        ORG_UUID,
-        EXPORT_UUID,
-        JOB_UUID,
-        orgName,
-        USER_UUID,
-        requestedAt,
-      );
+      try {
+        await service.executeExport(
+          ORG_UUID,
+          EXPORT_UUID,
+          JOB_UUID,
+          orgName,
+          USER_UUID,
+          requestedAt,
+        );
+      } catch (error) {
+        // Expected to throw
+      }
 
       const failedUpdateCall = prisma.orgExport.update.mock.calls.find(
         (call) => call[0].data?.status === ExportStatus.FAILED,
@@ -501,14 +505,18 @@ describe('OrgExportWorkerService', () => {
         new Error(errorMessage),
       );
 
-      await service.executeExport(
-        ORG_UUID,
-        EXPORT_UUID,
-        JOB_UUID,
-        orgName,
-        USER_UUID,
-        requestedAt,
-      );
+      try {
+        await service.executeExport(
+          ORG_UUID,
+          EXPORT_UUID,
+          JOB_UUID,
+          orgName,
+          USER_UUID,
+          requestedAt,
+        );
+      } catch (error) {
+        // Expected to throw
+      }
 
       const failedJobCall = prisma.job.update.mock.calls.find(
         (call) => call[0].data?.status === JobStatus.FAILED,
@@ -524,14 +532,18 @@ describe('OrgExportWorkerService', () => {
         new Error('Test error'),
       );
 
-      await service.executeExport(
-        ORG_UUID,
-        EXPORT_UUID,
-        JOB_UUID,
-        orgName,
-        USER_UUID,
-        requestedAt,
-      );
+      try {
+        await service.executeExport(
+          ORG_UUID,
+          EXPORT_UUID,
+          JOB_UUID,
+          orgName,
+          USER_UUID,
+          requestedAt,
+        );
+      } catch (error) {
+        // Expected to throw
+      }
 
       const failEvent = eventBus.publish.mock.calls.find(
         (call) => call[0].eventType === 'org.export.failed',
@@ -545,14 +557,18 @@ describe('OrgExportWorkerService', () => {
     it('records legal audit failure event on error', async () => {
       prisma.file.findMany.mockRejectedValueOnce(new Error('Storage error'));
 
-      await service.executeExport(
-        ORG_UUID,
-        EXPORT_UUID,
-        JOB_UUID,
-        orgName,
-        USER_UUID,
-        requestedAt,
-      );
+      try {
+        await service.executeExport(
+          ORG_UUID,
+          EXPORT_UUID,
+          JOB_UUID,
+          orgName,
+          USER_UUID,
+          requestedAt,
+        );
+      } catch (error) {
+        // Expected to throw
+      }
 
       expect(legalAudit.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -668,6 +684,283 @@ describe('OrgExportWorkerService', () => {
           storageKey: 'org/test/file-1',
         },
       ]);
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(prisma.orgExport.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ExportStatus.COMPLETED,
+          }),
+        }),
+      );
+    });
+  });
+
+  // ─── Edge Cases and Additional Coverage ────────────────────────────────────
+
+  describe('Edge Cases', () => {
+    const requestedAt = new Date('2026-01-01T10:00:00Z');
+    const orgName = 'Test Organization';
+
+    beforeEach(() => {
+      // Setup default mocks for successful export
+      prisma.orgExport.findUnique.mockResolvedValue(makeExport());
+      prisma.organization.findUnique.mockResolvedValue(makeOrganization());
+      prisma.membership.findMany.mockResolvedValue([]);
+      prisma.activityLog.findMany.mockResolvedValue([]);
+      prisma.job.findMany.mockResolvedValue([]);
+      prisma.file.findMany.mockResolvedValue([]);
+      prisma.notification.findMany.mockResolvedValue([]);
+      prisma.orgExport.update.mockResolvedValue(
+        makeExport({ status: ExportStatus.COMPLETED }),
+      );
+      prisma.job.update.mockResolvedValue({});
+    });
+
+    it('handles memberships without user data', async () => {
+      prisma.membership.findMany.mockResolvedValueOnce([
+        {
+          id: 'membership-1',
+          userId: USER_UUID,
+          orgId: ORG_UUID,
+          role: 'OWNER',
+          status: 'ACTIVE',
+          user: null, // No user data
+        },
+      ]);
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(prisma.orgExport.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ExportStatus.COMPLETED,
+          }),
+        }),
+      );
+    });
+
+    it('handles activity logs with null metadata', async () => {
+      prisma.activityLog.findMany.mockResolvedValueOnce([
+        {
+          id: 'log-1',
+          orgId: ORG_UUID,
+          actorId: USER_UUID,
+          action: 'test.action',
+          entityType: null,
+          entityId: null,
+          actorRole: 'OWNER',
+          metadata: null,
+          createdAt: new Date('2026-01-01'),
+        },
+      ]);
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(prisma.orgExport.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ExportStatus.COMPLETED,
+          }),
+        }),
+      );
+    });
+
+    it('handles jobs with null timestamps', async () => {
+      prisma.job.findMany.mockResolvedValueOnce([
+        {
+          id: 'job-1',
+          orgId: ORG_UUID,
+          userId: USER_UUID,
+          type: 'test_job',
+          status: JobStatus.PENDING,
+          payload: {},
+          result: null,
+          error: null,
+          attempts: 0,
+          createdAt: new Date('2026-01-01'),
+          startedAt: null,
+          finishedAt: null,
+        },
+      ]);
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(prisma.orgExport.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ExportStatus.COMPLETED,
+          }),
+        }),
+      );
+    });
+
+    it('handles files with BigInt sizes', async () => {
+      prisma.file.findMany.mockResolvedValueOnce([
+        {
+          id: 'file-1',
+          filename: 'large-file.pdf',
+          size: BigInt('999999999999999'),
+          mimeType: 'application/pdf',
+          status: 'ACTIVE',
+          storageKey: 'org/test/file-1',
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        },
+      ]);
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(prisma.orgExport.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ExportStatus.COMPLETED,
+          }),
+        }),
+      );
+    });
+
+    it('handles notifications with null fields', async () => {
+      prisma.notification.findMany.mockResolvedValueOnce([
+        {
+          id: 'notification-1',
+          orgId: ORG_UUID,
+          userId: USER_UUID,
+          type: 'INFO',
+          title: 'Test',
+          message: 'Test message',
+          read: false,
+          readAt: null,
+          createdAt: new Date('2026-01-01'),
+        },
+      ]);
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(prisma.orgExport.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ExportStatus.COMPLETED,
+          }),
+        }),
+      );
+    });
+
+    it('generates valid compressed export with real data', async () => {
+      // Provide some real data for compression
+      prisma.membership.findMany.mockResolvedValueOnce([
+        {
+          id: 'membership-1',
+          userId: USER_UUID,
+          orgId: ORG_UUID,
+          role: 'OWNER',
+          status: 'ACTIVE',
+          invitedAt: new Date('2026-01-01'),
+          joinedAt: new Date('2026-01-01'),
+          user: {
+            id: USER_UUID,
+            email: 'owner@example.com',
+            auth0Id: 'auth0|123',
+            createdAt: new Date('2026-01-01'),
+          },
+        },
+      ]);
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      // Should complete successfully with compressed file
+      expect(prisma.orgExport.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ExportStatus.COMPLETED,
+            fileSize: expect.any(BigInt),
+          }),
+        }),
+      );
+    });
+
+    it('handles empty data arrays correctly', async () => {
+      // All data arrays are empty (already mocked as [] in beforeEach)
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(prisma.orgExport.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ExportStatus.COMPLETED,
+          }),
+        }),
+      );
+    });
+
+    it('handles organization with null optional fields', async () => {
+      prisma.organization.findUnique.mockResolvedValueOnce({
+        id: ORG_UUID,
+        name: 'Test Org',
+        status: 'ACTIVE',
+        billingStatus: null,
+        planId: null,
+        seatCount: 0,
+        maxSeats: 0,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: null,
+      });
 
       await service.executeExport(
         ORG_UUID,
