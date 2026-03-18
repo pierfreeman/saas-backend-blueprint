@@ -50,7 +50,9 @@
       "@libs/email": ["libs/email/src/index.ts"],
       "@libs/email/*": ["libs/email/src/*"],
       "@libs/org-deletion": ["libs/org-deletion/src/index.ts"],
-      "@libs/org-deletion/*": ["libs/org-deletion/src/*"]
+      "@libs/org-deletion/*": ["libs/org-deletion/src/*"],
+      "@libs/org-export": ["libs/org-export/src/index.ts"],
+      "@libs/org-export/*": ["libs/org-export/src/*"]
     }
   },
   "include": ["apps/**/*", "libs/**/*"],

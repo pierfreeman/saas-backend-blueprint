@@ -53,6 +53,7 @@ export class LegalAuditService {
         data: {
           eventType: event.eventType,
           orgId: event.orgId ?? null,
+          userId: event.userId ?? null,
           actorRole: event.actorRole ?? null,
           triggerType: event.triggerType ?? null,
           metadata: (event.metadata ?? {}) as Prisma.InputJsonValue,

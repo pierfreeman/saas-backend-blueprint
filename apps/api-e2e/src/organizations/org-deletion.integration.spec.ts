@@ -22,6 +22,7 @@ import {
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PrismaLegalService } from '@libs/prisma-legal';
+import { OrgDeletionWorkerService, DeletionTrigger } from '@libs/org-deletion';
 import { JobStatus, MembershipRole } from '@prisma/client';
 
 /** Fire-and-forget logging is async — wait briefly before asserting on log tables. */
@@ -32,6 +33,7 @@ describe('Org Deletion Workflow (integration)', () => {
   let agent: ReturnType<typeof supertest.agent>;
   let prisma: PrismaBusinessService;
   let legalPrisma: PrismaLegalService;
+  let orgDeletionWorkerService: OrgDeletionWorkerService;
 
   beforeAll(async () => {
     setupNockAuth();
@@ -39,6 +41,7 @@ describe('Org Deletion Workflow (integration)', () => {
     agent = supertest.agent(app.getHttpServer());
     prisma = app.get(PrismaBusinessService);
     legalPrisma = app.get(PrismaLegalService);
+    orgDeletionWorkerService = app.get(OrgDeletionWorkerService);
     await resetBusinessDb(prisma);
   });
 
@@ -130,20 +133,34 @@ describe('Org Deletion Workflow (integration)', () => {
       prisma.job.count({ where: { orgId } }),
     ).resolves.toBeGreaterThan(0);
 
-    // ── Step 4: Delete the org (OWNER, HTTP 200) ───────────────────────────
+    // ── Step 4: Request deletion (OWNER, HTTP 202) ─────────────────────────
     const deleteRes = await agent
-      .delete(`/organizations/${orgId}`)
+      .post(`/organizations/${orgId}/delete`)
       .set('Authorization', `Bearer ${ownerToken}`);
 
-    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.status).toBe(202);
+
+    // Allow fire-and-forget activity log from requestDeletion to commit
+    // before the worker deletes all records
+    await sleep(300);
+
+    // ── Step 4b: Execute deletion via worker service (bypasses scheduler) ───
+    await orgDeletionWorkerService.executeDeletion(
+      orgId,
+      DeletionTrigger.USER_REQUEST,
+      'Org To Be Deleted',
+      new Date(),
+    );
 
     // Allow fire-and-forget legal audit for deletion to commit
     await sleep(300);
 
-    // ── Step 5: Business DB — all cascade-deleted ──────────────────────────
-    await expect(
-      prisma.organization.findUnique({ where: { id: orgId } }),
-    ).resolves.toBeNull();
+    // ── Step 5: Business DB — cascaded records deleted, org marked DELETED ──
+    const deletedOrg = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+    expect(deletedOrg).not.toBeNull();
+    expect(deletedOrg!.status).toBe('DELETED');
     await expect(prisma.membership.count({ where: { orgId } })).resolves.toBe(
       0,
     );
@@ -180,12 +197,11 @@ describe('Org Deletion Workflow (integration)', () => {
     const adminToken = generateTestToken({ sub: 'auth0|del-admin-001' });
 
     const res = await agent
-      .delete(`/organizations/${ctx_org.id}`)
+      .post(`/organizations/${ctx_org.id}/delete`)
       .set('Authorization', `Bearer ${adminToken}`);
 
-    // ADMIN has ORG_MANAGE permission, so this should succeed (200)
-    // Adjust if business logic restricts delete to OWNER only at service layer
-    expect([200, 403]).toContain(res.status);
+    // Only OWNER role can request deletion via POST /delete
+    expect(res.status).toBe(403);
   });
 
   it('returns 404 when deleting a non-existent org', async () => {
@@ -193,7 +209,7 @@ describe('Org Deletion Workflow (integration)', () => {
     const fakeId = '00000000-0000-0000-0000-000000000099';
 
     const res = await agent
-      .delete(`/organizations/${fakeId}`)
+      .post(`/organizations/${fakeId}/delete`)
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(404);

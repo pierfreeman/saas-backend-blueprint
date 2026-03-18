@@ -2,7 +2,6 @@ import { JwtAuthGuard, PERMISSIONS, RequestUser } from '@libs/common';
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { Organization, MembershipRole } from '@prisma/client';
 import { OrgDeletionService, DeletionTrigger } from '@libs/org-deletion';
+import { OrgExportService } from '@libs/org-export';
 import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
@@ -41,6 +42,7 @@ export class OrganizationsController {
     private readonly organizationsService: OrganizationsService,
     private readonly authService: AuthService,
     private readonly orgDeletionService: OrgDeletionService,
+    private readonly orgExportService: OrgExportService,
   ) {}
 
   @Post()
@@ -355,18 +357,18 @@ export class OrganizationsController {
     };
   }
 
-  @Delete(':id')
-  @HttpCode(HttpStatus.OK)
+  @Post(':id/export')
+  @HttpCode(HttpStatus.ACCEPTED)
   @OrgScoped()
   @UseGuards(OrgContextGuard, RBACGuard)
-  @RequirePermissions([PERMISSIONS.ORG_MANAGE])
+  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
   @ApiOperation({
-    summary: 'Delete an organization (immediate, deprecated)',
+    summary: 'Request organization data export',
     description:
-      'DEPRECATED: Use POST /organizations/:id/delete instead. ' +
-      'This endpoint immediately deletes an organization without retention period. ' +
-      'Kept for backward compatibility only. ' +
-      'Requires ORG_MANAGE permission (OWNER only).',
+      'Requests a data export for the organization (GDPR Right to Data Portability). ' +
+      'Creates an export job that will asynchronously generate a compressed JSON file ' +
+      'containing all organization data. The export will be available for download via ' +
+      'a signed URL for 24 hours. Only OWNER and ADMIN roles can request exports.',
   })
   @ApiParam({
     name: 'id',
@@ -374,17 +376,22 @@ export class OrganizationsController {
     example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
   })
   @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Organization deleted successfully.',
+    status: HttpStatus.ACCEPTED,
+    description: 'Export request accepted and queued for processing.',
     schema: {
       type: 'object',
       properties: {
+        exportId: {
+          type: 'string',
+          format: 'uuid',
+          example: 'b2c3d4e5-f6g7-5890-bc12-de3456gh7890',
+        },
         message: {
           type: 'string',
-          example: 'Organization deleted successfully',
+          example: 'Export request accepted',
         },
       },
-      required: ['message'],
+      required: ['exportId', 'message'],
     },
   })
   @ApiResponse({
@@ -393,19 +400,105 @@ export class OrganizationsController {
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
-    description: 'Caller lacks ORG_MANAGE permission.',
+    description: 'Only OWNER and ADMIN roles can request exports.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Organization not found.',
   })
-  async delete(
+  async requestExport(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
-  ): Promise<{ message: string }> {
+  ): Promise<{ exportId: string; message: string }> {
     const dbUser = await this.resolveUser(user.sub);
-    await this.organizationsService.deleteOrganization(id, dbUser.id);
-    return { message: 'Organization deleted successfully' };
+    const exportId = await this.orgExportService.requestExport(id, dbUser.id);
+
+    return {
+      exportId,
+      message: 'Export request accepted',
+    };
+  }
+
+  @Get(':id/exports/:exportId')
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
+  @ApiOperation({
+    summary: 'Get export status',
+    description:
+      'Retrieves the status and details of a specific export. ' +
+      'If the export is completed, includes a signed download URL.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Organization UUID',
+    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
+  })
+  @ApiParam({
+    name: 'exportId',
+    description: 'Export UUID',
+    example: 'b2c3d4e5-f6g7-5890-bc12-de3456gh7890',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Export details retrieved successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Only OWNER and ADMIN roles can view exports.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Export not found.',
+  })
+  async getExport(
+    @Param('id') orgId: string,
+    @Param('exportId') exportId: string,
+  ) {
+    return this.orgExportService.getExport(exportId, orgId);
+  }
+
+  @Get(':id/exports')
+  @OrgScoped()
+  @UseGuards(OrgContextGuard, RBACGuard)
+  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
+  @ApiOperation({
+    summary: 'List organization exports',
+    description:
+      'Lists all exports for the organization, ordered by creation date (newest first). ' +
+      'Supports pagination.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Organization UUID',
+    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Export list retrieved successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Only OWNER and ADMIN roles can view exports.',
+  })
+  async listExports(
+    @Param('id') orgId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.orgExportService.listExports(
+      orgId,
+      limit === undefined ? undefined : Number.parseInt(limit, 10),
+      offset === undefined ? undefined : Number.parseInt(offset, 10),
+    );
   }
 
   /** Resolves Auth0 sub → local DB user */

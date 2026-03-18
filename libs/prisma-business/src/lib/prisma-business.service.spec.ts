@@ -60,12 +60,17 @@ describe('PrismaBusinessService', () => {
 
     it('calls deleteMany on injected model accessors in non-production', async () => {
       const deleteMany = jest.fn().mockResolvedValue({ count: 0 });
-      (service as any)['user'] = { deleteMany };
+      (service as any)['orgExport'] = { deleteMany };
+      (service as any)['activityLog'] = { deleteMany };
+      (service as any)['billingEvent'] = { deleteMany };
+      (service as any)['job'] = { deleteMany };
+      (service as any)['membership'] = { deleteMany };
       (service as any)['organization'] = { deleteMany };
+      (service as any)['user'] = { deleteMany };
 
       await service.cleanDatabase();
 
-      expect(deleteMany).toHaveBeenCalledTimes(2);
+      expect(deleteMany).toHaveBeenCalledTimes(7);
     });
   });
 });
