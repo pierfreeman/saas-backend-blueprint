@@ -247,6 +247,44 @@ export class StripeService {
   }
 
   /**
+   * Immediately terminates a Stripe subscription (no grace period).
+   * Used during hard org deletion where billing must cease at once.
+   */
+  async terminateSubscription(subscriptionId: string): Promise<void> {
+    try {
+      await this.withRetry('terminateSubscription', () =>
+        this.stripe.subscriptions.cancel(subscriptionId),
+      );
+      this.logger.debug(
+        `Stripe subscription terminated immediately: ${subscriptionId}`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to terminate subscription ${subscriptionId} — may already be cancelled: ${(err as Error).message}`,
+      );
+      // Non-fatal: subscription may already be cancelled
+    }
+  }
+
+  /**
+   * Permanently deletes a Stripe customer and all associated data.
+   * Used during hard org deletion cleanup.
+   */
+  async deleteCustomer(customerId: string): Promise<void> {
+    try {
+      await this.withRetry('deleteCustomer', () =>
+        this.stripe.customers.del(customerId),
+      );
+      this.logger.debug(`Stripe customer deleted: ${customerId}`);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to delete Stripe customer ${customerId} — may already be deleted: ${(err as Error).message}`,
+      );
+      // Non-fatal: customer may already be deleted
+    }
+  }
+
+  /**
    * Constructs and verifies a Stripe webhook event from the raw request body
    * and signature header.
    *

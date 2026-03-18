@@ -16,8 +16,8 @@ import Redis from 'ioredis';
 import * as jwt from 'jsonwebtoken';
 import { JwksClient, SigningKey } from 'jwks-rsa';
 import { Server, Socket } from 'socket.io';
-import { NotificationsPubSubService } from '../../data-access/notifications-pubsub.service';
-import { NotificationsService } from '../../data-access/notifications.service';
+import { NotificationsPubSubService } from '../../infrastructure/notifications-pubsub.service';
+import { NotificationsService } from '../../infrastructure/notifications.service';
 import {
   NotificationMessage,
   RealtimeEvent,

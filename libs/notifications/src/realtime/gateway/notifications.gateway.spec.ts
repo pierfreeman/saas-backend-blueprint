@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationsGateway } from './notifications.gateway';
-import { NotificationsService } from '../../data-access/notifications.service';
-import { NotificationsPubSubService } from '../../data-access/notifications-pubsub.service';
+import { NotificationsService } from '../../infrastructure/notifications.service';
+import { NotificationsPubSubService } from '../../infrastructure/notifications-pubsub.service';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { ConfigService } from '@nestjs/config';
 import { Server } from 'socket.io';
@@ -280,18 +280,18 @@ describe('NotificationsGateway', () => {
       const client = makeSocket({ userId: 'user-uuid-1' });
       await gateway.handleGetAll(client as never, { orgId: 'org-1' });
 
-      expect(mockNotificationsService.getUserNotifications).toHaveBeenCalledWith(
-        'user-uuid-1',
-        'org-1',
-        expect.any(Object),
-      );
+      expect(
+        mockNotificationsService.getUserNotifications,
+      ).toHaveBeenCalledWith('user-uuid-1', 'org-1', expect.any(Object));
       expect(client.emit).toHaveBeenCalledWith('notification:list', notifs);
     });
 
     it('does nothing when userId is missing', async () => {
       const client = makeSocket();
       await gateway.handleGetAll(client as never, { orgId: 'org-1' });
-      expect(mockNotificationsService.getUserNotifications).not.toHaveBeenCalled();
+      expect(
+        mockNotificationsService.getUserNotifications,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -332,11 +332,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToUserPattern and the callback emits to user room', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToUserPattern.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToUserPattern.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: jest.fn(),
+        to: jest.fn().mockReturnThis(),
+        emit: jest.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -352,11 +358,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToOrgPattern and the callback emits to org room', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToOrgPattern.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToOrgPattern.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: jest.fn(),
+        to: jest.fn().mockReturnThis(),
+        emit: jest.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -367,11 +379,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToGlobal and the callback broadcasts', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToGlobal.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToGlobal.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: jest.fn(),
+        to: jest.fn().mockReturnThis(),
+        emit: jest.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -398,9 +416,7 @@ describe('NotificationsGateway', () => {
       });
       await gateway.handleConnection(client as never);
 
-      expect(
-        (gateway as any).verifyToken,
-      ).toHaveBeenCalledWith('query-token');
+      expect((gateway as any).verifyToken).toHaveBeenCalledWith('query-token');
     });
 
     it('extracts token from handshake.headers.authorization', async () => {
@@ -418,9 +434,7 @@ describe('NotificationsGateway', () => {
       });
       await gateway.handleConnection(client as never);
 
-      expect(
-        (gateway as any).verifyToken,
-      ).toHaveBeenCalledWith('header-token');
+      expect((gateway as any).verifyToken).toHaveBeenCalledWith('header-token');
     });
 
     it('disconnects when payload has no sub claim', async () => {
