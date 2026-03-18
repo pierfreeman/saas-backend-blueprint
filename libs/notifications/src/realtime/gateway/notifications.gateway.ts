@@ -1,4 +1,3 @@
-import { PrismaBusinessService } from '@libs/prisma-business';
 import { Logger, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -17,6 +16,7 @@ import * as jwt from 'jsonwebtoken';
 import { JwksClient, SigningKey } from 'jwks-rsa';
 import { Server, Socket } from 'socket.io';
 import { NotificationsPubSubService } from '../../infrastructure/notifications-pubsub.service';
+import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { NotificationsService } from '../../infrastructure/notifications.service';
 import {
   NotificationMessage,
@@ -95,7 +95,7 @@ export class NotificationsGateway
   constructor(
     private readonly pubSub: NotificationsPubSubService,
     private readonly notificationsService: NotificationsService,
-    private readonly prisma: PrismaBusinessService,
+    private readonly repo: NotificationsRepository,
     private readonly config: ConfigService,
   ) {
     this.audience = this.config.get<string>('auth.audience') ?? '';
@@ -172,9 +172,7 @@ export class NotificationsGateway
       }
 
       // Resolve internal DB user from Auth0 sub.
-      const user = await this.prisma.user.findUnique({
-        where: { auth0Id: payload.sub },
-      });
+      const user = await this.repo.findUserByAuth0Id(payload.sub);
 
       if (!user) {
         this.logger.warn(
@@ -191,10 +189,7 @@ export class NotificationsGateway
       await client.join(`user:${user.id}`);
 
       // Join an org room for every active membership (multi-tenant broadcast).
-      const memberships = await this.prisma.membership.findMany({
-        where: { userId: user.id, status: 'ACTIVE' },
-        select: { orgId: true },
-      });
+      const memberships = await this.repo.findActiveOrgMemberships(user.id);
 
       for (const { orgId } of memberships) {
         await client.join(`org:${orgId}`);

@@ -115,4 +115,28 @@ export class NotificationsRepository {
   async delete(id: string): Promise<void> {
     await this.prisma.notification.delete({ where: { id } });
   }
+
+  /**
+   * Resolve internal user record from an Auth0 subject claim.
+   * Used by the WebSocket gateway during connection authentication.
+   */
+  async findUserByAuth0Id(
+    auth0Id: string,
+  ): Promise<{ id: string; email: string } | null> {
+    return this.prisma.user.findUnique({
+      where: { auth0Id },
+      select: { id: true, email: true },
+    });
+  }
+
+  /**
+   * Return orgIds for all active memberships of a user.
+   * Used by the WebSocket gateway to join per-org rooms.
+   */
+  async findActiveOrgMemberships(userId: string): Promise<{ orgId: string }[]> {
+    return this.prisma.membership.findMany({
+      where: { userId, status: 'ACTIVE' },
+      select: { orgId: true },
+    });
+  }
 }

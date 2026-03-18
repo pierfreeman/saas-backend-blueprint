@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationsGateway } from './notifications.gateway';
 import { NotificationsService } from '../../infrastructure/notifications.service';
 import { NotificationsPubSubService } from '../../infrastructure/notifications-pubsub.service';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { ConfigService } from '@nestjs/config';
 import { Server } from 'socket.io';
 
@@ -49,9 +49,9 @@ const mockNotificationsService = {
   getUnreadCount: jest.fn().mockResolvedValue(2),
 };
 
-const mockPrisma = {
-  user: { findUnique: jest.fn() },
-  membership: { findMany: jest.fn() },
+const mockRepo = {
+  findUserByAuth0Id: jest.fn(),
+  findActiveOrgMemberships: jest.fn(),
 };
 
 const mockConfig = {
@@ -98,7 +98,7 @@ describe('NotificationsGateway', () => {
         NotificationsGateway,
         { provide: NotificationsPubSubService, useValue: mockPubSub },
         { provide: NotificationsService, useValue: mockNotificationsService },
-        { provide: PrismaBusinessService, useValue: mockPrisma },
+        { provide: NotificationsRepository, useValue: mockRepo },
         { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();
@@ -157,7 +157,7 @@ describe('NotificationsGateway', () => {
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|unknown' });
 
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null);
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);
@@ -170,13 +170,13 @@ describe('NotificationsGateway', () => {
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|user-1' });
 
-      mockPrisma.user.findUnique.mockResolvedValue({
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
         id: 'user-uuid-1',
         email: 'user@test.com',
         auth0Id: 'auth0|user-1',
       });
 
-      mockPrisma.membership.findMany.mockResolvedValue([
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([
         { orgId: 'org-a' },
         { orgId: 'org-b' },
       ]);
@@ -205,12 +205,12 @@ describe('NotificationsGateway', () => {
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|user-1' });
 
-      mockPrisma.user.findUnique.mockResolvedValue({
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
         id: 'user-uuid-1',
         email: 'user@test.com',
         auth0Id: 'auth0|user-1',
       });
-      mockPrisma.membership.findMany.mockResolvedValue([]);
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([]);
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);
@@ -409,7 +409,7 @@ describe('NotificationsGateway', () => {
       jest
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|user-1' });
-      mockPrisma.user.findUnique.mockResolvedValue(null); // disconnect after verify
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null); // disconnect after verify
 
       const client = makeSocket({
         handshake: { auth: {}, query: { token: 'query-token' }, headers: {} },
@@ -423,7 +423,7 @@ describe('NotificationsGateway', () => {
       jest
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|user-1' });
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null);
 
       const client = makeSocket({
         handshake: {
