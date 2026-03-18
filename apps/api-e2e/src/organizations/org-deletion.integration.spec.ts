@@ -140,6 +140,10 @@ describe('Org Deletion Workflow (integration)', () => {
 
     expect(deleteRes.status).toBe(202);
 
+    // Allow fire-and-forget activity log from requestDeletion to commit
+    // before the worker deletes all records
+    await sleep(300);
+
     // ── Step 4b: Execute deletion via worker service (bypasses scheduler) ───
     await orgDeletionWorkerService.executeDeletion(
       orgId,
