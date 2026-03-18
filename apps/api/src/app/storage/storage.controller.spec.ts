@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { StorageController } from './storage.controller';
 import { StorageService } from '@libs/storage';
 import { JwtAuthGuard } from '@libs/common';
@@ -11,6 +12,38 @@ import { ConfirmUploadDto } from './dto/confirm-upload.dto';
 jest.mock('@libs/storage', () => ({
   StorageService: class MockStorageService {},
 }));
+
+// ── Decorator test helper ─────────────────────────────────────────────────────
+
+/** Extracts the factory function of a custom param decorator by parameter index.
+ *  NestJS v11 stores route-arg metadata on the constructor (not the prototype),
+ *  using keys of the form `{hash}__customRouteArgs__:{index}`.
+ */
+function getDecoratorFactory(
+  target: object,
+  method: string,
+  paramIndex: number,
+): (data: unknown, ctx: unknown) => unknown {
+  const metadata = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    target, // must be the constructor, e.g. StorageController (not .prototype)
+    method,
+  ) as Record<
+    string,
+    { index: number; factory?: (d: unknown, c: unknown) => unknown }
+  >;
+  const entry = Object.values(metadata ?? {}).find(
+    (e) => e.index === paramIndex,
+  );
+  if (!entry?.factory)
+    throw new Error(`No factory at param ${paramIndex} of ${method}`);
+  return entry.factory;
+}
+
+/** Minimal ExecutionContext stub for param decorator tests. */
+function makeCtx(user?: Record<string, unknown>) {
+  return { switchToHttp: () => ({ getRequest: () => ({ user }) }) };
+}
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -256,6 +289,14 @@ describe('StorageController', () => {
         offset: undefined,
       });
     });
+
+    it('serializes null size as null in the list', async () => {
+      mockService.listFiles.mockResolvedValue([{ ...baseFile, size: null }]);
+
+      const result = await controller.listFiles(ORG_ID);
+
+      expect(result[0].size).toBeNull();
+    });
   });
 
   // ── DELETE /files/:id ──────────────────────────────────────────────────────
@@ -272,6 +313,49 @@ describe('StorageController', () => {
         orgId: ORG_ID,
         userId: USER_ID,
       });
+    });
+  });
+
+  // ── Param decorator factories ──────────────────────────────────────────────
+  //
+  // `CurrentDbUserId` and `CurrentOrgId` are NestJS custom param decorators.
+  // When calling controller methods directly in unit tests the decorator
+  // factories are bypassed, so we extract them via Reflect metadata and
+  // exercise both branches of the optional-chain (`request.user?.xxx`).
+
+  describe('CurrentDbUserId decorator factory', () => {
+    const factory = getDecoratorFactory(
+      StorageController,
+      'generateUploadUrl',
+      2, // third parameter: @CurrentDbUserId() userId
+    );
+
+    it('returns dbUserId when request.user is present', () => {
+      const ctx = makeCtx({ dbUserId: USER_ID });
+      expect(factory(undefined, ctx)).toBe(USER_ID);
+    });
+
+    it('returns undefined when request.user is absent', () => {
+      const ctx = makeCtx(undefined);
+      expect(factory(undefined, ctx)).toBeUndefined();
+    });
+  });
+
+  describe('CurrentOrgId decorator factory', () => {
+    const factory = getDecoratorFactory(
+      StorageController,
+      'generateUploadUrl',
+      1, // second parameter: @CurrentOrgId() orgId
+    );
+
+    it('returns orgId when request.user is present', () => {
+      const ctx = makeCtx({ orgId: ORG_ID });
+      expect(factory(undefined, ctx)).toBe(ORG_ID);
+    });
+
+    it('returns undefined when request.user is absent', () => {
+      const ctx = makeCtx(undefined);
+      expect(factory(undefined, ctx)).toBeUndefined();
     });
   });
 });

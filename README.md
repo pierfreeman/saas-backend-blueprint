@@ -31,6 +31,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 - ⚡ Async background jobs — create-then-enqueue, real-time status via WebSocket
 - 🔔 In-app notifications — Socket.IO namespace, REST API, Redis pub/sub fan-out
 - 📋 Two-tier audit logging — tenant-visible activity log + immutable legal audit trail (ISO 27001 / GDPR)
+- 🗑️ **GDPR-compliant org deletion** — configurable retention periods, async worker execution, legal audit preservation
 - ✉️ Event-driven transactional email — SendGrid/SMTP, Handlebars templates, automatic audit logging
 - 🗄️ S3 file storage — presigned upload/download URLs, per-org isolation, quota enforcement, cleanup scheduler
 - �🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
@@ -80,6 +81,7 @@ libs/
   email           — Event-driven transactional email (SendGrid/SMTP, Handlebars templates)
   events          — EventBusService facade (LocalTransport / SQS), DomainEvent types
   legal-audit     — Immutable compliance event recorder (legal DB, ISO 27001 / GDPR)
+  org-deletion  — GDPR-compliant organization deletion with retention periods and audit trail
   notifications   — Real-time in-app notifications (Socket.IO + REST + Redis pub/sub)
   observability   — Structured logging, Sentry, Prometheus/Datadog stubs
   prisma-business — PrismaBusinessService → business DB

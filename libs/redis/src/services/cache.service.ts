@@ -140,6 +140,19 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Delete all keys matching a glob-style pattern.
+   * Returns the number of keys deleted.
+   */
+  async deleteByPattern(pattern: string): Promise<number> {
+    const keys = await this.keys(pattern);
+    if (keys.length === 0) return 0;
+    for (const key of keys) {
+      await this.del(key);
+    }
+    return keys.length;
+  }
+
+  /**
    * Flush all keys in the current Redis DB — only allowed outside production
    */
   async flushdb(): Promise<'OK'> {

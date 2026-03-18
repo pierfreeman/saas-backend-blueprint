@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { IStorageProvider } from '../../domain/entities/storage-provider.interface';
 import { FileStatus, StorageProvider } from '../../domain/enums/storage.enums';
 import { S3Provider } from '../../infrastructure/providers/s3.provider';
@@ -73,7 +73,7 @@ export class StorageService {
     );
 
     // Generate file ID and storage key
-    const fileId = uuidv4();
+    const fileId = randomUUID();
     const storageKey = this.generateStorageKey(orgId, fileId);
 
     // Get presigned URL expiration
@@ -331,6 +331,31 @@ export class StorageService {
     },
   ): Promise<FileMetadata[]> {
     return this.storageRepository.findByOrg(orgId, options);
+  }
+
+  /**
+   * Delete all files stored under the given key prefix (e.g. "org/{orgId}").
+   * Deletes each file from the storage provider; DB metadata cleanup is
+   * expected to be handled separately (e.g. via Prisma deleteMany).
+   */
+  async deleteFolder(prefix: string): Promise<void> {
+    this.logger.log(`Deleting all storage objects under prefix: ${prefix}`);
+    const files = await this.storageRepository.findByPrefix(prefix);
+    for (const file of files) {
+      if (file.status === FileStatus.COMPLETED) {
+        try {
+          const provider = this.getProvider(file.provider);
+          await provider.deleteObject(file.storageKey);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to delete storage object ${file.storageKey}: ${error}`,
+          );
+        }
+      }
+    }
+    this.logger.log(
+      `Deleted ${files.length} storage objects under prefix: ${prefix}`,
+    );
   }
 
   /**

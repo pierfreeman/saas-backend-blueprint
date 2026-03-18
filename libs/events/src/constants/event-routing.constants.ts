@@ -51,6 +51,12 @@ export const DOMAIN_EVENTS = {
   USER_INVITED: 'user.invited',
   EXPORT_COMPLETED: 'export.completed',
   SYSTEM_ALERT_TRIGGERED: 'system.alert.triggered',
+
+  // Organization deletion (Standard queue)
+  ORG_DELETION_REQUESTED: 'org.deletion.requested',
+  ORG_DELETION_STARTED: 'org.deletion.started',
+  ORG_DELETION_COMPLETED: 'org.deletion.completed',
+  ORG_DELETION_FAILED: 'org.deletion.failed',
 } as const;
 
 export type DomainEventType =

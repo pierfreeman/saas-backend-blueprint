@@ -172,6 +172,18 @@ export class StorageRepository {
   }
 
   /**
+   * Find all files whose storageKey starts with the given prefix.
+   */
+  async findByPrefix(prefix: string): Promise<FileMetadata[]> {
+    const files = await this.prisma.file.findMany({
+      where: {
+        storageKey: { startsWith: prefix },
+      },
+    });
+    return files.map((file) => this.mapToFileMetadata(file));
+  }
+
+  /**
    * Find expired pending files.
    */
   async findExpiredPending(before: Date): Promise<FileMetadata[]> {

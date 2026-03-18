@@ -1,6 +1,11 @@
 import { WorkerController, HeavyJobPayload } from './worker.controller';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PubSubService } from '@libs/redis';
+import {
+  OrgDeletionWorkerService,
+  OrgDeletionRequestedEventPayload,
+  DeletionTrigger,
+} from '@libs/org-deletion';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
 
@@ -30,6 +35,11 @@ const mockPubSub = {
   publish: jest.fn(),
 } as unknown as PubSubService;
 
+const mockOrgDeletionWorker = {
+  scheduleDeletion: jest.fn(),
+  executeDeletion: jest.fn(),
+} as unknown as OrgDeletionWorkerService;
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('WorkerController', () => {
@@ -39,7 +49,11 @@ describe('WorkerController', () => {
     jest.clearAllMocks();
     (mockPrisma.job.update as jest.Mock).mockResolvedValue({});
     (mockPubSub.publish as jest.Mock).mockResolvedValue(undefined);
-    controller = new WorkerController(mockPrisma, mockPubSub);
+    controller = new WorkerController(
+      mockPrisma,
+      mockPubSub,
+      mockOrgDeletionWorker,
+    );
   });
 
   describe('handleHeavyJobCreated', () => {
@@ -147,6 +161,92 @@ describe('WorkerController', () => {
         ([ch]) => ch,
       );
       expect(allChannels).toEqual(['job:update:org-xyz', 'job:update:org-xyz']);
+    });
+
+    it('extracts error message from non-Error thrown values', async () => {
+      jest
+        .spyOn(controller as any, 'doWork')
+        .mockRejectedValueOnce('plain string error');
+
+      await expect(controller.handleHeavyJobCreated(makeEvent())).rejects.toBe(
+        'plain string error',
+      );
+
+      const failedUpdate = (mockPrisma.job.update as jest.Mock).mock
+        .calls[1][0];
+      expect(failedUpdate.data.error).toBe('Unknown error');
+
+      const failedPublish = (mockPubSub.publish as jest.Mock).mock.calls[1][1];
+      expect(failedPublish.error).toBe('Unknown error');
+    });
+  });
+
+  describe('handleOrgDeletionRequested', () => {
+    const makeOrgEvent = (
+      override: Partial<DomainEvent<OrgDeletionRequestedEventPayload>> = {},
+    ): DomainEvent<OrgDeletionRequestedEventPayload> => ({
+      eventType: 'org.deletion.requested',
+      timestamp: new Date(),
+      tenantId: 'org-del-1',
+      eventId: 'evt-del-1',
+      payload: {
+        orgId: 'org-del-1',
+        trigger: DeletionTrigger.USER_REQUEST,
+        orgName: 'Acme Corp',
+        requestedAt: new Date('2026-03-01T00:00:00Z'),
+        scheduledAt: new Date('2026-04-01T00:00:00Z'),
+      },
+      ...override,
+    });
+
+    beforeEach(() => {
+      (mockOrgDeletionWorker.executeDeletion as jest.Mock).mockResolvedValue(
+        undefined,
+      );
+    });
+
+    it('delegates to OrgDeletionWorkerService with correct arguments', async () => {
+      const event = makeOrgEvent();
+      await controller.handleOrgDeletionRequested(event);
+
+      expect(mockOrgDeletionWorker.executeDeletion).toHaveBeenCalledTimes(1);
+      expect(mockOrgDeletionWorker.executeDeletion).toHaveBeenCalledWith(
+        'org-del-1',
+        DeletionTrigger.USER_REQUEST,
+        'Acme Corp',
+        event.payload.requestedAt,
+      );
+    });
+
+    it('propagates errors thrown by OrgDeletionWorkerService', async () => {
+      (
+        mockOrgDeletionWorker.executeDeletion as jest.Mock
+      ).mockRejectedValueOnce(new Error('deletion failed'));
+
+      await expect(
+        controller.handleOrgDeletionRequested(makeOrgEvent()),
+      ).rejects.toThrow('deletion failed');
+    });
+
+    it('handles SUBSCRIPTION_EXPIRY trigger correctly', async () => {
+      const event = makeOrgEvent({
+        payload: {
+          orgId: 'org-del-2',
+          trigger: DeletionTrigger.SUBSCRIPTION_EXPIRY,
+          orgName: 'Expired Corp',
+          requestedAt: new Date('2026-02-01T00:00:00Z'),
+          scheduledAt: new Date('2026-03-01T00:00:00Z'),
+        },
+      });
+
+      await controller.handleOrgDeletionRequested(event);
+
+      expect(mockOrgDeletionWorker.executeDeletion).toHaveBeenCalledWith(
+        'org-del-2',
+        DeletionTrigger.SUBSCRIPTION_EXPIRY,
+        'Expired Corp',
+        event.payload.requestedAt,
+      );
     });
   });
 });

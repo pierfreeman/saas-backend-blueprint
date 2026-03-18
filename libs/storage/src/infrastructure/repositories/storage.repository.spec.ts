@@ -382,4 +382,27 @@ describe('StorageRepository', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('findByPrefix', () => {
+    it('should return files whose storageKey starts with the given prefix', async () => {
+      const prefixedFile = { ...mockFile, storageKey: 'org/org-123/file-A' };
+      mockPrisma.file.findMany = jest.fn().mockResolvedValue([prefixedFile]);
+
+      const result = await repository.findByPrefix('org/org-123');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].storageKey).toBe(prefixedFile.storageKey);
+      expect(mockPrisma.file.findMany).toHaveBeenCalledWith({
+        where: { storageKey: { startsWith: 'org/org-123' } },
+      });
+    });
+
+    it('should return an empty array when no files match the prefix', async () => {
+      mockPrisma.file.findMany = jest.fn().mockResolvedValue([]);
+
+      const result = await repository.findByPrefix('org/no-such-org');
+
+      expect(result).toEqual([]);
+    });
+  });
 });

@@ -1,8 +1,9 @@
+import { RequestUser } from '@libs/common';
+import { DeletionTrigger, OrgDeletionService } from '@libs/org-deletion';
+import { NotFoundException } from '@nestjs/common';
+import { AuthService } from '../auth/auth.service';
 import { OrganizationsController } from './organizations.controller';
 import { OrganizationsService } from './organizations.service';
-import { AuthService } from '../auth/auth.service';
-import { NotFoundException } from '@nestjs/common';
-import { RequestUser } from '@libs/common';
 
 const mockOrganizationsService = {
   createOrganization: jest.fn(),
@@ -15,6 +16,11 @@ const mockOrganizationsService = {
 const mockAuthService = {
   findUserByAuth0Id: jest.fn(),
 } as unknown as AuthService;
+
+const mockOrgDeletionService = {
+  scheduleOrgDeletion: jest.fn(),
+  requestDeletion: jest.fn(),
+} as unknown as OrgDeletionService;
 
 const jwtUser: RequestUser = { sub: 'auth0|u1', email: 'user@example.com' };
 const dbUser = { id: 'db-u-1', auth0Id: 'auth0|u1', email: 'user@example.com' };
@@ -33,6 +39,7 @@ describe('OrganizationsController', () => {
     controller = new OrganizationsController(
       mockOrganizationsService,
       mockAuthService,
+      mockOrgDeletionService,
     );
   });
 
@@ -195,6 +202,41 @@ describe('OrganizationsController', () => {
       await expect(controller.delete(jwtUser, 'bad-id')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ---------- requestDeletion ------------------------------------------------
+  describe('requestDeletion()', () => {
+    it('calls orgDeletionService.requestDeletion and returns scheduledAt', async () => {
+      setupDbUser();
+      const scheduledAt = new Date('2026-04-17T00:00:00.000Z');
+      const orgWithDeletion = { ...baseOrg, deletionScheduledAt: scheduledAt };
+      (mockOrgDeletionService.requestDeletion as jest.Mock).mockResolvedValue(
+        undefined,
+      );
+      mockOrganizationsService.findById = jest
+        .fn()
+        .mockResolvedValue(orgWithDeletion);
+
+      const result = await controller.requestDeletion(jwtUser, 'org-1');
+
+      expect(result.message).toBe(
+        'Organization deletion requested successfully',
+      );
+      expect(result.scheduledAt).toEqual(scheduledAt);
+      expect(mockOrgDeletionService.requestDeletion).toHaveBeenCalledWith(
+        'org-1',
+        DeletionTrigger.USER_REQUEST,
+        'db-u-1',
+      );
+    });
+
+    it('throws NotFoundException when user is not found in DB', async () => {
+      mockAuthService.findUserByAuth0Id = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        controller.requestDeletion(jwtUser, 'org-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

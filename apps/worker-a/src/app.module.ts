@@ -4,6 +4,7 @@ import { RedisModule } from '@libs/redis';
 import { ConfigModule } from '@libs/config';
 import { EventsModule } from '@libs/events';
 import { ObservabilityModule } from '@libs/observability';
+import { OrgDeletionModule } from '@libs/org-deletion';
 import { WorkerController } from './worker.controller';
 import { SqsConsumerService } from './sqs-consumer.service';
 
@@ -19,6 +20,7 @@ import { SqsConsumerService } from './sqs-consumer.service';
     PrismaBusinessModule,
     RedisModule,
     EventsModule,
+    OrgDeletionModule,
   ],
   providers: [WorkerController, SqsConsumerService],
 })

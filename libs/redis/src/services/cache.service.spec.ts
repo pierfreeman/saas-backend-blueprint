@@ -201,6 +201,23 @@ describe('CacheService', () => {
     });
   });
 
+  describe('deleteByPattern', () => {
+    it('returns 0 immediately when no keys match', async () => {
+      const result = await service.deleteByPattern('nonexistent:*');
+      expect(result).toBe(0);
+      expect(mockClient.del).not.toHaveBeenCalled();
+    });
+
+    it('deletes each matching key and returns the count', async () => {
+      mockClient.keys.mockResolvedValueOnce(['k:1', 'k:2']);
+      const result = await service.deleteByPattern('k:*');
+      expect(result).toBe(2);
+      expect(mockClient.del).toHaveBeenCalledTimes(2);
+      expect(mockClient.del).toHaveBeenCalledWith('k:1');
+      expect(mockClient.del).toHaveBeenCalledWith('k:2');
+    });
+  });
+
   describe('constructor retryStrategy', () => {
     it('returns capped delay based on retry count', () => {
       // retryStrategy is passed to the Redis constructor; retrieve it from
@@ -209,7 +226,7 @@ describe('CacheService', () => {
       const ctorOptions = Redis.mock.calls.at(-1)?.[0] as any;
       const retryStrategy = ctorOptions?.retryStrategy;
       expect(retryStrategy).toBeDefined();
-      expect(retryStrategy(1)).toBe(50);   // 1 * 50 = 50ms
+      expect(retryStrategy(1)).toBe(50); // 1 * 50 = 50ms
       expect(retryStrategy(20)).toBe(1000); // 20 * 50 = 1000ms (< 2000)
       expect(retryStrategy(50)).toBe(2000); // 50 * 50 = 2500 → capped at 2000
     });
