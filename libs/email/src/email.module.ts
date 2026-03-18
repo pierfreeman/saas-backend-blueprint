@@ -6,8 +6,6 @@ import { EmailService } from './email.service';
 import { TemplateRendererService } from './templates/template-renderer.service';
 import { EMAIL_PROVIDER } from './providers/email-provider.interface';
 import { SendGridProvider } from './providers/sendgrid.provider';
-import { UserInvitedEmailHandler } from './events/handlers/user-invited.handler';
-import { ExportCompletedEmailHandler } from './events/handlers/export-completed.handler';
 
 /**
  * Email Module
@@ -48,15 +46,7 @@ import { ExportCompletedEmailHandler } from './events/handlers/export-completed.
     // Core services
     TemplateRendererService,
     EmailService,
-
-    // Event handlers
-    UserInvitedEmailHandler,
-    ExportCompletedEmailHandler,
   ],
-  exports: [
-    EmailService,
-    UserInvitedEmailHandler,
-    ExportCompletedEmailHandler,
-  ],
+  exports: [EmailService],
 })
 export class EmailModule {}

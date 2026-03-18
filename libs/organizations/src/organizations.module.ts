@@ -1,0 +1,13 @@
+import { Module } from '@nestjs/common';
+import { PrismaBusinessModule } from '@libs/prisma-business';
+import { ActivityLogModule } from '@libs/activity-log';
+import { LegalAuditModule } from '@libs/legal-audit';
+import { OrganizationsService } from './organizations.service';
+import { OrganizationsRepository } from './infrastructure/repositories/organizations.repository';
+
+@Module({
+  imports: [PrismaBusinessModule, ActivityLogModule, LegalAuditModule],
+  providers: [OrganizationsRepository, OrganizationsService],
+  exports: [OrganizationsService],
+})
+export class OrganizationsModule {}
