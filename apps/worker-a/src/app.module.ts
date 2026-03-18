@@ -5,6 +5,7 @@ import { ConfigModule } from '@libs/config';
 import { EventsModule } from '@libs/events';
 import { ObservabilityModule } from '@libs/observability';
 import { OrgDeletionModule } from '@libs/org-deletion';
+import { OrgExportModule } from '@libs/org-export';
 import { WorkerController } from './worker.controller';
 import { SqsConsumerService } from './sqs-consumer.service';
 
@@ -21,6 +22,7 @@ import { SqsConsumerService } from './sqs-consumer.service';
     RedisModule,
     EventsModule,
     OrgDeletionModule,
+    OrgExportModule,
   ],
   providers: [WorkerController, SqsConsumerService],
 })

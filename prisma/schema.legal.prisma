@@ -46,6 +46,9 @@ model AuditEvent {
   /// so records survive organisation deletion without modification.
   orgId       String?  @map("org_id") @db.Uuid
 
+  /// Internal UUID of the user who triggered the event. Null for system-initiated events.
+  userId      String?  @map("user_id") @db.Uuid
+
   /// RBAC role of the actor at the time of the event (e.g. 'OWNER', 'system').
   actorRole   String?  @map("actor_role")
 

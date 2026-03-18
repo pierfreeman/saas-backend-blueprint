@@ -66,24 +66,22 @@ export class PrismaBusinessService
   /**
    * Deletes all rows from every model — for use in tests only.
    * Throws if called in production to prevent accidental data loss.
+   *
+   * Order matters: child tables (those with FK references) must be deleted
+   * before their parent tables to avoid foreign key constraint violations.
    */
   async cleanDatabase(): Promise<void> {
     if (this.config.get<string>('app.nodeEnv') === 'production') {
       throw new Error('Cannot clean database in production');
     }
 
-    const models = Reflect.ownKeys(this).filter(
-      (key) =>
-        typeof key === 'string' && !key.startsWith('_') && !key.startsWith('$'),
-    );
-
-    for (const modelKey of models) {
-      const model = this[modelKey as keyof this] as {
-        deleteMany?: () => Promise<unknown>;
-      };
-      if (model.deleteMany) {
-        await model.deleteMany();
-      }
-    }
+    // Delete in dependency order: children before parents.
+    await this.orgExport.deleteMany();
+    await this.activityLog.deleteMany();
+    await this.billingEvent.deleteMany();
+    await this.job.deleteMany();
+    await this.membership.deleteMany();
+    await this.organization.deleteMany();
+    await this.user.deleteMany();
   }
 }

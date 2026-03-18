@@ -10,6 +10,8 @@ export interface LegalAuditEvent {
    * so the record survives org deletion without modification.
    */
   orgId?: string | null;
+  /** Internal UUID of the user who triggered the event. Null for system-initiated events. */
+  userId?: string | null;
   /** RBAC role of the actor at the time of the event (e.g. 'OWNER', 'system'). */
   actorRole?: string | null;
   /**
