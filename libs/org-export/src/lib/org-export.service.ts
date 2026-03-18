@@ -43,7 +43,9 @@ export class OrgExportService {
    * @throws NotFoundException if organization not found
    */
   async requestExport(orgId: string, userId: string): Promise<string> {
-    this.logger.log(`Export requested for organization ${orgId} by user ${userId}`);
+    this.logger.log(
+      `Export requested for organization ${orgId} by user ${userId}`,
+    );
 
     // Load organization to verify it exists
     const org = await this.prisma.organization.findUnique({
@@ -74,7 +76,7 @@ export class OrgExportService {
           id: jobId,
           orgId,
           userId,
-          type: 'org_export',
+          type: ORG_EXPORT_EVENT_TYPES.EXPORT_REQUESTED,
           status: JobStatus.PENDING,
           payload: {
             orgId,
@@ -115,15 +117,15 @@ export class OrgExportService {
 
     // Record legal audit event (permanent, survives deletion)
     this.legalAudit.recordEvent({
-      eventType: 'organization.export.requested',
+      eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_REQUESTED,
       orgId,
-      triggerType: 'user',
+      userId,
+      triggerType: 'user_action',
       metadata: {
         organizationId: orgId,
         organizationName: org.name,
         exportId,
         jobId,
-        userId,
         requestedAt: now.toISOString(),
       },
     });
@@ -185,23 +187,11 @@ export class OrgExportService {
    * @returns List of export records
    */
   async listExports(orgId: string, limit = 10, offset = 0) {
-    const [exports, total] = await Promise.all([
-      this.prisma.orgExport.findMany({
-        where: { orgId },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset,
-      }),
-      this.prisma.orgExport.count({
-        where: { orgId },
-      }),
-    ]);
-
-    return {
-      exports,
-      total,
-      limit,
-      offset,
-    };
+    return this.prisma.orgExport.findMany({
+      where: { orgId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+    });
   }
 }

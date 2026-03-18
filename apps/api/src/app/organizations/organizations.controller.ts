@@ -2,7 +2,6 @@ import { JwtAuthGuard, PERMISSIONS, RequestUser } from '@libs/common';
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -489,61 +489,16 @@ export class OrganizationsController {
     status: HttpStatus.FORBIDDEN,
     description: 'Only OWNER and ADMIN roles can view exports.',
   })
-  async listExports(@Param('id') orgId: string) {
-    return this.orgExportService.listExports(orgId);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.OK)
-  @OrgScoped()
-  @UseGuards(OrgContextGuard, RBACGuard)
-  @RequirePermissions([PERMISSIONS.ORG_MANAGE])
-  @ApiOperation({
-    summary: 'Delete an organization (immediate, deprecated)',
-    description:
-      'DEPRECATED: Use POST /organizations/:id/delete instead. ' +
-      'This endpoint immediately deletes an organization without retention period. ' +
-      'Kept for backward compatibility only. ' +
-      'Requires ORG_MANAGE permission (OWNER only).',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Organization UUID',
-    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
-  })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Organization deleted successfully.',
-    schema: {
-      type: 'object',
-      properties: {
-        message: {
-          type: 'string',
-          example: 'Organization deleted successfully',
-        },
-      },
-      required: ['message'],
-    },
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Missing or invalid JWT bearer token.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'Caller lacks ORG_MANAGE permission.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Organization not found.',
-  })
-  async delete(
-    @CurrentUser() user: RequestUser,
-    @Param('id') id: string,
-  ): Promise<{ message: string }> {
-    const dbUser = await this.resolveUser(user.sub);
-    await this.organizationsService.deleteOrganization(id, dbUser.id);
-    return { message: 'Organization deleted successfully' };
+  async listExports(
+    @Param('id') orgId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.orgExportService.listExports(
+      orgId,
+      limit === undefined ? undefined : Number.parseInt(limit, 10),
+      offset === undefined ? undefined : Number.parseInt(offset, 10),
+    );
   }
 
   /** Resolves Auth0 sub → local DB user */

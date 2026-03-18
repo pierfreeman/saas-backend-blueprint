@@ -8,6 +8,7 @@ import {
 } from '@libs/org-deletion';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
+import { OrgExportWorkerService } from '@libs/org-export';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,11 @@ const mockOrgDeletionWorker = {
   executeDeletion: jest.fn(),
 } as unknown as OrgDeletionWorkerService;
 
+const mockOrgExportWorker = {
+  scheduleExport: jest.fn(),
+  executeExport: jest.fn(),
+} as unknown as OrgExportWorkerService;
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('WorkerController', () => {
@@ -53,6 +59,7 @@ describe('WorkerController', () => {
       mockPrisma,
       mockPubSub,
       mockOrgDeletionWorker,
+      mockOrgExportWorker,
     );
   });
 

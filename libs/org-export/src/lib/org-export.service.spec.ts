@@ -129,9 +129,9 @@ describe('OrgExportService', () => {
     it('throws NotFoundException when organization does not exist', async () => {
       prisma.organization.findUnique.mockResolvedValueOnce(null);
 
-      await expect(
-        service.requestExport(ORG_UUID, USER_UUID),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.requestExport(ORG_UUID, USER_UUID)).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(prisma.job.create).not.toHaveBeenCalled();
       expect(eventBus.publish).not.toHaveBeenCalled();
@@ -141,9 +141,9 @@ describe('OrgExportService', () => {
       const org = makeOrganization({ status: OrganizationStatus.DELETED });
       prisma.organization.findUnique.mockResolvedValueOnce(org);
 
-      await expect(
-        service.requestExport(ORG_UUID, USER_UUID),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.requestExport(ORG_UUID, USER_UUID)).rejects.toThrow(
+        BadRequestException,
+      );
 
       expect(prisma.job.create).not.toHaveBeenCalled();
     });
@@ -153,7 +153,7 @@ describe('OrgExportService', () => {
       prisma.organization.findUnique.mockResolvedValueOnce(org);
       prisma.job.create.mockResolvedValueOnce({
         id: JOB_UUID,
-        type: 'org_export',
+        type: 'org.export.requested',
         status: JobStatus.PENDING,
       });
       prisma.orgExport.create.mockResolvedValueOnce(makeExport());
@@ -166,7 +166,7 @@ describe('OrgExportService', () => {
           data: expect.objectContaining({
             orgId: ORG_UUID,
             userId: USER_UUID,
-            type: 'org_export',
+            type: 'org.export.requested',
             status: JobStatus.PENDING,
             payload: expect.objectContaining({
               orgId: ORG_UUID,
@@ -238,13 +238,13 @@ describe('OrgExportService', () => {
 
       expect(legalAudit.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          eventType: 'organization.export.requested',
+          eventType: 'org.export.requested',
           orgId: ORG_UUID,
-          triggerType: 'user',
+          userId: USER_UUID,
+          triggerType: 'user_action',
           metadata: expect.objectContaining({
             organizationId: ORG_UUID,
             organizationName: 'Test Organization',
-            userId: USER_UUID,
           }),
         }),
       );
@@ -312,18 +312,18 @@ describe('OrgExportService', () => {
     it('throws NotFoundException when export not found', async () => {
       prisma.orgExport.findFirst.mockResolvedValueOnce(null);
 
-      await expect(
-        service.getExport(EXPORT_UUID, ORG_UUID),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getExport(EXPORT_UUID, ORG_UUID)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws NotFoundException when export belongs to different org (IDOR protection)', async () => {
       prisma.orgExport.findFirst.mockResolvedValueOnce(null);
 
       const wrongOrgId = 'wrong-org-uuid';
-      await expect(
-        service.getExport(EXPORT_UUID, wrongOrgId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getExport(EXPORT_UUID, wrongOrgId)).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(prisma.orgExport.findFirst).toHaveBeenCalledWith({
         where: {
@@ -376,19 +376,14 @@ describe('OrgExportService', () => {
         makeExport({ id: 'export-2' }),
       ];
       prisma.orgExport.findMany.mockResolvedValueOnce(exports);
-      prisma.orgExport.count.mockResolvedValueOnce(2);
 
       const result = await service.listExports(ORG_UUID, 10, 0);
 
-      expect(result.exports).toEqual(exports);
-      expect(result.total).toBe(2);
-      expect(result.limit).toBe(10);
-      expect(result.offset).toBe(0);
+      expect(result).toEqual(exports);
     });
 
     it('queries exports with correct filters and ordering', async () => {
       prisma.orgExport.findMany.mockResolvedValueOnce([]);
-      prisma.orgExport.count.mockResolvedValueOnce(0);
 
       await service.listExports(ORG_UUID, 20, 10);
 
@@ -398,19 +393,13 @@ describe('OrgExportService', () => {
         take: 20,
         skip: 10,
       });
-      expect(prisma.orgExport.count).toHaveBeenCalledWith({
-        where: { orgId: ORG_UUID },
-      });
     });
 
     it('uses default pagination values when not provided', async () => {
       prisma.orgExport.findMany.mockResolvedValueOnce([]);
-      prisma.orgExport.count.mockResolvedValueOnce(0);
 
-      const result = await service.listExports(ORG_UUID);
+      await service.listExports(ORG_UUID);
 
-      expect(result.limit).toBe(10);
-      expect(result.offset).toBe(0);
       expect(prisma.orgExport.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           take: 10,
@@ -421,12 +410,10 @@ describe('OrgExportService', () => {
 
     it('returns empty list when org has no exports', async () => {
       prisma.orgExport.findMany.mockResolvedValueOnce([]);
-      prisma.orgExport.count.mockResolvedValueOnce(0);
 
       const result = await service.listExports(ORG_UUID);
 
-      expect(result.exports).toEqual([]);
-      expect(result.total).toBe(0);
+      expect(result).toEqual([]);
     });
 
     it('handles pagination correctly for large result sets', async () => {
@@ -434,14 +421,10 @@ describe('OrgExportService', () => {
         makeExport({ id: `export-${i + 11}` }),
       );
       prisma.orgExport.findMany.mockResolvedValueOnce(exports);
-      prisma.orgExport.count.mockResolvedValueOnce(25);
 
       const result = await service.listExports(ORG_UUID, 5, 10);
 
-      expect(result.exports.length).toBe(5);
-      expect(result.total).toBe(25);
-      expect(result.limit).toBe(5);
-      expect(result.offset).toBe(10);
+      expect(result.length).toBe(5);
     });
 
     it('returns exports ordered by creation date descending', async () => {
@@ -462,13 +445,12 @@ describe('OrgExportService', () => {
         export2,
         export1,
       ]);
-      prisma.orgExport.count.mockResolvedValueOnce(3);
 
       const result = await service.listExports(ORG_UUID);
 
-      expect(result.exports[0].id).toBe('export-3');
-      expect(result.exports[1].id).toBe('export-2');
-      expect(result.exports[2].id).toBe('export-1');
+      expect(result[0].id).toBe('export-3');
+      expect(result[1].id).toBe('export-2');
+      expect(result[2].id).toBe('export-1');
     });
   });
 });

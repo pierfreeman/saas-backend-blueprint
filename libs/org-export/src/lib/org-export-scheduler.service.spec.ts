@@ -40,9 +40,7 @@ describe('OrgExportSchedulerService', () => {
       ],
     }).compile();
 
-    service = module.get<OrgExportSchedulerService>(
-      OrgExportSchedulerService,
-    );
+    service = module.get<OrgExportSchedulerService>(OrgExportSchedulerService);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -52,7 +50,7 @@ describe('OrgExportSchedulerService', () => {
   describe('markExpiredExports', () => {
     beforeEach(() => {
       // Mock console.error to suppress error logs during tests
-      jest.spyOn(console, 'error').mockImplementation(() => {});
+      jest.spyOn(console, 'error').mockImplementation(jest.fn());
     });
 
     afterEach(() => {

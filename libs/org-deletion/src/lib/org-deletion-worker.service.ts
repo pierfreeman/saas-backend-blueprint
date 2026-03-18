@@ -269,6 +269,7 @@ export class OrgDeletionWorkerService {
       await this.prisma.$transaction(async (tx) => {
         await tx.file.deleteMany({ where: { orgId } });
         await tx.notification.deleteMany({ where: { orgId } });
+        await tx.orgExport.deleteMany({ where: { orgId } });
         await tx.job.deleteMany({ where: { orgId } });
         await tx.activityLog.deleteMany({ where: { orgId } });
         await tx.membership.deleteMany({ where: { orgId } });

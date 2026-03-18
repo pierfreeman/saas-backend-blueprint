@@ -351,6 +351,9 @@ model Job {
   @@index([status, createdAt(sort: Desc)])
   @@map("jobs")
   @@schema("public")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  orgExport  OrgExport?
 }
 
 // ============================================================================
@@ -368,6 +371,7 @@ model OrgExport {
   orgId             String       @map("org_id")
   /// FK → Job (unique 1:1 relationship with the async job processing this export).
   jobId             String       @unique @map("job_id") @db.Uuid
+  job               Job          @relation(fields: [jobId], references: [id])
   /// Auth0 subject of the user who requested the export.
   requestedByUserId String       @map("requested_by_user_id")
   /// Current status of the export.

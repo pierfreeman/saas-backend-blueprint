@@ -49,6 +49,9 @@ function buildPrismaMock() {
     notification: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    orgExport: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     activityLog: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
@@ -249,6 +252,9 @@ describe('OrgDeletionWorkerService', () => {
         where: { orgId: ORG_UUID },
       });
       expect(prisma.notification.deleteMany).toHaveBeenCalledWith({
+        where: { orgId: ORG_UUID },
+      });
+      expect(prisma.orgExport.deleteMany).toHaveBeenCalledWith({
         where: { orgId: ORG_UUID },
       });
       expect(prisma.job.deleteMany).toHaveBeenCalledWith({

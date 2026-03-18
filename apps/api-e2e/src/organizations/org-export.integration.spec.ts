@@ -223,7 +223,7 @@ describe('Org Export Workflow (integration)', () => {
       .post(`/organizations/${ctxA.org.id}/export`)
       .set('Authorization', `Bearer ${tokenA}`);
 
-    expect(exportResA.status).toBe(201);
+    expect(exportResA.status).toBe(202);
     const exportIdA = exportResA.body.exportId as string;
 
     // Create org B
