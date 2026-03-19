@@ -4,6 +4,15 @@ import * as SendGridMail from '@sendgrid/mail';
 import { EmailProvider } from './email-provider.interface';
 import { SendEmailDto } from '../dto/send-email.dto';
 
+// @sendgrid/mail exports a MailService singleton via `export =`, so methods
+// like setApiKey and send live on the prototype — not as own enumerable
+// properties. When esModuleInterop:true causes `import * as` to be compiled
+// via __importStar(), prototype methods are stripped from the result.
+// Resolving the real module reference here handles both compilation modes.
+const sgMail =
+  (SendGridMail as unknown as { default?: typeof SendGridMail }).default ??
+  SendGridMail;
+
 /**
  * SendGrid Email Provider
  *
@@ -22,7 +31,7 @@ export class SendGridProvider implements EmailProvider {
     this.fromName = this.configService.get<string>('email.from.name')!;
 
     if (apiKey) {
-      SendGridMail.setApiKey(apiKey);
+      sgMail.setApiKey(apiKey);
       this.logger.log('SendGrid provider initialized');
     } else {
       this.logger.warn(
@@ -48,7 +57,7 @@ export class SendGridProvider implements EmailProvider {
         replyTo: input.replyTo,
       };
 
-      await SendGridMail.send(message);
+      await sgMail.send(message);
 
       this.logger.log(`Email sent successfully to ${input.to}`);
     } catch (error) {

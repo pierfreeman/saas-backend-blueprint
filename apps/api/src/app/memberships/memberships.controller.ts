@@ -19,7 +19,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Membership } from '@prisma/client';
-import { OrgScoped, RequirePermissions, OrgContextGuard, RBACGuard } from '@libs/rbac';
+import {
+  OrgScoped,
+  RequirePermissions,
+  OrgContextGuard,
+  RBACGuard,
+  RBACCacheService,
+} from '@libs/rbac';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { MembershipsService } from '@libs/memberships';
@@ -30,7 +36,10 @@ import { MembershipsService } from '@libs/memberships';
 @UseGuards(JwtAuthGuard, OrgContextGuard, RBACGuard)
 @Controller('organizations/:orgId/memberships')
 export class MembershipsController {
-  constructor(private readonly membershipsService: MembershipsService) {}
+  constructor(
+    private readonly membershipsService: MembershipsService,
+    private readonly rbacCacheService: RBACCacheService,
+  ) {}
 
   @Post()
   @RequirePermissions([PERMISSIONS.ORG_MEMBERS_INVITE])
@@ -116,7 +125,12 @@ export class MembershipsController {
     @Param('orgId') orgId: string,
     @Body() dto: CreateMembershipDto,
   ): Promise<Membership> {
-    return this.membershipsService.createMembership(orgId, dto);
+    const membership = await this.membershipsService.createMembership(
+      orgId,
+      dto,
+    );
+    await this.rbacCacheService.invalidate(membership.userId, membership.orgId);
+    return membership;
   }
 
   @Get()
@@ -276,7 +290,13 @@ export class MembershipsController {
     @Param('id') id: string,
     @Body() dto: UpdateMembershipDto,
   ): Promise<Membership> {
-    return this.membershipsService.updateMembership(id, orgId, dto);
+    const membership = await this.membershipsService.updateMembership(
+      id,
+      orgId,
+      dto,
+    );
+    await this.rbacCacheService.invalidate(membership.userId, membership.orgId);
+    return membership;
   }
 
   @Delete(':id')
@@ -327,6 +347,8 @@ export class MembershipsController {
     @Param('id') id: string,
   ): Promise<{ message: string }> {
     await this.membershipsService.deleteMembership(id, orgId);
+    // userId isn't available after deletion; invalidate all org caches to be safe
+    await this.rbacCacheService.invalidateOrg(orgId);
     return { message: 'Membership deleted successfully' };
   }
 }
