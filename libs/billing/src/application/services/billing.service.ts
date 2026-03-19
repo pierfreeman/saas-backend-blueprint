@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
+import { BillingStatus } from '@prisma/client';
 import { StripeService } from '../../infrastructure/stripe/stripe.service';
 import {
   BillingRepository,
@@ -270,5 +271,11 @@ export class BillingService {
     this.logger.log(
       `Subscription ${org.subscriptionId} scheduled for cancellation (org: ${orgId})`,
     );
+  }
+
+  async getOrgBillingStatus(
+    orgId: string,
+  ): Promise<{ planId: string | null; billingStatus: BillingStatus } | null> {
+    return this.billingRepository.getOrgBillingStatus(orgId);
   }
 }

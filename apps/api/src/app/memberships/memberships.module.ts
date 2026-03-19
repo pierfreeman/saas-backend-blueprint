@@ -5,17 +5,13 @@ import {
   MEMBERSHIP_CACHE_NOTIFIER,
 } from '@libs/memberships';
 import { MembershipsController } from './memberships.controller';
-import { UserInvitedEmailHandler } from './event-handlers/user-invited-email.handler';
-import { RBACModule } from '../rbac/rbac.module';
-import { RBACCacheService } from '../rbac/services/rbac-cache.service';
-import { EmailModule } from '@libs/email';
+import { RBACModule, RBACCacheService } from '@libs/rbac';
 
 @Module({
-  imports: [MembershipsLibModule, EmailModule, RBACModule, TenantModule],
+  imports: [MembershipsLibModule, RBACModule, TenantModule],
   controllers: [MembershipsController],
   providers: [
     { provide: MEMBERSHIP_CACHE_NOTIFIER, useExisting: RBACCacheService },
-    UserInvitedEmailHandler,
   ],
 })
 export class MembershipsModule {}

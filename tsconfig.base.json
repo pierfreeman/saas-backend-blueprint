@@ -155,6 +155,12 @@
       ],
       "@libs/users/*": [
         "libs/users/src/*"
+      ],
+      "@libs/rbac": [
+        "libs/rbac/src/index.ts"
+      ],
+      "@libs/rbac/*": [
+        "libs/rbac/src/*"
       ]
     }
   },

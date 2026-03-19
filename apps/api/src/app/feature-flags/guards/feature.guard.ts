@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { FeatureFlagsService } from '../feature-flags.service';
 import { PlanEntitlements } from '../interfaces/entitlements.interface';
-import { RequestWithOrgContext } from '../../rbac/guards/org-context.guard';
+import { RequestWithOrgContext } from '@libs/rbac';
 
 export const FEATURE_KEY = 'feature';
 

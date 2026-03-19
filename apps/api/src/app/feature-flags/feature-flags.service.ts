@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { BillingRepository } from '@libs/billing';
+import { BillingService } from '@libs/billing';
 import { CacheService } from '@libs/redis';
 import { LocalTransport, DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { BillingStatus } from '@prisma/client';
@@ -77,7 +77,7 @@ export class FeatureFlagsService implements OnModuleInit {
   private readonly cacheKeyPrefix = 'entitlements:';
 
   constructor(
-    private readonly billingRepo: BillingRepository,
+    private readonly billingService: BillingService,
     private readonly cache: CacheService,
     private readonly localTransport: LocalTransport,
   ) {}
@@ -120,7 +120,7 @@ export class FeatureFlagsService implements OnModuleInit {
       return cached;
     }
 
-    const org = await this.billingRepo.getOrgBillingStatus(orgId);
+    const org = await this.billingService.getOrgBillingStatus(orgId);
 
     const billingStatus = org?.billingStatus ?? BillingStatus.NONE;
     const isActive = billingStatus === BillingStatus.ACTIVE;

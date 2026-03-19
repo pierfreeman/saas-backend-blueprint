@@ -1,5 +1,5 @@
 module.exports = {
-  displayName: 'jobs',
+  displayName: 'rbac',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
   passWithNoTests: true,
@@ -7,5 +7,5 @@ module.exports = {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../coverage/unit/libs/jobs',
+  coverageDirectory: '../../coverage/unit/libs/rbac',
 };

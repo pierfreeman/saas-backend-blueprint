@@ -2,7 +2,7 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { FeatureGuard, FEATURE_KEY } from './feature.guard';
 import { FeatureFlagsService } from '../feature-flags.service';
-import { RequestWithOrgContext } from '../../rbac/guards/org-context.guard';
+import { RequestWithOrgContext } from '@libs/rbac';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

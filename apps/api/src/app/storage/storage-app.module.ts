@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { StorageModule } from '@libs/storage';
 import { AuthModule } from '../auth/auth.module';
-import { RBACModule } from '../rbac/rbac.module';
+import { RBACModule } from '@libs/rbac';
 import { StorageController } from './storage.controller';
 
 /**

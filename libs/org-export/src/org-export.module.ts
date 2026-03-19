@@ -5,10 +5,12 @@ import { EventsModule } from '@libs/events';
 import { LegalAuditModule } from '@libs/legal-audit';
 import { ActivityLogModule } from '@libs/activity-log';
 import { StorageModule } from '@libs/storage';
+import { EmailModule } from '@libs/email';
 import { OrgExportService } from './application/services/org-export.service';
 import { OrgExportWorkerService } from './application/services/org-export-worker.service';
 import { OrgExportSchedulerService } from './application/services/org-export-scheduler.service';
 import { OrgExportRepository } from './infrastructure/repositories/org-export.repository';
+import { ExportCompletedEmailHandler } from './application/event-handlers/export-completed-email.handler';
 
 /**
  * Module for organization data export functionality.
@@ -22,12 +24,14 @@ import { OrgExportRepository } from './infrastructure/repositories/org-export.re
     LegalAuditModule,
     ActivityLogModule,
     StorageModule,
+    EmailModule,
   ],
   providers: [
     OrgExportRepository,
     OrgExportService,
     OrgExportWorkerService,
     OrgExportSchedulerService,
+    ExportCompletedEmailHandler,
   ],
   exports: [
     OrgExportService,

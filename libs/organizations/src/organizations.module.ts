@@ -8,6 +8,6 @@ import { OrganizationsRepository } from './infrastructure/repositories/organizat
 @Module({
   imports: [PrismaBusinessModule, ActivityLogModule, LegalAuditModule],
   providers: [OrganizationsRepository, OrganizationsService],
-  exports: [OrganizationsService, OrganizationsRepository],
+  exports: [OrganizationsService],
 })
 export class OrganizationsModule {}

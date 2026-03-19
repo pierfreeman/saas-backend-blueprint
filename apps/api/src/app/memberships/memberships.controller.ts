@@ -19,10 +19,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Membership } from '@prisma/client';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { OrgScoped, RequirePermissions, OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { MembershipsService } from '@libs/memberships';

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BillingModule } from '@libs/billing';
 import { RedisModule } from '@libs/redis';
-import { RBACModule } from '../rbac/rbac.module';
+import { RBACModule } from '@libs/rbac';
 import { FeatureFlagsService } from './feature-flags.service';
 import { FeatureFlagsController } from './feature-flags.controller';
 import { FeatureGuard } from './guards/feature.guard';

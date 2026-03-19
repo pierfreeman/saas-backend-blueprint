@@ -1,5 +1,5 @@
 import { FeatureFlagsService } from './feature-flags.service';
-import { BillingRepository } from '@libs/billing';
+import { BillingService } from '@libs/billing';
 import { CacheService } from '@libs/redis';
 import { LocalTransport, DOMAIN_EVENTS } from '@libs/events';
 import { BillingStatus } from '@prisma/client';
@@ -13,7 +13,7 @@ const PRICE_BASIC = 'price_pro';
 
 // ─── Mock factories ───────────────────────────────────────────────────────────
 
-const makeBillingRepo = (overrides?: {
+const makeBillingService = (overrides?: {
   planId?: string | null;
   billingStatus?: BillingStatus;
 }) =>
@@ -26,7 +26,7 @@ const makeBillingRepo = (overrides?: {
             billingStatus: overrides.billingStatus ?? BillingStatus.ACTIVE,
           },
     ),
-  }) as unknown as BillingRepository;
+  }) as unknown as BillingService;
 
 const makeCache = (cached?: OrganizationEntitlements | null) =>
   ({
@@ -38,11 +38,11 @@ const makeCache = (cached?: OrganizationEntitlements | null) =>
 const makeTransport = () => ({ on: jest.fn() }) as unknown as LocalTransport;
 
 function buildService(
-  billingRepo: BillingRepository,
+  billingService: BillingService,
   cache: CacheService,
   transport: LocalTransport,
 ): FeatureFlagsService {
-  return new FeatureFlagsService(billingRepo, cache, transport);
+  return new FeatureFlagsService(billingService, cache, transport);
 }
 
 // ─── Suite ────────────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ describe('FeatureFlagsService', () => {
   describe('onModuleInit()', () => {
     it('registers listeners for all relevant domain events', () => {
       const transport = makeTransport();
-      const service = buildService(makeBillingRepo(), makeCache(), transport);
+      const service = buildService(makeBillingService(), makeCache(), transport);
 
       service.onModuleInit();
 
@@ -86,7 +86,7 @@ describe('FeatureFlagsService', () => {
       const cache = makeCache();
       const transport: { on: jest.Mock } = { on: jest.fn() };
       const service = buildService(
-        makeBillingRepo(),
+        makeBillingService(),
         cache,
         transport as unknown as LocalTransport,
       );
@@ -110,7 +110,7 @@ describe('FeatureFlagsService', () => {
       const cache = makeCache();
       const transport: { on: jest.Mock } = { on: jest.fn() };
       const service = buildService(
-        makeBillingRepo(),
+        makeBillingService(),
         cache,
         transport as unknown as LocalTransport,
       );
@@ -144,20 +144,20 @@ describe('FeatureFlagsService', () => {
         ssoEnabled: false,
         prioritySupport: false,
       };
-      const billingRepo = makeBillingRepo();
+      const billingService = makeBillingService();
       const cache = makeCache(cached);
-      const service = buildService(billingRepo, cache, makeTransport());
+      const service = buildService(billingService, cache, makeTransport());
 
       const result = await service.getEntitlements(ORG_ID);
 
       expect(result).toEqual(cached);
-      expect(billingRepo.getOrgBillingStatus).not.toHaveBeenCalled();
+      expect(billingService.getOrgBillingStatus).not.toHaveBeenCalled();
     });
 
     it('builds FREE entitlements when org has no subscription (null)', async () => {
-      const billingRepo = makeBillingRepo(undefined); // returns null
+      const billingService = makeBillingService(undefined); // returns null
       const cache = makeCache();
-      const service = buildService(billingRepo, cache, makeTransport());
+      const service = buildService(billingService, cache, makeTransport());
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -173,11 +173,11 @@ describe('FeatureFlagsService', () => {
 
     it('downgrades to FREE when billingStatus is PAST_DUE regardless of plan', () => {
       process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
-      const billingRepo = makeBillingRepo({
+      const billingService = makeBillingService({
         planId: PRICE_PRO,
         billingStatus: BillingStatus.PAST_DUE,
       });
-      const service = buildService(billingRepo, makeCache(), makeTransport());
+      const service = buildService(billingService, makeCache(), makeTransport());
 
       return service.getEntitlements(ORG_ID).then((result) => {
         expect(result.plan).toBe('FREE');
@@ -187,11 +187,11 @@ describe('FeatureFlagsService', () => {
 
     it('returns ENTERPRISE entitlements for ACTIVE + STRIPE_PRICE_ID_PRO plan', async () => {
       process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
-      const billingRepo = makeBillingRepo({
+      const billingService = makeBillingService({
         planId: PRICE_PRO,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingRepo, makeCache(), makeTransport());
+      const service = buildService(billingService, makeCache(), makeTransport());
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -202,11 +202,11 @@ describe('FeatureFlagsService', () => {
 
     it('returns PRO entitlements for ACTIVE + STRIPE_PRICE_ID_BASIC plan', async () => {
       process.env['STRIPE_PRICE_ID_BASIC'] = PRICE_BASIC;
-      const billingRepo = makeBillingRepo({
+      const billingService = makeBillingService({
         planId: PRICE_BASIC,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingRepo, makeCache(), makeTransport());
+      const service = buildService(billingService, makeCache(), makeTransport());
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -216,11 +216,11 @@ describe('FeatureFlagsService', () => {
     });
 
     it('returns FREE when ACTIVE but planId matches no known price', async () => {
-      const billingRepo = makeBillingRepo({
+      const billingService = makeBillingService({
         planId: 'price_unknown',
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingRepo, makeCache(), makeTransport());
+      const service = buildService(billingService, makeCache(), makeTransport());
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -229,7 +229,7 @@ describe('FeatureFlagsService', () => {
 
     it('stores result in cache after DB fetch', async () => {
       const cache = makeCache();
-      const service = buildService(makeBillingRepo({}), cache, makeTransport());
+      const service = buildService(makeBillingService({}), cache, makeTransport());
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -246,7 +246,7 @@ describe('FeatureFlagsService', () => {
   describe('setEntitlements()', () => {
     it('writes the provided entitlements directly into the cache', async () => {
       const cache = makeCache();
-      const service = buildService(makeBillingRepo(), cache, makeTransport());
+      const service = buildService(makeBillingService(), cache, makeTransport());
 
       const entitlements: OrganizationEntitlements = {
         organizationId: ORG_ID,
@@ -273,19 +273,19 @@ describe('FeatureFlagsService', () => {
 
   describe('checkFeature()', () => {
     it('returns false for a feature not included in the FREE plan', async () => {
-      const billingRepo = makeBillingRepo({});
-      const service = buildService(billingRepo, makeCache(), makeTransport());
+      const billingService = makeBillingService({});
+      const service = buildService(billingService, makeCache(), makeTransport());
 
       expect(await service.checkFeature(ORG_ID, 'advancedAnalytics')).toBe(false);
     });
 
     it('returns true for a feature enabled in the ENTERPRISE plan', async () => {
       process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
-      const billingRepo = makeBillingRepo({
+      const billingService = makeBillingService({
         planId: PRICE_PRO,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingRepo, makeCache(), makeTransport());
+      const service = buildService(billingService, makeCache(), makeTransport());
 
       expect(await service.checkFeature(ORG_ID, 'ssoEnabled')).toBe(true);
     });
@@ -301,16 +301,16 @@ describe('FeatureFlagsService', () => {
         ssoEnabled: false,
         prioritySupport: false,
       };
-      const billingRepo = makeBillingRepo();
+      const billingService = makeBillingService();
       const cache = makeCache(cached);
-      const service = buildService(billingRepo, cache, makeTransport());
+      const service = buildService(billingService, cache, makeTransport());
 
       const first = await service.checkFeature(ORG_ID, 'apiAccess');
       const second = await service.checkFeature(ORG_ID, 'apiAccess');
 
       expect(first).toBe(true);
       expect(second).toBe(true);
-      expect(billingRepo.getOrgBillingStatus).not.toHaveBeenCalled();
+      expect(billingService.getOrgBillingStatus).not.toHaveBeenCalled();
     });
   });
 
@@ -318,7 +318,7 @@ describe('FeatureFlagsService', () => {
 
   describe('checkLimit()', () => {
     it('allows creation when current count is below FREE limit', async () => {
-      const service = buildService(makeBillingRepo({}), makeCache(), makeTransport());
+      const service = buildService(makeBillingService({}), makeCache(), makeTransport());
 
       const result = await service.checkLimit(ORG_ID, 'maxTeams', 1);
 
@@ -326,7 +326,7 @@ describe('FeatureFlagsService', () => {
     });
 
     it('denies creation when current count equals FREE limit', async () => {
-      const service = buildService(makeBillingRepo({}), makeCache(), makeTransport());
+      const service = buildService(makeBillingService({}), makeCache(), makeTransport());
 
       const result = await service.checkLimit(ORG_ID, 'maxTeams', 2);
 
@@ -335,11 +335,11 @@ describe('FeatureFlagsService', () => {
 
     it('allows creation against the PRO maxPlayers limit', async () => {
       process.env['STRIPE_PRICE_ID_BASIC'] = PRICE_BASIC;
-      const billingRepo = makeBillingRepo({
+      const billingService = makeBillingService({
         planId: PRICE_BASIC,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingRepo, makeCache(), makeTransport());
+      const service = buildService(billingService, makeCache(), makeTransport());
 
       const result = await service.checkLimit(ORG_ID, 'maxPlayers', 150);
 
@@ -348,11 +348,11 @@ describe('FeatureFlagsService', () => {
 
     it('ENTERPRISE plan has virtually unlimited teams', async () => {
       process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
-      const billingRepo = makeBillingRepo({
+      const billingService = makeBillingService({
         planId: PRICE_PRO,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingRepo, makeCache(), makeTransport());
+      const service = buildService(billingService, makeCache(), makeTransport());
 
       const result = await service.checkLimit(ORG_ID, 'maxTeams', 500);
 
@@ -366,7 +366,7 @@ describe('FeatureFlagsService', () => {
   describe('invalidateEntitlements()', () => {
     it('deletes the correct Redis key', async () => {
       const cache = makeCache();
-      const service = buildService(makeBillingRepo(), cache, makeTransport());
+      const service = buildService(makeBillingService(), cache, makeTransport());
 
       await service.invalidateEntitlements(ORG_ID);
 

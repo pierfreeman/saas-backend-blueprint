@@ -1,22 +1,19 @@
 import { AuthService } from './auth.service';
-import { UserRepository, UserProvisioningService } from '@libs/users';
+import { UserRepository } from '@libs/users';
 
 const mockUserRepository = {
   findByAuth0Id: jest.fn(),
   updateEmail: jest.fn(),
   findById: jest.fn(),
-} as unknown as UserRepository;
-
-const mockUserProvisioningService = {
   provisionWithPersonalOrg: jest.fn(),
-} as unknown as UserProvisioningService;
+} as unknown as UserRepository;
 
 describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthService(mockUserRepository, mockUserProvisioningService);
+    service = new AuthService(mockUserRepository);
   });
 
   describe('syncUser', () => {
@@ -30,16 +27,17 @@ describe('AuthService', () => {
       };
 
       mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(null);
-      mockUserProvisioningService.provisionWithPersonalOrg = jest
+      mockUserRepository.provisionWithPersonalOrg = jest
         .fn()
         .mockResolvedValue(createdUser);
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
 
       expect(result).toBe(createdUser);
-      expect(
-        mockUserProvisioningService.provisionWithPersonalOrg,
-      ).toHaveBeenCalledWith('auth0|1', 'a@b.com');
+      expect(mockUserRepository.provisionWithPersonalOrg).toHaveBeenCalledWith(
+        'auth0|1',
+        'a@b.com',
+      );
     });
 
     it('returns existing user when email is unchanged — no update', async () => {
@@ -120,7 +118,7 @@ describe('AuthService', () => {
   describe('syncUser — edge cases', () => {
     it('propagates errors from provisionWithPersonalOrg', async () => {
       mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(null);
-      mockUserProvisioningService.provisionWithPersonalOrg = jest
+      mockUserRepository.provisionWithPersonalOrg = jest
         .fn()
         .mockRejectedValue(new Error('Transaction aborted'));
 

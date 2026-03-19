@@ -16,7 +16,7 @@ export * from './decorators/rbac-context.decorator';
 export * from './decorators/require-permissions.decorator';
 export * from './decorators/require-role.decorator';
 
-// Constants (now in @libs/common)
+// Constants (re-exported from @libs/common for convenience)
 export {
   PERMISSIONS,
   PermissionKey,
