@@ -1,6 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ObservabilityLoggerService } from './logger.service';
 
+jest.mock('@sentry/node', () => ({
+  logger: {
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
 describe('ObservabilityLoggerService', () => {
   let service: ObservabilityLoggerService;
   let stdoutSpy: jest.SpyInstance;

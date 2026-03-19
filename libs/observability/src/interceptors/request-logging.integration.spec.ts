@@ -35,6 +35,13 @@ jest.mock('@sentry/node', () => ({
     ),
   captureException: jest.fn(),
   captureMessage: jest.fn(),
+  logger: {
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
   getCurrentScope: jest.fn(() => ({ setTag: jest.fn(), setUser: jest.fn() })),
 }));
 
