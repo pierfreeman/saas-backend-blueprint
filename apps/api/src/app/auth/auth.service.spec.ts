@@ -1,19 +1,19 @@
 import { AuthService } from './auth.service';
-import { UserRepository } from '@libs/users';
+import { UsersService } from '@libs/users';
 
-const mockUserRepository = {
+const mockUsersService = {
   findByAuth0Id: jest.fn(),
   updateEmail: jest.fn(),
   findById: jest.fn(),
   provisionWithPersonalOrg: jest.fn(),
-} as unknown as UserRepository;
+} as unknown as UsersService;
 
 describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthService(mockUserRepository);
+    service = new AuthService(mockUsersService);
   });
 
   describe('syncUser', () => {
@@ -26,15 +26,15 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
 
-      mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(null);
-      mockUserRepository.provisionWithPersonalOrg = jest
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(null);
+      mockUsersService.provisionWithPersonalOrg = jest
         .fn()
         .mockResolvedValue(createdUser);
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
 
       expect(result).toBe(createdUser);
-      expect(mockUserRepository.provisionWithPersonalOrg).toHaveBeenCalledWith(
+      expect(mockUsersService.provisionWithPersonalOrg).toHaveBeenCalledWith(
         'auth0|1',
         'a@b.com',
       );
@@ -48,12 +48,12 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(existing);
-      mockUserRepository.updateEmail = jest.fn();
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(existing);
+      mockUsersService.updateEmail = jest.fn();
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
       expect(result).toBe(existing);
-      expect(mockUserRepository.updateEmail).not.toHaveBeenCalled();
+      expect(mockUsersService.updateEmail).not.toHaveBeenCalled();
     });
 
     it('updates email when it has changed', async () => {
@@ -65,12 +65,12 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
       const updated = { ...existing, email: 'new@b.com' };
-      mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(existing);
-      mockUserRepository.updateEmail = jest.fn().mockResolvedValue(updated);
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(existing);
+      mockUsersService.updateEmail = jest.fn().mockResolvedValue(updated);
 
       const result = await service.syncUser('auth0|1', 'new@b.com');
       expect(result).toBe(updated);
-      expect(mockUserRepository.updateEmail).toHaveBeenCalledWith(
+      expect(mockUsersService.updateEmail).toHaveBeenCalledWith(
         'u-1',
         'new@b.com',
       );
@@ -86,12 +86,12 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(user);
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(user);
       expect(await service.findUserByAuth0Id('auth0|1')).toBe(user);
     });
 
     it('returns null when not found', async () => {
-      mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(null);
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(null);
       expect(await service.findUserByAuth0Id('auth0|x')).toBeNull();
     });
   });
@@ -105,20 +105,20 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockUserRepository.findById = jest.fn().mockResolvedValue(user);
+      mockUsersService.findById = jest.fn().mockResolvedValue(user);
       expect(await service.findUserById('u-1')).toBe(user);
     });
 
     it('returns null when not found', async () => {
-      mockUserRepository.findById = jest.fn().mockResolvedValue(null);
+      mockUsersService.findById = jest.fn().mockResolvedValue(null);
       expect(await service.findUserById('nonexistent')).toBeNull();
     });
   });
 
   describe('syncUser — edge cases', () => {
     it('propagates errors from provisionWithPersonalOrg', async () => {
-      mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(null);
-      mockUserRepository.provisionWithPersonalOrg = jest
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(null);
+      mockUsersService.provisionWithPersonalOrg = jest
         .fn()
         .mockRejectedValue(new Error('Transaction aborted'));
 
@@ -128,7 +128,7 @@ describe('AuthService', () => {
     });
 
     it('propagates DB errors from findByAuth0Id', async () => {
-      mockUserRepository.findByAuth0Id = jest
+      mockUsersService.findByAuth0Id = jest
         .fn()
         .mockRejectedValue(new Error('Connection refused'));
 
@@ -145,8 +145,8 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockUserRepository.findByAuth0Id = jest.fn().mockResolvedValue(existing);
-      mockUserRepository.updateEmail = jest
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(existing);
+      mockUsersService.updateEmail = jest
         .fn()
         .mockRejectedValue(new Error('Update failed'));
 

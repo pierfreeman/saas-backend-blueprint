@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { JobRepository } from '@libs/jobs';
+import { JobService } from '@libs/jobs';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, JobUpdateMessage } from '@libs/events';
 import {
@@ -44,7 +44,7 @@ export class WorkerController {
   private readonly logger = new Logger(WorkerController.name);
 
   constructor(
-    private readonly jobRepo: JobRepository,
+    private readonly jobRepo: JobService,
     private readonly pubSub: PubSubService,
     private readonly orgDeletionWorker: OrgDeletionWorkerService,
     private readonly orgExportWorker: OrgExportWorkerService,

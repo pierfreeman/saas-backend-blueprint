@@ -1,5 +1,5 @@
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
-import { JobRepository } from '@libs/jobs';
+import { JobService } from '@libs/jobs';
 import { Injectable, Logger } from '@nestjs/common';
 import { Job } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -23,7 +23,7 @@ export class TasksService {
 
   constructor(
     private readonly eventBus: EventBusService,
-    private readonly jobRepo: JobRepository,
+    private readonly jobRepo: JobService,
   ) {}
 
   /**

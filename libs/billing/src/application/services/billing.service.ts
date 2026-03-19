@@ -278,4 +278,22 @@ export class BillingService {
   ): Promise<{ planId: string | null; billingStatus: BillingStatus } | null> {
     return this.billingRepository.getOrgBillingStatus(orgId);
   }
+
+  async findBillingEvent(
+    stripeEventId: string,
+  ): Promise<{ id: string } | null> {
+    return this.billingRepository.findBillingEvent(stripeEventId);
+  }
+
+  async createBillingEvent(
+    stripeEventId: string,
+    payloadHash: string,
+    orgId?: string,
+  ): Promise<void> {
+    return this.billingRepository.createBillingEvent(
+      stripeEventId,
+      payloadHash,
+      orgId,
+    );
+  }
 }

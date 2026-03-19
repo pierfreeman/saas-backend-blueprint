@@ -12,7 +12,6 @@ export * from './domain/entities/subscription.entity';
 // Infrastructure
 export * from './infrastructure/stripe/stripe.client';
 export * from './infrastructure/stripe/stripe.service';
-export * from './infrastructure/repositories/billing.repository';
 
 // Webhook processing (application-layer event handlers)
 export * from './application/event-handlers/webhook-dispatcher.service';

@@ -11,7 +11,7 @@ import { JobsGateway } from './gateway/jobs.gateway';
  *
  * Imports:
  *   - TenantModule  — @CurrentTenant decorator used in TasksController
- *   - JobsModule    — JobRepository for Job CRUD (TasksService + JobsGateway)
+ *   - JobsModule    — JobService for Job CRUD (TasksService + JobsGateway)
  *   - RedisModule   — PubSubService for the Redis Pub/Sub bridge (JobsGateway)
  *
  * EventBusService is injected globally by EventsModule (in AppModule).

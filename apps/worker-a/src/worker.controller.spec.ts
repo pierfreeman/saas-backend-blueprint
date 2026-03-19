@@ -1,5 +1,5 @@
 import { WorkerController, HeavyJobPayload } from './worker.controller';
-import { JobRepository } from '@libs/jobs';
+import { JobService } from '@libs/jobs';
 import { PubSubService } from '@libs/redis';
 import {
   OrgDeletionWorkerService,
@@ -30,7 +30,7 @@ const mockJobRepo = {
   markProcessing: jest.fn(),
   markDone: jest.fn(),
   markFailed: jest.fn(),
-} as unknown as JobRepository;
+} as unknown as JobService;
 
 const mockPubSub = {
   publish: jest.fn(),

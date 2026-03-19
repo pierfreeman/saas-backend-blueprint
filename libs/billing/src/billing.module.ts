@@ -62,7 +62,6 @@ import { InvoiceFailedHandler } from './application/event-handlers/invoice-faile
   exports: [
     BillingService,
     SubscriptionService,
-    BillingRepository,
     StripeService,
     WebhookDispatcherService,
   ],

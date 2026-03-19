@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { UserRepository } from '@libs/users';
+import { UsersService } from '@libs/users';
 import { MembershipsService } from '@libs/memberships';
 import { OrganizationsService } from '@libs/organizations';
 import { RequestUser, TenantRequest } from '@libs/common';
@@ -47,7 +47,7 @@ export class OrgContextGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly userRepo: UserRepository,
+    private readonly usersService: UsersService,
     private readonly membershipsService: MembershipsService,
     private readonly orgsService: OrganizationsService,
   ) {}
@@ -82,11 +82,11 @@ export class OrgContextGuard implements CanActivate {
     }
 
     // Resolve DB user from Auth0 sub
-    let dbUser = await this.userRepo.findByAuth0Id(user.sub);
+    let dbUser = await this.usersService.findByAuth0Id(user.sub);
 
     if (!dbUser) {
       this.logger.log(`Auto-creating DB user for Auth0: ${user.sub}`);
-      dbUser = await this.userRepo.createUser(
+      dbUser = await this.usersService.createUser(
         user.sub,
         user.email ?? `${user.sub}@unknown.local`,
       );

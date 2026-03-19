@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UserRepository } from '@libs/users';
+import { UsersService } from '@libs/users';
 import { User } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(private readonly usersService: UsersService) {}
 
   /**
    * Syncs an Auth0 user to the local database.
@@ -16,13 +16,13 @@ export class AuthService {
    * - **Returning user, changed email:** updates email only.
    */
   async syncUser(auth0Id: string, email: string): Promise<User> {
-    const existingUser = await this.userRepository.findByAuth0Id(auth0Id);
+    const existingUser = await this.usersService.findByAuth0Id(auth0Id);
 
     if (!existingUser) {
       this.logger.log(
         `First login for Auth0 ID: ${auth0Id} — provisioning user + org`,
       );
-      const user = await this.userRepository.provisionWithPersonalOrg(
+      const user = await this.usersService.provisionWithPersonalOrg(
         auth0Id,
         email,
       );
@@ -32,17 +32,17 @@ export class AuthService {
 
     if (existingUser.email !== email) {
       this.logger.log(`Updating email for user ${existingUser.id}`);
-      return this.userRepository.updateEmail(existingUser.id, email);
+      return this.usersService.updateEmail(existingUser.id, email);
     }
 
     return existingUser;
   }
 
   async findUserByAuth0Id(auth0Id: string): Promise<User | null> {
-    return this.userRepository.findByAuth0Id(auth0Id);
+    return this.usersService.findByAuth0Id(auth0Id);
   }
 
   async findUserById(id: string): Promise<User | null> {
-    return this.userRepository.findById(id);
+    return this.usersService.findById(id);
   }
 }

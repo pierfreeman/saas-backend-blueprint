@@ -1,21 +1,21 @@
 import { NotFoundException } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { EventBusService } from '@libs/events';
-import { JobRepository } from '@libs/jobs';
+import { JobService } from '@libs/jobs';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { JobStatus } from '@prisma/client';
 
-// ── Mocks ────────────────────────────────────────────────────────────────────
+// ── Mocks ────────────────────────────────────────────────────────────────────────────
 
 const mockEventBus = {
   publish: jest.fn(),
 } as unknown as EventBusService;
 
-const mockJobRepo = {
+const mockJobService = {
   create: jest.fn(),
   delete: jest.fn(),
   findByIdAndOrg: jest.fn(),
-} as unknown as JobRepository;
+} as unknown as JobService;
 
 const validDto: CreateTaskDto = { name: 'test-job', data: { key: 'value' } };
 
@@ -41,9 +41,9 @@ describe('TasksService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (mockJobRepo.create as jest.Mock).mockResolvedValue(undefined);
-    (mockJobRepo.delete as jest.Mock).mockResolvedValue(undefined);
-    service = new TasksService(mockEventBus, mockJobRepo);
+    (mockJobService.create as jest.Mock).mockResolvedValue(undefined);
+    (mockJobService.delete as jest.Mock).mockResolvedValue(undefined);
+    service = new TasksService(mockEventBus, mockJobService);
   });
 
   // ── createHeavyJob ──────────────────────────────────────────────────────────
@@ -54,13 +54,13 @@ describe('TasksService', () => {
       const result = await service.createHeavyJob('org-1', validDto, 'user-1');
 
       // jobRepo.create must be called before eventBus.publish
-      const createOrder = (mockJobRepo.create as jest.Mock).mock
+      const createOrder = (mockJobService.create as jest.Mock).mock
         .invocationCallOrder[0];
       const publishOrder = (mockEventBus.publish as jest.Mock).mock
         .invocationCallOrder[0];
       expect(createOrder).toBeLessThan(publishOrder);
 
-      expect(mockJobRepo.create).toHaveBeenCalledWith(
+      expect(mockJobService.create).toHaveBeenCalledWith(
         result.jobId,
         'org-1',
         'heavy_job',
@@ -112,7 +112,7 @@ describe('TasksService', () => {
         service.createHeavyJob('org-1', { name: 'j' }),
       ).rejects.toThrow('SQS unavailable');
 
-      expect(mockJobRepo.delete).toHaveBeenCalledTimes(1);
+      expect(mockJobService.delete).toHaveBeenCalledTimes(1);
     });
 
     it('generates a unique UUID jobId per invocation', async () => {
@@ -126,16 +126,19 @@ describe('TasksService', () => {
   // ── findJobById ─────────────────────────────────────────────────────────────
   describe('findJobById', () => {
     it('returns the job when found for the given tenant', async () => {
-      (mockJobRepo.findByIdAndOrg as jest.Mock).mockResolvedValue(baseJob);
+      (mockJobService.findByIdAndOrg as jest.Mock).mockResolvedValue(baseJob);
 
       const job = await service.findJobById('job-uuid-1', 'org-1');
 
       expect(job).toBe(baseJob);
-      expect(mockJobRepo.findByIdAndOrg).toHaveBeenCalledWith('job-uuid-1', 'org-1');
+      expect(mockJobService.findByIdAndOrg).toHaveBeenCalledWith(
+        'job-uuid-1',
+        'org-1',
+      );
     });
 
     it('throws NotFoundException when the job does not exist', async () => {
-      (mockJobRepo.findByIdAndOrg as jest.Mock).mockRejectedValue(
+      (mockJobService.findByIdAndOrg as jest.Mock).mockRejectedValue(
         new NotFoundException('Job job-uuid-1 not found'),
       );
 
@@ -145,7 +148,7 @@ describe('TasksService', () => {
     });
 
     it('throws NotFoundException when the job belongs to a different tenant (IDOR prevention)', async () => {
-      (mockJobRepo.findByIdAndOrg as jest.Mock).mockRejectedValue(
+      (mockJobService.findByIdAndOrg as jest.Mock).mockRejectedValue(
         new NotFoundException('Job job-uuid-1 not found'),
       );
 
@@ -153,7 +156,10 @@ describe('TasksService', () => {
         service.findJobById('job-uuid-1', 'org-OTHER'),
       ).rejects.toThrow(NotFoundException);
 
-      expect(mockJobRepo.findByIdAndOrg).toHaveBeenCalledWith('job-uuid-1', 'org-OTHER');
+      expect(mockJobService.findByIdAndOrg).toHaveBeenCalledWith(
+        'job-uuid-1',
+        'org-OTHER',
+      );
     });
   });
 });
