@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { FileStatus, StorageProvider } from '../../domain/enums/storage.enums';
-import { FileMetadata } from '../../storage.types';
+import { FileMetadata } from '../../domain/types';
 
 /**
  * Repository for file metadata persistence.

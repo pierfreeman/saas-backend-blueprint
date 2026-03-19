@@ -1,7 +1,7 @@
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
-import { PrismaBusinessService } from '@libs/prisma-business';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Job, Prisma } from '@prisma/client';
+import { JobService } from '@libs/jobs';
+import { Injectable, Logger } from '@nestjs/common';
+import { Job } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { CreateTaskDto } from './dto/create-task.dto';
 
@@ -23,7 +23,7 @@ export class TasksService {
 
   constructor(
     private readonly eventBus: EventBusService,
-    private readonly prisma: PrismaBusinessService,
+    private readonly jobRepo: JobService,
   ) {}
 
   /**
@@ -42,16 +42,13 @@ export class TasksService {
     const jobId = randomUUID();
 
     // Step 1 — Persist PENDING record so the job is immediately queryable.
-    await this.prisma.job.create({
-      data: {
-        id: jobId,
-        orgId: tenantId,
-        userId,
-        type: 'heavy_job',
-        status: 'PENDING',
-        payload: createTaskDto as unknown as Prisma.InputJsonValue,
-      },
-    });
+    await this.jobRepo.create(
+      jobId,
+      tenantId,
+      'heavy_job',
+      createTaskDto as unknown as Record<string, unknown>,
+      userId,
+    );
 
     try {
       // Step 2 — Enqueue via EventBus (SQS Standard in production, LocalTransport in dev).
@@ -68,9 +65,7 @@ export class TasksService {
       );
     } catch (error) {
       // Step 3 — Rollback: remove orphan PENDING row on publish failure.
-      await this.prisma.job.delete({ where: { id: jobId } }).catch(() => {
-        this.logger.warn(`Rollback failed — orphan job ${jobId} may exist`);
-      });
+      await this.jobRepo.delete(jobId);
 
       this.logger.error(`Failed to publish heavy job event: ${jobId}`, error);
       throw error;
@@ -86,14 +81,6 @@ export class TasksService {
    * @throws NotFoundException when the job does not exist or belongs to a different tenant
    */
   async findJobById(jobId: string, tenantId: string): Promise<Job> {
-    const job = await this.prisma.job.findFirst({
-      where: { id: jobId, orgId: tenantId },
-    });
-
-    if (!job) {
-      throw new NotFoundException(`Job ${jobId} not found`);
-    }
-
-    return job;
+    return this.jobRepo.findByIdAndOrg(jobId, tenantId);
   }
 }

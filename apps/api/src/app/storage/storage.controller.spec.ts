@@ -3,8 +3,7 @@ import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { StorageController } from './storage.controller';
 import { StorageService } from '@libs/storage';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { ConfirmUploadDto } from './dto/confirm-upload.dto';
 

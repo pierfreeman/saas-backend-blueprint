@@ -24,10 +24,7 @@ import {
 import { MembershipRole } from '@prisma/client';
 import { StorageService } from '@libs/storage';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { RequireRole } from '../rbac/decorators/require-role.decorator';
+import { OrgContextGuard, RBACGuard, OrgScoped, RequireRole } from '@libs/rbac';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { ConfirmUploadDto } from './dto/confirm-upload.dto';

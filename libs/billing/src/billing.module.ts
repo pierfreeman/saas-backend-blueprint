@@ -12,13 +12,13 @@ import { BillingRepository } from './infrastructure/repositories/billing.reposit
 import { BillingService } from './application/services/billing.service';
 import { SubscriptionService } from './application/services/subscription.service';
 
-// Webhooks
-import { WebhookDispatcherService } from './webhooks/webhook-dispatcher.service';
-import { CheckoutCompletedHandler } from './webhooks/handlers/checkout-completed.handler';
-import { SubscriptionCreatedHandler } from './webhooks/handlers/subscription-created.handler';
-import { SubscriptionUpdatedHandler } from './webhooks/handlers/subscription-updated.handler';
-import { InvoicePaidHandler } from './webhooks/handlers/invoice-paid.handler';
-import { InvoiceFailedHandler } from './webhooks/handlers/invoice-failed.handler';
+// Application — event handlers (Stripe webhooks → domain reactions)
+import { WebhookDispatcherService } from './application/event-handlers/webhook-dispatcher.service';
+import { CheckoutCompletedHandler } from './application/event-handlers/checkout-completed.handler';
+import { SubscriptionCreatedHandler } from './application/event-handlers/subscription-created.handler';
+import { SubscriptionUpdatedHandler } from './application/event-handlers/subscription-updated.handler';
+import { InvoicePaidHandler } from './application/event-handlers/invoice-paid.handler';
+import { InvoiceFailedHandler } from './application/event-handlers/invoice-failed.handler';
 
 /**
  * BillingModule
@@ -51,7 +51,7 @@ import { InvoiceFailedHandler } from './webhooks/handlers/invoice-failed.handler
     BillingService,
     SubscriptionService,
 
-    // Webhooks
+    // Application — event handlers
     WebhookDispatcherService,
     CheckoutCompletedHandler,
     SubscriptionCreatedHandler,
@@ -62,7 +62,6 @@ import { InvoiceFailedHandler } from './webhooks/handlers/invoice-failed.handler
   exports: [
     BillingService,
     SubscriptionService,
-    BillingRepository,
     StripeService,
     WebhookDispatcherService,
   ],

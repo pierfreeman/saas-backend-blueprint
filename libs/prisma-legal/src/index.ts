@@ -1,2 +1,2 @@
-export * from './lib/prisma-legal.module';
-export * from './lib/prisma-legal.service';
+export * from './prisma-legal.module';
+export * from './prisma-legal.service';

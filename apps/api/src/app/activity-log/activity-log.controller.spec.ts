@@ -3,8 +3,7 @@ import { ActivityLogController } from './activity-log.controller';
 import { ActivityLogService } from '@libs/activity-log';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { OrgContextGuard, RBACGuard } from '@libs/rbac';
 
 const mockActivityLogService = {
   findByOrg: jest.fn(),

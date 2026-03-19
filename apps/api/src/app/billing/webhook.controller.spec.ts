@@ -7,7 +7,7 @@ import { WebhookController } from './webhook.controller';
 import {
   StripeService,
   WebhookDispatcherService,
-  BillingRepository,
+  BillingService,
 } from '@libs/billing';
 import { LegalAuditService } from '@libs/legal-audit';
 
@@ -50,7 +50,7 @@ describe('WebhookController', () => {
   let stripeService: jest.Mocked<StripeService>;
   let dispatcher: jest.Mocked<WebhookDispatcherService>;
   let legalAudit: jest.Mocked<LegalAuditService>;
-  let billingRepository: jest.Mocked<BillingRepository>;
+  let billingService: jest.Mocked<BillingService>;
 
   beforeEach(() => {
     stripeService = {
@@ -65,16 +65,16 @@ describe('WebhookController', () => {
       recordEvent: jest.fn(),
     } as unknown as jest.Mocked<LegalAuditService>;
 
-    billingRepository = {
+    billingService = {
       findBillingEvent: jest.fn(),
       createBillingEvent: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<BillingRepository>;
+    } as unknown as jest.Mocked<BillingService>;
 
     controller = new WebhookController(
       stripeService,
       dispatcher,
       legalAudit,
-      billingRepository,
+      billingService,
     );
     jest.clearAllMocks();
   });
@@ -129,7 +129,7 @@ describe('WebhookController', () => {
     it('records a verified audit entry after successful signature check', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
       legalAudit.recordEvent = jest.fn();
 
       await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
@@ -149,7 +149,7 @@ describe('WebhookController', () => {
     it('returns { received: true } and skips dispatch for duplicate events', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue({
+      billingService.findBillingEvent.mockResolvedValue({
         id: 'billing-evt-001',
       });
 
@@ -160,7 +160,7 @@ describe('WebhookController', () => {
 
       expect(result).toEqual({ received: true });
       expect(dispatcher.dispatch).not.toHaveBeenCalled();
-      expect(billingRepository.createBillingEvent).not.toHaveBeenCalled();
+      expect(billingService.createBillingEvent).not.toHaveBeenCalled();
     });
   });
 
@@ -170,7 +170,7 @@ describe('WebhookController', () => {
     it('dispatches the event and returns { received: true }', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
 
       const result = await controller.handleWebhook(
         makeRequest(RAW_BODY),
@@ -184,12 +184,12 @@ describe('WebhookController', () => {
     it('stores a BillingEvent record with sha256 payload hash after processing', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
 
       await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
 
       const expectedHash = createHash('sha256').update(RAW_BODY).digest('hex');
-      expect(billingRepository.createBillingEvent).toHaveBeenCalledWith(
+      expect(billingService.createBillingEvent).toHaveBeenCalledWith(
         'evt_001',
         expectedHash,
         'org-001',
@@ -201,11 +201,11 @@ describe('WebhookController', () => {
       (event.data.object as unknown as Record<string, unknown>)['metadata'] =
         {};
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
 
       await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
 
-      expect(billingRepository.createBillingEvent).toHaveBeenCalledWith(
+      expect(billingService.createBillingEvent).toHaveBeenCalledWith(
         'evt_001',
         expect.any(String),
         undefined,
@@ -215,7 +215,7 @@ describe('WebhookController', () => {
     it('records stripe.webhook.received audit entry before any other step', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
       const recordEvents: string[] = [];
       legalAudit.recordEvent = jest.fn().mockImplementation((e) => {
         recordEvents.push(e.eventType);

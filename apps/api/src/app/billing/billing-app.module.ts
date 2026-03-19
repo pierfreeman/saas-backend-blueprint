@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { BillingModule } from '@libs/billing';
 import { LegalAuditModule } from '@libs/legal-audit';
 import { AuthModule } from '../auth/auth.module';
-import { RBACModule } from '../rbac/rbac.module';
+import { RBACModule } from '@libs/rbac';
 import { BillingController } from './billing.controller';
 import { WebhookController } from './webhook.controller';
 

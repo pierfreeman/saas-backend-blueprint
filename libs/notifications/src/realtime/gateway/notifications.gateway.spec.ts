@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationsGateway } from './notifications.gateway';
-import { NotificationsService } from '../../data-access/notifications.service';
-import { NotificationsPubSubService } from '../../data-access/notifications-pubsub.service';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { NotificationsService } from '../../application/services/notifications.service';
+import { NotificationsPubSubService } from '../../application/services/notifications-pubsub.service';
+import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { ConfigService } from '@nestjs/config';
 import { Server } from 'socket.io';
 
@@ -49,9 +49,9 @@ const mockNotificationsService = {
   getUnreadCount: jest.fn().mockResolvedValue(2),
 };
 
-const mockPrisma = {
-  user: { findUnique: jest.fn() },
-  membership: { findMany: jest.fn() },
+const mockRepo = {
+  findUserByAuth0Id: jest.fn(),
+  findActiveOrgMemberships: jest.fn(),
 };
 
 const mockConfig = {
@@ -98,7 +98,7 @@ describe('NotificationsGateway', () => {
         NotificationsGateway,
         { provide: NotificationsPubSubService, useValue: mockPubSub },
         { provide: NotificationsService, useValue: mockNotificationsService },
-        { provide: PrismaBusinessService, useValue: mockPrisma },
+        { provide: NotificationsRepository, useValue: mockRepo },
         { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();
@@ -157,7 +157,7 @@ describe('NotificationsGateway', () => {
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|unknown' });
 
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null);
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);
@@ -170,13 +170,13 @@ describe('NotificationsGateway', () => {
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|user-1' });
 
-      mockPrisma.user.findUnique.mockResolvedValue({
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
         id: 'user-uuid-1',
         email: 'user@test.com',
         auth0Id: 'auth0|user-1',
       });
 
-      mockPrisma.membership.findMany.mockResolvedValue([
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([
         { orgId: 'org-a' },
         { orgId: 'org-b' },
       ]);
@@ -205,12 +205,12 @@ describe('NotificationsGateway', () => {
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|user-1' });
 
-      mockPrisma.user.findUnique.mockResolvedValue({
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
         id: 'user-uuid-1',
         email: 'user@test.com',
         auth0Id: 'auth0|user-1',
       });
-      mockPrisma.membership.findMany.mockResolvedValue([]);
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([]);
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);
@@ -280,18 +280,18 @@ describe('NotificationsGateway', () => {
       const client = makeSocket({ userId: 'user-uuid-1' });
       await gateway.handleGetAll(client as never, { orgId: 'org-1' });
 
-      expect(mockNotificationsService.getUserNotifications).toHaveBeenCalledWith(
-        'user-uuid-1',
-        'org-1',
-        expect.any(Object),
-      );
+      expect(
+        mockNotificationsService.getUserNotifications,
+      ).toHaveBeenCalledWith('user-uuid-1', 'org-1', expect.any(Object));
       expect(client.emit).toHaveBeenCalledWith('notification:list', notifs);
     });
 
     it('does nothing when userId is missing', async () => {
       const client = makeSocket();
       await gateway.handleGetAll(client as never, { orgId: 'org-1' });
-      expect(mockNotificationsService.getUserNotifications).not.toHaveBeenCalled();
+      expect(
+        mockNotificationsService.getUserNotifications,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -332,11 +332,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToUserPattern and the callback emits to user room', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToUserPattern.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToUserPattern.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: jest.fn(),
+        to: jest.fn().mockReturnThis(),
+        emit: jest.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -352,11 +358,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToOrgPattern and the callback emits to org room', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToOrgPattern.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToOrgPattern.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: jest.fn(),
+        to: jest.fn().mockReturnThis(),
+        emit: jest.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -367,11 +379,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToGlobal and the callback broadcasts', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToGlobal.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToGlobal.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: jest.fn(),
+        to: jest.fn().mockReturnThis(),
+        emit: jest.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -391,23 +409,21 @@ describe('NotificationsGateway', () => {
       jest
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|user-1' });
-      mockPrisma.user.findUnique.mockResolvedValue(null); // disconnect after verify
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null); // disconnect after verify
 
       const client = makeSocket({
         handshake: { auth: {}, query: { token: 'query-token' }, headers: {} },
       });
       await gateway.handleConnection(client as never);
 
-      expect(
-        (gateway as any).verifyToken,
-      ).toHaveBeenCalledWith('query-token');
+      expect((gateway as any).verifyToken).toHaveBeenCalledWith('query-token');
     });
 
     it('extracts token from handshake.headers.authorization', async () => {
       jest
         .spyOn(gateway as any, 'verifyToken')
         .mockResolvedValue({ sub: 'auth0|user-1' });
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null);
 
       const client = makeSocket({
         handshake: {
@@ -418,9 +434,7 @@ describe('NotificationsGateway', () => {
       });
       await gateway.handleConnection(client as never);
 
-      expect(
-        (gateway as any).verifyToken,
-      ).toHaveBeenCalledWith('header-token');
+      expect((gateway as any).verifyToken).toHaveBeenCalledWith('header-token');
     });
 
     it('disconnects when payload has no sub claim', async () => {

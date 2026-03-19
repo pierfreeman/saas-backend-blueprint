@@ -16,10 +16,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { OrgScoped, RequirePermissions, OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 
 @ApiTags('Activity Log')

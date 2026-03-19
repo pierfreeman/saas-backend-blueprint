@@ -24,14 +24,10 @@ import { OrgDeletionService, DeletionTrigger } from '@libs/org-deletion';
 import { OrgExportService } from '@libs/org-export';
 import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
-import { RequireRole } from '../rbac/decorators/require-role.decorator';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { OrgScoped, RequirePermissions, RequireRole, OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { OrganizationsService } from './organizations.service';
+import { OrganizationsService } from '@libs/organizations';
 
 @ApiTags('Organizations')
 @ApiBearerAuth()
