@@ -72,6 +72,12 @@
       "@libs/billing/*": [
         "libs/billing/src/*"
       ],
+      "@libs/jobs": [
+        "libs/jobs/src/index.ts"
+      ],
+      "@libs/jobs/*": [
+        "libs/jobs/src/*"
+      ],
       "@libs/notifications": [
         "libs/notifications/src/index.ts"
       ],

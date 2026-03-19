@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationsGateway } from './notifications.gateway';
-import { NotificationsService } from '../../infrastructure/notifications.service';
-import { NotificationsPubSubService } from '../../infrastructure/notifications-pubsub.service';
+import { NotificationsService } from '../../application/services/notifications.service';
+import { NotificationsPubSubService } from '../../application/services/notifications-pubsub.service';
 import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { ConfigService } from '@nestjs/config';
 import { Server } from 'socket.io';

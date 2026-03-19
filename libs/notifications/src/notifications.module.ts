@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
-import { NotificationsService } from './infrastructure/notifications.service';
-import { NotificationsPubSubService } from './infrastructure/notifications-pubsub.service';
+import { NotificationsService } from './application/services/notifications.service';
+import { NotificationsPubSubService } from './application/services/notifications-pubsub.service';
 import { NotificationsRepository } from './infrastructure/repositories/notifications.repository';
 import { NotificationsGateway } from './realtime/gateway/notifications.gateway';
 import { WsJwtGuard } from './realtime/guards/ws-jwt.guard';

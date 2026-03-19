@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- TODO: replace with BillingRepository.getOrgBillingStatus() in a dedicated refactor (Phase 6)
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { BillingRepository } from '@libs/billing';
 import { CacheService } from '@libs/redis';
 import { LocalTransport, DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { BillingStatus } from '@prisma/client';
@@ -78,7 +77,7 @@ export class FeatureFlagsService implements OnModuleInit {
   private readonly cacheKeyPrefix = 'entitlements:';
 
   constructor(
-    private readonly prisma: PrismaBusinessService,
+    private readonly billingRepo: BillingRepository,
     private readonly cache: CacheService,
     private readonly localTransport: LocalTransport,
   ) {}
@@ -121,10 +120,7 @@ export class FeatureFlagsService implements OnModuleInit {
       return cached;
     }
 
-    const org = await this.prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { planId: true, billingStatus: true },
-    });
+    const org = await this.billingRepo.getOrgBillingStatus(orgId);
 
     const billingStatus = org?.billingStatus ?? BillingStatus.NONE;
     const isActive = billingStatus === BillingStatus.ACTIVE;

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PrismaBusinessModule } from '@libs/prisma-business';
+import { BillingModule } from '@libs/billing';
 import { RedisModule } from '@libs/redis';
 import { RBACModule } from '../rbac/rbac.module';
 import { FeatureFlagsService } from './feature-flags.service';
@@ -42,7 +42,7 @@ import { FeatureGuard } from './guards/feature.guard';
  * Cache TTL: FEATURE_FLAGS_CACHE_TTL (seconds, default 600).
  */
 @Module({
-  imports: [PrismaBusinessModule, RedisModule, RBACModule],
+  imports: [BillingModule, RedisModule, RBACModule],
   controllers: [FeatureFlagsController],
   providers: [FeatureFlagsService, FeatureGuard],
   exports: [FeatureFlagsService, FeatureGuard],

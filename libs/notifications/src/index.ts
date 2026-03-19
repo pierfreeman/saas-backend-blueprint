@@ -5,8 +5,8 @@ export * from './types/notification.types';
 export * from './realtime/dto/ws-payloads.dto';
 
 // Infrastructure services (DB + Redis)
-export { NotificationsService } from './infrastructure/notifications.service';
-export { NotificationsPubSubService } from './infrastructure/notifications-pubsub.service';
+export { NotificationsService } from './application/services/notifications.service';
+export { NotificationsPubSubService } from './application/services/notifications-pubsub.service';
 
 // Realtime
 export { NotificationsGateway } from './realtime/gateway/notifications.gateway';
