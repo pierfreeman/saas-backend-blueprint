@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { MembershipsRepository } from '@libs/memberships';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { PermissionKey, ROLE_PERMISSIONS } from '@libs/common';
 
@@ -15,20 +15,15 @@ export interface RBACContextData {
  * RBACService
  *
  * Resolves role → permissions using a **static map** (ROLE_PERMISSIONS) instead
- * of database-driven Role/Permission tables. This keeps queries minimal —
- * only the Membership row is fetched per request.
- *
- * To change what each role can do, edit `constants/roles.constants.ts`.
+ * of database-driven Role/Permission tables. Only the Membership row is fetched
+ * per request via MembershipsRepository.
  */
 @Injectable()
 export class RBACService {
   private readonly logger = new Logger(RBACService.name);
 
-  constructor(private readonly prisma: PrismaBusinessService) {}
+  constructor(private readonly membershipsRepo: MembershipsRepository) {}
 
-  /**
-   * Returns the permissions for a given role from the static map.
-   */
   getPermissionsForRole(role: MembershipRole): string[] {
     const permissions = ROLE_PERMISSIONS[role];
     if (!permissions) {
@@ -38,18 +33,14 @@ export class RBACService {
     return permissions;
   }
 
-  /**
-   * Resolves the full RBAC context for a user in an organization.
-   * Returns null if no membership found.
-   */
   async resolveContext(
     userId: string,
     orgId: string,
   ): Promise<RBACContextData | null> {
-    const membership = await this.prisma.membership.findUnique({
-      where: { userId_orgId: { userId, orgId } },
-    });
-
+    const membership = await this.membershipsRepo.findByUserAndOrg(
+      userId,
+      orgId,
+    );
     if (!membership) return null;
 
     return {
@@ -96,9 +87,10 @@ export class RBACService {
     orgId: string,
     roles: MembershipRole[],
   ): Promise<boolean> {
-    const membership = await this.prisma.membership.findUnique({
-      where: { userId_orgId: { userId, orgId } },
-    });
+    const membership = await this.membershipsRepo.findByUserAndOrg(
+      userId,
+      orgId,
+    );
     if (!membership || membership.status !== MembershipStatus.ACTIVE)
       return false;
     return roles.includes(membership.role);

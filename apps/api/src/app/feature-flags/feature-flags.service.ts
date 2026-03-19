@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- TODO: replace with BillingRepository.getOrgBillingStatus() in a dedicated refactor (Phase 6)
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { LocalTransport, DomainEvent, DOMAIN_EVENTS } from '@libs/events';

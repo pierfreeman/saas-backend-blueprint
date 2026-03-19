@@ -1,4 +1,5 @@
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- TODO: extract into JobRepository in Phase 6 (transactional outbox pattern requires direct Prisma access for now)
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Job, Prisma } from '@prisma/client';

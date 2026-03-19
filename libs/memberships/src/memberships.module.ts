@@ -8,6 +8,6 @@ import { MembershipsRepository } from './infrastructure/repositories/memberships
 @Module({
   imports: [PrismaBusinessModule, ActivityLogModule, LegalAuditModule],
   providers: [MembershipsRepository, MembershipsService],
-  exports: [MembershipsService],
+  exports: [MembershipsService, MembershipsRepository],
 })
 export class MembershipsModule {}

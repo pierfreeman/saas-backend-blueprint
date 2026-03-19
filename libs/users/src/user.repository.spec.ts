@@ -59,6 +59,18 @@ describe('UserRepository', () => {
     });
   });
 
+  describe('createUser', () => {
+    it('creates a bare user row without provisioning an org', async () => {
+      const newUser = { id: 'u-2', auth0Id: 'auth0|2', email: 'b@b.com' };
+      mockPrisma.user.create = jest.fn().mockResolvedValue(newUser);
+
+      expect(await repo.createUser('auth0|2', 'b@b.com')).toBe(newUser);
+      expect(mockPrisma.user.create).toHaveBeenCalledWith({
+        data: { auth0Id: 'auth0|2', email: 'b@b.com' },
+      });
+    });
+  });
+
   describe('provisionWithPersonalOrg', () => {
     it('creates user + org + membership in one transaction', async () => {
       const createdUser = { id: 'u-1', auth0Id: 'auth0|1', email: 'a@b.com' };

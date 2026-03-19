@@ -9,7 +9,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { UserRepository } from '@libs/users';
+import { MembershipsRepository } from '@libs/memberships';
+import { OrganizationsRepository } from '@libs/organizations';
 import { RequestUser, TenantRequest } from '@libs/common';
 import { ORG_SCOPED_KEY } from '../decorators/org-scoped.decorator';
 import { MembershipStatus } from '@prisma/client';
@@ -46,7 +48,9 @@ export class OrgContextGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly prisma: PrismaBusinessService,
+    private readonly userRepo: UserRepository,
+    private readonly membershipsRepo: MembershipsRepository,
+    private readonly orgsRepo: OrganizationsRepository,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -79,31 +83,25 @@ export class OrgContextGuard implements CanActivate {
     }
 
     // Resolve DB user from Auth0 sub
-    let dbUser = await this.prisma.user.findUnique({
-      where: { auth0Id: user.sub },
-    });
+    let dbUser = await this.userRepo.findByAuth0Id(user.sub);
 
     if (!dbUser) {
       this.logger.log(`Auto-creating DB user for Auth0: ${user.sub}`);
-      dbUser = await this.prisma.user.create({
-        data: {
-          auth0Id: user.sub,
-          email: user.email ?? `${user.sub}@unknown.local`,
-        },
-      });
+      dbUser = await this.userRepo.createUser(
+        user.sub,
+        user.email ?? `${user.sub}@unknown.local`,
+      );
     }
 
     // Verify active membership
-    const membership = await this.prisma.membership.findUnique({
-      where: { userId_orgId: { userId: dbUser.id, orgId } },
-    });
+    const membership = await this.membershipsRepo.findByUserAndOrg(
+      dbUser.id,
+      orgId,
+    );
 
     if (!membership) {
       // Distinguish between "org doesn't exist" (404) and "not a member" (403)
-      const orgExists = await this.prisma.organization.findUnique({
-        where: { id: orgId },
-        select: { id: true },
-      });
+      const orgExists = await this.orgsRepo.findById(orgId);
       if (!orgExists) {
         throw new NotFoundException(`Organization ${orgId} not found`);
       }

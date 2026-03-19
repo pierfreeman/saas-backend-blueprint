@@ -19,6 +19,15 @@ export class UserRepository {
   }
 
   /**
+   * Creates a bare user record without provisioning an org.
+   * Used only as an emergency fallback in infrastructure guards when
+   * the normal Auth0 login sync path was somehow bypassed.
+   */
+  async createUser(auth0Id: string, email: string): Promise<User> {
+    return this.prisma.user.create({ data: { auth0Id, email } });
+  }
+
+  /**
    * Provisions a new user with a personal workspace org and OWNER membership
    * atomically in a single transaction. Called on first Auth0 login.
    */

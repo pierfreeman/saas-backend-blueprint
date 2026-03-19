@@ -1,6 +1,8 @@
 import { OrgContextGuard, RequestWithOrgContext } from './org-context.guard';
 import { Reflector } from '@nestjs/core';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { UserRepository } from '@libs/users';
+import { MembershipsRepository } from '@libs/memberships';
+import { OrganizationsRepository } from '@libs/organizations';
 import {
   ExecutionContext,
   BadRequestException,
@@ -9,11 +11,16 @@ import {
 import { MembershipStatus } from '@prisma/client';
 
 const mockReflector = { getAllAndOverride: jest.fn() } as unknown as Reflector;
-const mockPrisma = {
-  user: { findUnique: jest.fn(), create: jest.fn() },
-  membership: { findUnique: jest.fn() },
-  organization: { findUnique: jest.fn() },
-} as unknown as PrismaBusinessService;
+const mockUserRepo = {
+  findByAuth0Id: jest.fn(),
+  createUser: jest.fn(),
+} as unknown as UserRepository;
+const mockMembershipsRepo = {
+  findByUserAndOrg: jest.fn(),
+} as unknown as MembershipsRepository;
+const mockOrgsRepo = {
+  findById: jest.fn(),
+} as unknown as OrganizationsRepository;
 
 function makeContext(
   request: Partial<RequestWithOrgContext>,
@@ -30,7 +37,12 @@ describe('OrgContextGuard', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    guard = new OrgContextGuard(mockReflector, mockPrisma);
+    guard = new OrgContextGuard(
+      mockReflector,
+      mockUserRepo,
+      mockMembershipsRepo,
+      mockOrgsRepo,
+    );
   });
 
   it('passes through unauthenticated request on non-org-scoped route', async () => {
@@ -72,11 +84,9 @@ describe('OrgContextGuard', () => {
   it('throws ForbiddenException when user has no membership', async () => {
     mockReflector.getAllAndOverride = jest.fn().mockReturnValue(true);
     const dbUser = { id: 'db-u-1', auth0Id: 'auth0|1', email: 'a@b.com' };
-    mockPrisma.user.findUnique = jest.fn().mockResolvedValue(dbUser);
-    mockPrisma.membership.findUnique = jest.fn().mockResolvedValue(null);
-    mockPrisma.organization.findUnique = jest
-      .fn()
-      .mockResolvedValue({ id: 'org-1' });
+    mockUserRepo.findByAuth0Id = jest.fn().mockResolvedValue(dbUser);
+    mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue(null);
+    mockOrgsRepo.findById = jest.fn().mockResolvedValue({ id: 'org-1' });
 
     const ctx = makeContext({
       user: { sub: 'auth0|1', email: 'a@b.com' } as any,
@@ -91,8 +101,8 @@ describe('OrgContextGuard', () => {
   it('throws ForbiddenException when membership is INACTIVE', async () => {
     mockReflector.getAllAndOverride = jest.fn().mockReturnValue(true);
     const dbUser = { id: 'db-u-1', auth0Id: 'auth0|1', email: 'a@b.com' };
-    mockPrisma.user.findUnique = jest.fn().mockResolvedValue(dbUser);
-    mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+    mockUserRepo.findByAuth0Id = jest.fn().mockResolvedValue(dbUser);
+    mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
       id: 'm-1',
       role: 'ADMIN',
       status: 'INACTIVE' as MembershipStatus,
@@ -116,8 +126,8 @@ describe('OrgContextGuard', () => {
       role: 'ADMIN',
       status: 'ACTIVE' as MembershipStatus,
     };
-    mockPrisma.user.findUnique = jest.fn().mockResolvedValue(dbUser);
-    mockPrisma.membership.findUnique = jest.fn().mockResolvedValue(membership);
+    mockUserRepo.findByAuth0Id = jest.fn().mockResolvedValue(dbUser);
+    mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue(membership);
 
     const request: Partial<RequestWithOrgContext> = {
       user: { sub: 'auth0|1', email: 'a@b.com' } as any,
@@ -136,9 +146,9 @@ describe('OrgContextGuard', () => {
   it('auto-creates DB user when not found', async () => {
     mockReflector.getAllAndOverride = jest.fn().mockReturnValue(true);
     const newUser = { id: 'new-u', auth0Id: 'auth0|new', email: 'new@b.com' };
-    mockPrisma.user.findUnique = jest.fn().mockResolvedValue(null);
-    mockPrisma.user.create = jest.fn().mockResolvedValue(newUser);
-    mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+    mockUserRepo.findByAuth0Id = jest.fn().mockResolvedValue(null);
+    mockUserRepo.createUser = jest.fn().mockResolvedValue(newUser);
+    mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
       id: 'm-2',
       role: 'MEMBER',
       status: 'ACTIVE' as MembershipStatus,
@@ -152,16 +162,17 @@ describe('OrgContextGuard', () => {
       headers: {},
     };
     expect(await guard.canActivate(makeContext(request))).toBe(true);
-    expect(mockPrisma.user.create).toHaveBeenCalledWith({
-      data: { auth0Id: 'auth0|new', email: 'new@b.com' },
-    });
+    expect(mockUserRepo.createUser).toHaveBeenCalledWith(
+      'auth0|new',
+      'new@b.com',
+    );
   });
 
   it('resolves orgId from x-org-id header when params are empty', async () => {
     mockReflector.getAllAndOverride = jest.fn().mockReturnValue(true);
     const dbUser = { id: 'u-1' };
-    mockPrisma.user.findUnique = jest.fn().mockResolvedValue(dbUser);
-    mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+    mockUserRepo.findByAuth0Id = jest.fn().mockResolvedValue(dbUser);
+    mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
       id: 'm-1',
       role: 'ADMIN',
       status: 'ACTIVE' as MembershipStatus,

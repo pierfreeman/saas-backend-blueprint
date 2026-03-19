@@ -1,18 +1,18 @@
 import { RBACService } from './rbac.service';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { MembershipsRepository } from '@libs/memberships';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '@libs/common';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 
-const mockPrisma = {
-  membership: { findUnique: jest.fn() },
-} as unknown as PrismaBusinessService;
+const mockMembershipsRepo = {
+  findByUserAndOrg: jest.fn(),
+} as unknown as MembershipsRepository;
 
 describe('RBACService', () => {
   let service: RBACService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new RBACService(mockPrisma);
+    service = new RBACService(mockMembershipsRepo);
   });
 
   describe('getPermissionsForRole', () => {
@@ -49,7 +49,7 @@ describe('RBACService', () => {
     };
 
     it('returns full context for an active membership', async () => {
-      mockPrisma.membership.findUnique = jest
+      mockMembershipsRepo.findByUserAndOrg = jest
         .fn()
         .mockResolvedValue(activeMembership);
       const ctx = await service.resolveContext('u-1', 'org-1');
@@ -63,14 +63,14 @@ describe('RBACService', () => {
     });
 
     it('returns null when membership does not exist', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue(null);
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue(null);
       expect(await service.resolveContext('u-1', 'org-x')).toBeNull();
     });
   });
 
   describe('hasPermission', () => {
     it('returns true when user has the permission', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
         role: 'OWNER',
         status: 'ACTIVE',
       });
@@ -84,7 +84,7 @@ describe('RBACService', () => {
     });
 
     it('returns false when membership is INACTIVE', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
         role: 'OWNER',
         status: 'INACTIVE',
       });
@@ -94,7 +94,7 @@ describe('RBACService', () => {
     });
 
     it('returns false when context is null', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue(null);
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue(null);
       expect(
         await service.hasPermission('u-1', 'org-1', PERMISSIONS.ORG_READ),
       ).toBe(false);
@@ -103,7 +103,7 @@ describe('RBACService', () => {
 
   describe('hasAnyPermission', () => {
     it('returns true if at least one permission matches', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
         role: 'MEMBER',
         status: 'ACTIVE',
       });
@@ -116,7 +116,7 @@ describe('RBACService', () => {
     });
 
     it('returns false when none match', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
         role: 'READ_ONLY',
         status: 'ACTIVE',
       });
@@ -130,7 +130,7 @@ describe('RBACService', () => {
 
   describe('hasAllPermissions', () => {
     it('returns true only when all permissions are present', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
         role: 'OWNER',
         status: 'ACTIVE',
       });
@@ -143,7 +143,7 @@ describe('RBACService', () => {
     });
 
     it('returns false when one permission is missing', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
         role: 'MEMBER',
         status: 'ACTIVE',
       });
@@ -158,7 +158,7 @@ describe('RBACService', () => {
 
   describe('hasRole', () => {
     it('returns true when role matches', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
         role: 'ADMIN',
         status: 'ACTIVE',
       });
@@ -168,12 +168,12 @@ describe('RBACService', () => {
     });
 
     it('returns false when membership is missing', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue(null);
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue(null);
       expect(await service.hasRole('u-1', 'org-1', ['ADMIN'])).toBe(false);
     });
 
     it('returns false when membership status is INACTIVE', async () => {
-      mockPrisma.membership.findUnique = jest.fn().mockResolvedValue({
+      mockMembershipsRepo.findByUserAndOrg = jest.fn().mockResolvedValue({
         role: 'ADMIN',
         status: 'INACTIVE',
       });

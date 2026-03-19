@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- TODO: extract into JobRepository in Phase 6 (job state machine updates require direct Prisma access for now)
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, JobUpdateMessage } from '@libs/events';
