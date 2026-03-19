@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
-import { PayloadSanitizationMiddleware } from '../middleware/payload-sanitization.middleware';
+import { PayloadSanitizationMiddleware } from './payload-sanitization.middleware';
 
 // Mock @libs/legal-audit to avoid compiling Prisma-generated client in unit tests
 jest.mock('@libs/legal-audit', () => ({

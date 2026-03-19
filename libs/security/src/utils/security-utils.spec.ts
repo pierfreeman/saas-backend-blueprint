@@ -8,7 +8,7 @@
  *  - SkipRateLimit / SkipCsrf decorators: SetMetadata key correctness
  */
 import { SetMetadata } from '@nestjs/common';
-import { extractClientIp, isValidIp } from '../utils/ip.utils';
+import { extractClientIp, isValidIp } from './ip.utils';
 import {
   SKIP_RATE_LIMIT_KEY,
   SkipRateLimit,

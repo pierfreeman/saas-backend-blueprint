@@ -1,4 +1,4 @@
-import { UserRepository } from './infrastructure/repositories/user.repository';
+import { UserRepository } from './user.repository';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { PrismaBusinessService } from '@libs/prisma-business';
 

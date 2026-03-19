@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SentryService } from '../sentry/sentry.service';
+import { SentryService } from './sentry.service';
 import * as Sentry from '@sentry/node';
 
 // jest.mock is hoisted before ALL variable declarations, so we cannot reference

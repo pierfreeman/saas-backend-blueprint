@@ -17,7 +17,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { of, throwError } from 'rxjs';
-import { SecurityAuditInterceptor } from '../interceptors/security-audit.interceptor';
+import { SecurityAuditInterceptor } from './security-audit.interceptor';
 import { BruteForceService } from '../services/brute-force.service';
 
 // Mock @libs/legal-audit to avoid compiling Prisma-generated client in unit tests

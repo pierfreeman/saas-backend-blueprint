@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SentryInterceptor } from '../sentry/sentry.interceptor';
-import { SentryService } from '../sentry/sentry.service';
+import { SentryInterceptor } from './sentry.interceptor';
+import { SentryService } from './sentry.service';
 import { ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
 import { Observable, of, throwError } from 'rxjs';
 

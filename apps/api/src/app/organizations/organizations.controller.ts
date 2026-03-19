@@ -31,7 +31,7 @@ import { OrgContextGuard } from '../rbac/guards/org-context.guard';
 import { RBACGuard } from '../rbac/guards/rbac.guard';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { OrganizationsService } from './organizations.service';
+import { OrganizationsService } from '@libs/organizations';
 
 @ApiTags('Organizations')
 @ApiBearerAuth()

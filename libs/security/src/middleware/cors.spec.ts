@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { CorsMiddleware } from '../middleware/cors.middleware';
+import { CorsMiddleware } from './cors.middleware';
 import type { Request, Response } from 'express';
 
 function makeReq(origin?: string, method = 'GET'): Partial<Request> {

@@ -11,7 +11,7 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { IpFilterGuard } from '../guards/ip-filter.guard';
+import { IpFilterGuard } from './ip-filter.guard';
 
 // Mock @libs/legal-audit to avoid compiling Prisma-generated client in unit tests
 jest.mock('@libs/legal-audit', () => ({

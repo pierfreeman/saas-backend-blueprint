@@ -25,7 +25,7 @@ import { OrgContextGuard } from '../rbac/guards/org-context.guard';
 import { RBACGuard } from '../rbac/guards/rbac.guard';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
-import { MembershipsService } from './memberships.service';
+import { MembershipsService } from '@libs/memberships';
 
 @ApiTags('Memberships')
 @ApiBearerAuth()

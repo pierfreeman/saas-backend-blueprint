@@ -1,4 +1,4 @@
-import { HelmetMiddleware } from '../middleware/helmet.middleware';
+import { HelmetMiddleware } from './helmet.middleware';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import type { Request, Response } from 'express';

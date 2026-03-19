@@ -1,4 +1,4 @@
-import { RateLimitService } from '../services/rate-limit.service';
+import { RateLimitService } from './rate-limit.service';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 

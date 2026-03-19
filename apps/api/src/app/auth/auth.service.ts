@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UserRepository } from '@libs/users';
+import { UserRepository, UserProvisioningService } from '@libs/users';
 import { User } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly userProvisioningService: UserProvisioningService,
+  ) {}
 
   /**
    * Syncs an Auth0 user to the local database.
@@ -22,7 +25,7 @@ export class AuthService {
       this.logger.log(
         `First login for Auth0 ID: ${auth0Id} — provisioning user + org`,
       );
-      const user = await this.userRepository.provisionWithPersonalOrg(
+      const user = await this.userProvisioningService.provisionWithPersonalOrg(
         auth0Id,
         email,
       );

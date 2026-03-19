@@ -3,7 +3,7 @@ import { DeletionTrigger, OrgDeletionService } from '@libs/org-deletion';
 import { NotFoundException } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { OrganizationsController } from './organizations.controller';
-import { OrganizationsService } from './organizations.service';
+import { OrganizationsService } from '@libs/organizations';
 import { OrgExportService } from '@libs/org-export';
 
 const mockOrganizationsService = {

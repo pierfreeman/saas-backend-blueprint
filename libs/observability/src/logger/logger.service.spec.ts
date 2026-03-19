@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ObservabilityLoggerService } from '../logger/logger.service';
+import { ObservabilityLoggerService } from './logger.service';
 
 describe('ObservabilityLoggerService', () => {
   let service: ObservabilityLoggerService;

@@ -20,8 +20,8 @@ import {
 import { Test } from '@nestjs/testing';
 import * as supertest from 'supertest';
 import { ObservabilityModule } from '../observability.module';
-import { SentryInterceptor } from '../sentry/sentry.interceptor';
-import { SentryService } from '../sentry/sentry.service';
+import { SentryInterceptor } from './sentry.interceptor';
+import { SentryService } from './sentry.service';
 
 jest.mock('@sentry/node', () => ({
   init: jest.fn(),

@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { RequestLoggingInterceptor } from '../interceptors/request-logging.interceptor';
+import { RequestLoggingInterceptor } from './request-logging.interceptor';
 import { ObservabilityLoggerService } from '../logger/logger.service';
 import { ExecutionContext } from '@nestjs/common';
 import { of } from 'rxjs';

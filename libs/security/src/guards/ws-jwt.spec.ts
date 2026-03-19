@@ -1,4 +1,4 @@
-import { WsJwtGuard } from '../guards/ws-jwt.guard';
+import { WsJwtGuard } from './ws-jwt.guard';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { WsException } from '@nestjs/websockets';

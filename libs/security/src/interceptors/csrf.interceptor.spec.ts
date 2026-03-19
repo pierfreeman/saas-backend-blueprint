@@ -16,7 +16,7 @@ import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { of } from 'rxjs';
-import { CsrfInterceptor } from '../interceptors/csrf.interceptor';
+import { CsrfInterceptor } from './csrf.interceptor';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

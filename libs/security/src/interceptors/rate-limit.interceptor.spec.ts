@@ -13,7 +13,7 @@ import { CallHandler, ExecutionContext, HttpException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { of } from 'rxjs';
-import { RateLimitInterceptor } from '../interceptors/rate-limit.interceptor';
+import { RateLimitInterceptor } from './rate-limit.interceptor';
 import { RateLimitService } from '../services/rate-limit.service';
 import type { RateLimitResult } from '../services/rate-limit.service';
 

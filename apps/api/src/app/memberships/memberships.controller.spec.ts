@@ -1,5 +1,5 @@
 import { MembershipsController } from './memberships.controller';
-import { MembershipsService } from './memberships.service';
+import { MembershipsService } from '@libs/memberships';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 
 const mockMembershipsService = {

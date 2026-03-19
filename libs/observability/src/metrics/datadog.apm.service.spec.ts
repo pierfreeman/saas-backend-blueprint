@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DatadogApmService } from '../metrics/datadog.apm.service';
+import { DatadogApmService } from './datadog.apm.service';
 import { ObservabilityLoggerService } from '../logger/logger.service';
 
 describe('DatadogApmService', () => {

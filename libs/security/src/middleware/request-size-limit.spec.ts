@@ -5,7 +5,7 @@ import type { Request, Response } from 'express';
 import {
   RequestSizeLimitMiddleware,
   parseSize,
-} from '../middleware/request-size-limit.middleware';
+} from './request-size-limit.middleware';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

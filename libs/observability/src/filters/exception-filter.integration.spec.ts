@@ -22,7 +22,7 @@ import {
 import { Test } from '@nestjs/testing';
 import * as supertest from 'supertest';
 import { ObservabilityModule } from '../observability.module';
-import { ObservabilityExceptionFilter } from '../filters/observability-exception.filter';
+import { ObservabilityExceptionFilter } from './observability-exception.filter';
 import { ObservabilityLoggerService } from '../logger/logger.service';
 import { SentryService } from '../sentry/sentry.service';
 

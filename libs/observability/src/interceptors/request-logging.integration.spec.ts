@@ -24,7 +24,7 @@ import * as supertest from 'supertest';
 import { ObservabilityModule } from '../observability.module';
 import { ObservabilityExceptionFilter } from '../filters/observability-exception.filter';
 import { ObservabilityLoggerService } from '../logger/logger.service';
-import { RequestLoggingInterceptor } from '../interceptors/request-logging.interceptor';
+import { RequestLoggingInterceptor } from './request-logging.interceptor';
 
 jest.mock('@sentry/node', () => ({
   init: jest.fn(),

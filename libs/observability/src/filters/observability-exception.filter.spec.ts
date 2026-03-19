@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ObservabilityExceptionFilter } from '../filters/observability-exception.filter';
+import { ObservabilityExceptionFilter } from './observability-exception.filter';
 import { ObservabilityLoggerService } from '../logger/logger.service';
 
 function makeHost(

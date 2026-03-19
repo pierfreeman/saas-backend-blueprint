@@ -1,4 +1,4 @@
-import { BruteForceService } from '../services/brute-force.service';
+import { BruteForceService } from './brute-force.service';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 

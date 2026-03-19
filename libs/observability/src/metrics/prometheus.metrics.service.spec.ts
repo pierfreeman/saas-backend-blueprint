@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PrometheusMetricsService } from '../metrics/prometheus.metrics.service';
+import { PrometheusMetricsService } from './prometheus.metrics.service';
 import { ObservabilityLoggerService } from '../logger/logger.service';
 
 describe('PrometheusMetricsService', () => {
