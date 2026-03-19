@@ -19,6 +19,12 @@ import { RBACGuard } from './guards/rbac.guard';
     RBACGuard,
   ],
   exports: [
+    // Re-export the dependency modules so that OrgContextGuard's constructor
+    // dependencies (UsersService, MembershipsService, OrganizationsService)
+    // are available in the merged injector of any module that imports RBACModule.
+    UsersModule,
+    MembershipsModule,
+    OrganizationsModule,
     RBACService,
     RBACCacheService,
     PermissionResolverService,
