@@ -1,34 +1,23 @@
 import { AuthService } from './auth.service';
-import { PrismaBusinessService } from '@libs/prisma-business';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { UsersService } from '@libs/users';
 
-// mockPrisma doubles as the transaction client (tx) because $transaction
-// forwards the callback to the same mock object.
-const mockPrisma = {
-  user: {
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-  },
-  organization: {
-    create: jest.fn(),
-  },
-  membership: {
-    create: jest.fn(),
-  },
-  $transaction: jest.fn(),
-} as unknown as PrismaBusinessService;
+const mockUsersService = {
+  findByAuth0Id: jest.fn(),
+  updateEmail: jest.fn(),
+  findById: jest.fn(),
+  provisionWithPersonalOrg: jest.fn(),
+} as unknown as UsersService;
 
 describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthService(mockPrisma);
+    service = new AuthService(mockUsersService);
   });
 
   describe('syncUser', () => {
-    it('provisions new user + personal org + OWNER membership in one transaction', async () => {
+    it('provisions new user + personal org in one operation', async () => {
       const createdUser = {
         id: 'u-1',
         auth0Id: 'auth0|1',
@@ -36,44 +25,22 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const createdOrg = { id: 'org-1', name: 'Personal Workspace' };
 
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(null);
-      mockPrisma.user.create = jest.fn().mockResolvedValue(createdUser);
-      // Use local variables to avoid jest.Mocked<> clashing with Prisma's recursive
-      // conditional types, which cause TS2615 circular reference errors.
-      const orgCreate = jest.fn().mockResolvedValue(createdOrg);
-      const membershipCreate = jest.fn().mockResolvedValue({});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const txFn = jest.fn().mockImplementation((fn: any) => fn(mockPrisma));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mockPrisma as any).organization.create = orgCreate;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mockPrisma as any).membership.create = membershipCreate;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mockPrisma as any).$transaction = txFn;
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(null);
+      mockUsersService.provisionWithPersonalOrg = jest
+        .fn()
+        .mockResolvedValue(createdUser);
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
 
       expect(result).toBe(createdUser);
-      expect(txFn).toHaveBeenCalledTimes(1);
-      expect(mockPrisma.user.create).toHaveBeenCalledWith({
-        data: { auth0Id: 'auth0|1', email: 'a@b.com' },
-      });
-      expect(orgCreate).toHaveBeenCalledWith({
-        data: { name: 'Personal Workspace' },
-      });
-      expect(membershipCreate).toHaveBeenCalledWith({
-        data: {
-          userId: 'u-1',
-          orgId: 'org-1',
-          role: MembershipRole.OWNER,
-          status: MembershipStatus.ACTIVE,
-        },
-      });
+      expect(mockUsersService.provisionWithPersonalOrg).toHaveBeenCalledWith(
+        'auth0|1',
+        'a@b.com',
+      );
     });
 
-    it('returns existing user when email is unchanged — no transaction', async () => {
+    it('returns existing user when email is unchanged — no update', async () => {
       const existing = {
         id: 'u-1',
         auth0Id: 'auth0|1',
@@ -81,19 +48,15 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(existing);
-      mockPrisma.user.create = jest.fn();
-      mockPrisma.user.update = jest.fn();
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(existing);
+      mockUsersService.updateEmail = jest.fn();
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
       expect(result).toBe(existing);
-      expect(mockPrisma.user.create).not.toHaveBeenCalled();
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((mockPrisma as any).$transaction).not.toHaveBeenCalled();
+      expect(mockUsersService.updateEmail).not.toHaveBeenCalled();
     });
 
-    it('updates email when it has changed — no transaction', async () => {
+    it('updates email when it has changed', async () => {
       const existing = {
         id: 'u-1',
         auth0Id: 'auth0|1',
@@ -102,17 +65,15 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
       const updated = { ...existing, email: 'new@b.com' };
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(existing);
-      mockPrisma.user.update = jest.fn().mockResolvedValue(updated);
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(existing);
+      mockUsersService.updateEmail = jest.fn().mockResolvedValue(updated);
 
       const result = await service.syncUser('auth0|1', 'new@b.com');
       expect(result).toBe(updated);
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'u-1' },
-        data: { email: 'new@b.com' },
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((mockPrisma as any).$transaction).not.toHaveBeenCalled();
+      expect(mockUsersService.updateEmail).toHaveBeenCalledWith(
+        'u-1',
+        'new@b.com',
+      );
     });
   });
 
@@ -125,12 +86,12 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(user);
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(user);
       expect(await service.findUserByAuth0Id('auth0|1')).toBe(user);
     });
 
     it('returns null when not found', async () => {
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(null);
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(null);
       expect(await service.findUserByAuth0Id('auth0|x')).toBeNull();
     });
   });
@@ -144,21 +105,20 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(user);
+      mockUsersService.findById = jest.fn().mockResolvedValue(user);
       expect(await service.findUserById('u-1')).toBe(user);
     });
 
-    it('returns null when user is not found', async () => {
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(null);
+    it('returns null when not found', async () => {
+      mockUsersService.findById = jest.fn().mockResolvedValue(null);
       expect(await service.findUserById('nonexistent')).toBeNull();
     });
   });
 
   describe('syncUser — edge cases', () => {
-    it('propagates errors thrown inside the transaction', async () => {
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(null);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mockPrisma as any).$transaction = jest
+    it('propagates errors from provisionWithPersonalOrg', async () => {
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(null);
+      mockUsersService.provisionWithPersonalOrg = jest
         .fn()
         .mockRejectedValue(new Error('Transaction aborted'));
 
@@ -167,8 +127,8 @@ describe('AuthService', () => {
       );
     });
 
-    it('propagates DB errors thrown by user.findUnique', async () => {
-      mockPrisma.user.findUnique = jest
+    it('propagates DB errors from findByAuth0Id', async () => {
+      mockUsersService.findByAuth0Id = jest
         .fn()
         .mockRejectedValue(new Error('Connection refused'));
 
@@ -177,7 +137,7 @@ describe('AuthService', () => {
       );
     });
 
-    it('propagates DB errors thrown by user.update', async () => {
+    it('propagates DB errors from updateEmail', async () => {
       const existing = {
         id: 'u-1',
         auth0Id: 'auth0|1',
@@ -185,8 +145,8 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockPrisma.user.findUnique = jest.fn().mockResolvedValue(existing);
-      mockPrisma.user.update = jest
+      mockUsersService.findByAuth0Id = jest.fn().mockResolvedValue(existing);
+      mockUsersService.updateEmail = jest
         .fn()
         .mockRejectedValue(new Error('Update failed'));
 

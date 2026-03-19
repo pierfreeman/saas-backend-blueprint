@@ -1,3 +1,3 @@
-export * from './lib/activity-log.module';
-export * from './lib/activity-log.service';
-export * from './lib/activity-log.types';
+export * from './activity-log.module';
+export * from './activity-log.service';
+export * from './activity-log.types';

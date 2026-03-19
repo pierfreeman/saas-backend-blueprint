@@ -73,3 +73,6 @@ Thumbs.db
 # SonarQube
 .sonarlint/
 .scannerwork/
+
+# Copilot
+.copilot/

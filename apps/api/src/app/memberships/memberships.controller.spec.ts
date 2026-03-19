@@ -1,5 +1,6 @@
 import { MembershipsController } from './memberships.controller';
-import { MembershipsService } from './memberships.service';
+import { MembershipsService } from '@libs/memberships';
+import { RBACCacheService } from '@libs/rbac';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 
 const mockMembershipsService = {
@@ -8,6 +9,11 @@ const mockMembershipsService = {
   updateMembership: jest.fn(),
   deleteMembership: jest.fn(),
 } as unknown as MembershipsService;
+
+const mockRBACCacheService = {
+  invalidate: jest.fn().mockResolvedValue(undefined),
+  invalidateOrg: jest.fn().mockResolvedValue(undefined),
+} as unknown as RBACCacheService;
 
 const baseMembership = {
   id: 'm-1',
@@ -24,7 +30,10 @@ describe('MembershipsController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new MembershipsController(mockMembershipsService);
+    controller = new MembershipsController(
+      mockMembershipsService,
+      mockRBACCacheService,
+    );
   });
 
   describe('create()', () => {

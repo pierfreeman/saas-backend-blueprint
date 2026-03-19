@@ -328,4 +328,21 @@ export class BillingRepository {
       throw err;
     }
   }
+
+  /**
+   * Returns the minimal billing snapshot needed for entitlement checks.
+   * Returns null if the organisation does not exist.
+   */
+  async getOrgBillingStatus(
+    orgId: string,
+  ): Promise<{ planId: string | null; billingStatus: BillingStatus } | null> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { planId: true, billingStatus: true },
+    });
+    if (!org) {
+      return null;
+    }
+    return { planId: org.planId, billingStatus: org.billingStatus };
+  }
 }

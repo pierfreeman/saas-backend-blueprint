@@ -1,5 +1,5 @@
 import { WorkerController, HeavyJobPayload } from './worker.controller';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { JobService } from '@libs/jobs';
 import { PubSubService } from '@libs/redis';
 import {
   OrgDeletionWorkerService,
@@ -8,6 +8,7 @@ import {
 } from '@libs/org-deletion';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
+import { OrgExportWorkerService } from '@libs/org-export';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -25,11 +26,11 @@ const makeEvent = (
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockPrisma = {
-  job: {
-    update: jest.fn(),
-  },
-} as unknown as PrismaBusinessService;
+const mockJobRepo = {
+  markProcessing: jest.fn(),
+  markDone: jest.fn(),
+  markFailed: jest.fn(),
+} as unknown as JobService;
 
 const mockPubSub = {
   publish: jest.fn(),
@@ -40,6 +41,11 @@ const mockOrgDeletionWorker = {
   executeDeletion: jest.fn(),
 } as unknown as OrgDeletionWorkerService;
 
+const mockOrgExportWorker = {
+  scheduleExport: jest.fn(),
+  executeExport: jest.fn(),
+} as unknown as OrgExportWorkerService;
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('WorkerController', () => {
@@ -47,12 +53,15 @@ describe('WorkerController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (mockPrisma.job.update as jest.Mock).mockResolvedValue({});
+    (mockJobRepo.markProcessing as jest.Mock).mockResolvedValue(undefined);
+    (mockJobRepo.markDone as jest.Mock).mockResolvedValue(undefined);
+    (mockJobRepo.markFailed as jest.Mock).mockResolvedValue(undefined);
     (mockPubSub.publish as jest.Mock).mockResolvedValue(undefined);
     controller = new WorkerController(
-      mockPrisma,
+      mockJobRepo,
       mockPubSub,
       mockOrgDeletionWorker,
+      mockOrgExportWorker,
     );
   });
 
@@ -61,22 +70,12 @@ describe('WorkerController', () => {
       const event = makeEvent();
       await controller.handleHeavyJobCreated(event);
 
-      const calls = (mockPrisma.job.update as jest.Mock).mock.calls;
-      expect(calls).toHaveLength(2);
-
-      // First update: PROCESSING
-      expect(calls[0][0]).toMatchObject({
-        where: { id: 'job_001' },
-        data: expect.objectContaining({ status: JobStatus.PROCESSING }),
-      });
-
-      // Second update: DONE
-      expect(calls[1][0]).toMatchObject({
-        where: { id: 'job_001' },
-        data: expect.objectContaining({ status: JobStatus.DONE }),
-      });
+      expect(mockJobRepo.markProcessing).toHaveBeenCalledWith('job_001');
+      expect(mockJobRepo.markDone).toHaveBeenCalledWith(
+        'job_001',
+        expect.objectContaining({ processed: true, jobId: 'job_001' }),
+      );
     });
-
     it('publishes a PROCESSING message to Redis before work starts', async () => {
       await controller.handleHeavyJobCreated(makeEvent());
 
@@ -115,15 +114,10 @@ describe('WorkerController', () => {
         controller.handleHeavyJobCreated(makeEvent()),
       ).rejects.toThrow('computation failed');
 
-      const calls = (mockPrisma.job.update as jest.Mock).mock.calls;
-      expect(calls).toHaveLength(2);
-      expect(calls[1][0]).toMatchObject({
-        where: { id: 'job_001' },
-        data: expect.objectContaining({
-          status: JobStatus.FAILED,
-          error: 'computation failed',
-        }),
-      });
+      expect(mockJobRepo.markFailed).toHaveBeenCalledWith(
+        'job_001',
+        'computation failed',
+      );
 
       const publishCalls = (mockPubSub.publish as jest.Mock).mock.calls;
       expect(publishCalls[1][1]).toMatchObject({
@@ -134,10 +128,7 @@ describe('WorkerController', () => {
 
     it('increments the attempts counter on PROCESSING transition', async () => {
       await controller.handleHeavyJobCreated(makeEvent());
-
-      const processingUpdate = (mockPrisma.job.update as jest.Mock).mock
-        .calls[0][0];
-      expect(processingUpdate.data.attempts).toEqual({ increment: 1 });
+      expect(mockJobRepo.markProcessing).toHaveBeenCalledWith('job_001');
     });
 
     it('includes userId=undefined in publish when payload has no userId', async () => {
@@ -172,9 +163,10 @@ describe('WorkerController', () => {
         'plain string error',
       );
 
-      const failedUpdate = (mockPrisma.job.update as jest.Mock).mock
-        .calls[1][0];
-      expect(failedUpdate.data.error).toBe('Unknown error');
+      expect(mockJobRepo.markFailed).toHaveBeenCalledWith(
+        'job_001',
+        'Unknown error',
+      );
 
       const failedPublish = (mockPubSub.publish as jest.Mock).mock.calls[1][1];
       expect(failedPublish.error).toBe('Unknown error');

@@ -15,8 +15,7 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
+import { OrgContextGuard, OrgScoped } from '@libs/rbac';
 import { FeatureFlagsService } from './feature-flags.service';
 import { OrganizationEntitlements } from './interfaces/entitlements.interface';
 

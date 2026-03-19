@@ -22,10 +22,7 @@ import {
 import { MembershipRole } from '@prisma/client';
 import { BillingService } from '@libs/billing';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { RequireRole } from '../rbac/decorators/require-role.decorator';
+import { OrgContextGuard, RBACGuard, OrgScoped, RequireRole } from '@libs/rbac';
 import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
 import { CreatePortalSessionDto } from './dto/create-portal-session.dto';
 import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';

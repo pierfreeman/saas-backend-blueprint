@@ -1,5 +1,5 @@
 import {
-  BillingRepository,
+  BillingService,
   StripeService,
   WebhookDispatcherService,
 } from '@libs/billing';
@@ -55,7 +55,7 @@ export class WebhookController {
     private readonly stripeService: StripeService,
     private readonly dispatcher: WebhookDispatcherService,
     private readonly legalAudit: LegalAuditService,
-    private readonly billingRepository: BillingRepository,
+    private readonly billingService: BillingService,
   ) {}
 
   @Post('webhook')
@@ -129,7 +129,7 @@ export class WebhookController {
     });
 
     // ── Step 4: Idempotency check ────────────────────────────────────────────
-    const existing = await this.billingRepository.findBillingEvent(event.id);
+    const existing = await this.billingService.findBillingEvent(event.id);
     if (existing) {
       this.logger.debug(`Duplicate Stripe event ignored: ${event.id}`);
       return { received: true };
@@ -145,11 +145,7 @@ export class WebhookController {
     const orgId = (event.data.object as { metadata?: { orgId?: string } })
       ?.metadata?.['orgId'];
 
-    await this.billingRepository.createBillingEvent(
-      event.id,
-      payloadHash,
-      orgId,
-    );
+    await this.billingService.createBillingEvent(event.id, payloadHash, orgId);
 
     this.logger.log(`Stripe event processed: ${event.type} (${event.id})`);
 

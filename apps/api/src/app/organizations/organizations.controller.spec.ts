@@ -3,14 +3,14 @@ import { DeletionTrigger, OrgDeletionService } from '@libs/org-deletion';
 import { NotFoundException } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { OrganizationsController } from './organizations.controller';
-import { OrganizationsService } from './organizations.service';
+import { OrganizationsService } from '@libs/organizations';
+import { OrgExportService } from '@libs/org-export';
 
 const mockOrganizationsService = {
   createOrganization: jest.fn(),
   findByUserId: jest.fn(),
   findById: jest.fn(),
   updateOrganization: jest.fn(),
-  deleteOrganization: jest.fn(),
 } as unknown as OrganizationsService;
 
 const mockAuthService = {
@@ -21,6 +21,10 @@ const mockOrgDeletionService = {
   scheduleOrgDeletion: jest.fn(),
   requestDeletion: jest.fn(),
 } as unknown as OrgDeletionService;
+
+const mockOrgExportService = {
+  requestExport: jest.fn(),
+} as unknown as OrgExportService;
 
 const jwtUser: RequestUser = { sub: 'auth0|u1', email: 'user@example.com' };
 const dbUser = { id: 'db-u-1', auth0Id: 'auth0|u1', email: 'user@example.com' };
@@ -40,6 +44,7 @@ describe('OrganizationsController', () => {
       mockOrganizationsService,
       mockAuthService,
       mockOrgDeletionService,
+      mockOrgExportService,
     );
   });
 
@@ -172,36 +177,6 @@ describe('OrganizationsController', () => {
       await expect(
         controller.update(jwtUser, 'bad-id', { name: 'X' }),
       ).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  // ---------- delete ---------------------------------------------------------
-  describe('delete()', () => {
-    it('deletes an organization and returns a success message', async () => {
-      setupDbUser();
-      mockOrganizationsService.deleteOrganization = jest
-        .fn()
-        .mockResolvedValue(undefined);
-
-      const result = await controller.delete(jwtUser, 'org-1');
-      expect(result).toEqual({ message: 'Organization deleted successfully' });
-      expect(mockOrganizationsService.deleteOrganization).toHaveBeenCalledWith(
-        'org-1',
-        'db-u-1',
-      );
-    });
-
-    it('propagates NotFoundException when org not found', async () => {
-      setupDbUser();
-      mockOrganizationsService.deleteOrganization = jest
-        .fn()
-        .mockRejectedValue(
-          new NotFoundException('Organization bad-id not found'),
-        );
-
-      await expect(controller.delete(jwtUser, 'bad-id')).rejects.toThrow(
-        NotFoundException,
-      );
     });
   });
 

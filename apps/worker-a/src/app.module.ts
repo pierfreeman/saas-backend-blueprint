@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { PrismaBusinessModule } from '@libs/prisma-business';
+import { JobsModule } from '@libs/jobs';
 import { RedisModule } from '@libs/redis';
 import { ConfigModule } from '@libs/config';
 import { EventsModule } from '@libs/events';
 import { ObservabilityModule } from '@libs/observability';
 import { OrgDeletionModule } from '@libs/org-deletion';
+import { OrgExportModule } from '@libs/org-export';
 import { WorkerController } from './worker.controller';
 import { SqsConsumerService } from './sqs-consumer.service';
 
@@ -17,10 +18,11 @@ import { SqsConsumerService } from './sqs-consumer.service';
   imports: [
     ConfigModule,
     ObservabilityModule,
-    PrismaBusinessModule,
+    JobsModule,
     RedisModule,
     EventsModule,
     OrgDeletionModule,
+    OrgExportModule,
   ],
   providers: [WorkerController, SqsConsumerService],
 })

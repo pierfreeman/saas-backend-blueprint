@@ -1,21 +1,16 @@
 // Module
-export * from './lib/email.module';
+export * from './email.module';
 
 // Services
-export * from './lib/email.service';
-export * from './lib/templates/template-renderer.service';
+export * from './email.service';
+export * from './templates/template-renderer.service';
 
 // Providers
-export * from './lib/providers/email-provider.interface';
-export * from './lib/providers/sendgrid.provider';
-
-// Event Handlers
-export * from './lib/events/handlers/user-invited.handler';
-export * from './lib/events/handlers/export-completed.handler';
+export * from './providers/email-provider.interface';
+export * from './providers/sendgrid.provider';
 
 // DTOs
-export * from './lib/dto/send-email.dto';
+export * from './dto/send-email.dto';
 
 // Types
-export * from './lib/types/email-template.type';
-
+export * from './types/email-template.type';

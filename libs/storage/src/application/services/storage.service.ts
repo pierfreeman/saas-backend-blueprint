@@ -23,7 +23,7 @@ import {
   GenerateUploadUrlRequest,
   GenerateUploadUrlResponse,
   PlanType,
-} from '../../storage.types';
+} from '../../domain/types';
 import { UploadPolicyService } from './upload-policy.service';
 
 /**

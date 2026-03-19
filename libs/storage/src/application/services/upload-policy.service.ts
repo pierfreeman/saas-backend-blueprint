@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { StorageConfig } from '@libs/config';
-import { UploadPolicy, StorageQuota, PlanType } from '../../storage.types';
+import { UploadPolicy, StorageQuota, PlanType } from '../../domain/types';
 import { StorageRepository } from '../../infrastructure/repositories/storage.repository';
 
 /**

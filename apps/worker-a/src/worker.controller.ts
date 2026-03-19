@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { JobService } from '@libs/jobs';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, JobUpdateMessage } from '@libs/events';
 import {
   OrgDeletionWorkerService,
   OrgDeletionRequestedEventPayload,
 } from '@libs/org-deletion';
-import { JobStatus, Prisma } from '@prisma/client';
+import {
+  OrgExportWorkerService,
+  OrgExportRequestedEventPayload,
+} from '@libs/org-export';
+import { JobStatus } from '@prisma/client';
 
 /**
  * Job payload carried inside DomainEvent.payload for HEAVY_JOB_CREATED events.
@@ -40,9 +44,10 @@ export class WorkerController {
   private readonly logger = new Logger(WorkerController.name);
 
   constructor(
-    private readonly prisma: PrismaBusinessService,
+    private readonly jobRepo: JobService,
     private readonly pubSub: PubSubService,
     private readonly orgDeletionWorker: OrgDeletionWorkerService,
+    private readonly orgExportWorker: OrgExportWorkerService,
   ) {}
 
   /**
@@ -59,14 +64,7 @@ export class WorkerController {
     );
 
     // ── PENDING → PROCESSING ─────────────────────────────────────────────
-    await this.prisma.job.update({
-      where: { id: jobId },
-      data: {
-        status: JobStatus.PROCESSING,
-        attempts: { increment: 1 },
-        startedAt: new Date(),
-      },
-    });
+    await this.jobRepo.markProcessing(jobId);
 
     await this.pubSub.publish(jobChannel(tenantId), {
       jobId,
@@ -82,14 +80,7 @@ export class WorkerController {
       const result = await this.doWork(event.payload);
 
       // ── PROCESSING → DONE ─────────────────────────────────────────────
-      await this.prisma.job.update({
-        where: { id: jobId },
-        data: {
-          status: JobStatus.DONE,
-          result: result as Prisma.InputJsonValue,
-          finishedAt: new Date(),
-        },
-      });
+      await this.jobRepo.markDone(jobId, result);
 
       await this.pubSub.publish(jobChannel(tenantId), {
         jobId,
@@ -105,14 +96,7 @@ export class WorkerController {
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       // ── PROCESSING → FAILED ───────────────────────────────────────────
-      await this.prisma.job.update({
-        where: { id: jobId },
-        data: {
-          status: JobStatus.FAILED,
-          error: message,
-          finishedAt: new Date(),
-        },
-      });
+      await this.jobRepo.markFailed(jobId, message);
 
       await this.pubSub.publish(jobChannel(tenantId), {
         jobId,
@@ -167,6 +151,31 @@ export class WorkerController {
       orgId,
       trigger,
       orgName,
+      requestedAt,
+    );
+  }
+
+  /**
+   * Handles organization export requests.
+   * Delegates to OrgExportWorkerService for export generation.
+   */
+  async handleOrgExportRequested(
+    event: DomainEvent<OrgExportRequestedEventPayload>,
+  ): Promise<void> {
+    const { orgId, exportId, jobId, orgName, requestedByUserId, requestedAt } =
+      event.payload;
+
+    this.logger.log(
+      `[Worker-Compute-A] Received org export request: ${exportId} for org ${orgId}`,
+    );
+
+    // Execute the export workflow
+    await this.orgExportWorker.executeExport(
+      orgId,
+      exportId,
+      jobId,
+      orgName,
+      requestedByUserId,
       requestedAt,
     );
   }

@@ -57,6 +57,12 @@ export const DOMAIN_EVENTS = {
   ORG_DELETION_STARTED: 'org.deletion.started',
   ORG_DELETION_COMPLETED: 'org.deletion.completed',
   ORG_DELETION_FAILED: 'org.deletion.failed',
+
+  // Organization export (Standard queue)
+  ORG_EXPORT_REQUESTED: 'org.export.requested',
+  ORG_EXPORT_STARTED: 'org.export.started',
+  ORG_EXPORT_COMPLETED: 'org.export.completed',
+  ORG_EXPORT_FAILED: 'org.export.failed',
 } as const;
 
 export type DomainEventType =
