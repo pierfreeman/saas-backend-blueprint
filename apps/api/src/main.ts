@@ -18,6 +18,10 @@ Sentry.init({
   tracesSampleRate: Number.parseFloat(
     process.env['SENTRY_TRACES_SAMPLE_RATE'] ?? '0.1',
   ),
+  enableLogs: true,
+  integrations: [
+    Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] }),
+  ],
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
