@@ -45,8 +45,8 @@ const mockOrganizationsService = {
   findById: jest.fn(),
 };
 
-const mockAuth0ManagementService = {
-  sendPasswordlessLink: jest.fn(),
+const mockEmailService = {
+  sendTransactionalEmail: jest.fn(),
 };
 
 const mockConfigService = {
@@ -58,7 +58,7 @@ function buildService() {
     mockUsersService as never,
     mockMembershipsService as never,
     mockOrganizationsService as never,
-    mockAuth0ManagementService as never,
+    mockEmailService as never,
     mockConfigService as never,
   );
 }
@@ -75,13 +75,11 @@ describe('InviteMemberService', () => {
     mockUsersService.findById.mockResolvedValue(inviterUser);
     mockMembershipsService.findByUserAndOrg.mockResolvedValue(null);
     mockMembershipsService.createMembership.mockResolvedValue(baseMembership);
-    mockAuth0ManagementService.sendPasswordlessLink.mockResolvedValue(
-      undefined,
-    );
+    mockEmailService.sendTransactionalEmail.mockResolvedValue(undefined);
   });
 
   describe('invite — existing user', () => {
-    it('creates membership and sends Auth0 passwordless link without creating a new Prisma user', async () => {
+    it('creates membership and sends invite email without creating a new Prisma user', async () => {
       mockUsersService.findByEmail.mockResolvedValue(existingUser);
 
       const result = await service.invite(
@@ -97,17 +95,17 @@ describe('InviteMemberService', () => {
         { userId: existingUser.id, role: MembershipRole.MEMBER },
         inviterUser.id,
       );
-      expect(
-        mockAuth0ManagementService.sendPasswordlessLink,
-      ).toHaveBeenCalledWith(
-        existingUser.email,
-        'http://localhost:4200/auth/callback',
+      expect(mockEmailService.sendTransactionalEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: 'user-invite',
+          recipient: existingUser.email,
+        }),
       );
     });
   });
 
   describe('invite — new user (not in Prisma)', () => {
-    it('creates a pending Prisma user, creates membership, and sends Auth0 passwordless link', async () => {
+    it('creates a pending Prisma user, creates membership, and sends invite email', async () => {
       mockUsersService.findByEmail.mockResolvedValue(null);
       mockUsersService.createUser.mockResolvedValue(pendingUser);
 
@@ -132,12 +130,12 @@ describe('InviteMemberService', () => {
         inviterUser.id,
       );
 
-      // Auth0 passwordless link sent with correct redirect URI
-      expect(
-        mockAuth0ManagementService.sendPasswordlessLink,
-      ).toHaveBeenCalledWith(
-        pendingUser.email,
-        'http://localhost:4200/auth/callback',
+      // Invite email sent
+      expect(mockEmailService.sendTransactionalEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: 'user-invite',
+          recipient: pendingUser.email,
+        }),
       );
     });
   });

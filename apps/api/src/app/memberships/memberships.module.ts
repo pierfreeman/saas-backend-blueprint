@@ -4,6 +4,7 @@ import { TenantModule } from '@libs/common';
 import { MembershipsModule as MembershipsLibModule } from '@libs/memberships';
 import { OrganizationsModule } from '@libs/organizations';
 import { UsersModule } from '@libs/users';
+import { EmailModule } from '@libs/email';
 import { MembershipsController } from './memberships.controller';
 import { RBACModule } from '@libs/rbac';
 import { InviteMemberService } from './invite-member.service';
@@ -18,6 +19,7 @@ import { AuthModule } from '../auth/auth.module';
     UsersModule,
     OrganizationsModule,
     ConfigModule,
+    EmailModule,
     AuthModule,
   ],
   controllers: [MembershipsController],
