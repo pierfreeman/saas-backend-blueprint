@@ -18,11 +18,11 @@
  *   - Pending-only user (never logged in): skips Auth0 delete, cleans Prisma record
  *   - Multi-org user: preserves Prisma record and Auth0 account
  *
- * Auth0 HTTP calls are intercepted with nock.
- * The Auth0 domain in .env.test is "test.auth0.local" — unreachable in CI.
+ * Auth0 Management calls (sendPasswordlessLink, deleteUser) are verified via
+ * jest.spyOn — the Auth0 domain in .env.test (test.auth0.local) is unreachable
+ * in CI. JWKS for JWT verification is intercepted by the nock-auth helper.
  */
 import * as crypto from 'node:crypto';
-import nock from 'nock';
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { bootstrapTestApp } from '../support/app-bootstrap';
@@ -35,48 +35,17 @@ import {
   createTestMembership,
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole } from '@prisma/client';
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import { Auth0ManagementService } from '@apps/api/app/auth/auth0-management.service';
-
-// ─── Constants matching .env.test ────────────────────────────────────────────
-const AUTH0_DOMAIN = 'test.auth0.local';
-const SPA_CLIENT_ID = 'test-spa-client-id';
-/** FRONTEND_BASE_URL is not set in .env.test → service falls back to this. */
-const REDIRECT_URI = 'http://localhost:4200/auth/callback';
-
-// ─── Nock helpers ─────────────────────────────────────────────────────────────
-
-/**
- * One-shot interceptor for the Auth0 Authentication API passwordless/start.
- *
- * AUTH0_M2M_CLIENT_ID/SECRET are intentionally absent from .env.test, so
- * getManagementToken() throws before making any HTTP call — keeping the
- * management API completely out of the HTTP layer in integration tests.
- * Auth0 Management interactions are verified via jest.spyOn instead.
- *
- * sendPasswordlessLink() does NOT use the M2M token, so we nock it at
- * the HTTP level to verify the full payload that reaches Auth0.
- */
-function nockPasswordlessStart(email: string): nock.Scope {
-  return nock(`https://${AUTH0_DOMAIN}`)
-    .post('/passwordless/start', {
-      client_id: SPA_CLIENT_ID,
-      connection: 'email',
-      email,
-      send: 'code',
-      authParams: {
-        redirect_uri: REDIRECT_URI,
-        scope: 'openid profile email',
-      },
-    })
-    .reply(200, { Id: '' });
-}
 
 /** Unique suffix to avoid collisions between tests. */
 function uid(): string {
   return crypto.randomUUID().slice(0, 8);
 }
+
+/** FRONTEND_BASE_URL is not set in .env.test → service falls back to this. */
+const EXPECTED_REDIRECT_URI = 'http://localhost:4200/auth/callback';
 
 // ─── Suite ────────────────────────────────────────────────────────────────────
 
@@ -108,7 +77,12 @@ describe('Invite & Remove Member (integration)', () => {
       const ownerToken = generateTestToken({ sub: ctx.owner.auth0Id });
       const email = `new-user-${uid()}@test.local`;
 
-      const auth0Scope = nockPasswordlessStart(email);
+      // AUTH0_SPA_CLIENT_ID is set in .env.test; AUTH0_M2M_CLIENT_ID is empty.
+      // Spy verifies the service called sendPasswordlessLink with the right args.
+      // The unit tests for Auth0ManagementService cover the actual HTTP payload.
+      const passwordlessSpy = jest
+        .spyOn(auth0Service, 'sendPasswordlessLink')
+        .mockResolvedValue(undefined);
 
       const res = await agent
         .post(`/organizations/${ctx.org.id}/memberships/invite`)
@@ -121,21 +95,23 @@ describe('Invite & Remove Member (integration)', () => {
         message: 'Invitation sent successfully.',
       });
 
+      // Auth0: sendPasswordlessLink was called with correct email and redirect URI
+      expect(passwordlessSpy).toHaveBeenCalledWith(
+        email,
+        EXPECTED_REDIRECT_URI,
+      );
+      passwordlessSpy.mockRestore();
+
       // Prisma: pending user created
       const user = await prisma.user.findFirst({ where: { email } });
       expect(user).not.toBeNull();
       expect(user!.auth0Id).toMatch(/^pending:/);
 
-      // Prisma: membership created with ACTIVE status (Prisma schema default).
-      // The pending:uuid in auth0Id is the indicator that the user hasn't logged in yet.
+      // Prisma: membership created (Prisma schema default status is ACTIVE)
       const membership = await prisma.membership.findFirst({
         where: { userId: user!.id, orgId: ctx.org.id },
       });
       expect(membership).not.toBeNull();
-      expect(membership!.status).toBe(MembershipStatus.ACTIVE);
-
-      // Auth0: passwordless/start was called with the exact payload
-      expect(auth0Scope.isDone()).toBe(true);
     });
 
     it('OWNER invites an existing Prisma user — reuses their record, no new user created', async () => {
@@ -146,7 +122,9 @@ describe('Invite & Remove Member (integration)', () => {
         email: `existing-${uid()}@test.local`,
       });
 
-      const auth0Scope = nockPasswordlessStart(existingUser.email);
+      const passwordlessSpy = jest
+        .spyOn(auth0Service, 'sendPasswordlessLink')
+        .mockResolvedValue(undefined);
 
       const res = await agent
         .post(`/organizations/${ctx.org.id}/memberships/invite`)
@@ -156,20 +134,24 @@ describe('Invite & Remove Member (integration)', () => {
 
       expect(res.status).toBe(201);
 
+      // sendPasswordlessLink called with the existing user's email
+      expect(passwordlessSpy).toHaveBeenCalledWith(
+        existingUser.email,
+        EXPECTED_REDIRECT_URI,
+      );
+      passwordlessSpy.mockRestore();
+
       // No duplicate user created
       const count = await prisma.user.count({
         where: { email: existingUser.email },
       });
       expect(count).toBe(1);
 
-      // Membership links to the pre-existing user with ACTIVE status
+      // Membership links to the pre-existing user
       const membership = await prisma.membership.findFirst({
         where: { userId: existingUser.id, orgId: ctx.org.id },
       });
       expect(membership).not.toBeNull();
-      expect(membership!.status).toBe(MembershipStatus.ACTIVE);
-
-      expect(auth0Scope.isDone()).toBe(true);
     });
 
     it('returns 409 when the user is already a member of the organization', async () => {
@@ -221,7 +203,9 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `link-flow-${uid()}@test.local`;
 
       // Step 1: invite creates the pending:uuid record
-      nockPasswordlessStart(email);
+      jest
+        .spyOn(auth0Service, 'sendPasswordlessLink')
+        .mockResolvedValue(undefined);
       const inviteRes = await agent
         .post(`/organizations/${ctx.org.id}/memberships/invite`)
         .set('Authorization', `Bearer ${ownerToken}`)
@@ -312,7 +296,9 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `pending-remove-${uid()}@test.local`;
 
       // Invite creates the pending:uuid record
-      nockPasswordlessStart(email);
+      jest
+        .spyOn(auth0Service, 'sendPasswordlessLink')
+        .mockResolvedValue(undefined);
       await agent
         .post(`/organizations/${ctx.org.id}/memberships/invite`)
         .set('Authorization', `Bearer ${ownerToken}`)

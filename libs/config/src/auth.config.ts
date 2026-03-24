@@ -11,4 +11,8 @@ export default registerAs('auth', () => ({
   /** Auth0 Machine-to-Machine credentials for the Management API (optional — required only for email-based invite flow). */
   m2mClientId: process.env['AUTH0_M2M_CLIENT_ID'],
   m2mClientSecret: process.env['AUTH0_M2M_CLIENT_SECRET'],
+  /** Auth0 SPA Application client ID — used by the backend to trigger passwordless
+   * invite emails via the Auth0 Authentication API (/passwordless/start).
+   * Same value as auth0ClientId in the Angular frontend environment.ts. */
+  spaClientId: process.env['AUTH0_SPA_CLIENT_ID'],
 }));

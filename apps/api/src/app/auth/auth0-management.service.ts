@@ -133,4 +133,47 @@ export class Auth0ManagementService {
 
     this.logger.log(`Deleted Auth0 user: ${auth0UserId}`);
   }
+
+  /**
+   * Sends a passwordless magic-link email via the Auth0 Authentication API.
+   *
+   * Uses the SPA application's client_id (not the M2M app) because
+   * `/passwordless/start` is part of the Authentication API — no access
+   * token is required. Auth0 authenticates by the client_id alone.
+   *
+   * Prerequisite: the Passwordless Email connection must be enabled for the
+   * SPA app in the Auth0 dashboard (Authentication → Passwordless → Email →
+   * Applications tab → enable SaaS Frontend).
+   */
+  async sendPasswordlessLink(
+    email: string,
+    redirectUri: string,
+  ): Promise<void> {
+    const domain = this.configService.get<string>('auth.domain');
+    const clientId = this.configService.get<string>('auth.spaClientId');
+
+    if (!domain || !clientId) {
+      throw new Error(
+        'Auth0 SPA client ID is not configured. ' +
+          'Set AUTH0_SPA_CLIENT_ID environment variable.',
+      );
+    }
+
+    // 'code' mode avoids Auth0's cross-device browser-binding that breaks
+    // server-initiated magic links.  Auth0 generates {{ link }} in the email
+    // template (a verify_redirect URL embedding the OTP), which works on any
+    // device because no browser-session cookie is created server-side.
+    await this.http.post(`https://${domain}/passwordless/start`, {
+      client_id: clientId,
+      connection: 'email',
+      email,
+      send: 'code',
+      authParams: {
+        redirect_uri: redirectUri,
+        scope: 'openid profile email',
+      },
+    });
+
+    this.logger.log(`Passwordless link sent to ${email}`);
+  }
 }

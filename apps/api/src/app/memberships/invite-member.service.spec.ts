@@ -45,8 +45,8 @@ const mockOrganizationsService = {
   findById: jest.fn(),
 };
 
-const mockEmailService = {
-  sendTransactionalEmail: jest.fn(),
+const mockAuth0ManagementService = {
+  sendPasswordlessLink: jest.fn(),
 };
 
 const mockConfigService = {
@@ -58,7 +58,7 @@ function buildService() {
     mockUsersService as never,
     mockMembershipsService as never,
     mockOrganizationsService as never,
-    mockEmailService as never,
+    mockAuth0ManagementService as never,
     mockConfigService as never,
   );
 }
@@ -75,7 +75,9 @@ describe('InviteMemberService', () => {
     mockUsersService.findById.mockResolvedValue(inviterUser);
     mockMembershipsService.findByUserAndOrg.mockResolvedValue(null);
     mockMembershipsService.createMembership.mockResolvedValue(baseMembership);
-    mockEmailService.sendTransactionalEmail.mockResolvedValue(undefined);
+    mockAuth0ManagementService.sendPasswordlessLink.mockResolvedValue(
+      undefined,
+    );
   });
 
   describe('invite — existing user', () => {
@@ -95,11 +97,11 @@ describe('InviteMemberService', () => {
         { userId: existingUser.id, role: MembershipRole.MEMBER },
         inviterUser.id,
       );
-      expect(mockEmailService.sendTransactionalEmail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          templateName: 'user-invite',
-          recipient: existingUser.email,
-        }),
+      expect(
+        mockAuth0ManagementService.sendPasswordlessLink,
+      ).toHaveBeenCalledWith(
+        existingUser.email,
+        'http://localhost:4200/auth/callback',
       );
     });
   });
@@ -130,12 +132,12 @@ describe('InviteMemberService', () => {
         inviterUser.id,
       );
 
-      // Invite email sent
-      expect(mockEmailService.sendTransactionalEmail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          templateName: 'user-invite',
-          recipient: pendingUser.email,
-        }),
+      // Passwordless invite sent via Auth0
+      expect(
+        mockAuth0ManagementService.sendPasswordlessLink,
+      ).toHaveBeenCalledWith(
+        pendingUser.email,
+        'http://localhost:4200/auth/callback',
       );
     });
   });
