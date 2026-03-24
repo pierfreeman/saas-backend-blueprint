@@ -192,33 +192,36 @@ cp .env.example .env
 
 #### Optional variables
 
-| Variable                      | Default        | Description                                                   |
-| ----------------------------- | -------------- | ------------------------------------------------------------- |
-| `PORT`                        | `3000`         | HTTP port the API listens on                                  |
-| `NODE_ENV`                    | `development`  | Runtime environment                                           |
-| `EVENT_BUS_TRANSPORT`         | `local`        | `local` (EventEmitter) or `sqs`                               |
-| `SQS_STANDARD_QUEUE_URL`      | —              | Required when `EVENT_BUS_TRANSPORT=sqs`                       |
-| `SQS_FIFO_QUEUE_URL`          | —              | Required when `EVENT_BUS_TRANSPORT=sqs` (must end in `.fifo`) |
-| `SQS_ENDPOINT_URL`            | —              | LocalStack endpoint, e.g. `http://localhost:4566`             |
-| `STRIPE_SECRET_KEY`           | —              | Stripe secret key                                             |
-| `STRIPE_WEBHOOK_SECRET`       | —              | Stripe webhook signing secret (`whsec_…`)                     |
-| `STRIPE_PRICE_ID_PRO`         | —              | Stripe Price ID → ENTERPRISE tier                             |
-| `STRIPE_PRICE_ID_BASIC`       | —              | Stripe Price ID → PRO tier                                    |
-| `EMAIL_PROVIDER`              | `sendgrid`     | Email provider: `sendgrid` or `smtp`                          |
-| `EMAIL_FROM_ADDRESS`          | —              | Sender email address                                          |
-| `EMAIL_FROM_NAME`             | —              | Sender display name                                           |
-| `SENDGRID_API_KEY`            | —              | SendGrid API key (required when `EMAIL_PROVIDER=sendgrid`)    |
-| `SMTP_HOST`                   | —              | SMTP host (required when `EMAIL_PROVIDER=smtp`)               |
-| `SENTRY_DSN`                  | —              | Sentry project DSN                                            |
-| `CORS_ALLOWED_ORIGINS`        | _(all in dev)_ | Comma-separated allowed origins (required in production)      |
-| `RATE_LIMIT_MAX_PER_IP`       | `100`          | Rate limit requests per window per IP                         |
-| `BRUTE_FORCE_MAX_ATTEMPTS`    | `5`            | Auth failures before IP lockout                               |
-| `AWS_REGION`                  | `us-east-1`    | AWS region for S3                                             |
-| `AWS_ACCESS_KEY_ID`           | —              | AWS access key (use `test` for LocalStack)                    |
-| `AWS_SECRET_ACCESS_KEY`       | —              | AWS secret key (use `test` for LocalStack)                    |
-| `AWS_S3_BUCKET`               | —              | S3 bucket name                                                |
-| `AWS_S3_ENDPOINT`             | —              | Override endpoint, e.g. `http://localhost:4566` (LocalStack)  |
-| `EXPORT_URL_EXPIRATION_HOURS` | `24`           | Signed export download URL lifetime (hours)                   |
+| Variable                      | Default                 | Description                                                      |
+| ----------------------------- | ----------------------- | ---------------------------------------------------------------- |
+| `PORT`                        | `3000`                  | HTTP port the API listens on                                     |
+| `NODE_ENV`                    | `development`           | Runtime environment                                              |
+| `EVENT_BUS_TRANSPORT`         | `local`                 | `local` (EventEmitter) or `sqs`                                  |
+| `SQS_STANDARD_QUEUE_URL`      | —                       | Required when `EVENT_BUS_TRANSPORT=sqs`                          |
+| `SQS_FIFO_QUEUE_URL`          | —                       | Required when `EVENT_BUS_TRANSPORT=sqs` (must end in `.fifo`)    |
+| `SQS_ENDPOINT_URL`            | —                       | LocalStack endpoint, e.g. `http://localhost:4566`                |
+| `STRIPE_SECRET_KEY`           | —                       | Stripe secret key                                                |
+| `STRIPE_WEBHOOK_SECRET`       | —                       | Stripe webhook signing secret (`whsec_…`)                        |
+| `STRIPE_PRICE_ID_PRO`         | —                       | Stripe Price ID → ENTERPRISE tier                                |
+| `STRIPE_PRICE_ID_BASIC`       | —                       | Stripe Price ID → PRO tier                                       |
+| `EMAIL_PROVIDER`              | `sendgrid`              | Email provider: `sendgrid` or `smtp`                             |
+| `EMAIL_FROM_ADDRESS`          | —                       | Sender email address                                             |
+| `EMAIL_FROM_NAME`             | —                       | Sender display name                                              |
+| `SENDGRID_API_KEY`            | —                       | SendGrid API key (required when `EMAIL_PROVIDER=sendgrid`)       |
+| `SMTP_HOST`                   | —                       | SMTP host (required when `EMAIL_PROVIDER=smtp`)                  |
+| `SENTRY_DSN`                  | —                       | Sentry project DSN                                               |
+| `CORS_ALLOWED_ORIGINS`        | _(all in dev)_          | Comma-separated allowed origins (required in production)         |
+| `RATE_LIMIT_MAX_PER_IP`       | `100`                   | Rate limit requests per window per IP                            |
+| `BRUTE_FORCE_MAX_ATTEMPTS`    | `5`                     | Auth failures before IP lockout                                  |
+| `AWS_REGION`                  | `us-east-1`             | AWS region for S3                                                |
+| `AWS_ACCESS_KEY_ID`           | —                       | AWS access key (use `test` for LocalStack)                       |
+| `AWS_SECRET_ACCESS_KEY`       | —                       | AWS secret key (use `test` for LocalStack)                       |
+| `AWS_S3_BUCKET`               | —                       | S3 bucket name                                                   |
+| `AWS_S3_ENDPOINT`             | —                       | Override endpoint, e.g. `http://localhost:4566` (LocalStack)     |
+| `EXPORT_URL_EXPIRATION_HOURS` | `24`                    | Signed export download URL lifetime (hours)                      |
+| `AUTH0_M2M_CLIENT_ID`         | —                       | Auth0 M2M application Client ID — required for email invites     |
+| `AUTH0_M2M_CLIENT_SECRET`     | —                       | Auth0 M2M application Client Secret — required for email invites |
+| `FRONTEND_BASE_URL`           | `http://localhost:4200` | Frontend base URL embedded in invite emails                      |
 
 For the complete variable list for each subsystem, see the relevant library README.
 
@@ -268,6 +271,21 @@ The API uses **Auth0** as the identity provider. All protected endpoints require
 3. Obtain a token (Machine-to-Machine app or SPA flow) and send it as `Authorization: Bearer <token>`.
 
 On first call to `GET /auth/me` the user is upserted using the `sub` JWT claim.
+
+### Email-based member invites (M2M)
+
+The `POST /organizations/:orgId/memberships/invite` endpoint creates new Auth0 users on-the-fly when the invited email doesn't exist yet. It requires a **Machine-to-Machine application** with the Auth0 Management API scope:
+
+1. In the Auth0 dashboard → **Applications → Applications → Create Application → Machine to Machine**.
+2. Authorize it against the **Auth0 Management API** with at minimum the `create:users` and `create:password_change_tickets` scopes.
+3. Copy the Client ID and Client Secret to `.env`:
+   ```
+   AUTH0_M2M_CLIENT_ID=<your-m2m-client-id>
+   AUTH0_M2M_CLIENT_SECRET=<your-m2m-client-secret>
+   ```
+4. Set `FRONTEND_BASE_URL` to your deployed frontend URL (used as the redirect after password reset and as the invite landing page for existing users).
+
+> If `AUTH0_M2M_CLIENT_ID` / `AUTH0_M2M_CLIENT_SECRET` are left blank the invite endpoint will throw a `500` when called — all other endpoints continue to work normally.
 
 ---
 

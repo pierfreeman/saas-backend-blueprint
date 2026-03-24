@@ -2,6 +2,9 @@ import { MembershipsController } from './memberships.controller';
 import { MembershipsService } from '@libs/memberships';
 import { RBACCacheService } from '@libs/rbac';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { InviteMemberService } from './invite-member.service';
+import { RemoveMemberService } from './remove-member.service';
+import { ConflictException } from '@nestjs/common';
 
 const mockMembershipsService = {
   createMembership: jest.fn(),
@@ -14,6 +17,14 @@ const mockRBACCacheService = {
   invalidate: jest.fn().mockResolvedValue(undefined),
   invalidateOrg: jest.fn().mockResolvedValue(undefined),
 } as unknown as RBACCacheService;
+
+const mockInviteMemberService = {
+  invite: jest.fn(),
+} as unknown as InviteMemberService;
+
+const mockRemoveMemberService = {
+  remove: jest.fn(),
+} as unknown as RemoveMemberService;
 
 const baseMembership = {
   id: 'm-1',
@@ -33,6 +44,8 @@ describe('MembershipsController', () => {
     controller = new MembershipsController(
       mockMembershipsService,
       mockRBACCacheService,
+      mockInviteMemberService,
+      mockRemoveMemberService,
     );
   });
 
@@ -116,28 +129,65 @@ describe('MembershipsController', () => {
   });
 
   describe('delete()', () => {
-    it('deletes a membership and returns a success message', async () => {
-      mockMembershipsService.deleteMembership = jest
-        .fn()
-        .mockResolvedValue(undefined);
+    it('delegates to RemoveMemberService and returns success message', async () => {
+      mockRemoveMemberService.remove = jest.fn().mockResolvedValue(undefined);
 
-      const result = await controller.delete('org-1', 'm-1');
+      const result = await controller.delete('org-1', 'm-1', 'actor-id');
+
       expect(result).toEqual({ message: 'Membership deleted successfully' });
-      expect(mockMembershipsService.deleteMembership).toHaveBeenCalledWith(
+      expect(mockRemoveMemberService.remove).toHaveBeenCalledWith(
         'm-1',
         'org-1',
+        'actor-id',
       );
+      expect(mockRBACCacheService.invalidateOrg).toHaveBeenCalledWith('org-1');
     });
 
-    it('propagates NotFoundException from service', async () => {
+    it('propagates NotFoundException from RemoveMemberService', async () => {
       const { NotFoundException } = jest.requireActual('@nestjs/common');
-      mockMembershipsService.deleteMembership = jest
+      mockRemoveMemberService.remove = jest
         .fn()
         .mockRejectedValue(new NotFoundException('Membership not found'));
 
-      await expect(controller.delete('org-1', 'm-x')).rejects.toThrow(
-        NotFoundException,
+      await expect(
+        controller.delete('org-1', 'm-x', 'actor-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('invite()', () => {
+    const inviteDto = {
+      email: 'alice@example.com',
+      role: 'MEMBER' as MembershipRole,
+    };
+    const inviterUserId = 'inviter-db-id';
+
+    it('delegates to InviteMemberService and returns the result', async () => {
+      const expected = { message: 'Invitation sent successfully.' };
+      mockInviteMemberService.invite = jest.fn().mockResolvedValue(expected);
+
+      const result = await controller.invite('org-1', inviteDto, inviterUserId);
+
+      expect(result).toBe(expected);
+      expect(mockInviteMemberService.invite).toHaveBeenCalledWith(
+        inviteDto,
+        'org-1',
+        inviterUserId,
       );
+    });
+
+    it('propagates ConflictException when user is already a member', async () => {
+      mockInviteMemberService.invite = jest
+        .fn()
+        .mockRejectedValue(
+          new ConflictException(
+            'alice@example.com is already a member of this organization.',
+          ),
+        );
+
+      await expect(
+        controller.invite('org-1', inviteDto, inviterUserId),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

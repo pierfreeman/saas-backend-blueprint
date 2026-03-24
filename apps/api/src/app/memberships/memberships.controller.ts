@@ -25,10 +25,17 @@ import {
   OrgContextGuard,
   RBACGuard,
   RBACCacheService,
+  CurrentUserId,
 } from '@libs/rbac';
 import { CreateMembershipDto } from './dto/create-membership.dto';
+import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
 import { MembershipsService } from '@libs/memberships';
+import {
+  InviteMemberService,
+  InviteMemberResult,
+} from './invite-member.service';
+import { RemoveMemberService } from './remove-member.service';
 
 @ApiTags('Memberships')
 @ApiBearerAuth()
@@ -39,6 +46,8 @@ export class MembershipsController {
   constructor(
     private readonly membershipsService: MembershipsService,
     private readonly rbacCacheService: RBACCacheService,
+    private readonly inviteMemberService: InviteMemberService,
+    private readonly removeMemberService: RemoveMemberService,
   ) {}
 
   @Post()
@@ -345,10 +354,63 @@ export class MembershipsController {
   async delete(
     @Param('orgId') orgId: string,
     @Param('id') id: string,
+    @CurrentUserId() actorUserId: string,
   ): Promise<{ message: string }> {
-    await this.membershipsService.deleteMembership(id, orgId);
-    // userId isn't available after deletion; invalidate all org caches to be safe
+    await this.removeMemberService.remove(id, orgId, actorUserId);
     await this.rbacCacheService.invalidateOrg(orgId);
     return { message: 'Membership deleted successfully' };
+  }
+
+  @Post('invite')
+  @RequirePermissions([PERMISSIONS.ORG_MEMBERS_INVITE])
+  @ApiOperation({
+    summary: 'Invite a new or existing user by email',
+    description:
+      'Sends an email invitation to the given address. ' +
+      'If the user does not exist they are created in Auth0 and Prisma, ' +
+      'and a password-change ticket (7-day TTL) is used as the invite link. ' +
+      'If they already have an account the invite link points to the frontend. ' +
+      'Requires ORG_MEMBERS_INVITE permission (OWNER or ADMIN).',
+  })
+  @ApiParam({
+    name: 'orgId',
+    description: 'Organization UUID',
+    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Invitation sent successfully.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Invitation sent successfully.' },
+      },
+      required: ['message'],
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Validation failed — email must be a valid address; role must be a valid MembershipRole.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'The user is already a member of this organization.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Caller lacks ORG_MEMBERS_INVITE permission, or the organization has reached its seat limit.',
+  })
+  async invite(
+    @Param('orgId') orgId: string,
+    @Body() dto: InviteMemberDto,
+    @CurrentUserId() inviterUserId: string,
+  ): Promise<InviteMemberResult> {
+    return this.inviteMemberService.invite(dto, orgId, inviterUserId);
   }
 }
