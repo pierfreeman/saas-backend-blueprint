@@ -79,6 +79,23 @@ export class Auth0ManagementService {
   }
 
   /**
+   * Fetches a single Auth0 user by their user_id (i.e. the JWT `sub` claim).
+   * Useful for resolving the real email address when the access token doesn't
+   * carry an email claim (no Post-Login Action deployed yet).
+   */
+  async getUserById(auth0UserId: string): Promise<Auth0User> {
+    const token = await this.getManagementToken();
+    const domain = this.configService.get<string>('auth.domain');
+
+    const response = await this.http.get<Auth0User>(
+      `https://${domain}/api/v2/users/${encodeURIComponent(auth0UserId)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    return response.data;
+  }
+
+  /**
    * Looks up Auth0 users by email address.
    * Returns an empty array when no user is found — never throws a 404.
    *
@@ -116,5 +133,4 @@ export class Auth0ManagementService {
 
     this.logger.log(`Deleted Auth0 user: ${auth0UserId}`);
   }
-
 }

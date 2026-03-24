@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UsersService } from '@libs/users';
 import { User } from '@prisma/client';
+import { Auth0ManagementService } from './auth0-management.service';
 
 /** Prefix used for Prisma users created by the invite flow before the
  *  invitee has logged in and obtained a real Auth0 subject claim. */
@@ -10,7 +11,10 @@ export const PENDING_AUTH0_ID_PREFIX = 'pending:';
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly auth0ManagementService: Auth0ManagementService,
+  ) {}
 
   /**
    * Syncs an Auth0 user to the local database.
@@ -35,29 +39,52 @@ export class AuthService {
     const existingUser = await this.usersService.findByAuth0Id(auth0Id);
 
     if (existingUser) {
-      if (existingUser.email !== normalizedEmail) {
+      // Don't overwrite a real stored email with the placeholder that the JWT
+      // falls back to when no Post-Login Action has injected the email claim.
+      if (
+        existingUser.email !== normalizedEmail &&
+        !normalizedEmail.endsWith('@auth0.placeholder')
+      ) {
         this.logger.log(`Updating email for user ${existingUser.id}`);
         return this.usersService.updateEmail(existingUser.id, normalizedEmail);
       }
       return existingUser;
     }
 
-    // No user found by auth0Id -- check by email.
-    // This handles two cases:
+    // No user found by auth0Id — before doing an email lookup, resolve the
+    // real email if the JWT fell back to the synthetic placeholder (happens
+    // when no Auth0 Post-Login Action injects the email into the access token).
+    let resolvedEmail = normalizedEmail;
+    if (resolvedEmail.endsWith('@auth0.placeholder')) {
+      try {
+        const auth0User =
+          await this.auth0ManagementService.getUserById(auth0Id);
+        resolvedEmail = auth0User.email.toLowerCase();
+        this.logger.log(
+          `Resolved real email from Auth0 Management API for ${auth0Id}: ${resolvedEmail}`,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Could not resolve email for ${auth0Id} from Management API — keeping placeholder`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+    // Check by email. This handles two cases:
     //   a) Invited-pending user: auth0Id starts with `pending:` placeholder.
     //   b) Auth0 account linking failure: a verified user exists with this email
     //      but a different auth0Id (e.g. OTP account not yet linked to Google).
     // In both cases we update the stored auth0Id to the current JWT sub, keeping
     // a single Prisma record and all memberships intact.
-    const userByEmail = await this.usersService.findByEmail(normalizedEmail);
+    const userByEmail = await this.usersService.findByEmail(resolvedEmail);
     if (userByEmail) {
       if (userByEmail.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
         this.logger.log(
-          `Linking invited pending user ${normalizedEmail} to real Auth0 ID ${auth0Id}`,
+          `Linking invited pending user ${resolvedEmail} to real Auth0 ID ${auth0Id}`,
         );
       } else {
         this.logger.warn(
-          `Auth0 account linking fallback: relinking ${normalizedEmail} ` +
+          `Auth0 account linking fallback: relinking ${resolvedEmail} ` +
             `from ${userByEmail.auth0Id} to ${auth0Id}`,
         );
       }
@@ -69,7 +96,7 @@ export class AuthService {
     );
     const user = await this.usersService.provisionWithPersonalOrg(
       auth0Id,
-      normalizedEmail,
+      resolvedEmail,
     );
     this.logger.log(`Provisioned user ${user.id} with personal org`);
     return user;

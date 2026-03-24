@@ -1,5 +1,6 @@
 import { AuthService, PENDING_AUTH0_ID_PREFIX } from './auth.service';
 import { UsersService } from '@libs/users';
+import { Auth0ManagementService } from './auth0-management.service';
 
 const mockUsersService = {
   findByAuth0Id: jest.fn(),
@@ -10,6 +11,10 @@ const mockUsersService = {
   provisionWithPersonalOrg: jest.fn(),
 } as unknown as UsersService;
 
+const mockAuth0ManagementService = {
+  getUserById: jest.fn(),
+} as unknown as Auth0ManagementService;
+
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -17,7 +22,7 @@ describe('AuthService', () => {
     jest.clearAllMocks();
     // Default: no pending user found by email
     (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
-    service = new AuthService(mockUsersService);
+    service = new AuthService(mockUsersService, mockAuth0ManagementService);
   });
 
   describe('syncUser', () => {
@@ -79,6 +84,24 @@ describe('AuthService', () => {
         'new@b.com',
       );
     });
+
+    it('does not overwrite a real email with the placeholder when user is found by auth0Id', async () => {
+      const existing = {
+        id: 'u-1',
+        auth0Id: 'auth0|1',
+        email: 'real@example.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(existing);
+
+      const result = await service.syncUser(
+        'auth0|1',
+        'auth0|1@auth0.placeholder',
+      );
+      expect(result).toBe(existing);
+      expect(mockUsersService.updateEmail).not.toHaveBeenCalled();
+    });
   });
 
   describe('syncUser — email normalization', () => {
@@ -108,6 +131,107 @@ describe('AuthService', () => {
         'invited@example.com',
       );
       expect(mockUsersService.provisionWithPersonalOrg).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('syncUser — Management API email resolution (no Post-Login Action)', () => {
+    it('resolves real email from Management API when JWT contains placeholder', async () => {
+      const auth0Id = 'auth0|123';
+      const placeholderEmail = `${auth0Id}@auth0.placeholder`;
+      const realEmail = 'real@example.com';
+      const createdUser = {
+        id: 'u-new',
+        auth0Id,
+        email: realEmail,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
+      (mockAuth0ManagementService.getUserById as jest.Mock).mockResolvedValue({
+        user_id: auth0Id,
+        email: realEmail,
+        email_verified: true,
+        identities: [],
+      });
+      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
+      (
+        mockUsersService.provisionWithPersonalOrg as jest.Mock
+      ).mockResolvedValue(createdUser);
+
+      const result = await service.syncUser(auth0Id, placeholderEmail);
+
+      expect(result).toBe(createdUser);
+      expect(mockAuth0ManagementService.getUserById).toHaveBeenCalledWith(
+        auth0Id,
+      );
+      expect(mockUsersService.provisionWithPersonalOrg).toHaveBeenCalledWith(
+        auth0Id,
+        realEmail,
+      );
+    });
+
+    it('links pending invited user when Management API resolves email', async () => {
+      const auth0Id = 'auth0|456';
+      const placeholderEmail = `${auth0Id}@auth0.placeholder`;
+      const realEmail = 'invited@example.com';
+      const pending = {
+        id: 'u-pending',
+        auth0Id: `${PENDING_AUTH0_ID_PREFIX}some-uuid`,
+        email: realEmail,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const linked = { ...pending, auth0Id };
+
+      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
+      (mockAuth0ManagementService.getUserById as jest.Mock).mockResolvedValue({
+        user_id: auth0Id,
+        email: realEmail,
+        email_verified: true,
+        identities: [],
+      });
+      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(pending);
+      (mockUsersService.updateAuth0Id as jest.Mock).mockResolvedValue(linked);
+
+      const result = await service.syncUser(auth0Id, placeholderEmail);
+
+      expect(result).toBe(linked);
+      expect(mockUsersService.updateAuth0Id).toHaveBeenCalledWith(
+        'u-pending',
+        auth0Id,
+      );
+      expect(mockUsersService.provisionWithPersonalOrg).not.toHaveBeenCalled();
+    });
+
+    it('falls back to placeholder email when Management API call fails', async () => {
+      const auth0Id = 'auth0|789';
+      const placeholderEmail = `${auth0Id}@auth0.placeholder`;
+      const createdUser = {
+        id: 'u-new',
+        auth0Id,
+        email: placeholderEmail,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
+      (mockAuth0ManagementService.getUserById as jest.Mock).mockRejectedValue(
+        new Error('Management API unavailable'),
+      );
+      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
+      (
+        mockUsersService.provisionWithPersonalOrg as jest.Mock
+      ).mockResolvedValue(createdUser);
+
+      const result = await service.syncUser(auth0Id, placeholderEmail);
+
+      expect(result).toBe(createdUser);
+      // Provisions with placeholder — degraded but never crashes
+      expect(mockUsersService.provisionWithPersonalOrg).toHaveBeenCalledWith(
+        auth0Id,
+        placeholderEmail,
+      );
     });
   });
 
