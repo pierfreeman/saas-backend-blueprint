@@ -12,8 +12,7 @@ import { RBACModule } from '@libs/rbac';
 import { InviteMemberService } from './invite-member.service';
 import { RemoveMemberService } from './remove-member.service';
 import { AuthModule } from '../auth/auth.module';
-import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
-import { FeatureFlagsService } from '../feature-flags/feature-flags.service';
+import { FeatureFlagsModule, FeatureFlagsService } from '@libs/feature-flags';
 
 @Module({
   imports: [

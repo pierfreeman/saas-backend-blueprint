@@ -161,6 +161,12 @@
       ],
       "@libs/rbac/*": [
         "libs/rbac/src/*"
+      ],
+      "@libs/feature-flags": [
+        "libs/feature-flags/src/index.ts"
+      ],
+      "@libs/feature-flags/*": [
+        "libs/feature-flags/src/*"
       ]
     }
   },

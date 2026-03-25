@@ -1,7 +1,9 @@
 import { FeatureFlagsController } from './feature-flags.controller';
-import { FeatureFlagsService } from './feature-flags.service';
+import {
+  FeatureFlagsService,
+  OrganizationEntitlements,
+} from '@libs/feature-flags';
 import { BillingStatus } from '@prisma/client';
-import { OrganizationEntitlements } from './interfaces/entitlements.interface';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

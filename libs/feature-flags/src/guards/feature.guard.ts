@@ -54,20 +54,11 @@ export class FeatureGuard implements CanActivate {
     const orgId = request.orgId;
 
     if (!orgId) {
-      throw new ForbiddenException('Organization context not found');
-    }
-
-    const hasFeature = await this.featureFlagsService.checkFeature(
-      orgId,
-      requiredFeature,
-    );
-
-    if (!hasFeature) {
       throw new ForbiddenException(
-        `Feature '${requiredFeature}' is not available in your current plan`,
+        'Organization context is required for feature-gated routes.',
       );
     }
 
-    return true;
+    return this.featureFlagsService.checkFeature(orgId, requiredFeature);
   }
 }

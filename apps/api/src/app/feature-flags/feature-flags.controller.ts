@@ -16,8 +16,10 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@libs/common';
 import { OrgContextGuard, OrgScoped } from '@libs/rbac';
-import { FeatureFlagsService } from './feature-flags.service';
-import { OrganizationEntitlements } from './interfaces/entitlements.interface';
+import {
+  FeatureFlagsService,
+  OrganizationEntitlements,
+} from '@libs/feature-flags';
 
 @ApiTags('Feature Flags')
 @ApiBearerAuth()

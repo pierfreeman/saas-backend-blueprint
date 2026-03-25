@@ -1,10 +1,7 @@
 import { Module } from '@nestjs/common';
-import { BillingModule } from '@libs/billing';
-import { RedisModule } from '@libs/redis';
+import { FeatureFlagsModule as FeatureFlagsLibModule } from '@libs/feature-flags';
 import { RBACModule } from '@libs/rbac';
-import { FeatureFlagsService } from './feature-flags.service';
 import { FeatureFlagsController } from './feature-flags.controller';
-import { FeatureGuard } from './guards/feature.guard';
 
 /**
  * FeatureFlagsModule
@@ -42,9 +39,7 @@ import { FeatureGuard } from './guards/feature.guard';
  * Cache TTL: FEATURE_FLAGS_CACHE_TTL (seconds, default 600).
  */
 @Module({
-  imports: [BillingModule, RedisModule, RBACModule],
+  imports: [FeatureFlagsLibModule, RBACModule],
   controllers: [FeatureFlagsController],
-  providers: [FeatureFlagsService, FeatureGuard],
-  exports: [FeatureFlagsService, FeatureGuard],
 })
 export class FeatureFlagsModule {}
