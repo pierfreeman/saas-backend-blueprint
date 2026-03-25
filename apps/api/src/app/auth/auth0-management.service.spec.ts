@@ -40,7 +40,6 @@ describe('Auth0ManagementService', () => {
         'auth.domain': 'test.auth0.com',
         'auth.m2mClientId': 'client-id',
         'auth.m2mClientSecret': 'client-secret',
-        'auth.spaClientId': 'spa-client-id',
       };
       return cfg[key];
     });
@@ -139,67 +138,6 @@ describe('Auth0ManagementService', () => {
       await expect(service.deleteUser('auth0|xyz')).rejects.toThrow(
         'Auth0 network error',
       );
-    });
-  });
-
-  describe('sendPasswordlessLink', () => {
-    it('posts to /passwordless/start with SPA client_id, email and redirect URI', async () => {
-      await service.sendPasswordlessLink(
-        'alice@example.com',
-        'http://localhost:4200/auth/callback',
-      );
-
-      expect(mockPost).toHaveBeenCalledWith(
-        'https://test.auth0.com/passwordless/start',
-        {
-          client_id: 'spa-client-id',
-          connection: 'email',
-          email: 'alice@example.com',
-          send: 'code',
-          authParams: {
-            redirect_uri: 'http://localhost:4200/auth/callback',
-            scope: 'openid profile email',
-          },
-        },
-      );
-    });
-
-    it('does not request an M2M token (Authentication API, not Management)', async () => {
-      await service.sendPasswordlessLink(
-        'bob@example.com',
-        'http://localhost:4200/auth/callback',
-      );
-
-      const tokenCalls = mockPost.mock.calls.filter((c: string[]) =>
-        c[0].includes('/oauth/token'),
-      );
-      expect(tokenCalls).toHaveLength(0);
-    });
-
-    it('throws when AUTH0_SPA_CLIENT_ID is not configured', async () => {
-      mockGet.mockImplementation((key: string) => {
-        if (key === 'auth.spaClientId') return undefined;
-        return 'test.auth0.com';
-      });
-      service = buildService();
-
-      await expect(
-        service.sendPasswordlessLink(
-          'alice@example.com',
-          'http://localhost:4200/auth/callback',
-        ),
-      ).rejects.toThrow('Auth0 SPA client ID is not configured');
-    });
-
-    it('propagates network errors', async () => {
-      mockPost.mockRejectedValue(new Error('Connection timeout'));
-
-      await expect(
-        service.sendPasswordlessLink(
-          'alice@example.com',
-          'http://localhost:4200/auth/callback',
-        ),
-      ).rejects.toThrow('Connection timeout');
     });
   });
 });

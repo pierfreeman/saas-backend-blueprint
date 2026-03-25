@@ -1,4 +1,12 @@
 services:
+  # ─── Mailpit (local email catcher) ──────────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP — set SMTP_HOST=localhost SMTP_PORT=1025 in .env
+      - '8025:8025' # Web UI — open http://localhost:8025 to view emails
+
   # ─── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:17-alpine
@@ -131,6 +139,8 @@ services:
       # --- S3 via LocalStack ---
       AWS_S3_ENDPOINT: http://localstack:4566
       AWS_S3_BUCKET: saas-backend-storage
+      # --- Email via Mailpit (dev) ---
+      SMTP_HOST: mailpit
     depends_on:
       migrate:
         condition: service_completed_successfully

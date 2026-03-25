@@ -81,7 +81,7 @@ describe('InviteMemberService', () => {
   });
 
   describe('invite — existing user', () => {
-    it('creates membership and sends Auth0 passwordless link without creating a new Prisma user', async () => {
+    it('creates membership and sends invite email without creating a new Prisma user', async () => {
       mockUsersService.findByEmail.mockResolvedValue(existingUser);
 
       const result = await service.invite(
@@ -107,7 +107,7 @@ describe('InviteMemberService', () => {
   });
 
   describe('invite — new user (not in Prisma)', () => {
-    it('creates a pending Prisma user, creates membership, and sends Auth0 passwordless link', async () => {
+    it('creates a pending Prisma user, creates membership, and sends invite email', async () => {
       mockUsersService.findByEmail.mockResolvedValue(null);
       mockUsersService.createUser.mockResolvedValue(pendingUser);
 
@@ -132,7 +132,7 @@ describe('InviteMemberService', () => {
         inviterUser.id,
       );
 
-      // Auth0 passwordless link sent with correct redirect URI
+      // Passwordless invite sent via Auth0
       expect(
         mockAuth0ManagementService.sendPasswordlessLink,
       ).toHaveBeenCalledWith(

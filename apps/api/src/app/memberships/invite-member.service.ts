@@ -23,17 +23,18 @@ export interface InviteMemberResult {
  * Orchestrates the email-based member invite flow for apps using
  * passwordless / social (Google) login:
  *
- * 1. Resolve org and inviter details for email content.
+ * 1. Resolve org details.
  * 2. Resolve or create the invited user in Prisma:
  *    - Existing Prisma user → reuse.
  *    - New user → create a placeholder record (`auth0Id = pending:<uuid>`).
  *      On first login Auth0 provides the real sub; AuthService.syncUser
- *      detects the placeholder and updates it automatically (“accounting link”).
+ *      detects the placeholder and updates it automatically ("account link").
  * 3. Guard against duplicate memberships.
- * 4. Create the membership (status INVITED).
- * 5. Send a passwordless magic-link email via Auth0. The invitee clicks the
- *    link, authenticates, and is redirected to the frontend — at which point
- *    AuthService.syncUser links the real Auth0 ID to the pending Prisma record.
+ * 4. Create the membership.
+ * 5. Send a passwordless magic-link email via Auth0 (/passwordless/start).
+ *    The invitee clicks the link, authenticates, and is redirected to the
+ *    frontend — at which point AuthService.syncUser links the real Auth0 ID
+ *    to the pending Prisma record.
  */
 @Injectable()
 export class InviteMemberService {
@@ -53,6 +54,7 @@ export class InviteMemberService {
     inviterUserId: string,
   ): Promise<InviteMemberResult> {
     const email = dto.email.toLowerCase();
+
     // 1. Fetch org + inviter concurrently
     const [org, inviter] = await Promise.all([
       this.organizationsService.findById(orgId),
@@ -71,7 +73,7 @@ export class InviteMemberService {
         `User ${email} not found in Prisma — creating pending record.`,
       );
       // Create a placeholder Prisma record. The auth0Id is replaced with the
-      // real Auth0 sub on the user’s first login (see AuthService.syncUser).
+      // real Auth0 sub on the user's first login (see AuthService.syncUser).
       user = await this.usersService.createUser(
         `${PENDING_AUTH0_ID_PREFIX}${randomUUID()}`,
         email,
