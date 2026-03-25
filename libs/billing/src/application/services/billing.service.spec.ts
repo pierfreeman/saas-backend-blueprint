@@ -43,6 +43,7 @@ describe('BillingService', () => {
             updateOrgBillingData: jest.fn(),
             createBillingEvent: jest.fn(),
             findSnapshotsByOrgId: jest.fn(),
+            findOrgMeta: jest.fn(),
           },
         },
         {
@@ -162,19 +163,35 @@ describe('BillingService', () => {
       );
     });
 
-    it('throws BadRequestException when org has no stripeCustomerId', async () => {
-      billingRepository.findOrgById.mockResolvedValue({
-        ...mockOrg(),
-        stripeCustomerId: null,
+    it('auto-provisions a Stripe customer when org has no stripeCustomerId', async () => {
+      const orgWithoutCustomer = { ...mockOrg(), stripeCustomerId: null };
+      const orgWithCustomer = mockOrg();
+      billingRepository.findOrgById
+        .mockResolvedValueOnce(orgWithoutCustomer) // initial fetch in createCheckoutSession
+        .mockResolvedValueOnce(orgWithoutCustomer) // ensureStripeCustomer's own fetch
+        .mockResolvedValueOnce(orgWithCustomer); // re-fetch after provision
+      billingRepository.findOrgMeta.mockResolvedValue({
+        name: 'Test Org',
+        ownerEmail: 'owner@test.com',
       });
+      stripeService.createCustomer.mockResolvedValue({
+        id: 'cus_new_001',
+      } as never);
+      billingRepository.updateOrgBillingData.mockResolvedValue(undefined);
+      stripeService.createCheckoutSession.mockResolvedValue({
+        id: 'cs_001',
+        url: 'https://checkout.stripe.com/pay/cs_001',
+      } as never);
+      configService.get.mockReturnValue(undefined);
 
-      await expect(
-        service.createCheckoutSession(
-          'org-uuid-001',
-          'price_pro',
-          'user-uuid-001',
-        ),
-      ).rejects.toThrow(BadRequestException);
+      const result = await service.createCheckoutSession(
+        'org-uuid-001',
+        'price_pro',
+        'user-uuid-001',
+      );
+
+      expect(stripeService.createCustomer).toHaveBeenCalled();
+      expect(result.url).toContain('checkout.stripe.com');
     });
 
     it('throws BadRequestException when checkout session has no URL', async () => {
@@ -217,15 +234,34 @@ describe('BillingService', () => {
       );
     });
 
-    it('throws BadRequestException when org has no stripeCustomerId', async () => {
-      billingRepository.findOrgById.mockResolvedValue({
-        ...mockOrg(),
-        stripeCustomerId: null,
+    it('auto-provisions a Stripe customer when org has no stripeCustomerId', async () => {
+      const orgWithoutCustomer = { ...mockOrg(), stripeCustomerId: null };
+      const orgWithCustomer = mockOrg();
+      billingRepository.findOrgById
+        .mockResolvedValueOnce(orgWithoutCustomer) // initial fetch in createPortalSession
+        .mockResolvedValueOnce(orgWithoutCustomer) // ensureStripeCustomer's own fetch
+        .mockResolvedValueOnce(orgWithCustomer); // re-fetch after provision
+      billingRepository.findOrgMeta.mockResolvedValue({
+        name: 'Test Org',
+        ownerEmail: 'owner@test.com',
       });
+      stripeService.createCustomer.mockResolvedValue({
+        id: 'cus_new_001',
+      } as never);
+      billingRepository.updateOrgBillingData.mockResolvedValue(undefined);
+      stripeService.createPortalSession.mockResolvedValue({
+        url: 'https://billing.stripe.com/session/xxx',
+      } as never);
+      configService.get.mockReturnValue(undefined);
 
-      await expect(
-        service.createPortalSession('org-uuid-001', undefined, 'user-uuid-001'),
-      ).rejects.toThrow(BadRequestException);
+      const result = await service.createPortalSession(
+        'org-uuid-001',
+        undefined,
+        'user-uuid-001',
+      );
+
+      expect(stripeService.createCustomer).toHaveBeenCalled();
+      expect(result.url).toContain('billing.stripe.com');
     });
   });
 

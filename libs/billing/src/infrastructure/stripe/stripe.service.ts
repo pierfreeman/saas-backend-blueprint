@@ -147,15 +147,14 @@ export class StripeService {
     idempotencyKey?: string;
   }): Promise<Stripe.Checkout.Session> {
     try {
-      const requestOptions: Stripe.RequestOptions = {};
-      if (params.idempotencyKey) {
-        requestOptions.idempotencyKey = params.idempotencyKey;
-      }
+      const requestOptions: Stripe.RequestOptions | undefined =
+        params.idempotencyKey
+          ? { idempotencyKey: params.idempotencyKey }
+          : undefined;
       const session = await this.withRetry('createCheckoutSession', () =>
         this.stripe.checkout.sessions.create(
           {
             customer: params.customerId,
-            payment_method_types: ['card'],
             line_items: [{ price: params.priceId, quantity: 1 }],
             mode: 'subscription',
             success_url: params.successUrl,
@@ -171,7 +170,11 @@ export class StripeService {
       this.logger.debug(`Stripe checkout session created: ${session.id}`);
       return session;
     } catch (err) {
-      this.logger.error('Failed to create Stripe checkout session', err);
+      const stripeMsg = (err as { message?: string })?.message ?? String(err);
+      this.logger.error(
+        `Failed to create Stripe checkout session: ${stripeMsg}`,
+        err,
+      );
       throw new InternalServerErrorException(
         'Failed to create checkout session',
       );

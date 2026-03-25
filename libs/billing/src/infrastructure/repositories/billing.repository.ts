@@ -1,6 +1,10 @@
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { BillingStatus } from '@prisma/client';
+import {
+  BillingStatus,
+  MembershipRole,
+  MembershipStatus,
+} from '@prisma/client';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 import { BillingStatus as DomainBillingStatus } from '../../domain/enums/billing-status.enum';
 
@@ -89,6 +93,37 @@ export class BillingRepository {
       subscriptionPeriodEnd: org.subscriptionPeriodEnd,
       cancelAtPeriodEnd: org.cancelAtPeriodEnd,
     };
+  }
+
+  /**
+   * Returns the display name and OWNER email for an organization.
+   * Used to lazily provision a Stripe customer on first billing action.
+   * Falls back to `null` for ownerEmail if no OWNER membership is found.
+   */
+  async findOrgMeta(
+    orgId: string,
+  ): Promise<{ name: string; ownerEmail: string | null }> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: {
+        name: true,
+        memberships: {
+          where: {
+            role: MembershipRole.OWNER,
+            status: MembershipStatus.ACTIVE,
+          },
+          take: 1,
+          select: { user: { select: { email: true } } },
+        },
+      },
+    });
+
+    if (!org) {
+      throw new NotFoundException(`Organization ${orgId} not found`);
+    }
+
+    const ownerEmail = org.memberships[0]?.user?.email ?? null;
+    return { name: org.name, ownerEmail };
   }
 
   /**
