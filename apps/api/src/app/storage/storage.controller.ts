@@ -45,14 +45,12 @@ const CurrentDbUserId = createParamDecorator(
 );
 
 /**
- * Extracts the resolved organization ID (set on request.user.orgId by OrgContextGuard).
+ * Extracts the resolved organization ID (set on request.orgId by OrgContextGuard).
  */
 const CurrentOrgId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string | undefined => {
-    const request = ctx
-      .switchToHttp()
-      .getRequest<{ user?: { orgId?: string } }>();
-    return request.user?.orgId;
+    const request = ctx.switchToHttp().getRequest<{ orgId?: string }>();
+    return request.orgId;
   },
 );
 
@@ -84,7 +82,11 @@ export class StorageController {
 
   @Post('upload-url')
   @HttpCode(HttpStatus.CREATED)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+  )
   @ApiOperation({
     summary: 'Generate a presigned upload URL',
     description:
@@ -129,7 +131,11 @@ export class StorageController {
 
   @Post('confirm')
   @HttpCode(HttpStatus.OK)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+  )
   @ApiOperation({
     summary: 'Confirm file upload completion',
     description:
@@ -169,9 +175,14 @@ export class StorageController {
 
   // ─── GET /files/:id/download ────────────────────────────────────────────────
 
-  @Get(':id/download')
+  @Get(':fileId/download')
   @HttpCode(HttpStatus.OK)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER, MembershipRole.READ_ONLY)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+    MembershipRole.READ_ONLY,
+  )
   @ApiOperation({
     summary: 'Generate a presigned download URL',
     description:
@@ -179,7 +190,7 @@ export class StorageController {
       'The URL expires after a configured duration (default 1 hour).',
   })
   @ApiParam({
-    name: 'id',
+    name: 'fileId',
     description: 'File identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
@@ -194,10 +205,11 @@ export class StorageController {
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
-    description: 'File is not available for download (not in COMPLETED status).',
+    description:
+      'File is not available for download (not in COMPLETED status).',
   })
   async generateDownloadUrl(
-    @Param('id') fileId: string,
+    @Param('fileId') fileId: string,
     @CurrentOrgId() orgId: string,
     @CurrentDbUserId() userId: string,
   ): Promise<DownloadUrlResponseDto> {
@@ -218,15 +230,20 @@ export class StorageController {
 
   // ─── GET /files/:id ─────────────────────────────────────────────────────────
 
-  @Get(':id')
+  @Get(':fileId')
   @HttpCode(HttpStatus.OK)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER, MembershipRole.READ_ONLY)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+    MembershipRole.READ_ONLY,
+  )
   @ApiOperation({
     summary: 'Get file metadata',
     description: 'Returns metadata for a specific file.',
   })
   @ApiParam({
-    name: 'id',
+    name: 'fileId',
     description: 'File identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
@@ -240,7 +257,7 @@ export class StorageController {
     description: 'File not found.',
   })
   async getFile(
-    @Param('id') fileId: string,
+    @Param('fileId') fileId: string,
     @CurrentOrgId() orgId: string,
   ): Promise<FileMetadataResponseDto> {
     const file = await this.storageService.getFile(fileId, orgId);
@@ -266,7 +283,12 @@ export class StorageController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER, MembershipRole.READ_ONLY)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+    MembershipRole.READ_ONLY,
+  )
   @ApiOperation({
     summary: 'List organization files',
     description: 'Returns a list of files for the current organization.',
@@ -317,9 +339,13 @@ export class StorageController {
 
   // ─── DELETE /files/:id ──────────────────────────────────────────────────────
 
-  @Delete(':id')
+  @Delete(':fileId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+  )
   @ApiOperation({
     summary: 'Delete a file',
     description:
@@ -327,7 +353,7 @@ export class StorageController {
       'This operation cannot be undone.',
   })
   @ApiParam({
-    name: 'id',
+    name: 'fileId',
     description: 'File identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
@@ -340,7 +366,7 @@ export class StorageController {
     description: 'File not found.',
   })
   async deleteFile(
-    @Param('id') fileId: string,
+    @Param('fileId') fileId: string,
     @CurrentOrgId() orgId: string,
     @CurrentDbUserId() userId: string,
   ): Promise<void> {

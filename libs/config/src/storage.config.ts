@@ -8,6 +8,9 @@ export interface StorageConfig {
     secretAccessKey: string;
     bucket: string;
     endpoint?: string;
+    /** Public-facing endpoint for presigned URLs (used in local dev to rewrite
+     * internal Docker hostnames to localhost so browsers can reach them). */
+    publicEndpoint?: string;
   };
   azure: {
     storageAccount: string;
@@ -58,6 +61,7 @@ export default registerAs(
       secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] ?? '',
       bucket: process.env['AWS_S3_BUCKET'] ?? '',
       endpoint: process.env['AWS_S3_ENDPOINT'],
+      publicEndpoint: process.env['AWS_S3_PUBLIC_ENDPOINT'],
     },
     azure: {
       storageAccount: process.env['AZURE_STORAGE_ACCOUNT'] ?? '',

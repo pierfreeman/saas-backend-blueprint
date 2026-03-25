@@ -347,13 +347,15 @@ describe('StorageController', () => {
       1, // second parameter: @CurrentOrgId() orgId
     );
 
-    it('returns orgId when request.user is present', () => {
-      const ctx = makeCtx({ orgId: ORG_ID });
+    it('returns orgId when set on the request', () => {
+      const ctx = {
+        switchToHttp: () => ({ getRequest: () => ({ orgId: ORG_ID }) }),
+      };
       expect(factory(undefined, ctx)).toBe(ORG_ID);
     });
 
-    it('returns undefined when request.user is absent', () => {
-      const ctx = makeCtx(undefined);
+    it('returns undefined when orgId is absent from the request', () => {
+      const ctx = { switchToHttp: () => ({ getRequest: () => ({}) }) };
       expect(factory(undefined, ctx)).toBeUndefined();
     });
   });
