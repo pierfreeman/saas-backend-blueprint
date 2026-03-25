@@ -36,7 +36,6 @@ export interface UpdateBillingDataInput {
   subscriptionId?: string | null;
   billingStatus?: BillingStatus;
   planId?: string | null;
-  seatCount?: number;
   storageLimit?: bigint | null;
   subscriptionPeriodStart?: Date | null;
   subscriptionPeriodEnd?: Date | null;
@@ -69,7 +68,6 @@ export class BillingRepository {
         subscriptionId: true,
         billingStatus: true,
         planId: true,
-        seatCount: true,
         storageLimit: true,
         subscriptionPeriodStart: true,
         subscriptionPeriodEnd: true,
@@ -87,7 +85,6 @@ export class BillingRepository {
       subscriptionId: org.subscriptionId,
       billingStatus: org.billingStatus as unknown as DomainBillingStatus,
       planId: org.planId,
-      seatCount: org.seatCount,
       storageLimit: org.storageLimit,
       subscriptionPeriodStart: org.subscriptionPeriodStart,
       subscriptionPeriodEnd: org.subscriptionPeriodEnd,
@@ -141,7 +138,6 @@ export class BillingRepository {
         subscriptionId: true,
         billingStatus: true,
         planId: true,
-        seatCount: true,
         storageLimit: true,
         subscriptionPeriodStart: true,
         subscriptionPeriodEnd: true,
@@ -159,7 +155,6 @@ export class BillingRepository {
       subscriptionId: org.subscriptionId,
       billingStatus: org.billingStatus as unknown as DomainBillingStatus,
       planId: org.planId,
-      seatCount: org.seatCount,
       storageLimit: org.storageLimit,
       subscriptionPeriodStart: org.subscriptionPeriodStart,
       subscriptionPeriodEnd: org.subscriptionPeriodEnd,
@@ -187,7 +182,6 @@ export class BillingRepository {
           billingStatus: data.billingStatus,
         }),
         ...(data.planId !== undefined && { planId: data.planId }),
-        ...(data.seatCount !== undefined && { seatCount: data.seatCount }),
         ...(data.storageLimit !== undefined && {
           storageLimit: data.storageLimit,
         }),
@@ -251,9 +245,6 @@ export class BillingRepository {
             billingStatus: billing.billingStatus,
           }),
           ...(billing.planId !== undefined && { planId: billing.planId }),
-          ...(billing.seatCount !== undefined && {
-            seatCount: billing.seatCount,
-          }),
           ...(billing.storageLimit !== undefined && {
             storageLimit: billing.storageLimit,
           }),

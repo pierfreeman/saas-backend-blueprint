@@ -169,8 +169,6 @@ model Organization {
   billingStatus             BillingStatus  @default(NONE) @map("billing_status")
   /// Stripe Price ID of the active plan (e.g. price_xxx). Null if no subscription.
   planId                    String?        @map("plan_id")
-  /// Number of billable seats in the current subscription.
-  seatCount                 Int            @default(1) @map("seat_count")
   /// Storage quota in bytes. Null means plan default applies.
   storageLimit              BigInt?        @map("storage_limit")
   /// Start of the current billing period (from Stripe).

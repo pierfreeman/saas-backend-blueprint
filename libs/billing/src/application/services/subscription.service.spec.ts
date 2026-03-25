@@ -43,7 +43,6 @@ const makeOrg = (
   subscriptionId: 'sub_old_001',
   billingStatus: BillingStatus.ACTIVE,
   planId: 'price_pro',
-  seatCount: 1,
   storageLimit: null,
   subscriptionPeriodStart: null,
   subscriptionPeriodEnd: null,

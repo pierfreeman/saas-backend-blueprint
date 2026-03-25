@@ -1,8 +1,8 @@
 /**
  * PlanEntitlements
  * Boolean feature gates derived from an organization's subscription tier.
- * All fields are booleans — numeric resource limits are handled separately
- * via FeatureFlagsService.checkLimit().
+ * Numeric resource limits (e.g. maxSeats) are included here alongside boolean
+ * feature flags so that a single cache entry carries the full picture.
  */
 export interface PlanEntitlements {
   advancedAnalytics: boolean;
@@ -10,6 +10,8 @@ export interface PlanEntitlements {
   apiAccess: boolean;
   ssoEnabled: boolean;
   prioritySupport: boolean;
+  /** Maximum number of members allowed by this plan. 999999 means virtually unlimited. */
+  maxSeats: number;
 }
 
 /**

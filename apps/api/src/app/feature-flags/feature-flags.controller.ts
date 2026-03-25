@@ -49,6 +49,7 @@ export class FeatureFlagsController {
         'apiAccess',
         'ssoEnabled',
         'prioritySupport',
+        'maxSeats',
       ],
       properties: {
         organizationId: { type: 'string', format: 'uuid' },
@@ -77,6 +78,7 @@ export class FeatureFlagsController {
         apiAccess: { type: 'boolean', example: true },
         ssoEnabled: { type: 'boolean', example: false },
         prioritySupport: { type: 'boolean', example: false },
+        maxSeats: { type: 'integer', example: 10 },
       },
     },
   })

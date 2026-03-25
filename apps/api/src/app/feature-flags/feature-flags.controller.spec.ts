@@ -18,6 +18,7 @@ const makeEntitlements = (
   apiAccess: false,
   ssoEnabled: false,
   prioritySupport: false,
+  maxSeats: 3,
   ...overrides,
 });
 

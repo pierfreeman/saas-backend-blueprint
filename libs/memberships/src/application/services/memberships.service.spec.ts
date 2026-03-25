@@ -3,12 +3,9 @@ import { MembershipsRepository } from '../../infrastructure/repositories/members
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
-import {
-  BillingStatus,
-  MembershipRole,
-  MembershipStatus,
-} from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { IMembershipCacheNotifier } from '../../membership-cache-notifier.token';
+import { ISeatLimitProvider } from '../../seat-limit-provider.token';
 
 const mockActivityLog = {
   logActivity: jest.fn(),
@@ -17,9 +14,9 @@ const mockLegalAudit = {
   recordEvent: jest.fn(),
 } as unknown as LegalAuditService;
 const mockCacheNotifier: IMembershipCacheNotifier = { invalidate: jest.fn() };
+const mockSeatLimitProvider: ISeatLimitProvider = { getMaxSeats: jest.fn() };
 
 const mockRepo = {
-  findOrgSeatInfo: jest.fn(),
   countActive: jest.fn(),
   create: jest.fn(),
   findByOrg: jest.fn(),
@@ -50,14 +47,14 @@ describe('MembershipsService', () => {
       mockActivityLog,
       mockLegalAudit,
       mockCacheNotifier,
+      mockSeatLimitProvider,
     );
   });
 
   describe('createMembership', () => {
     it('creates a membership and invalidates cache', async () => {
-      mockRepo.findOrgSeatInfo = jest
-        .fn()
-        .mockResolvedValue({ billingStatus: BillingStatus.NONE, seatCount: 1 });
+      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(10);
+      mockRepo.countActive = jest.fn().mockResolvedValue(1);
       mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
       mockCacheNotifier.invalidate = jest.fn().mockResolvedValue(undefined);
 
@@ -77,13 +74,8 @@ describe('MembershipsService', () => {
   });
 
   describe('createMembership — seat limit enforcement', () => {
-    it('throws ForbiddenException when seat count is reached on paid plan', async () => {
-      mockRepo.findOrgSeatInfo = jest
-        .fn()
-        .mockResolvedValue({
-          billingStatus: BillingStatus.ACTIVE,
-          seatCount: 3,
-        });
+    it('throws ForbiddenException when active member count reaches the plan limit', async () => {
+      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(3);
       mockRepo.countActive = jest.fn().mockResolvedValue(3);
 
       await expect(
@@ -97,13 +89,8 @@ describe('MembershipsService', () => {
       expect(mockRepo.create).not.toHaveBeenCalled();
     });
 
-    it('allows creation when under seat limit', async () => {
-      mockRepo.findOrgSeatInfo = jest
-        .fn()
-        .mockResolvedValue({
-          billingStatus: BillingStatus.ACTIVE,
-          seatCount: 3,
-        });
+    it('allows creation when under the plan seat limit', async () => {
+      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(3);
       mockRepo.countActive = jest.fn().mockResolvedValue(2);
       mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
 
@@ -115,47 +102,48 @@ describe('MembershipsService', () => {
       ).toBe(baseMembership);
     });
 
-    it('skips seat check when billingStatus is NONE (free tier)', async () => {
-      mockRepo.findOrgSeatInfo = jest
-        .fn()
-        .mockResolvedValue({ billingStatus: BillingStatus.NONE, seatCount: 1 });
-      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
-
-      await service.createMembership('org-1', {
-        userId: 'u-2',
-        role: MembershipRole.MEMBER,
-      });
-
-      expect(mockRepo.countActive).not.toHaveBeenCalled();
-    });
-
-    it('skips seat check when org is not found', async () => {
-      mockRepo.findOrgSeatInfo = jest.fn().mockResolvedValue(null);
-      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
-
-      await service.createMembership('org-1', {
-        userId: 'u-2',
-        role: MembershipRole.MEMBER,
-      });
-
-      expect(mockRepo.countActive).not.toHaveBeenCalled();
-    });
-
-    it('enforces seat limit when billingStatus is TRIALING', async () => {
-      mockRepo.findOrgSeatInfo = jest
-        .fn()
-        .mockResolvedValue({
-          billingStatus: BillingStatus.TRIALING,
-          seatCount: 2,
-        });
-      mockRepo.countActive = jest.fn().mockResolvedValue(2);
+    it('enforces FREE plan limit of 3 seats', async () => {
+      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(3);
+      mockRepo.countActive = jest.fn().mockResolvedValue(3);
 
       await expect(
         service.createMembership('org-1', {
-          userId: 'u-2',
+          userId: 'u-free',
           role: MembershipRole.MEMBER,
         }),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows up to 10 members on PRO plan', async () => {
+      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(10);
+      mockRepo.countActive = jest.fn().mockResolvedValue(9);
+      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
+
+      await expect(
+        service.createMembership('org-1', {
+          userId: 'u-pro',
+          role: MembershipRole.MEMBER,
+        }),
+      ).resolves.toBe(baseMembership);
+    });
+
+    it('skips seat check when no seatLimitProvider is injected', async () => {
+      const serviceWithoutProvider = new MembershipsService(
+        mockRepo,
+        mockActivityLog,
+        mockLegalAudit,
+        mockCacheNotifier,
+        undefined,
+      );
+      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
+
+      await serviceWithoutProvider.createMembership('org-1', {
+        userId: 'u-2',
+        role: MembershipRole.MEMBER,
+      });
+
+      expect(mockRepo.countActive).not.toHaveBeenCalled();
+      expect(mockRepo.create).toHaveBeenCalled();
     });
   });
 
@@ -253,10 +241,10 @@ describe('MembershipsService', () => {
         mockActivityLog,
         mockLegalAudit,
         undefined,
+        mockSeatLimitProvider,
       );
-      mockRepo.findOrgSeatInfo = jest
-        .fn()
-        .mockResolvedValue({ billingStatus: BillingStatus.NONE, seatCount: 1 });
+      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(10);
+      mockRepo.countActive = jest.fn().mockResolvedValue(1);
       mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
 
       const result = await serviceWithoutCache.createMembership('org-1', {

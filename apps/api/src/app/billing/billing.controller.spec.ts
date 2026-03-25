@@ -14,7 +14,6 @@ const makeSubscriptionEntity = () => ({
   subscriptionId: 'sub_test',
   billingStatus: BillingStatus.ACTIVE,
   planId: 'price_pro',
-  seatCount: 5,
   storageLimit: null,
   subscriptionPeriodStart: new Date('2026-03-01'),
   subscriptionPeriodEnd: new Date('2026-04-01'),

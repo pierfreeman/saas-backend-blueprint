@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import {
-  BillingStatus,
   Membership,
   MembershipRole,
   MembershipStatus,
@@ -12,15 +11,6 @@ import {
 @Injectable()
 export class MembershipsRepository {
   constructor(private readonly prisma: PrismaBusinessService) {}
-
-  async findOrgSeatInfo(
-    orgId: string,
-  ): Promise<{ billingStatus: BillingStatus; seatCount: number } | null> {
-    return this.prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { billingStatus: true, seatCount: true },
-    });
-  }
 
   async countActive(orgId: string): Promise<number> {
     return this.prisma.membership.count({

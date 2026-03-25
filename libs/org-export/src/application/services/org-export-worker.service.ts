@@ -377,8 +377,6 @@ export class OrgExportWorkerService {
       status: string;
       billingStatus: string | null;
       planId: string | null;
-      seatCount: number | null;
-      maxSeats: number | null;
       createdAt: Date | null;
       updatedAt: Date | null;
     };
@@ -388,8 +386,6 @@ export class OrgExportWorkerService {
       status: o.status,
       billingStatus: o.billingStatus,
       planId: o.planId,
-      seatCount: o.seatCount,
-      maxSeats: o.maxSeats,
       createdAt: o.createdAt?.toISOString(),
       updatedAt: o.updatedAt?.toISOString(),
     };

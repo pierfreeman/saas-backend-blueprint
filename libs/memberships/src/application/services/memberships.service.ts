@@ -8,19 +8,16 @@ import {
 } from '@nestjs/common';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import {
-  BillingStatus,
-  Membership,
-  MembershipRole,
-  MembershipStatus,
-  Organization,
-  User,
-} from '@prisma/client';
+import { Membership, MembershipRole, Organization, User } from '@prisma/client';
 import { MembershipsRepository } from '../../infrastructure/repositories/memberships.repository';
 import {
   IMembershipCacheNotifier,
   MEMBERSHIP_CACHE_NOTIFIER,
 } from '../../membership-cache-notifier.token';
+import {
+  ISeatLimitProvider,
+  SEAT_LIMIT_PROVIDER,
+} from '../../seat-limit-provider.token';
 
 @Injectable()
 export class MembershipsService {
@@ -33,18 +30,20 @@ export class MembershipsService {
     @Optional()
     @Inject(MEMBERSHIP_CACHE_NOTIFIER)
     private readonly cacheNotifier?: IMembershipCacheNotifier,
+    @Optional()
+    @Inject(SEAT_LIMIT_PROVIDER)
+    private readonly seatLimitProvider?: ISeatLimitProvider,
   ) {}
 
   private async checkSeatLimit(orgId: string): Promise<void> {
-    const org = await this.repo.findOrgSeatInfo(orgId);
+    if (!this.seatLimitProvider) return;
 
-    if (!org || org.billingStatus === BillingStatus.NONE) return;
-
+    const maxSeats = await this.seatLimitProvider.getMaxSeats(orgId);
     const activeMemberCount = await this.repo.countActive(orgId);
 
-    if (activeMemberCount >= org.seatCount) {
+    if (activeMemberCount >= maxSeats) {
       throw new ForbiddenException(
-        `Seat limit reached (${org.seatCount}). Upgrade your plan to add more members.`,
+        `Seat limit reached (${maxSeats}). Upgrade your plan to add more members.`,
       );
     }
   }

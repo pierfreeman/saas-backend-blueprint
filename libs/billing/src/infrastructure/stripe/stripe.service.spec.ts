@@ -111,7 +111,7 @@ describe('StripeService', () => {
           mode: 'subscription',
           line_items: [{ price: 'price_pro', quantity: 1 }],
         }),
-        expect.objectContaining({}),
+        undefined,
       );
     });
 

@@ -22,6 +22,7 @@ const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     apiAccess: false,
     ssoEnabled: false,
     prioritySupport: false,
+    maxSeats: 3,
   },
   PRO: {
     advancedAnalytics: true,
@@ -29,6 +30,7 @@ const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     apiAccess: true,
     ssoEnabled: false,
     prioritySupport: false,
+    maxSeats: 10,
   },
   ENTERPRISE: {
     advancedAnalytics: true,
@@ -36,6 +38,7 @@ const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     apiAccess: true,
     ssoEnabled: true,
     prioritySupport: true,
+    maxSeats: 999999,
   },
 };
 
@@ -191,6 +194,15 @@ export class FeatureFlagsService implements OnModuleInit {
         : 'FREE';
     const limit = PLAN_LIMITS[tier][limitKey];
     return { allowed: currentCount < limit, limit, current: currentCount };
+  }
+
+  /**
+   * Returns the maximum number of members allowed for an organization's plan.
+   * Delegates to getEntitlements() so the result benefits from Redis caching.
+   */
+  async getMaxSeats(orgId: string): Promise<number> {
+    const entitlements = await this.getEntitlements(orgId);
+    return entitlements.maxSeats;
   }
 
   /**

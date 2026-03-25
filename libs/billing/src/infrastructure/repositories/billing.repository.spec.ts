@@ -39,7 +39,6 @@ const orgRow = {
   subscriptionId: 'sub_001',
   billingStatus: BillingStatus.ACTIVE,
   planId: 'price_pro',
-  seatCount: 3,
   storageLimit: BigInt(1073741824),
   subscriptionPeriodStart: new Date('2026-01-01'),
   subscriptionPeriodEnd: new Date('2026-02-01'),
@@ -78,7 +77,6 @@ describe('BillingRepository', () => {
       expect(result.orgId).toBe('org-1');
       expect(result.stripeCustomerId).toBe('cus_001');
       expect(result.billingStatus).toBe(BillingStatus.ACTIVE);
-      expect(result.seatCount).toBe(3);
     });
 
     it('throws NotFoundException when org does not exist', async () => {
@@ -138,12 +136,12 @@ describe('BillingRepository', () => {
     it('omits undefined fields from the update payload', async () => {
       mockPrisma.organization.update = jest.fn().mockResolvedValue({});
 
-      await repo.updateOrgBillingData('org-1', { seatCount: 5 });
+      await repo.updateOrgBillingData('org-1', { planId: 'price_pro' });
 
       const call = (mockPrisma.organization.update as jest.Mock).mock
         .calls[0][0];
       expect(call.data).not.toHaveProperty('billingStatus');
-      expect(call.data).toHaveProperty('seatCount', 5);
+      expect(call.data).toHaveProperty('planId', 'price_pro');
     });
 
     it('can null out subscriptionId and planId', async () => {
@@ -192,7 +190,7 @@ describe('BillingRepository', () => {
 
       await repo.updateOrgAndSnapshotTx(
         'org-1',
-        { billingStatus: BillingStatus.ACTIVE, seatCount: 3 },
+        { billingStatus: BillingStatus.ACTIVE },
         snapshotInput,
       );
 

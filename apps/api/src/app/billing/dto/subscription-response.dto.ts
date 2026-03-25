@@ -42,12 +42,6 @@ export class SubscriptionResponseDto {
   })
   planId!: string | null;
 
-  @ApiProperty({
-    description: 'Number of billable seats in the current subscription.',
-    example: 5,
-  })
-  seatCount!: number;
-
   @ApiPropertyOptional({
     description: 'Storage quota in bytes. Null means the plan default applies.',
     example: 107374182400,

@@ -16,7 +16,6 @@ const mockOrg = (): SubscriptionEntity => ({
   subscriptionId: null,
   billingStatus: BillingStatus.NONE,
   planId: null,
-  seatCount: 1,
   storageLimit: null,
   subscriptionPeriodStart: null,
   subscriptionPeriodEnd: null,

@@ -147,6 +147,7 @@ describe('FeatureFlagsService', () => {
         apiAccess: true,
         ssoEnabled: false,
         prioritySupport: false,
+        maxSeats: 10,
       };
       const billingService = makeBillingService();
       const cache = makeCache(cached);
@@ -168,6 +169,7 @@ describe('FeatureFlagsService', () => {
       expect(result.plan).toBe('FREE');
       expect(result.subscriptionStatus).toBe(BillingStatus.NONE);
       expect(result.advancedAnalytics).toBe(false);
+      expect(result.maxSeats).toBe(3);
       expect(cache.set).toHaveBeenCalledWith(
         `entitlements:${ORG_ID}`,
         result,
@@ -210,6 +212,7 @@ describe('FeatureFlagsService', () => {
       expect(result.plan).toBe('ENTERPRISE');
       expect(result.ssoEnabled).toBe(true);
       expect(result.prioritySupport).toBe(true);
+      expect(result.maxSeats).toBe(999999);
     });
 
     it('returns PRO entitlements for ACTIVE + STRIPE_PRICE_ID_PRO plan', async () => {
@@ -229,6 +232,7 @@ describe('FeatureFlagsService', () => {
       expect(result.plan).toBe('PRO');
       expect(result.advancedAnalytics).toBe(true);
       expect(result.ssoEnabled).toBe(false);
+      expect(result.maxSeats).toBe(10);
     });
 
     it('returns FREE when ACTIVE but planId matches no known price', async () => {
@@ -285,6 +289,7 @@ describe('FeatureFlagsService', () => {
         apiAccess: true,
         ssoEnabled: true,
         prioritySupport: true,
+        maxSeats: 999999,
       };
 
       await service.setEntitlements(ORG_ID, entitlements);
@@ -338,6 +343,7 @@ describe('FeatureFlagsService', () => {
         apiAccess: true,
         ssoEnabled: false,
         prioritySupport: false,
+        maxSeats: 10,
       };
       const billingService = makeBillingService();
       const cache = makeCache(cached);
@@ -412,6 +418,50 @@ describe('FeatureFlagsService', () => {
 
       expect(result.allowed).toBe(true);
       expect(result.limit).toBe(999999);
+    });
+  });
+
+  // ─── getMaxSeats ──────────────────────────────────────────────────────────
+
+  describe('getMaxSeats()', () => {
+    it('returns 3 for FREE plan', async () => {
+      const service = buildService(
+        makeBillingService({}),
+        makeCache(),
+        makeTransport(),
+      );
+
+      expect(await service.getMaxSeats(ORG_ID)).toBe(3);
+    });
+
+    it('returns 10 for PRO plan', async () => {
+      process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
+      const billingService = makeBillingService({
+        planId: PRICE_PRO,
+        billingStatus: BillingStatus.ACTIVE,
+      });
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
+
+      expect(await service.getMaxSeats(ORG_ID)).toBe(10);
+    });
+
+    it('returns 999999 for ENTERPRISE plan', async () => {
+      process.env['STRIPE_PRICE_ID_ENTERPRISE'] = PRICE_ENTERPRISE;
+      const billingService = makeBillingService({
+        planId: PRICE_ENTERPRISE,
+        billingStatus: BillingStatus.ACTIVE,
+      });
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
+
+      expect(await service.getMaxSeats(ORG_ID)).toBe(999999);
     });
   });
 
