@@ -16,7 +16,7 @@ libs/feature-flags/src/
 │   └── entitlements.interface.ts   PlanEntitlements + OrganizationEntitlements
 ├── guards/
 │   └── feature.guard.ts            RequireFeature decorator + FeatureGuard
-├── feature-flags.module.ts         NestJS module (imports BillingModule, RedisModule, RBACModule)
+├── feature-flags.module.ts         NestJS module (imports BillingModule, RedisModule)
 ├── feature-flags.service.ts        Core entitlement service
 ├── feature-flags.service.spec.ts
 └── index.ts                        Public barrel

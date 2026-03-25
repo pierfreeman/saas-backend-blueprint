@@ -208,7 +208,6 @@ model Organization {
   subscriptionId          String?       @unique  @map("subscription_id")
   billingStatus           BillingStatus @default(NONE) @map("billing_status")
   planId                  String?       @map("plan_id")
-  seatCount               Int           @default(1) @map("seat_count")
   storageLimit            BigInt?       @map("storage_limit")
   subscriptionPeriodStart DateTime?     @map("subscription_period_start")
   subscriptionPeriodEnd   DateTime?     @map("subscription_period_end")
