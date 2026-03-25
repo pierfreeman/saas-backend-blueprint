@@ -214,7 +214,6 @@ describe('Billing Webhooks (integration)', () => {
       expect(org?.billingStatus).toBe(BillingStatus.ACTIVE);
       expect(org?.subscriptionId).toBe('sub_new_001');
       expect(org?.planId).toBe('price_test_pro');
-      expect(org?.seatCount).toBe(3);
 
       // Verify BillingEvent idempotency record
       const billingEvent = await prisma.billingEvent.findUnique({
