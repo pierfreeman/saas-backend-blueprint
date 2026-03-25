@@ -185,6 +185,24 @@ services:
       localstack:
         condition: service_healthy
 
+  # ─── Stripe CLI (webhook forwarder — dev only) ───────────────────────────────
+  # Forwards Stripe test events to the local API container.
+  # The signing secret is deterministic per STRIPE_SECRET_KEY and matches the
+  # STRIPE_WEBHOOK_SECRET value in .env (run `docker run --rm stripe/stripe-cli
+  # listen --print-secret --api-key <key>` to regenerate it).
+  stripe-cli:
+    image: stripe/stripe-cli
+    command: >
+      listen
+      --forward-to http://api:3000/billing/webhook
+      --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,invoice.payment_succeeded,invoice.payment_failed
+    environment:
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_DEVICE_NAME: saas-local
+    depends_on:
+      - api
+    restart: on-failure
+
 volumes:
   postgres_data:
   postgres_legal_data:
