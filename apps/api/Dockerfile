@@ -1,5 +1,5 @@
 # ─── Stage 1: Builder ─────────────────────────────────────────────────────────
-FROM node:20.20.1-alpine3.22 AS builder
+FROM node:25.8.0-alpine3.22 AS builder
 
 WORKDIR /workspace
 
@@ -18,7 +18,7 @@ RUN npx prisma generate && \
     npx nx run api:build --configuration=production --skip-nx-cache
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
-FROM node:20.20.1-alpine3.22 AS production
+FROM node:25.8.0-alpine3.22 AS production
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
