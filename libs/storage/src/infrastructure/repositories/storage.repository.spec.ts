@@ -241,24 +241,28 @@ describe('StorageRepository', () => {
   });
 
   describe('confirmUpload', () => {
-    it('should confirm a file upload', async () => {
+    it('should confirm a file upload and persist its size', async () => {
+      const size = BigInt(12582912);
       const confirmedFile = {
         ...mockFile,
         status: FileStatus.COMPLETED,
         confirmedAt: mockDate,
+        size,
       };
       mockPrisma.file.update = jest.fn().mockResolvedValue(confirmedFile);
 
-      const result = await repository.confirmUpload('file-123');
+      const result = await repository.confirmUpload('file-123', size);
 
       expect(result.status).toBe(FileStatus.COMPLETED);
       expect(result.confirmedAt).toEqual(mockDate);
+      expect(result.size).toEqual(size);
 
       expect(mockPrisma.file.update).toHaveBeenCalledWith({
         where: { id: 'file-123' },
         data: {
           status: FileStatus.COMPLETED,
           confirmedAt: expect.any(Date),
+          size,
         },
       });
     });

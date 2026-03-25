@@ -361,14 +361,22 @@ export class BillingRepository {
    */
   async getOrgBillingStatus(
     orgId: string,
-  ): Promise<{ planId: string | null; billingStatus: BillingStatus } | null> {
+  ): Promise<{
+    planId: string | null;
+    billingStatus: BillingStatus;
+    storageLimit: bigint | null;
+  } | null> {
     const org = await this.prisma.organization.findUnique({
       where: { id: orgId },
-      select: { planId: true, billingStatus: true },
+      select: { planId: true, billingStatus: true, storageLimit: true },
     });
     if (!org) {
       return null;
     }
-    return { planId: org.planId, billingStatus: org.billingStatus };
+    return {
+      planId: org.planId,
+      billingStatus: org.billingStatus,
+      storageLimit: org.storageLimit,
+    };
   }
 }

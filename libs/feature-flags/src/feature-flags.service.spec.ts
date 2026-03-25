@@ -148,6 +148,7 @@ describe('FeatureFlagsService', () => {
         ssoEnabled: false,
         prioritySupport: false,
         maxSeats: 10,
+        storageLimitBytes: 5 * 1024 * 1024 * 1024,
       };
       const billingService = makeBillingService();
       const cache = makeCache(cached);
@@ -269,6 +270,84 @@ describe('FeatureFlagsService', () => {
     });
   });
 
+  // ─── storageLimitBytes ────────────────────────────────────────────────────
+
+  describe('getEntitlements() — storageLimitBytes', () => {
+    it('includes 100 MB storageLimitBytes for FREE plan', async () => {
+      const service = buildService(
+        makeBillingService({}), // ACTIVE but no matching planId → FREE
+        makeCache(),
+        makeTransport(),
+      );
+
+      const result = await service.getEntitlements(ORG_ID);
+
+      expect(result.storageLimitBytes).toBe(100 * 1024 * 1024); // 104857600
+    });
+
+    it('includes 5 GB storageLimitBytes for PRO plan', async () => {
+      process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
+      const service = buildService(
+        makeBillingService({
+          planId: PRICE_PRO,
+          billingStatus: BillingStatus.ACTIVE,
+        }),
+        makeCache(),
+        makeTransport(),
+      );
+
+      const result = await service.getEntitlements(ORG_ID);
+
+      expect(result.storageLimitBytes).toBe(5 * 1024 * 1024 * 1024); // 5368709120
+    });
+
+    it('includes 50 GB storageLimitBytes for ENTERPRISE plan', async () => {
+      process.env['STRIPE_PRICE_ID_ENTERPRISE'] = PRICE_ENTERPRISE;
+      const service = buildService(
+        makeBillingService({
+          planId: PRICE_ENTERPRISE,
+          billingStatus: BillingStatus.ACTIVE,
+        }),
+        makeCache(),
+        makeTransport(),
+      );
+
+      const result = await service.getEntitlements(ORG_ID);
+
+      expect(result.storageLimitBytes).toBe(50 * 1024 * 1024 * 1024); // 53687091200
+    });
+
+    it('defaults to FREE storageLimitBytes when subscription is inactive (PAST_DUE)', async () => {
+      process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
+      const service = buildService(
+        makeBillingService({
+          planId: PRICE_PRO,
+          billingStatus: BillingStatus.PAST_DUE,
+        }),
+        makeCache(),
+        makeTransport(),
+      );
+
+      const result = await service.getEntitlements(ORG_ID);
+
+      expect(result.plan).toBe('FREE');
+      expect(result.storageLimitBytes).toBe(100 * 1024 * 1024); // 104857600
+    });
+
+    it('defaults to FREE storageLimitBytes when org has no subscription', async () => {
+      const service = buildService(
+        makeBillingService(undefined), // getOrgBillingStatus returns null
+        makeCache(),
+        makeTransport(),
+      );
+
+      const result = await service.getEntitlements(ORG_ID);
+
+      expect(result.plan).toBe('FREE');
+      expect(result.storageLimitBytes).toBe(100 * 1024 * 1024);
+    });
+  });
+
   // ─── setEntitlements ──────────────────────────────────────────────────────
 
   describe('setEntitlements()', () => {
@@ -290,6 +369,7 @@ describe('FeatureFlagsService', () => {
         ssoEnabled: true,
         prioritySupport: true,
         maxSeats: 999999,
+        storageLimitBytes: 50 * 1024 * 1024 * 1024,
       };
 
       await service.setEntitlements(ORG_ID, entitlements);
@@ -344,6 +424,7 @@ describe('FeatureFlagsService', () => {
         ssoEnabled: false,
         prioritySupport: false,
         maxSeats: 10,
+        storageLimitBytes: 5 * 1024 * 1024 * 1024,
       };
       const billingService = makeBillingService();
       const cache = makeCache(cached);

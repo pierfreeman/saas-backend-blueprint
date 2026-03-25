@@ -22,15 +22,19 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { MembershipRole } from '@prisma/client';
-import { StorageService } from '@libs/storage';
+import { StorageService, UploadPolicyService } from '@libs/storage';
 import { JwtAuthGuard } from '@libs/common';
 import { OrgContextGuard, RBACGuard, OrgScoped, RequireRole } from '@libs/rbac';
+import { FeatureFlagsService } from '@libs/feature-flags';
+import { BillingService } from '@libs/billing';
+import type { PlanType } from '@libs/storage';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { ConfirmUploadDto } from './dto/confirm-upload.dto';
 import { ConfirmUploadResponseDto } from './dto/confirm-upload-response.dto';
 import { DownloadUrlResponseDto } from './dto/download-url-response.dto';
 import { FileMetadataResponseDto } from './dto/file-metadata-response.dto';
+import { StorageQuotaResponseDto } from './dto/storage-quota-response.dto';
 
 /**
  * Extracts the resolved DB user UUID (set on request.user.dbUserId by OrgContextGuard).
@@ -65,6 +69,7 @@ const CurrentOrgId = createParamDecorator(
  *
  * @route POST   /files/upload-url — Generate presigned upload URL
  * @route POST   /files/confirm    — Confirm file upload completion
+ * @route GET    /files/quota      — Get storage quota and usage
  * @route GET    /files/:id/download — Generate presigned download URL
  * @route GET    /files/:id        — Get file metadata
  * @route GET    /files            — List organization files
@@ -76,7 +81,12 @@ const CurrentOrgId = createParamDecorator(
 @OrgScoped()
 @Controller('files')
 export class StorageController {
-  constructor(private readonly storageService: StorageService) {}
+  constructor(
+    private readonly storageService: StorageService,
+    private readonly uploadPolicyService: UploadPolicyService,
+    private readonly featureFlagsService: FeatureFlagsService,
+    private readonly billingService: BillingService,
+  ) {}
 
   // ─── POST /files/upload-url ─────────────────────────────────────────────────
 
@@ -111,13 +121,19 @@ export class StorageController {
     @CurrentOrgId() orgId: string,
     @CurrentDbUserId() userId: string,
   ): Promise<UploadUrlResponseDto> {
-    const result = await this.storageService.generateUploadUrl({
-      orgId,
-      userId,
-      filename: dto.filename,
-      mimeType: dto.mimeType,
-      size: dto.size,
-    });
+    const { planType, orgStorageLimit } = await this.#resolveOrgPlan(orgId);
+
+    const result = await this.storageService.generateUploadUrl(
+      {
+        orgId,
+        userId,
+        filename: dto.filename,
+        mimeType: dto.mimeType,
+        size: dto.size,
+      },
+      planType,
+      orgStorageLimit,
+    );
 
     return {
       fileId: result.fileId,
@@ -170,6 +186,48 @@ export class StorageController {
       fileId: result.fileId,
       status: result.status,
       confirmedAt: result.confirmedAt,
+    };
+  }
+
+  // ─── GET /files/quota ───────────────────────────────────────────────────────
+
+  @Get('quota')
+  @HttpCode(HttpStatus.OK)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+    MembershipRole.READ_ONLY,
+  )
+  @ApiOperation({
+    summary: 'Get storage quota and usage',
+    description:
+      'Returns the current storage quota limits and actual usage for the organization. ' +
+      'Limits are derived from the organization subscription plan. ' +
+      'Per-org overrides (for custom enterprise deals) take precedence over plan defaults. ' +
+      'BigInt fields are serialized as strings to preserve precision.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Storage quota retrieved successfully.',
+    type: StorageQuotaResponseDto,
+  })
+  async getStorageQuota(
+    @CurrentOrgId() orgId: string,
+  ): Promise<StorageQuotaResponseDto> {
+    const { planType, orgStorageLimit } = await this.#resolveOrgPlan(orgId);
+    const quota = await this.uploadPolicyService.getStorageQuota(
+      orgId,
+      planType,
+      orgStorageLimit,
+    );
+
+    return {
+      storageLimitBytes: quota.storageLimitBytes?.toString() ?? null,
+      storageUsedBytes: quota.storageUsedBytes.toString(),
+      fileCount: quota.fileCount,
+      fileCountLimit: quota.fileCountLimit,
+      maxFileSizeBytes: quota.maxFileSizeBytes.toString(),
     };
   }
 
@@ -375,5 +433,32 @@ export class StorageController {
       orgId,
       userId,
     });
+  }
+
+  // ─── Private helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Resolves the plan type and per-org storage override for the given organization.
+   * Both lookups run in parallel to minimize latency.
+   *
+   * The plan tier comes from FeatureFlagsService (Redis-cached) and the
+   * orgStorageLimit comes from the billing record (DB, rarely needed).
+   */
+  async #resolveOrgPlan(
+    orgId: string,
+  ): Promise<{ planType: PlanType; orgStorageLimit: bigint | null }> {
+    const [entitlements, billing] = await Promise.all([
+      this.featureFlagsService.getEntitlements(orgId),
+      this.billingService.getOrgBillingStatus(orgId),
+    ]);
+
+    const planType: PlanType =
+      entitlements.plan === 'PRO'
+        ? 'pro'
+        : entitlements.plan === 'ENTERPRISE'
+          ? 'enterprise'
+          : 'free';
+
+    return { planType, orgStorageLimit: billing?.storageLimit ?? null };
   }
 }

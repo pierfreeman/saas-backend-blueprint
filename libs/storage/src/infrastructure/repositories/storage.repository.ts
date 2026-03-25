@@ -96,14 +96,15 @@ export class StorageRepository {
   }
 
   /**
-   * Confirm a file upload.
+   * Confirm a file upload, persisting its actual size.
    */
-  async confirmUpload(fileId: string): Promise<FileMetadata> {
+  async confirmUpload(fileId: string, size: bigint): Promise<FileMetadata> {
     const file = await this.prisma.file.update({
       where: { id: fileId },
       data: {
         status: FileStatus.COMPLETED,
         confirmedAt: new Date(),
+        size,
       },
     });
 

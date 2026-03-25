@@ -86,7 +86,9 @@ export class UploadPolicyService {
     if (orgStorageLimit !== undefined && orgStorageLimit !== null) {
       storageLimitBytes = orgStorageLimit;
     } else if (storageLimitGb !== undefined) {
-      storageLimitBytes = BigInt(storageLimitGb * 1024 * 1024 * 1024);
+      storageLimitBytes = BigInt(
+        Math.round(storageLimitGb * 1024 * 1024 * 1024),
+      );
     }
 
     return {

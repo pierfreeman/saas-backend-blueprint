@@ -21,6 +21,7 @@ const makeEntitlements = (
   ssoEnabled: false,
   prioritySupport: false,
   maxSeats: 3,
+  storageLimitBytes: 100 * 1024 * 1024, // 100 MiB (FREE plan default)
   ...overrides,
 });
 

@@ -127,6 +127,20 @@ export class S3StorageClient {
   }
 
   /**
+   * Return the size of an object in bytes via HeadObject.
+   * Assumes the object exists; call objectExists first if unsure.
+   */
+  async getObjectSize(key: string): Promise<bigint> {
+    const command = new HeadObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    const response = await this.client.send(command);
+    return BigInt(response.ContentLength ?? 0);
+  }
+
+  /**
    * Upload a buffer directly to S3.
    */
   async putObject(

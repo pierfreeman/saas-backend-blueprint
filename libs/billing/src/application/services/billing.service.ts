@@ -291,7 +291,11 @@ export class BillingService {
 
   async getOrgBillingStatus(
     orgId: string,
-  ): Promise<{ planId: string | null; billingStatus: BillingStatus } | null> {
+  ): Promise<{
+    planId: string | null;
+    billingStatus: BillingStatus;
+    storageLimit: bigint | null;
+  } | null> {
     return this.billingRepository.getOrgBillingStatus(orgId);
   }
 

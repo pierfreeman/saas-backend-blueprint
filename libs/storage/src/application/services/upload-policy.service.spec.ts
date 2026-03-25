@@ -18,24 +18,24 @@ describe('UploadPolicyService', () => {
       getStorageUsage: jest.fn(),
     } as unknown as jest.Mocked<StorageRepository>;
 
-    // Mock storage quotas config
+    // Mock storage quotas config — values mirror the production defaults in storage.config.ts
     configService.get.mockImplementation((key: string) => {
       const config: Record<string, unknown> = {
         'storage.quotas': {
           freePlan: {
-            storageLimitGb: 1,
+            storageLimitGb: 0.1, // 100 MB
             fileCountLimit: 100,
-            maxFileSizeGb: 0.1,
+            maxFileSizeGb: 0.05, // 50 MB
           },
           proPlan: {
-            storageLimitGb: 50,
+            storageLimitGb: 5, // 5 GB
             fileCountLimit: 10000,
-            maxFileSizeGb: 20,
+            maxFileSizeGb: 2, // 2 GB
           },
           enterprisePlan: {
-            storageLimitGb: undefined,
+            storageLimitGb: 50, // 50 GB
             fileCountLimit: undefined,
-            maxFileSizeGb: 100,
+            maxFileSizeGb: 10, // 10 GB
           },
         },
       };
@@ -58,19 +58,19 @@ describe('UploadPolicyService', () => {
   });
 
   describe('getUploadPolicy', () => {
-    it('should return free plan policy', () => {
+    it('should return free plan policy with 50 MB max file size', () => {
       const policy = service.getUploadPolicy('free');
-      expect(policy.maxFileSizeBytes).toBe(0.1 * 1024 * 1024 * 1024); // 100MB
+      expect(policy.maxFileSizeBytes).toBe(0.05 * 1024 * 1024 * 1024); // 50 MB
     });
 
-    it('should return pro plan policy', () => {
+    it('should return pro plan policy with 2 GB max file size', () => {
       const policy = service.getUploadPolicy('pro');
-      expect(policy.maxFileSizeBytes).toBe(20 * 1024 * 1024 * 1024); // 20GB
+      expect(policy.maxFileSizeBytes).toBe(2 * 1024 * 1024 * 1024); // 2 GB
     });
 
-    it('should return enterprise plan policy', () => {
+    it('should return enterprise plan policy with 10 GB max file size', () => {
       const policy = service.getUploadPolicy('enterprise');
-      expect(policy.maxFileSizeBytes).toBe(100 * 1024 * 1024 * 1024); // 100GB
+      expect(policy.maxFileSizeBytes).toBe(10 * 1024 * 1024 * 1024); // 10 GB
     });
   });
 
@@ -88,19 +88,19 @@ describe('UploadPolicyService', () => {
           'org-123',
           'test.pdf',
           'application/pdf',
-          50 * 1024 * 1024, // 50MB
+          40 * 1024 * 1024, // 40 MB — under 50 MB free plan max
           'free',
         ),
       ).resolves.not.toThrow();
     });
 
-    it('should throw BadRequestException for file too large', async () => {
+    it('should throw BadRequestException for file too large (free plan: max 50 MB)', async () => {
       await expect(
         service.validateUploadRequest(
           'org-123',
           'test.pdf',
           'application/pdf',
-          200 * 1024 * 1024, // 200MB (exceeds free plan 100MB limit)
+          60 * 1024 * 1024, // 60 MB — exceeds free plan 50 MB max
           'free',
         ),
       ).rejects.toThrow(BadRequestException);
@@ -123,9 +123,10 @@ describe('UploadPolicyService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('should throw ForbiddenException when storage quota exceeded', async () => {
+    it('should throw ForbiddenException when storage quota exceeded (free plan: ~102.4 MiB rounded limit from 0.1 GB)', async () => {
+      // storageLimitBytes = Math.round(0.1 * 1024^3) = 107374182 bytes
       storageRepository.getStorageUsage.mockResolvedValue({
-        totalBytes: BigInt(1 * 1024 * 1024 * 1024), // 1GB (at limit)
+        totalBytes: BigInt(Math.round(0.1 * 1024 * 1024 * 1024)), // at the exact rounded limit
         fileCount: 50,
       });
 
@@ -134,30 +135,65 @@ describe('UploadPolicyService', () => {
           'org-123',
           'test.pdf',
           'application/pdf',
-          1024 * 1024, // 1MB more would exceed quota
+          1, // even 1 byte more would exceed quota
           'free',
         ),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('should allow upload for enterprise plan with no limits', async () => {
+    it('passes validation exactly at free plan storage boundary (100 MB used, new upload is 0 extra bytes)', async () => {
       storageRepository.getStorageUsage.mockResolvedValue({
-        totalBytes: BigInt(500 * 1024 * 1024 * 1024), // 500GB
-        fileCount: 50000,
+        totalBytes: BigInt(99 * 1024 * 1024), // 99 MB used
+        fileCount: 50,
       });
 
+      // 99 MB used + 1 MB new = 100 MB exactly = at limit (not over)
       await expect(
         service.validateUploadRequest(
           'org-123',
           'test.pdf',
           'application/pdf',
-          50 * 1024 * 1024 * 1024, // 50GB
+          1 * 1024 * 1024, // 1 MB
+          'free',
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('should allow upload for enterprise plan within 50 GB limit', async () => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(20 * 1024 * 1024 * 1024), // 20 GB used
+        fileCount: 5000,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'large-file.zip',
+          'application/zip',
+          5 * 1024 * 1024 * 1024, // 5 GB upload — total would be 25 GB, still under 50 GB
           'enterprise',
         ),
       ).resolves.not.toThrow();
     });
 
-    it('should validate upload for pro plan (covers pro branch in getStorageQuota)', async () => {
+    it('should throw ForbiddenException when enterprise plan 50 GB limit would be exceeded', async () => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(48 * 1024 * 1024 * 1024), // 48 GB used
+        fileCount: 5000,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'large-file.zip',
+          'application/zip',
+          3 * 1024 * 1024 * 1024, // 3 GB upload — total would be 51 GB, exceeds 50 GB limit
+          'enterprise',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should validate upload for pro plan under 5 GB total storage limit', async () => {
       storageRepository.getStorageUsage.mockResolvedValue({
         totalBytes: BigInt(0),
         fileCount: 0,
@@ -168,10 +204,27 @@ describe('UploadPolicyService', () => {
           'org-123',
           'video.mp4',
           'video/mp4',
-          1 * 1024 * 1024 * 1024, // 1GB
+          1 * 1024 * 1024 * 1024, // 1 GB — well under 5 GB pro limit
           'pro',
         ),
       ).resolves.not.toThrow();
+    });
+
+    it('should throw ForbiddenException when pro plan 5 GB limit would be exceeded', async () => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(4.5 * 1024 * 1024 * 1024), // 4.5 GB used
+        fileCount: 100,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'video.mp4',
+          'video/mp4',
+          1 * 1024 * 1024 * 1024, // 1 GB upload — total would be 5.5 GB, exceeds 5 GB pro limit
+          'pro',
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('uses org-specific storage limit override when provided', async () => {

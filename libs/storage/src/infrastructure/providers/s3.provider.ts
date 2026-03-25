@@ -20,7 +20,11 @@ export class S3Provider implements IStorageProvider {
     this.logger.debug(
       `Generating upload URL for key: ${key}, contentType: ${contentType}`,
     );
-    return this.s3Client.generatePresignedUploadUrl(key, contentType, expiresIn);
+    return this.s3Client.generatePresignedUploadUrl(
+      key,
+      contentType,
+      expiresIn,
+    );
   }
 
   async generateDownloadUrl(key: string, expiresIn: number): Promise<string> {
@@ -35,5 +39,9 @@ export class S3Provider implements IStorageProvider {
 
   async objectExists(key: string): Promise<boolean> {
     return this.s3Client.objectExists(key);
+  }
+
+  async getObjectSize(key: string): Promise<bigint> {
+    return this.s3Client.getObjectSize(key);
   }
 }

@@ -32,6 +32,7 @@ describe('StorageService', () => {
       generateDownloadUrl: jest.fn(),
       deleteObject: jest.fn(),
       objectExists: jest.fn(),
+      getObjectSize: jest.fn(),
     } as unknown as jest.Mocked<S3Provider>;
 
     storageRepository = {
@@ -187,6 +188,7 @@ describe('StorageService', () => {
 
       storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
       s3Provider.objectExists.mockResolvedValue(true);
+      s3Provider.getObjectSize.mockResolvedValue(BigInt(12582912)); // 12 MB
       storageRepository.confirmUpload.mockResolvedValue(mockConfirmedFile);
 
       const result = await service.confirmUpload(mockRequest);
@@ -195,6 +197,7 @@ describe('StorageService', () => {
       expect(result.status).toBe(FileStatus.COMPLETED);
       expect(storageRepository.confirmUpload).toHaveBeenCalledWith(
         mockRequest.fileId,
+        BigInt(12582912),
       );
       expect(activityLog.logActivity).toHaveBeenCalledWith(
         expect.objectContaining({

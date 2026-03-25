@@ -12,6 +12,8 @@ export interface PlanEntitlements {
   prioritySupport: boolean;
   /** Maximum number of members allowed by this plan. 999999 means virtually unlimited. */
   maxSeats: number;
+  /** Total storage quota in bytes for the plan. Used for informational display; enforcement uses storage config. */
+  storageLimitBytes: number;
 }
 
 /**

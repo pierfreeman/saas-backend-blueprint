@@ -23,6 +23,7 @@ const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     ssoEnabled: false,
     prioritySupport: false,
     maxSeats: 3,
+    storageLimitBytes: 100 * 1024 * 1024, // 100 MB
   },
   PRO: {
     advancedAnalytics: true,
@@ -31,6 +32,7 @@ const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     ssoEnabled: false,
     prioritySupport: false,
     maxSeats: 10,
+    storageLimitBytes: 5 * 1024 * 1024 * 1024, // 5 GB
   },
   ENTERPRISE: {
     advancedAnalytics: true,
@@ -39,6 +41,7 @@ const PLAN_ENTITLEMENTS: Record<PlanTier, PlanEntitlements> = {
     ssoEnabled: true,
     prioritySupport: true,
     maxSeats: 999999,
+    storageLimitBytes: 50 * 1024 * 1024 * 1024, // 50 GB
   },
 };
 

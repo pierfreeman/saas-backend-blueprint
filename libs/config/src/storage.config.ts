@@ -89,35 +89,35 @@ export default registerAs(
       freePlan: {
         storageLimitGb: process.env['FREE_PLAN_STORAGE_LIMIT_GB']
           ? Number.parseFloat(process.env['FREE_PLAN_STORAGE_LIMIT_GB'])
-          : 1,
+          : 0.1, // 100 MB
         fileCountLimit: process.env['FREE_PLAN_FILE_COUNT_LIMIT']
           ? Number.parseInt(process.env['FREE_PLAN_FILE_COUNT_LIMIT'], 10)
           : 100,
         maxFileSizeGb: process.env['FREE_PLAN_MAX_FILE_SIZE_GB']
           ? Number.parseFloat(process.env['FREE_PLAN_MAX_FILE_SIZE_GB'])
-          : 0.1,
+          : 0.05, // 50 MB
       },
       proPlan: {
         storageLimitGb: process.env['PRO_PLAN_STORAGE_LIMIT_GB']
           ? Number.parseFloat(process.env['PRO_PLAN_STORAGE_LIMIT_GB'])
-          : 50,
+          : 5, // 5 GB
         fileCountLimit: process.env['PRO_PLAN_FILE_COUNT_LIMIT']
           ? Number.parseInt(process.env['PRO_PLAN_FILE_COUNT_LIMIT'], 10)
           : 10000,
         maxFileSizeGb: process.env['PRO_PLAN_MAX_FILE_SIZE_GB']
           ? Number.parseFloat(process.env['PRO_PLAN_MAX_FILE_SIZE_GB'])
-          : 20,
+          : 2, // 2 GB
       },
       enterprisePlan: {
         storageLimitGb: process.env['ENTERPRISE_PLAN_STORAGE_LIMIT_GB']
           ? Number.parseFloat(process.env['ENTERPRISE_PLAN_STORAGE_LIMIT_GB'])
-          : undefined,
+          : 50, // 50 GB
         fileCountLimit: process.env['ENTERPRISE_PLAN_FILE_COUNT_LIMIT']
           ? Number.parseInt(process.env['ENTERPRISE_PLAN_FILE_COUNT_LIMIT'], 10)
           : undefined,
         maxFileSizeGb: process.env['ENTERPRISE_PLAN_MAX_FILE_SIZE_GB']
           ? Number.parseFloat(process.env['ENTERPRISE_PLAN_MAX_FILE_SIZE_GB'])
-          : 100,
+          : 10, // 10 GB
       },
     },
     cleanup: {
