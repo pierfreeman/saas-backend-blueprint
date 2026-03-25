@@ -62,8 +62,8 @@ const PLAN_LIMITS: Record<PlanTier, Record<LimitKey, number>> = {
  *   - Manual invalidation available via invalidateEntitlements().
  *
  * Plan tier resolution:
- *   - planId === STRIPE_PRICE_ID_PRO   → ENTERPRISE tier
- *   - planId === STRIPE_PRICE_ID_BASIC → PRO tier
+ *   - planId === STRIPE_PRICE_ID_PRO   → PRO tier
+ *   - planId === STRIPE_PRICE_ID_ENTERPRISE → ENTERPRISE tier
  *   - Otherwise                        → FREE tier
  *   - billingStatus !== ACTIVE         → FREE tier (overrides plan)
  */
@@ -205,14 +205,15 @@ export class FeatureFlagsService implements OnModuleInit {
   /**
    * Maps a Stripe Price ID to an internal plan tier using environment variables.
    *
-   * STRIPE_PRICE_ID_PRO   → ENTERPRISE tier
-   * STRIPE_PRICE_ID_BASIC → PRO tier
+   * STRIPE_PRICE_ID_PRO   → PRO tier
+   * STRIPE_PRICE_ID_ENTERPRISE → ENTERPRISE tier
    * unknown / null        → FREE tier
    */
   private resolvePlanTier(planId: string | null): PlanTier {
     if (!planId) return 'FREE';
-    if (planId === process.env['STRIPE_PRICE_ID_PRO']) return 'ENTERPRISE';
-    if (planId === process.env['STRIPE_PRICE_ID_BASIC']) return 'PRO';
+    if (planId === process.env['STRIPE_PRICE_ID_PRO']) return 'PRO';
+    if (planId === process.env['STRIPE_PRICE_ID_ENTERPRISE'])
+      return 'ENTERPRISE';
     return 'FREE';
   }
 }

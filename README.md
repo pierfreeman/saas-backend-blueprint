@@ -202,8 +202,8 @@ cp .env.example .env
 | `SQS_ENDPOINT_URL`            | —                       | LocalStack endpoint, e.g. `http://localhost:4566`                   |
 | `STRIPE_SECRET_KEY`           | —                       | Stripe secret key                                                   |
 | `STRIPE_WEBHOOK_SECRET`       | —                       | Stripe webhook signing secret (`whsec_…`)                           |
-| `STRIPE_PRICE_ID_PRO`         | —                       | Stripe Price ID → ENTERPRISE tier                                   |
-| `STRIPE_PRICE_ID_BASIC`       | —                       | Stripe Price ID → PRO tier                                          |
+| `STRIPE_PRICE_ID_PRO`         | —                       | Stripe Price ID → PRO tier                                          |
+| `STRIPE_PRICE_ID_ENTERPRISE`  | —                       | Stripe Price ID → ENTERPRISE tier                                   |
 | `EMAIL_PROVIDER`              | `sendgrid`              | Email provider: `sendgrid` or `smtp`                                |
 | `EMAIL_FROM_ADDRESS`          | —                       | Sender email address                                                |
 | `EMAIL_FROM_NAME`             | —                       | Sender display name                                                 |

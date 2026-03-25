@@ -166,7 +166,7 @@ export class OrgDeletionService {
       const retentionDays =
         org.retentionPeriodDays ?? this.defaultRetentionDays;
       const retentionEnd = new Date(
-        org.subscriptionPeriodEnd!.getTime() +
+        org.subscriptionPeriodEnd.getTime() +
           retentionDays * 24 * 60 * 60 * 1000,
       );
       return now >= retentionEnd;

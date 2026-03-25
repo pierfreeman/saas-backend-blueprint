@@ -206,6 +206,15 @@ export class OrgExportRepository {
     });
   }
 
+  async findUserById(
+    userId: string,
+  ): Promise<{ id: string; email: string } | null> {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+  }
+
   /**
    * Aggregate all organisation data across relevant tables for GDPR export.
    * Queries run in parallel where possible for efficiency.

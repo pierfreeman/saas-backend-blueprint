@@ -5,9 +5,7 @@ import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExportStatus } from '@prisma/client';
-import { PrismaBusinessService } from '@libs/prisma-business';
-import * as JSZipModule from 'jszip';
-const JSZip = (JSZipModule as any).default ?? JSZipModule;
+import JSZip from 'jszip';
 import { ORG_EXPORT_EVENT_TYPES } from '../../constants/org-export-event.constants';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
 
@@ -33,7 +31,6 @@ export class OrgExportWorkerService {
     private readonly storage: StorageService,
     private readonly config: ConfigService,
     private readonly email: EmailService,
-    private readonly prisma: PrismaBusinessService,
     private readonly s3Client: S3StorageClient,
   ) {
     this.urlExpirationHours = this.config.get<number>(
@@ -274,7 +271,7 @@ export class OrgExportWorkerService {
   ): Promise<{ buffer: Buffer; size: number; filename: string }> {
     const json = JSON.stringify(data, this.jsonReplacer, 2);
 
-    const zip = new JSZip() as JSZipModule;
+    const zip = new JSZip();
     zip.file('export.json', json);
     const buffer = await zip.generateAsync({
       type: 'nodebuffer',
@@ -321,9 +318,7 @@ export class OrgExportWorkerService {
     orgId: string,
   ): Promise<void> {
     try {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
+      const user = await this.repo.findUserById(userId);
 
       if (!user) {
         this.logger.warn(
@@ -375,88 +370,153 @@ export class OrgExportWorkerService {
 
   // Sanitization methods to remove sensitive data and convert to plain objects
 
-  private sanitizeOrganization(org: any): Record<string, unknown> {
+  private sanitizeOrganization(org: unknown): Record<string, unknown> {
+    const o = org as {
+      id: string;
+      name: string;
+      status: string;
+      billingStatus: string | null;
+      planId: string | null;
+      seatCount: number | null;
+      maxSeats: number | null;
+      createdAt: Date | null;
+      updatedAt: Date | null;
+    };
     return {
-      id: org.id,
-      name: org.name,
-      status: org.status,
-      billingStatus: org.billingStatus,
-      planId: org.planId,
-      seatCount: org.seatCount,
-      maxSeats: org.maxSeats,
-      createdAt: org.createdAt?.toISOString(),
-      updatedAt: org.updatedAt?.toISOString(),
+      id: o.id,
+      name: o.name,
+      status: o.status,
+      billingStatus: o.billingStatus,
+      planId: o.planId,
+      seatCount: o.seatCount,
+      maxSeats: o.maxSeats,
+      createdAt: o.createdAt?.toISOString(),
+      updatedAt: o.updatedAt?.toISOString(),
     };
   }
 
-  private sanitizeMembership(membership: any): Record<string, unknown> {
+  private sanitizeMembership(membership: unknown): Record<string, unknown> {
+    const m = membership as {
+      id: string;
+      role: string;
+      status: string;
+      invitedAt: Date | null;
+      joinedAt: Date | null;
+      user: {
+        id: string;
+        email: string;
+        auth0Id: string;
+        createdAt: Date | null;
+      } | null;
+    };
     return {
-      id: membership.id,
-      role: membership.role,
-      status: membership.status,
-      invitedAt: membership.invitedAt?.toISOString(),
-      joinedAt: membership.joinedAt?.toISOString(),
-      user: membership.user
+      id: m.id,
+      role: m.role,
+      status: m.status,
+      invitedAt: m.invitedAt?.toISOString(),
+      joinedAt: m.joinedAt?.toISOString(),
+      user: m.user
         ? {
-            id: membership.user.id,
-            email: membership.user.email,
-            auth0Id: membership.user.auth0Id,
-            createdAt: membership.user.createdAt?.toISOString(),
+            id: m.user.id,
+            email: m.user.email,
+            auth0Id: m.user.auth0Id,
+            createdAt: m.user.createdAt?.toISOString(),
           }
         : null,
     };
   }
 
-  private sanitizeActivityLog(log: any): Record<string, unknown> {
+  private sanitizeActivityLog(log: unknown): Record<string, unknown> {
+    const l = log as {
+      id: string;
+      action: string;
+      entityType: string | null;
+      entityId: string | null;
+      actorRole: string | null;
+      metadata: unknown;
+      createdAt: Date | null;
+    };
     return {
-      id: log.id,
-      action: log.action,
-      entityType: log.entityType,
-      entityId: log.entityId,
-      actorRole: log.actorRole,
-      metadata: log.metadata,
-      createdAt: log.createdAt?.toISOString(),
+      id: l.id,
+      action: l.action,
+      entityType: l.entityType,
+      entityId: l.entityId,
+      actorRole: l.actorRole,
+      metadata: l.metadata,
+      createdAt: l.createdAt?.toISOString(),
     };
   }
 
-  private sanitizeJob(job: any): Record<string, unknown> {
+  private sanitizeJob(job: unknown): Record<string, unknown> {
+    const j = job as {
+      id: string;
+      type: string;
+      status: string;
+      payload: unknown;
+      result: unknown;
+      error: string | null;
+      attempts: number;
+      createdAt: Date | null;
+      startedAt: Date | null;
+      finishedAt: Date | null;
+    };
     return {
-      id: job.id,
-      type: job.type,
-      status: job.status,
-      payload: job.payload,
-      result: job.result,
-      error: job.error,
-      attempts: job.attempts,
-      createdAt: job.createdAt?.toISOString(),
-      startedAt: job.startedAt?.toISOString(),
-      finishedAt: job.finishedAt?.toISOString(),
+      id: j.id,
+      type: j.type,
+      status: j.status,
+      payload: j.payload,
+      result: j.result,
+      error: j.error,
+      attempts: j.attempts,
+      createdAt: j.createdAt?.toISOString(),
+      startedAt: j.startedAt?.toISOString(),
+      finishedAt: j.finishedAt?.toISOString(),
     };
   }
 
-  private sanitizeFile(file: any): Record<string, unknown> {
+  private sanitizeFile(file: unknown): Record<string, unknown> {
+    const f = file as {
+      id: string;
+      filename: string;
+      mimeType: string;
+      size: bigint | null;
+      status: string;
+      storageKey: string;
+      createdAt: Date | null;
+      confirmedAt: Date | null;
+    };
     return {
-      id: file.id,
-      filename: file.filename,
-      mimeType: file.mimeType,
-      size: file.size?.toString(),
-      status: file.status,
-      storageKey: file.storageKey,
-      createdAt: file.createdAt?.toISOString(),
-      confirmedAt: file.confirmedAt?.toISOString(),
+      id: f.id,
+      filename: f.filename,
+      mimeType: f.mimeType,
+      size: f.size?.toString(),
+      status: f.status,
+      storageKey: f.storageKey,
+      createdAt: f.createdAt?.toISOString(),
+      confirmedAt: f.confirmedAt?.toISOString(),
     };
   }
 
-  private sanitizeNotification(notification: any): Record<string, unknown> {
+  private sanitizeNotification(notification: unknown): Record<string, unknown> {
+    const n = notification as {
+      id: string;
+      type: string;
+      title: string;
+      message: string;
+      isRead: boolean;
+      metadata: unknown;
+      createdAt: Date | null;
+      readAt: Date | null;
+    };
     return {
-      id: notification.id,
-      type: notification.type,
-      title: notification.title,
-      message: notification.message,
-      isRead: notification.isRead,
-      metadata: notification.metadata,
-      createdAt: notification.createdAt?.toISOString(),
-      readAt: notification.readAt?.toISOString(),
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      isRead: n.isRead,
+      metadata: n.metadata,
+      createdAt: n.createdAt?.toISOString(),
+      readAt: n.readAt?.toISOString(),
     };
   }
 }

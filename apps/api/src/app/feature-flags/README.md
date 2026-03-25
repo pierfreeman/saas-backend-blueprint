@@ -34,9 +34,6 @@ feature-flags/
 | `apiAccess`         | false | true  | true       |
 | `ssoEnabled`        | false | false | true       |
 | `prioritySupport`   | false | false | true       |
-| `maxTeams`          | 2     | 10    | 999 999    |
-| `maxPlayers`        | 20    | 200   | 999 999    |
-| `maxCoaches`        | 2     | 10    | 999 999    |
 
 **Downgrade rule**: if `billingStatus !== ACTIVE` (e.g. `PAST_DUE`, `CANCELED`, `UNPAID`) the tier is silently set to `FREE`, regardless of the recorded plan.
 
@@ -48,11 +45,11 @@ feature-flags/
 
 Tier is derived from `Organization.planId` (a Stripe Price ID) via environment variables:
 
-| Env var                 | Maps to    |
-| ----------------------- | ---------- |
-| `STRIPE_PRICE_ID_PRO`   | ENTERPRISE |
-| `STRIPE_PRICE_ID_BASIC` | PRO        |
-| anything else / null    | FREE       |
+| Env var                      | Maps to    |
+| ---------------------------- | ---------- |
+| `STRIPE_PRICE_ID_PRO`        | PRO        |
+| `STRIPE_PRICE_ID_ENTERPRISE` | ENTERPRISE |
+| anything else / null         | FREE       |
 
 ---
 
@@ -136,11 +133,11 @@ In SQS mode the auto-invalidation listeners are registered but will never fire (
 
 ## Environment variables
 
-| Variable                  | Default | Description                                  |
-| ------------------------- | ------- | -------------------------------------------- |
-| `FEATURE_FLAGS_CACHE_TTL` | `600`   | Redis TTL for entitlements (seconds)         |
-| `STRIPE_PRICE_ID_PRO`     | —       | Stripe Price ID that maps to ENTERPRISE tier |
-| `STRIPE_PRICE_ID_BASIC`   | —       | Stripe Price ID that maps to PRO tier        |
+| Variable                     | Default | Description                                  |
+| ---------------------------- | ------- | -------------------------------------------- |
+| `FEATURE_FLAGS_CACHE_TTL`    | `600`   | Redis TTL for entitlements (seconds)         |
+| `STRIPE_PRICE_ID_PRO`        | —       | Stripe Price ID that maps to PRO tier        |
+| `STRIPE_PRICE_ID_ENTERPRISE` | —       | Stripe Price ID that maps to ENTERPRISE tier |
 
 ---
 

@@ -10,8 +10,8 @@
  *   4. Auth and membership enforcement (401 / 403)
  *
  * Plan tier resolution (from .env.test):
- *   - STRIPE_PRICE_ID_PRO   = price_test_pro   → ENTERPRISE tier
- *   - STRIPE_PRICE_ID_BASIC = price_test_basic  → PRO tier
+ *   - STRIPE_PRICE_ID_PRO   = price_test_pro   → PRO tier
+ *   - STRIPE_PRICE_ID_ENTERPRISE = price_test_enterprise  → ENTERPRISE tier
  *   - anything else / billingStatus ≠ ACTIVE    → FREE tier
  *
  * Prerequisites (handled by globalSetup):
@@ -30,8 +30,8 @@ import { CacheService } from '@libs/redis';
 import { BillingStatus } from '@prisma/client';
 
 const PRO_PRICE_ID = process.env['STRIPE_PRICE_ID_PRO'] ?? 'price_test_pro';
-const BASIC_PRICE_ID =
-  process.env['STRIPE_PRICE_ID_BASIC'] ?? 'price_test_basic';
+const ENTERPRISE_PRICE_ID =
+  process.env['STRIPE_PRICE_ID_ENTERPRISE'] ?? 'price_test_enterprise';
 
 describe('Feature Flags – Entitlements HTTP (integration)', () => {
   let app: INestApplication;
@@ -75,13 +75,13 @@ describe('Feature Flags – Entitlements HTTP (integration)', () => {
       expect(res.body.ssoEnabled).toBe(false);
     });
 
-    it('returns ENTERPRISE tier for an org with ACTIVE status and PRO price ID', async () => {
+    it('returns ENTERPRISE tier for an org with ACTIVE status and ENTERPRISE price ID', async () => {
       const ctx = await seedFullOrg(prisma, { orgName: 'Enterprise Org' });
       await prisma.organization.update({
         where: { id: ctx.org.id },
         data: {
           billingStatus: BillingStatus.ACTIVE,
-          planId: PRO_PRICE_ID,
+          planId: ENTERPRISE_PRICE_ID,
         },
       });
       const token = generateTestToken({ sub: ctx.owner.auth0Id });
@@ -98,13 +98,13 @@ describe('Feature Flags – Entitlements HTTP (integration)', () => {
       expect(res.body.prioritySupport).toBe(true);
     });
 
-    it('returns PRO tier for an org with ACTIVE status and BASIC price ID', async () => {
+    it('returns PRO tier for an org with ACTIVE status and PRO price ID', async () => {
       const ctx = await seedFullOrg(prisma, { orgName: 'Pro Org' });
       await prisma.organization.update({
         where: { id: ctx.org.id },
         data: {
           billingStatus: BillingStatus.ACTIVE,
-          planId: BASIC_PRICE_ID,
+          planId: PRO_PRICE_ID,
         },
       });
       const token = generateTestToken({ sub: ctx.owner.auth0Id });
@@ -289,7 +289,7 @@ describe('Feature Flags – Entitlements HTTP (integration)', () => {
         where: { id: ctx.org.id },
         data: {
           billingStatus: BillingStatus.ACTIVE,
-          planId: PRO_PRICE_ID,
+          planId: ENTERPRISE_PRICE_ID,
         },
       });
 

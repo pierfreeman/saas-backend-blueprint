@@ -42,7 +42,7 @@ const makeOrg = (
   stripeCustomerId: 'cus_test_001',
   subscriptionId: 'sub_old_001',
   billingStatus: BillingStatus.ACTIVE,
-  planId: 'price_basic',
+  planId: 'price_pro',
   seatCount: 1,
   storageLimit: null,
   subscriptionPeriodStart: null,
@@ -229,8 +229,10 @@ describe('SubscriptionService', () => {
     });
 
     it('writes ActivityLog with subscription_upgraded when planId changes', async () => {
-      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(makeOrg());
-      // current org planId = 'price_basic', new = 'price_pro'
+      billingRepository.findOrgByStripeCustomerId.mockResolvedValue(
+        makeOrg({ planId: 'price_basic' }),
+      );
+      // current org planId = 'price_basic', new = 'price_pro' → upgrade
       const sub = makeStripeSubscription({ status: 'active' });
 
       await service.syncFromStripeSubscription(sub, makeCtx());

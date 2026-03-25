@@ -35,8 +35,8 @@ import { FeatureGuard } from './guards/feature.guard';
  * ```
  *
  * Plan tier resolution is driven by env vars (see FeatureFlagsService):
- *   STRIPE_PRICE_ID_PRO   → ENTERPRISE tier
- *   STRIPE_PRICE_ID_BASIC → PRO tier
+ *   STRIPE_PRICE_ID_PRO   → PRO tier
+ *   STRIPE_PRICE_ID_ENTERPRISE → ENTERPRISE tier
  *   (none / unknown)      → FREE tier
  *
  * Cache TTL: FEATURE_FLAGS_CACHE_TTL (seconds, default 600).

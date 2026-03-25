@@ -111,6 +111,13 @@ export class OrgDeletionRepository {
     });
   }
 
+  async findUserByAuth0Id(auth0Id: string): Promise<{ email: string } | null> {
+    return this.prisma.user.findUnique({
+      where: { auth0Id },
+      select: { email: true },
+    });
+  }
+
   /**
    * Delete all child records of an organisation in a single atomic transaction.
    * Cascade-delete is handled here rather than relying on DB-level cascades so

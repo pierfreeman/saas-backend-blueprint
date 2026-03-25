@@ -8,8 +8,8 @@ import { OrganizationEntitlements } from './interfaces/entitlements.interface';
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const ORG_ID = 'org-uuid-001';
-const PRICE_PRO = 'price_enterprise';
-const PRICE_BASIC = 'price_pro';
+const PRICE_PRO = 'price_pro';
+const PRICE_ENTERPRISE = 'price_enterprise';
 
 // ─── Mock factories ───────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ describe('FeatureFlagsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete process.env['STRIPE_PRICE_ID_PRO'];
-    delete process.env['STRIPE_PRICE_ID_BASIC'];
+    delete process.env['STRIPE_PRICE_ID_ENTERPRISE'];
   });
 
   // ─── onModuleInit ─────────────────────────────────────────────────────────
@@ -59,7 +59,11 @@ describe('FeatureFlagsService', () => {
   describe('onModuleInit()', () => {
     it('registers listeners for all relevant domain events', () => {
       const transport = makeTransport();
-      const service = buildService(makeBillingService(), makeCache(), transport);
+      const service = buildService(
+        makeBillingService(),
+        makeCache(),
+        transport,
+      );
 
       service.onModuleInit();
 
@@ -177,7 +181,11 @@ describe('FeatureFlagsService', () => {
         planId: PRICE_PRO,
         billingStatus: BillingStatus.PAST_DUE,
       });
-      const service = buildService(billingService, makeCache(), makeTransport());
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
 
       return service.getEntitlements(ORG_ID).then((result) => {
         expect(result.plan).toBe('FREE');
@@ -185,13 +193,17 @@ describe('FeatureFlagsService', () => {
       });
     });
 
-    it('returns ENTERPRISE entitlements for ACTIVE + STRIPE_PRICE_ID_PRO plan', async () => {
-      process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
+    it('returns ENTERPRISE entitlements for ACTIVE + STRIPE_PRICE_ID_ENTERPRISE plan', async () => {
+      process.env['STRIPE_PRICE_ID_ENTERPRISE'] = PRICE_ENTERPRISE;
       const billingService = makeBillingService({
-        planId: PRICE_PRO,
+        planId: PRICE_ENTERPRISE,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingService, makeCache(), makeTransport());
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -200,13 +212,17 @@ describe('FeatureFlagsService', () => {
       expect(result.prioritySupport).toBe(true);
     });
 
-    it('returns PRO entitlements for ACTIVE + STRIPE_PRICE_ID_BASIC plan', async () => {
-      process.env['STRIPE_PRICE_ID_BASIC'] = PRICE_BASIC;
+    it('returns PRO entitlements for ACTIVE + STRIPE_PRICE_ID_PRO plan', async () => {
+      process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
       const billingService = makeBillingService({
-        planId: PRICE_BASIC,
+        planId: PRICE_PRO,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingService, makeCache(), makeTransport());
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -220,7 +236,11 @@ describe('FeatureFlagsService', () => {
         planId: 'price_unknown',
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingService, makeCache(), makeTransport());
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -229,7 +249,11 @@ describe('FeatureFlagsService', () => {
 
     it('stores result in cache after DB fetch', async () => {
       const cache = makeCache();
-      const service = buildService(makeBillingService({}), cache, makeTransport());
+      const service = buildService(
+        makeBillingService({}),
+        cache,
+        makeTransport(),
+      );
 
       const result = await service.getEntitlements(ORG_ID);
 
@@ -246,7 +270,11 @@ describe('FeatureFlagsService', () => {
   describe('setEntitlements()', () => {
     it('writes the provided entitlements directly into the cache', async () => {
       const cache = makeCache();
-      const service = buildService(makeBillingService(), cache, makeTransport());
+      const service = buildService(
+        makeBillingService(),
+        cache,
+        makeTransport(),
+      );
 
       const entitlements: OrganizationEntitlements = {
         organizationId: ORG_ID,
@@ -274,18 +302,28 @@ describe('FeatureFlagsService', () => {
   describe('checkFeature()', () => {
     it('returns false for a feature not included in the FREE plan', async () => {
       const billingService = makeBillingService({});
-      const service = buildService(billingService, makeCache(), makeTransport());
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
 
-      expect(await service.checkFeature(ORG_ID, 'advancedAnalytics')).toBe(false);
+      expect(await service.checkFeature(ORG_ID, 'advancedAnalytics')).toBe(
+        false,
+      );
     });
 
     it('returns true for a feature enabled in the ENTERPRISE plan', async () => {
-      process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
+      process.env['STRIPE_PRICE_ID_ENTERPRISE'] = PRICE_ENTERPRISE;
       const billingService = makeBillingService({
-        planId: PRICE_PRO,
+        planId: PRICE_ENTERPRISE,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingService, makeCache(), makeTransport());
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
 
       expect(await service.checkFeature(ORG_ID, 'ssoEnabled')).toBe(true);
     });
@@ -318,7 +356,11 @@ describe('FeatureFlagsService', () => {
 
   describe('checkLimit()', () => {
     it('allows creation when current count is below FREE limit', async () => {
-      const service = buildService(makeBillingService({}), makeCache(), makeTransport());
+      const service = buildService(
+        makeBillingService({}),
+        makeCache(),
+        makeTransport(),
+      );
 
       const result = await service.checkLimit(ORG_ID, 'maxTeams', 1);
 
@@ -326,7 +368,11 @@ describe('FeatureFlagsService', () => {
     });
 
     it('denies creation when current count equals FREE limit', async () => {
-      const service = buildService(makeBillingService({}), makeCache(), makeTransport());
+      const service = buildService(
+        makeBillingService({}),
+        makeCache(),
+        makeTransport(),
+      );
 
       const result = await service.checkLimit(ORG_ID, 'maxTeams', 2);
 
@@ -334,12 +380,16 @@ describe('FeatureFlagsService', () => {
     });
 
     it('allows creation against the PRO maxPlayers limit', async () => {
-      process.env['STRIPE_PRICE_ID_BASIC'] = PRICE_BASIC;
+      process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
       const billingService = makeBillingService({
-        planId: PRICE_BASIC,
+        planId: PRICE_PRO,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingService, makeCache(), makeTransport());
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
 
       const result = await service.checkLimit(ORG_ID, 'maxPlayers', 150);
 
@@ -347,12 +397,16 @@ describe('FeatureFlagsService', () => {
     });
 
     it('ENTERPRISE plan has virtually unlimited teams', async () => {
-      process.env['STRIPE_PRICE_ID_PRO'] = PRICE_PRO;
+      process.env['STRIPE_PRICE_ID_ENTERPRISE'] = PRICE_ENTERPRISE;
       const billingService = makeBillingService({
-        planId: PRICE_PRO,
+        planId: PRICE_ENTERPRISE,
         billingStatus: BillingStatus.ACTIVE,
       });
-      const service = buildService(billingService, makeCache(), makeTransport());
+      const service = buildService(
+        billingService,
+        makeCache(),
+        makeTransport(),
+      );
 
       const result = await service.checkLimit(ORG_ID, 'maxTeams', 500);
 
@@ -366,7 +420,11 @@ describe('FeatureFlagsService', () => {
   describe('invalidateEntitlements()', () => {
     it('deletes the correct Redis key', async () => {
       const cache = makeCache();
-      const service = buildService(makeBillingService(), cache, makeTransport());
+      const service = buildService(
+        makeBillingService(),
+        cache,
+        makeTransport(),
+      );
 
       await service.invalidateEntitlements(ORG_ID);
 

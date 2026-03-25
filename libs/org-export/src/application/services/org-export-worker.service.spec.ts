@@ -6,7 +6,6 @@ import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { StorageService, S3StorageClient } from '@libs/storage';
 import { EmailService } from '@libs/email';
-import { PrismaBusinessService } from '@libs/prisma-business';
 import { ExportStatus } from '@prisma/client';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
@@ -22,6 +21,7 @@ function buildRepoMock() {
     aggregateOrgData: jest.fn(),
     completeExport: jest.fn().mockResolvedValue(undefined),
     failExport: jest.fn().mockResolvedValue(undefined),
+    findUserById: jest.fn().mockResolvedValue(null),
   };
 }
 
@@ -63,7 +63,7 @@ function buildStorageMock() {
 
 function buildConfigMock() {
   return {
-    get: jest.fn((key: string, defaultValue?: any) => {
+    get: jest.fn((key: string, defaultValue?: unknown) => {
       if (key === 'EXPORT_URL_EXPIRATION_HOURS') return defaultValue || 24;
       return defaultValue;
     }),
@@ -111,7 +111,6 @@ describe('OrgExportWorkerService', () => {
   let storage: ReturnType<typeof buildStorageMock>;
   let config: ReturnType<typeof buildConfigMock>;
   let email: jest.Mocked<Pick<EmailService, 'sendTransactionalEmail'>>;
-  let prisma: { user: { findUnique: jest.Mock } };
   let s3Client: {
     putObject: jest.Mock;
     generatePresignedDownloadUrl: jest.Mock;
@@ -124,7 +123,6 @@ describe('OrgExportWorkerService', () => {
     storage = buildStorageMock();
     config = buildConfigMock();
     email = { sendTransactionalEmail: jest.fn().mockResolvedValue(undefined) };
-    prisma = { user: { findUnique: jest.fn().mockResolvedValue(null) } };
     s3Client = {
       putObject: jest.fn().mockResolvedValue(undefined),
       generatePresignedDownloadUrl: jest
@@ -141,7 +139,6 @@ describe('OrgExportWorkerService', () => {
         { provide: StorageService, useValue: storage },
         { provide: ConfigService, useValue: config },
         { provide: EmailService, useValue: email },
-        { provide: PrismaBusinessService, useValue: prisma },
         { provide: S3StorageClient, useValue: s3Client },
       ],
     }).compile();
@@ -315,7 +312,7 @@ describe('OrgExportWorkerService', () => {
 
     it('uses configured expiration hours for download URL', async () => {
       const customConfig = {
-        get: jest.fn((key: string, defaultValue?: any) => {
+        get: jest.fn((key: string, defaultValue?: unknown) => {
           if (key === 'EXPORT_URL_EXPIRATION_HOURS') return 48;
           return defaultValue;
         }),
@@ -326,14 +323,15 @@ describe('OrgExportWorkerService', () => {
       customRepo.aggregateOrgData.mockResolvedValue(makeOrgData());
 
       const customService = new OrgExportWorkerService(
+        /* eslint-disable @typescript-eslint/no-explicit-any */
         customRepo as any,
         eventBus as any,
         legalAudit as any,
         storage as any,
         customConfig as any,
         email as any,
-        prisma as any,
         s3Client as any,
+        /* eslint-enable @typescript-eslint/no-explicit-any */
       );
 
       await customService.executeExport(
@@ -369,7 +367,7 @@ describe('OrgExportWorkerService', () => {
           USER_UUID,
           requestedAt,
         );
-      } catch (error) {
+      } catch {
         // Expected to throw
       }
 
@@ -395,7 +393,7 @@ describe('OrgExportWorkerService', () => {
           USER_UUID,
           requestedAt,
         );
-      } catch (error) {
+      } catch {
         // Expected to throw
       }
 
@@ -419,7 +417,7 @@ describe('OrgExportWorkerService', () => {
           USER_UUID,
           requestedAt,
         );
-      } catch (error) {
+      } catch {
         // Expected to throw
       }
 
@@ -444,7 +442,7 @@ describe('OrgExportWorkerService', () => {
           USER_UUID,
           requestedAt,
         );
-      } catch (error) {
+      } catch {
         // Expected to throw
       }
 

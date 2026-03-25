@@ -5,7 +5,6 @@ import { StorageService } from '@libs/storage';
 import { StripeService } from '@libs/billing';
 import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaBusinessService } from '@libs/prisma-business';
 import {
   DeletionTrigger,
   ORG_DELETION_EVENT_TYPES,
@@ -34,7 +33,6 @@ export class OrgDeletionWorkerService {
     private readonly storage: StorageService,
     private readonly stripeService: StripeService,
     private readonly email: EmailService,
-    private readonly prisma: PrismaBusinessService,
   ) {}
 
   /**
@@ -198,9 +196,7 @@ export class OrgDeletionWorkerService {
     orgId: string,
   ): Promise<void> {
     try {
-      const user = await this.prisma.user.findUnique({
-        where: { auth0Id },
-      });
+      const user = await this.repo.findUserByAuth0Id(auth0Id);
 
       if (!user) {
         this.logger.warn(

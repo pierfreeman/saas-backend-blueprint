@@ -41,7 +41,7 @@ function buildActivityLogMock() {
 
 function buildConfigMock() {
   return {
-    get: jest.fn((key: string, defaultValue?: any) => {
+    get: jest.fn((key: string, defaultValue?: unknown) => {
       if (key === 'ORG_DELETION_RETENTION_DAYS') return defaultValue || 30;
       return defaultValue;
     }),

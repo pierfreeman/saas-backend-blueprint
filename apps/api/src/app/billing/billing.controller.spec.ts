@@ -82,14 +82,14 @@ describe('BillingController', () => {
       });
 
       await controller.createCheckoutSession(
-        { orgId: ORG_ID, priceId: 'price_basic' },
+        { orgId: ORG_ID, priceId: 'price_pro' },
         ACTOR_ID,
         undefined,
       );
 
       expect(billingService.createCheckoutSession).toHaveBeenCalledWith(
         ORG_ID,
-        'price_basic',
+        'price_pro',
         ACTOR_ID,
         expect.objectContaining({ idempotencyKey: undefined }),
       );

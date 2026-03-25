@@ -147,10 +147,9 @@ export class StripeService {
     idempotencyKey?: string;
   }): Promise<Stripe.Checkout.Session> {
     try {
-      const requestOptions: Stripe.RequestOptions | undefined =
-        params.idempotencyKey
-          ? { idempotencyKey: params.idempotencyKey }
-          : undefined;
+      const requestOptions: Stripe.RequestOptions = params.idempotencyKey
+        ? { idempotencyKey: params.idempotencyKey }
+        : {};
       const session = await this.withRetry('createCheckoutSession', () =>
         this.stripe.checkout.sessions.create(
           {

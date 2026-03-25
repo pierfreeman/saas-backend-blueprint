@@ -7,17 +7,16 @@ import { CacheService } from '@libs/redis';
 import { StorageService } from '@libs/storage';
 import { StripeService } from '@libs/billing';
 import { EmailService } from '@libs/email';
-import { PrismaBusinessService } from '@libs/prisma-business';
 import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
 import { OrganizationStatus } from '@prisma/client';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
-const USER_UUID = 'b2c3d4e5-f6a7-4890-bc12-de3456fa7890';
 
 function buildRepoMock() {
   return {
     findOrgById: jest.fn(),
+    findUserByAuth0Id: jest.fn().mockResolvedValue(null),
     deleteDatabaseRecords: jest.fn().mockResolvedValue(undefined),
     markDeleted: jest.fn().mockResolvedValue(undefined),
   };
@@ -80,7 +79,6 @@ describe('OrgDeletionWorkerService', () => {
   let storage: ReturnType<typeof buildStorageMock>;
   let stripeService: ReturnType<typeof buildStripeServiceMock>;
   let email: { sendTransactionalEmail: jest.Mock };
-  let prisma: { user: { findUnique: jest.Mock } };
 
   beforeEach(async () => {
     repo = buildRepoMock();
@@ -90,7 +88,6 @@ describe('OrgDeletionWorkerService', () => {
     storage = buildStorageMock();
     stripeService = buildStripeServiceMock();
     email = { sendTransactionalEmail: jest.fn().mockResolvedValue(undefined) };
-    prisma = { user: { findUnique: jest.fn().mockResolvedValue(null) } };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -102,7 +99,6 @@ describe('OrgDeletionWorkerService', () => {
         { provide: StorageService, useValue: storage },
         { provide: StripeService, useValue: stripeService },
         { provide: EmailService, useValue: email },
-        { provide: PrismaBusinessService, useValue: prisma },
       ],
     }).compile();
 
@@ -397,6 +393,7 @@ describe('OrgDeletionWorkerService', () => {
 
   describe('revokeExternalResources', () => {
     it('cancels subscription and deletes customer when both are provided', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (service as any).revokeExternalResources('cus_123', 'sub_456');
 
       expect(stripeService.terminateSubscription).toHaveBeenCalledWith(
@@ -406,6 +403,7 @@ describe('OrgDeletionWorkerService', () => {
     });
 
     it('skips subscription cancel when subscriptionId is null', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (service as any).revokeExternalResources('cus_123', null);
 
       expect(stripeService.terminateSubscription).not.toHaveBeenCalled();
@@ -413,6 +411,7 @@ describe('OrgDeletionWorkerService', () => {
     });
 
     it('skips customer deletion when stripeCustomerId is null', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (service as any).revokeExternalResources(null, 'sub_456');
 
       expect(stripeService.terminateSubscription).toHaveBeenCalledWith(
@@ -427,6 +426,7 @@ describe('OrgDeletionWorkerService', () => {
       );
 
       await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (service as any).revokeExternalResources('cus_123', 'sub_456'),
       ).rejects.toThrow('already canceled');
     });
@@ -437,6 +437,7 @@ describe('OrgDeletionWorkerService', () => {
       );
 
       await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (service as any).revokeExternalResources('cus_123', 'sub_456'),
       ).rejects.toThrow('already deleted');
     });

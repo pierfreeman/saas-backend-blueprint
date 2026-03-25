@@ -88,8 +88,8 @@ export const envValidationSchema = Joi.object({
   // Stripe (optional — billing module checks at runtime)
   STRIPE_SECRET_KEY: Joi.string().optional(),
   STRIPE_WEBHOOK_SECRET: Joi.string().optional(),
-  STRIPE_PRICE_ID_BASIC: Joi.string().optional(),
   STRIPE_PRICE_ID_PRO: Joi.string().optional(),
+  STRIPE_PRICE_ID_ENTERPRISE: Joi.string().optional(),
   STRIPE_MAX_RETRIES: Joi.number().integer().min(0).max(10).default(3),
   STRIPE_RETRY_BASE_DELAY_MS: Joi.number().integer().min(0).default(500),
 

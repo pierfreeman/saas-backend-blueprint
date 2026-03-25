@@ -256,15 +256,15 @@ npx prisma generate --schema=prisma/schema.prisma
 
 ## Environment variables
 
-| Variable                | Required    | Description                                                                           |
-| ----------------------- | ----------- | ------------------------------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`     | Yes         | `sk_live_…` / `sk_test_…` Stripe secret key                                           |
-| `STRIPE_WEBHOOK_SECRET` | Yes         | `whsec_…` from Stripe Dashboard → Webhooks                                            |
-| `STRIPE_PRICE_ID_BASIC` | Recommended | Stripe Price ID for the Basic plan                                                    |
-| `STRIPE_PRICE_ID_PRO`   | Recommended | Stripe Price ID for the Pro plan                                                      |
-| `BILLING_SUCCESS_URL`   | No          | Redirect after successful checkout (default: `http://localhost:3000/billing/success`) |
-| `BILLING_CANCEL_URL`    | No          | Redirect after cancelled checkout (default: `http://localhost:3000/billing/cancel`)   |
-| `BILLING_RETURN_URL`    | No          | Return URL for the customer portal (default: `http://localhost:3000/billing`)         |
+| Variable                     | Required    | Description                                                                           |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`          | Yes         | `sk_live_…` / `sk_test_…` Stripe secret key                                           |
+| `STRIPE_WEBHOOK_SECRET`      | Yes         | `whsec_…` from Stripe Dashboard → Webhooks                                            |
+| `STRIPE_PRICE_ID_PRO`        | Recommended | Stripe Price ID for the Pro plan                                                      |
+| `STRIPE_PRICE_ID_ENTERPRISE` | Recommended | Stripe Price ID for the Enterprise plan                                               |
+| `BILLING_SUCCESS_URL`        | No          | Redirect after successful checkout (default: `http://localhost:3000/billing/success`) |
+| `BILLING_CANCEL_URL`         | No          | Redirect after cancelled checkout (default: `http://localhost:3000/billing/cancel`)   |
+| `BILLING_RETURN_URL`         | No          | Return URL for the customer portal (default: `http://localhost:3000/billing`)         |
 
 All Stripe variables are declared as `Joi.string().optional()` in `libs/config/src/env.validation.ts`. The module will start without them but Stripe calls will fail at the point of use.
 

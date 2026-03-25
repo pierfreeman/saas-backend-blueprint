@@ -85,7 +85,7 @@ describe('SubscriptionUpdatedHandler', () => {
     const sub = makeSub();
     const previousAttributes = {
       items: {
-        data: [{ price: { id: 'price_basic' } }],
+        data: [{ price: { id: 'price_pro' } }],
       },
     };
     const event = makeEvent(
@@ -103,7 +103,7 @@ describe('SubscriptionUpdatedHandler', () => {
       mockSubscriptionService.handleSubscriptionUpdated,
     ).toHaveBeenCalledWith(
       sub,
-      expect.objectContaining({ previousPlanId: 'price_basic' }),
+      expect.objectContaining({ previousPlanId: 'price_pro' }),
     );
   });
 

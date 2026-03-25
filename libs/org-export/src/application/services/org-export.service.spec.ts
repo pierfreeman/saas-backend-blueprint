@@ -43,7 +43,7 @@ function buildActivityLogMock() {
 
 function buildConfigMock() {
   return {
-    get: jest.fn((key: string, defaultValue?: any) => {
+    get: jest.fn((key: string, defaultValue?: unknown) => {
       return defaultValue;
     }),
   };
