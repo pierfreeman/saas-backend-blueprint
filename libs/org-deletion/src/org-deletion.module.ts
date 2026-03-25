@@ -8,6 +8,7 @@ import { ActivityLogModule } from '@libs/activity-log';
 import { RedisModule } from '@libs/redis';
 import { StorageModule } from '@libs/storage';
 import { BillingModule } from '@libs/billing';
+import { EmailModule } from '@libs/email';
 import { OrgDeletionService } from './application/services/org-deletion.service';
 import { OrgDeletionWorkerService } from './application/services/org-deletion-worker.service';
 import { OrgDeletionSchedulerService } from './application/services/org-deletion-scheduler.service';
@@ -24,6 +25,7 @@ import { OrgDeletionRepository } from './infrastructure/repositories/org-deletio
     RedisModule,
     StorageModule,
     BillingModule,
+    EmailModule,
   ],
   providers: [
     OrgDeletionRepository,

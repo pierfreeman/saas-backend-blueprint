@@ -1,12 +1,13 @@
 import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
-import { StorageService } from '@libs/storage';
+import { StorageService, S3StorageClient } from '@libs/storage';
+import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExportStatus } from '@prisma/client';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import { createGzip } from 'node:zlib';
+import { PrismaBusinessService } from '@libs/prisma-business';
+import * as JSZipModule from 'jszip';
+const JSZip = (JSZipModule as any).default ?? JSZipModule;
 import { ORG_EXPORT_EVENT_TYPES } from '../../constants/org-export-event.constants';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
 
@@ -14,7 +15,7 @@ import { OrgExportRepository } from '../../infrastructure/repositories/org-expor
  * Worker service responsible for executing organization data export.
  * Performs all export operations:
  * - Data aggregation from database
- * - JSON serialization and compression (gzip)
+ * - JSON serialization and compression (zip)
  * - File upload to storage
  * - Signed URL generation
  *
@@ -31,6 +32,9 @@ export class OrgExportWorkerService {
     private readonly legalAudit: LegalAuditService,
     private readonly storage: StorageService,
     private readonly config: ConfigService,
+    private readonly email: EmailService,
+    private readonly prisma: PrismaBusinessService,
+    private readonly s3Client: S3StorageClient,
   ) {
     this.urlExpirationHours = this.config.get<number>(
       'EXPORT_URL_EXPIRATION_HOURS',
@@ -100,9 +104,9 @@ export class OrgExportWorkerService {
       this.logger.log(`Aggregating data for organization ${orgId}`);
       const exportData = await this.aggregateOrgData(orgId);
 
-      // Step 2: Generate export file (JSON + gzip)
+      // Step 2: Generate export file (JSON + zip)
       this.logger.log(`Generating export file for organization ${orgId}`);
-      const { buffer, size } = await this.generateExportFile(
+      const { buffer, size, filename } = await this.generateExportFile(
         exportData,
         orgId,
         orgName,
@@ -110,12 +114,7 @@ export class OrgExportWorkerService {
 
       // Step 3: Upload file to storage
       this.logger.log(`Uploading export file for organization ${orgId}`);
-      const storageKey = `exports/org/${orgId}/${exportId}.json.gz`;
-      // Note: In a production implementation, this would involve:
-      // 1. Using storage provider's direct upload API (e.g., S3 SDK)
-      // 2. Or generating a presigned upload URL and using HTTP PUT
-      // For now, we'll simulate the upload being successful
-      // TODO: Implement actual file upload using storage provider
+      const storageKey = `exports/org/${orgId}/${filename}`;
       await this.uploadExportFile(storageKey, buffer);
 
       // Step 4: Generate signed download URL
@@ -126,10 +125,11 @@ export class OrgExportWorkerService {
         Date.now() + this.urlExpirationHours * 60 * 60 * 1000,
       );
 
-      // Generate a download URL - in production this would be a signed URL from storage
-      // For now, we'll construct a placeholder URL that includes the storage key
-      // TODO: Implement actual signed URL generation using storage provider
-      const downloadUrl = `${storageKey}`;
+      const expirationSeconds = this.urlExpirationHours * 60 * 60;
+      const downloadUrl = await this.s3Client.generatePresignedDownloadUrl(
+        storageKey,
+        expirationSeconds,
+      );
 
       const completedAt = new Date();
 
@@ -147,6 +147,16 @@ export class OrgExportWorkerService {
         `Export ${exportId} for organization ${orgId} (${orgName}) completed successfully`,
       );
 
+      // Send notification email to the requesting user
+      await this.sendExportReadyEmail(
+        requestedByUserId,
+        orgName,
+        downloadUrl,
+        expiresAt,
+        size,
+        orgId,
+      );
+
       // Emit export completed event
       await this.eventBus.publish({
         eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_COMPLETED,
@@ -157,7 +167,7 @@ export class OrgExportWorkerService {
           requestedByUserId,
           requestedAt,
           completedAt,
-          fileSize: BigInt(size),
+          fileSize: size,
           fileUrl: downloadUrl,
           expiresAt,
         } as unknown as Record<string, unknown>,
@@ -175,7 +185,7 @@ export class OrgExportWorkerService {
           organizationName: orgName,
           exportId,
           requestedByUserId,
-          requestedAt: requestedAt.toISOString(),
+          requestedAt: new Date(requestedAt).toISOString(),
           completedAt: completedAt.toISOString(),
           fileSizeBytes: size,
           expiresAt: expiresAt.toISOString(),
@@ -254,35 +264,37 @@ export class OrgExportWorkerService {
   }
 
   /**
-   * Generate export file: serialize to JSON and compress with gzip.
+   * Generate export file: serialize to JSON and compress as a zip archive.
+   * Returns the buffer, byte size, and the filename to use for storage.
    */
   private async generateExportFile(
     data: Record<string, unknown>,
     orgId: string,
     orgName: string,
-  ): Promise<{ buffer: Buffer; size: number }> {
+  ): Promise<{ buffer: Buffer; size: number; filename: string }> {
     const json = JSON.stringify(data, this.jsonReplacer, 2);
-    const inputStream = Readable.from([json]);
-    const gzip = createGzip();
 
-    const chunks: Buffer[] = [];
-
-    // Collect compressed chunks
-    gzip.on('data', (chunk) => {
-      chunks.push(chunk);
+    const zip = new JSZip() as JSZipModule;
+    zip.file('export.json', json);
+    const buffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
     });
-
-    // Wait for compression to complete
-    await pipeline(inputStream, gzip);
-
-    const buffer = Buffer.concat(chunks);
     const size = buffer.length;
+
+    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const safeName = orgName
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+    const filename = `${datePrefix}_${safeName}_Export.zip`;
 
     this.logger.log(
       `Export file generated for ${orgName}: ${size} bytes (compressed)`,
     );
 
-    return { buffer, size };
+    return { buffer, size, filename };
   }
 
   /**
@@ -292,20 +304,63 @@ export class OrgExportWorkerService {
     storageKey: string,
     buffer: Buffer,
   ): Promise<void> {
-    // For now, we'll use a simplified approach
-    // In production, you'd use storage.generateUploadUrl + HTTP PUT
-    // or a direct S3 SDK call with proper error handling
-
-    // This is a placeholder - actual implementation would depend on
-    // storage service capabilities for direct buffer uploads
+    await this.s3Client.putObject(storageKey, buffer, 'application/zip');
     this.logger.log(`Uploaded export file to ${storageKey}`);
+  }
 
-    // Note: The actual upload implementation would involve:
-    // 1. Getting a presigned upload URL from storage service
-    // 2. Performing an HTTP PUT with the buffer
-    // 3. Confirming the upload with storage service
-    // For this implementation, we'll trust that storage.generateDownloadUrl
-    // will work if we've written the file correctly
+  /**
+   * Look up the requesting user's email and send an export-ready notification.
+   * Failures are logged but do not abort the export workflow.
+   */
+  private async sendExportReadyEmail(
+    userId: string,
+    orgName: string,
+    downloadUrl: string,
+    expiresAt: Date,
+    fileSizeBytes: number,
+    orgId: string,
+  ): Promise<void> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        this.logger.warn(
+          `Cannot send export email — user not found for id: ${userId}`,
+        );
+        return;
+      }
+
+      const expirationDays = Math.ceil(
+        (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+      );
+
+      await this.email.sendTransactionalEmail({
+        templateName: 'export-ready',
+        recipient: user.email,
+        subject: `Your ${orgName} data export is ready`,
+        data: {
+          userName: user.email.split('@')[0],
+          exportType: 'Organisation Data',
+          fileSize: `${(fileSizeBytes / 1024).toFixed(1)} KB`,
+          downloadUrl,
+          downloadExpirationDays: expirationDays,
+          completedAt: new Date().toISOString(),
+        },
+        orgId,
+        userId,
+      });
+
+      this.logger.log(`Export-ready email sent to ${user.email}`);
+    } catch (err) {
+      this.logger.error(
+        `Failed to send export-ready email: ${
+          err instanceof Error ? err.message : 'Unknown error'
+        }`,
+      );
+      // Do not rethrow — email failure must not affect export status
+    }
   }
 
   /**

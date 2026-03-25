@@ -117,6 +117,25 @@ export class S3StorageClient {
   }
 
   /**
+   * Upload a buffer directly to S3.
+   */
+  async putObject(
+    key: string,
+    body: Buffer,
+    contentType = 'application/octet-stream',
+  ): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    });
+
+    await this.client.send(command);
+    this.logger.debug(`Uploaded object: ${key}`);
+  }
+
+  /**
    * Get the configured bucket name.
    */
   getBucket(): string {

@@ -5,6 +5,7 @@ export type EmailTemplateName =
   | 'user-invite'
   | 'auth-login-link'
   | 'export-ready'
+  | 'org-deletion-confirmation'
   | 'system-alert';
 
 /**

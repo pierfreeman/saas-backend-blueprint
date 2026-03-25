@@ -6,6 +6,8 @@ import { LegalAuditService } from '@libs/legal-audit';
 import { CacheService } from '@libs/redis';
 import { StorageService } from '@libs/storage';
 import { StripeService } from '@libs/billing';
+import { EmailService } from '@libs/email';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
 import { OrganizationStatus } from '@prisma/client';
 
@@ -77,6 +79,8 @@ describe('OrgDeletionWorkerService', () => {
   let cache: ReturnType<typeof buildCacheMock>;
   let storage: ReturnType<typeof buildStorageMock>;
   let stripeService: ReturnType<typeof buildStripeServiceMock>;
+  let email: { sendTransactionalEmail: jest.Mock };
+  let prisma: { user: { findUnique: jest.Mock } };
 
   beforeEach(async () => {
     repo = buildRepoMock();
@@ -85,6 +89,8 @@ describe('OrgDeletionWorkerService', () => {
     cache = buildCacheMock();
     storage = buildStorageMock();
     stripeService = buildStripeServiceMock();
+    email = { sendTransactionalEmail: jest.fn().mockResolvedValue(undefined) };
+    prisma = { user: { findUnique: jest.fn().mockResolvedValue(null) } };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -95,6 +101,8 @@ describe('OrgDeletionWorkerService', () => {
         { provide: CacheService, useValue: cache },
         { provide: StorageService, useValue: storage },
         { provide: StripeService, useValue: stripeService },
+        { provide: EmailService, useValue: email },
+        { provide: PrismaBusinessService, useValue: prisma },
       ],
     }).compile();
 

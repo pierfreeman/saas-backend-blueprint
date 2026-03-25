@@ -3,7 +3,9 @@ import { LegalAuditService } from '@libs/legal-audit';
 import { CacheService } from '@libs/redis';
 import { StorageService } from '@libs/storage';
 import { StripeService } from '@libs/billing';
+import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import {
   DeletionTrigger,
   ORG_DELETION_EVENT_TYPES,
@@ -31,6 +33,8 @@ export class OrgDeletionWorkerService {
     private readonly cache: CacheService,
     private readonly storage: StorageService,
     private readonly stripeService: StripeService,
+    private readonly email: EmailService,
+    private readonly prisma: PrismaBusinessService,
   ) {}
 
   /**
@@ -47,6 +51,7 @@ export class OrgDeletionWorkerService {
     trigger: DeletionTrigger,
     orgName: string,
     requestedAt: Date,
+    requestedByUserId?: string,
   ): Promise<void> {
     this.logger.log(`Starting deletion for organization ${orgId} (${orgName})`);
 
@@ -80,6 +85,15 @@ export class OrgDeletionWorkerService {
           `Organization ${orgId} already marked as DELETED — skipping`,
         );
         return; // Idempotent: already processed
+      }
+
+      // Send deletion confirmation email BEFORE any data is removed
+      if (requestedByUserId) {
+        await this.sendDeletionConfirmationEmail(
+          requestedByUserId,
+          orgName,
+          orgId,
+        );
       }
 
       // Step 1: Delete storage files
@@ -132,7 +146,7 @@ export class OrgDeletionWorkerService {
           organizationId: orgId,
           organizationName: orgName,
           trigger,
-          requestedAt: requestedAt.toISOString(),
+          requestedAt: new Date(requestedAt).toISOString(),
           completedAt: completedAt.toISOString(),
         },
       });
@@ -170,6 +184,52 @@ export class OrgDeletionWorkerService {
           failedAt: new Date().toISOString(),
         },
       });
+    }
+  }
+
+  /**
+   * Look up the requesting user and send a deletion confirmation email.
+   * Sent before any data is deleted, so user records are still available.
+   * Failures are logged but do not abort the deletion workflow.
+   */
+  private async sendDeletionConfirmationEmail(
+    auth0Id: string,
+    orgName: string,
+    orgId: string,
+  ): Promise<void> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { auth0Id },
+      });
+
+      if (!user) {
+        this.logger.warn(
+          `Cannot send deletion email — user not found for auth0Id: ${auth0Id}`,
+        );
+        return;
+      }
+
+      await this.email.sendTransactionalEmail({
+        templateName: 'org-deletion-confirmation',
+        recipient: user.email,
+        subject: `Your organisation "${orgName}" is being deleted`,
+        data: {
+          userName: user.email.split('@')[0],
+          organizationName: orgName,
+          deletedAt: new Date().toISOString(),
+        },
+        orgId,
+        userId: auth0Id,
+      });
+
+      this.logger.log(`Deletion confirmation email sent to ${user.email}`);
+    } catch (err) {
+      this.logger.error(
+        `Failed to send deletion confirmation email: ${
+          err instanceof Error ? err.message : 'Unknown error'
+        }`,
+      );
+      // Do not rethrow — email failure must not abort deletion
     }
   }
 

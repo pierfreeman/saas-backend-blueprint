@@ -4,7 +4,9 @@ import { OrgExportWorkerService } from './org-export-worker.service';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
 import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
-import { StorageService } from '@libs/storage';
+import { StorageService, S3StorageClient } from '@libs/storage';
+import { EmailService } from '@libs/email';
+import { PrismaBusinessService } from '@libs/prisma-business';
 import { ExportStatus } from '@prisma/client';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
@@ -52,8 +54,8 @@ function buildStorageMock() {
     generateDownloadUrl: jest.fn().mockResolvedValue({
       downloadUrl: 'https://storage.example.com/exports/...',
       expiresAt: new Date('2026-01-02'),
-      filename: 'export.json.gz',
-      mimeType: 'application/gzip',
+      filename: '20260101_Test_Organization_Export.zip',
+      mimeType: 'application/zip',
       size: BigInt(123456),
     }),
   };
@@ -108,6 +110,12 @@ describe('OrgExportWorkerService', () => {
   let legalAudit: ReturnType<typeof buildLegalAuditMock>;
   let storage: ReturnType<typeof buildStorageMock>;
   let config: ReturnType<typeof buildConfigMock>;
+  let email: jest.Mocked<Pick<EmailService, 'sendTransactionalEmail'>>;
+  let prisma: { user: { findUnique: jest.Mock } };
+  let s3Client: {
+    putObject: jest.Mock;
+    generatePresignedDownloadUrl: jest.Mock;
+  };
 
   beforeEach(async () => {
     repo = buildRepoMock();
@@ -115,6 +123,14 @@ describe('OrgExportWorkerService', () => {
     legalAudit = buildLegalAuditMock();
     storage = buildStorageMock();
     config = buildConfigMock();
+    email = { sendTransactionalEmail: jest.fn().mockResolvedValue(undefined) };
+    prisma = { user: { findUnique: jest.fn().mockResolvedValue(null) } };
+    s3Client = {
+      putObject: jest.fn().mockResolvedValue(undefined),
+      generatePresignedDownloadUrl: jest
+        .fn()
+        .mockResolvedValue('https://s3.example.com/presigned-url'),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -124,6 +140,9 @@ describe('OrgExportWorkerService', () => {
         { provide: LegalAuditService, useValue: legalAudit },
         { provide: StorageService, useValue: storage },
         { provide: ConfigService, useValue: config },
+        { provide: EmailService, useValue: email },
+        { provide: PrismaBusinessService, useValue: prisma },
+        { provide: S3StorageClient, useValue: s3Client },
       ],
     }).compile();
 
@@ -312,6 +331,9 @@ describe('OrgExportWorkerService', () => {
         legalAudit as any,
         storage as any,
         customConfig as any,
+        email as any,
+        prisma as any,
+        s3Client as any,
       );
 
       await customService.executeExport(

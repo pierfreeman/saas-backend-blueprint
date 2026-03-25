@@ -140,7 +140,7 @@ export class WorkerController {
   async handleOrgDeletionRequested(
     event: DomainEvent<OrgDeletionRequestedEventPayload>,
   ): Promise<void> {
-    const { orgId, trigger, orgName, requestedAt } = event.payload;
+    const { orgId, trigger, orgName, requestedAt, userId } = event.payload;
 
     this.logger.log(
       `[Worker-Compute-A] Received org deletion request: ${orgId} | trigger: ${trigger}`,
@@ -152,6 +152,7 @@ export class WorkerController {
       trigger,
       orgName,
       requestedAt,
+      userId as string | undefined,
     );
   }
 
