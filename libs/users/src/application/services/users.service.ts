@@ -14,6 +14,10 @@ export class UsersService {
     return this.userRepository.findById(id);
   }
 
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userRepository.findByEmail(email);
+  }
+
   async createUser(auth0Id: string, email: string): Promise<User> {
     return this.userRepository.createUser(auth0Id, email);
   }
@@ -22,10 +26,18 @@ export class UsersService {
     return this.userRepository.updateEmail(id, email);
   }
 
+  async updateAuth0Id(id: string, auth0Id: string): Promise<User> {
+    return this.userRepository.updateAuth0Id(id, auth0Id);
+  }
+
   async provisionWithPersonalOrg(
     auth0Id: string,
     email: string,
   ): Promise<User> {
     return this.userRepository.provisionWithPersonalOrg(auth0Id, email);
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    return this.userRepository.deleteUser(id);
   }
 }

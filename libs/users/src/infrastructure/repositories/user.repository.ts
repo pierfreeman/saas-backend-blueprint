@@ -14,8 +14,16 @@ export class UserRepository {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { email } });
+  }
+
   async updateEmail(id: string, email: string): Promise<User> {
     return this.prisma.user.update({ where: { id }, data: { email } });
+  }
+
+  async updateAuth0Id(id: string, auth0Id: string): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { auth0Id } });
   }
 
   /**
@@ -51,5 +59,13 @@ export class UserRepository {
       return { user: newUser, org };
     });
     return user;
+  }
+
+  /**
+   * Permanently deletes a user record from the database.
+   * Memberships are cascade-deleted by the database constraint.
+   */
+  async deleteUser(id: string): Promise<void> {
+    await this.prisma.user.delete({ where: { id } });
   }
 }

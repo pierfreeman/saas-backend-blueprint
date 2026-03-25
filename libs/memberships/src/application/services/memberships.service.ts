@@ -96,6 +96,10 @@ export class MembershipsService {
     return this.repo.findByOrg(orgId);
   }
 
+  async findById(id: string): Promise<Membership | null> {
+    return this.repo.findById(id);
+  }
+
   async findByUser(
     userId: string,
   ): Promise<(Membership & { organization: Organization })[]> {
