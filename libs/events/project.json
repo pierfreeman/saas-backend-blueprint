@@ -23,6 +23,12 @@
         "jestConfig": "libs/events/jest.config.cts",
         "passWithNoTests": true
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/events/tsconfig.lib.json --noEmit"
+      }
     }
   }
 }

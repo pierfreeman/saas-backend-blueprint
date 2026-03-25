@@ -66,6 +66,12 @@
       "options": {
         "passWithNoTests": true
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project apps/worker-a/tsconfig.app.json --noEmit"
+      }
     }
   }
 }

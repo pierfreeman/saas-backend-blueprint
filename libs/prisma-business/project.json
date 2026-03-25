@@ -15,6 +15,12 @@
         "main": "libs/prisma-business/src/index.ts",
         "assets": ["libs/prisma-business/*.md"]
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/prisma-business/tsconfig.lib.json --noEmit"
+      }
     }
   }
 }
