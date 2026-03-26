@@ -148,7 +148,7 @@ export class MembershipsController {
     summary: 'List all members of an organization',
     description:
       'Returns all membership records for the given organization, including each ' +
-      "member's role and status. Requires ORG_READ permission.",
+      "member's role, status, and basic user profile. Requires ORG_READ permission.",
   })
   @ApiParam({
     name: 'orgId',
@@ -197,6 +197,18 @@ export class MembershipsController {
             type: 'string',
             format: 'date-time',
             example: '2026-02-26T12:34:56.789Z',
+          },
+          user: {
+            type: 'object',
+            description: 'Basic profile of the member.',
+            properties: {
+              email: {
+                type: 'string',
+                format: 'email',
+                description: 'Email address from the Auth0 token.',
+                example: 'alice@example.com',
+              },
+            },
           },
         },
       },
