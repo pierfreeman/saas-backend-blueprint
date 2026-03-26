@@ -9,7 +9,7 @@ import { vi } from 'vitest';
 
 // ── Redis adapter mock ────────────────────────────────────────────────────────
 // Everything is defined inside the factory so it is available when the factory
-// is invoked during the module-loading phase (after jest.mock hoisting).
+// is invoked during the module-loading phase (after vi.mock hoisting).
 
 vi.mock('ioredis', () => {
   const instance = {
@@ -28,9 +28,9 @@ vi.mock('@socket.io/redis-adapter', () => ({
   createAdapter: vi.fn().mockReturnValue({}),
 }));
 
-// jwks-rsa pulls in jose (ESM-only) which Jest cannot parse without extra
+// jwks-rsa pulls in jose (ESM-only) which Vitest cannot parse without extra
 // transform config. We mock the whole module because verifyToken is already
-// exercised via jest.spyOn in the individual tests below.
+// exercised via vi.spyOn in the individual tests below.
 vi.mock('jwks-rsa', () => ({
   JwksClient: vi.fn(function (this: unknown) {
     return { getSigningKey: vi.fn() };

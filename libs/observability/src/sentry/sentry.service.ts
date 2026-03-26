@@ -6,7 +6,7 @@ import { SentryContext } from '../logger/logger.interfaces';
  * SentryService
  *
  * DI wrapper around `@sentry/node` that enables:
- *  - Easy mocking in unit tests (replace with jest.fn() stubs)
+ *  - Easy mocking in unit tests (replace with vi.fn() stubs)
  *  - Multi-tenant isolation via `withScope` — each `captureException` call
  *    runs in a forked scope, preventing tenant context leaking across events
  *  - Safe no-op when Sentry is disabled (SENTRY_ENABLED=false)

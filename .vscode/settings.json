@@ -1,15 +1,9 @@
 {
-  "jest.jestCommandLine": "npx jest",
-  "jest.rootPath": ".",
-  "jest.coverageFormatter": "DefaultFormatter",
-  "jest.showCoverageOnLoad": false,
-  "jest.nodeEnv": {
-    "NX_DAEMON": "false"
-  },
+  "vitest.rootConfig": "apps/api/vitest.config.ts",
   "snyk.advanced.autoSelectOrganization": true,
   "snyk.advanced.organization": "1802edf4-8cc9-4dc5-909a-21861a16920b",
   "sonarlint.connectedMode.project": {
     "connectionId": "pierfreeman",
     "projectKey": "pierfreeman_saas-backend-blueprint"
-  },
+  }
 }

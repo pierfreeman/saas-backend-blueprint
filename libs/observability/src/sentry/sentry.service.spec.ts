@@ -3,7 +3,7 @@ import { SentryService } from './sentry.service';
 import * as Sentry from '@sentry/node';
 import { Mock, vi } from 'vitest';
 
-// jest.mock is hoisted before ALL variable declarations, so we cannot reference
+// vi.mock is hoisted before ALL variable declarations, so we cannot reference
 // file-level variables inside the factory. Instead, mock withScope as a plain vi.fn()
 // and configure it in beforeEach using mockImplementation.
 vi.mock('@sentry/node', () => ({

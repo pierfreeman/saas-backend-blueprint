@@ -19,7 +19,7 @@
  *   - Multi-org user: preserves Prisma record and Auth0 account
  *
  * Auth0 Management calls (sendPasswordlessLink, deleteUser) are verified via
- * jest.spyOn — the Auth0 domain in .env.test (test.auth0.local) is unreachable
+ * vi.spyOn — the Auth0 domain in .env.test (test.auth0.local) is unreachable
  * in CI. JWKS for JWT verification is intercepted by the nock-auth helper.
  */
 import * as crypto from 'node:crypto';
@@ -203,9 +203,9 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `link-flow-${uid()}@test.local`;
 
       // Step 1: invite creates the pending:uuid record
-      vi
-        .spyOn(auth0Service, 'sendPasswordlessLink')
-        .mockResolvedValue(undefined);
+      vi.spyOn(auth0Service, 'sendPasswordlessLink').mockResolvedValue(
+        undefined,
+      );
       const inviteRes = await agent
         .post(`/organizations/${ctx.org.id}/memberships/invite`)
         .set('Authorization', `Bearer ${ownerToken}`)
@@ -296,9 +296,9 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `pending-remove-${uid()}@test.local`;
 
       // Invite creates the pending:uuid record
-      vi
-        .spyOn(auth0Service, 'sendPasswordlessLink')
-        .mockResolvedValue(undefined);
+      vi.spyOn(auth0Service, 'sendPasswordlessLink').mockResolvedValue(
+        undefined,
+      );
       await agent
         .post(`/organizations/${ctx.org.id}/memberships/invite`)
         .set('Authorization', `Bearer ${ownerToken}`)

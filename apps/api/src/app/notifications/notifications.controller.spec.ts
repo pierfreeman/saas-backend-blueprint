@@ -9,7 +9,7 @@ import { MarkManyReadDto } from './dto/mark-many-read.dto';
 import { QueryNotificationsDto } from './dto/query-notifications.dto';
 import { Mock, vi } from 'vitest';
 
-// Prevent Jest from loading the full @libs/notifications module graph (which
+// Prevent Vitest from loading the full @libs/notifications module graph (which
 // pulls in ioredis, socket.io, jwks-rsa — all ESM-only) and causing parse
 // errors. The controller only needs NotificationsService as a DI token.
 vi.mock('@libs/notifications', () => ({

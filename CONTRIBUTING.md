@@ -628,16 +628,16 @@ npx nx run-many --target=test --all --coverage
 
 ### Writing specs
 
-Use Jest. Mock all injected dependencies with `jest.fn()`. Do not use real Prisma in unit tests — mock the repository instead.
+Use Vitest. Mock all injected dependencies with `vi.fn()`. Do not use real Prisma in unit tests — mock the repository instead.
 
 ```typescript
 // Example: testing a service with a mocked repository
 describe('JobService', () => {
   let service: JobService;
   const mockRepository = {
-    create: jest.fn(),
-    findByIdAndOrg: jest.fn(),
-    markDone: jest.fn(),
+    create: vi.fn(),
+    findByIdAndOrg: vi.fn(),
+    markDone: vi.fn(),
   };
 
   beforeEach(async () => {
