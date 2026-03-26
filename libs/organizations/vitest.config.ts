@@ -26,6 +26,21 @@ export default defineConfig({
       provider: 'v8',
       reportsDirectory: '../../coverage/unit/libs/organizations',
       reporter: ['lcov', 'html'],
+      include: ['src/**/*.ts'],
+      exclude: [
+        'src/index.ts',
+        'src/**/*.module.ts',
+        'src/**/*.dto.ts',
+        'src/**/*.enum.ts',
+        'src/**/*.entity.ts',
+        'src/**/*.d.ts',
+      ],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80,
+      },
     },
   },
 });

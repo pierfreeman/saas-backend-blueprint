@@ -82,6 +82,13 @@ describe('OrganizationsService', () => {
         service.createOrganization('u-1', { name: 'Acme' }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('throws BadRequestException when a non-Error is thrown', async () => {
+      mockRepo.createWithOwner = vi.fn().mockRejectedValue('string error');
+      await expect(
+        service.createOrganization('u-1', { name: 'Acme' }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('findById', () => {
@@ -126,6 +133,40 @@ describe('OrganizationsService', () => {
       );
     });
 
+    it('passes userId through to audit log when provided', async () => {
+      const updated = { ...baseOrg, name: 'NewName' };
+      mockRepo.findById = vi.fn().mockResolvedValue(baseOrg);
+      mockRepo.update = vi.fn().mockResolvedValue(updated);
+
+      await service.updateOrganization('org-1', { name: 'NewName' }, 'u-1');
+
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: 'u-1' }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ userId: 'u-1' }),
+        }),
+      );
+    });
+
+    it('sets actorId/userId to null when userId is undefined', async () => {
+      const updated = { ...baseOrg, name: 'NewName' };
+      mockRepo.findById = vi.fn().mockResolvedValue(baseOrg);
+      mockRepo.update = vi.fn().mockResolvedValue(updated);
+
+      await service.updateOrganization('org-1', { name: 'NewName' });
+
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: null }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ userId: null }),
+        }),
+      );
+    });
+
     it('throws NotFoundException for unknown org', async () => {
       mockRepo.findById = vi.fn().mockResolvedValue(null);
       await expect(
@@ -146,6 +187,34 @@ describe('OrganizationsService', () => {
       expect(mockRepo.delete).toHaveBeenCalledWith('org-1');
       expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: 'organization.deleted' }),
+      );
+    });
+
+    it('passes userId to legal audit metadata when provided', async () => {
+      mockRepo.findById = vi.fn().mockResolvedValue(baseOrg);
+      mockRepo.deleteJobs = vi.fn().mockResolvedValue(undefined);
+      mockRepo.delete = vi.fn().mockResolvedValue(undefined);
+
+      await service.deleteOrganization('org-1', 'u-1');
+
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ userId: 'u-1' }),
+        }),
+      );
+    });
+
+    it('sets userId to null in metadata when not provided', async () => {
+      mockRepo.findById = vi.fn().mockResolvedValue(baseOrg);
+      mockRepo.deleteJobs = vi.fn().mockResolvedValue(undefined);
+      mockRepo.delete = vi.fn().mockResolvedValue(undefined);
+
+      await service.deleteOrganization('org-1');
+
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ userId: null }),
+        }),
       );
     });
 

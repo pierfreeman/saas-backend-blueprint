@@ -139,8 +139,7 @@ describe('BillingRepository', () => {
 
       await repo.updateOrgBillingData('org-1', { planId: 'price_pro' });
 
-      const call = (mockPrisma.organization.update as Mock).mock
-        .calls[0][0];
+      const call = (mockPrisma.organization.update as Mock).mock.calls[0][0];
       expect(call.data).not.toHaveProperty('billingStatus');
       expect(call.data).toHaveProperty('planId', 'price_pro');
     });
@@ -153,10 +152,33 @@ describe('BillingRepository', () => {
         planId: null,
       });
 
-      const call = (mockPrisma.organization.update as Mock).mock
-        .calls[0][0];
+      const call = (mockPrisma.organization.update as Mock).mock.calls[0][0];
       expect(call.data.subscriptionId).toBeNull();
       expect(call.data.planId).toBeNull();
+    });
+
+    it('includes all fields when all are provided', async () => {
+      mockPrisma.organization.update = vi.fn().mockResolvedValue({});
+
+      await repo.updateOrgBillingData('org-1', {
+        stripeCustomerId: 'cus_001',
+        subscriptionId: 'sub_001',
+        billingStatus: BillingStatus.ACTIVE,
+        planId: 'price_pro',
+        storageLimit: BigInt(1073741824),
+        subscriptionPeriodStart: new Date('2026-01-01'),
+        subscriptionPeriodEnd: new Date('2026-02-01'),
+        cancelAtPeriodEnd: true,
+      });
+
+      const call = (mockPrisma.organization.update as Mock).mock.calls[0][0];
+      expect(call.data).toMatchObject({
+        stripeCustomerId: 'cus_001',
+        subscriptionId: 'sub_001',
+        billingStatus: BillingStatus.ACTIVE,
+        planId: 'price_pro',
+        cancelAtPeriodEnd: true,
+      });
     });
   });
 
@@ -198,6 +220,36 @@ describe('BillingRepository', () => {
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
       expect(mockTx.organization.update).toHaveBeenCalledTimes(1);
       expect(mockTx.subscriptionSnapshot.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes all billing fields to the transactional update', async () => {
+      mockTx.organization.update.mockResolvedValue({});
+      mockTx.subscriptionSnapshot.create.mockResolvedValue({});
+      (mockPrisma.$transaction as Mock).mockImplementation(
+        (fn: (tx: typeof mockTx) => Promise<void>) => fn(mockTx),
+      );
+
+      const fullBilling: UpdateBillingDataInput = {
+        stripeCustomerId: 'cus_new',
+        subscriptionId: 'sub_new',
+        billingStatus: BillingStatus.ACTIVE,
+        planId: 'price_pro',
+        storageLimit: BigInt(5368709120),
+        subscriptionPeriodStart: new Date('2026-01-01'),
+        subscriptionPeriodEnd: new Date('2026-02-01'),
+        cancelAtPeriodEnd: false,
+      };
+
+      await repo.updateOrgAndSnapshotTx('org-1', fullBilling, snapshotInput);
+
+      const updateCall = mockTx.organization.update.mock.calls[0][0];
+      expect(updateCall.data).toMatchObject({
+        stripeCustomerId: 'cus_new',
+        subscriptionId: 'sub_new',
+        billingStatus: BillingStatus.ACTIVE,
+        planId: 'price_pro',
+        cancelAtPeriodEnd: false,
+      });
     });
   });
 
@@ -277,8 +329,7 @@ describe('BillingRepository', () => {
 
       await repo.createBillingEvent('evt_002', 'hash_xyz');
 
-      const call = (mockPrisma.billingEvent.create as Mock).mock
-        .calls[0][0];
+      const call = (mockPrisma.billingEvent.create as Mock).mock.calls[0][0];
       expect(call.data).not.toHaveProperty('orgId');
     });
 
@@ -300,6 +351,92 @@ describe('BillingRepository', () => {
       await expect(
         repo.createBillingEvent('evt_err', 'hash_err'),
       ).rejects.toThrow('Connection timeout');
+    });
+
+    it('rethrows non-Error thrown values that are not unique constraint violations', async () => {
+      mockPrisma.billingEvent.create = vi
+        .fn()
+        .mockRejectedValue('plain string error');
+
+      await expect(
+        repo.createBillingEvent('evt_plain', 'hash_plain'),
+      ).rejects.toBe('plain string error');
+    });
+  });
+
+  // ── findOrgMeta ────────────────────────────────────────────────────────────
+
+  describe('findOrgMeta', () => {
+    it('returns org name and owner email when found with OWNER membership', async () => {
+      mockPrisma.organization.findUnique = vi.fn().mockResolvedValue({
+        name: 'Acme',
+        memberships: [{ user: { email: 'owner@acme.com' } }],
+      });
+
+      const result = await repo.findOrgMeta('org-1');
+
+      expect(result.name).toBe('Acme');
+      expect(result.ownerEmail).toBe('owner@acme.com');
+    });
+
+    it('returns ownerEmail as null when no OWNER membership exists', async () => {
+      mockPrisma.organization.findUnique = vi.fn().mockResolvedValue({
+        name: 'Acme',
+        memberships: [],
+      });
+
+      const result = await repo.findOrgMeta('org-1');
+
+      expect(result.name).toBe('Acme');
+      expect(result.ownerEmail).toBeNull();
+    });
+
+    it('throws NotFoundException when org does not exist', async () => {
+      mockPrisma.organization.findUnique = vi.fn().mockResolvedValue(null);
+
+      await expect(repo.findOrgMeta('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  // ── getOrgBillingStatus ────────────────────────────────────────────────────
+
+  describe('getOrgBillingStatus', () => {
+    it('returns billing status fields when org exists', async () => {
+      mockPrisma.organization.findUnique = vi.fn().mockResolvedValue({
+        planId: 'price_pro',
+        billingStatus: BillingStatus.ACTIVE,
+        storageLimit: BigInt(1073741824),
+      });
+
+      const result = await repo.getOrgBillingStatus('org-1');
+
+      expect(result).not.toBeNull();
+      expect(result!.planId).toBe('price_pro');
+      expect(result!.billingStatus).toBe(BillingStatus.ACTIVE);
+      expect(result!.storageLimit).toBe(BigInt(1073741824));
+    });
+
+    it('returns null when org does not exist', async () => {
+      mockPrisma.organization.findUnique = vi.fn().mockResolvedValue(null);
+
+      const result = await repo.getOrgBillingStatus('missing');
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null planId and null storageLimit when fields are null', async () => {
+      mockPrisma.organization.findUnique = vi.fn().mockResolvedValue({
+        planId: null,
+        billingStatus: BillingStatus.NONE,
+        storageLimit: null,
+      });
+
+      const result = await repo.getOrgBillingStatus('org-1');
+
+      expect(result!.planId).toBeNull();
+      expect(result!.storageLimit).toBeNull();
     });
   });
 });
