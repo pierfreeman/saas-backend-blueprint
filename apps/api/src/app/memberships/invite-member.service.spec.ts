@@ -80,8 +80,8 @@ describe('InviteMemberService', () => {
     );
   });
 
-  describe('invite — existing user', () => {
-    it('creates membership and sends invite email without creating a new Prisma user', async () => {
+  describe('invite — existing user (real Auth0 account)', () => {
+    it('creates membership without sending a passwordless link', async () => {
       mockUsersService.findByEmail.mockResolvedValue(existingUser);
 
       const result = await service.invite(
@@ -97,10 +97,35 @@ describe('InviteMemberService', () => {
         { userId: existingUser.id, role: MembershipRole.MEMBER },
         inviterUser.id,
       );
+      // User already has a real Auth0 account — no passwordless link needed
+      expect(
+        mockAuth0ManagementService.sendPasswordlessLink,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('invite — existing pending user (already in another org)', () => {
+    it('creates membership and sends passwordless link for pending user', async () => {
+      mockUsersService.findByEmail.mockResolvedValue(pendingUser);
+
+      const result = await service.invite(
+        { email: pendingUser.email, role: MembershipRole.MEMBER },
+        'org-1',
+        inviterUser.id,
+      );
+
+      expect(result).toEqual({ message: 'Invitation sent successfully.' });
+      expect(mockUsersService.createUser).not.toHaveBeenCalled();
+      expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
+        'org-1',
+        { userId: pendingUser.id, role: MembershipRole.MEMBER },
+        inviterUser.id,
+      );
+      // Pending user still needs to activate their account via magic link
       expect(
         mockAuth0ManagementService.sendPasswordlessLink,
       ).toHaveBeenCalledWith(
-        existingUser.email,
+        pendingUser.email,
         'http://localhost:4200/auth/callback',
       );
     });

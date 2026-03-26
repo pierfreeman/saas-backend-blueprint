@@ -98,13 +98,21 @@ export class InviteMemberService {
       inviterUserId,
     );
 
-    // 5. Send passwordless magic-link email via Auth0
-    const baseUrl =
-      this.configService.get<string>('FRONTEND_BASE_URL') ??
-      'http://localhost:4200';
-    const redirectUri = `${baseUrl}/auth/callback`;
+    // 5. Send passwordless magic-link only for new/pending users.
+    //    Users who already have a real Auth0 account (social or DB connection)
+    //    can log in with their existing credentials — sending a passwordless
+    //    link to them would cause Auth0 to return 400 (connection mismatch).
+    if (user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
+      const baseUrl =
+        this.configService.get<string>('FRONTEND_BASE_URL') ??
+        'http://localhost:4200';
+      const redirectUri = `${baseUrl}/auth/callback`;
 
-    await this.auth0ManagementService.sendPasswordlessLink(email, redirectUri);
+      await this.auth0ManagementService.sendPasswordlessLink(
+        email,
+        redirectUri,
+      );
+    }
 
     this.logger.log(`Invite sent to ${email} for org ${orgId}.`);
 
