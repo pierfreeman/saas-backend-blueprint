@@ -10,6 +10,7 @@ const mockUsersService = {
   updateAuth0Id: vi.fn(),
   findById: vi.fn(),
   provisionWithPersonalOrg: vi.fn(),
+  updateProfile: vi.fn(),
 } as unknown as UsersService;
 
 const mockAuth0ManagementService = {
@@ -469,6 +470,158 @@ describe('AuthService', () => {
       await expect(service.syncUser('auth0|1', 'new@b.com')).rejects.toThrow(
         'Update failed',
       );
+    });
+  });
+
+  describe('syncUser — profile sync on first login', () => {
+    it('syncs firstName, lastName, pictureUrl from Auth0 on first login', async () => {
+      const auth0Id = 'google-oauth2|123';
+      const email = 'social@example.com';
+      const provisioned = {
+        id: 'u-new',
+        auth0Id,
+        email,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const updated = {
+        ...provisioned,
+        firstName: 'Alice',
+        lastName: 'Smith',
+        pictureUrl: 'https://example.com/pic.jpg',
+      };
+
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
+        provisioned,
+      );
+      (mockAuth0ManagementService.getUserById as Mock).mockResolvedValue({
+        user_id: auth0Id,
+        email,
+        email_verified: true,
+        identities: [],
+        given_name: 'Alice',
+        family_name: 'Smith',
+        picture: 'https://example.com/pic.jpg',
+      });
+      (mockUsersService.updateProfile as Mock).mockResolvedValue(updated);
+
+      const result = await service.syncUser(auth0Id, email);
+
+      expect(result).toBe(updated);
+      expect(mockUsersService.updateProfile).toHaveBeenCalledWith('u-new', {
+        firstName: 'Alice',
+        lastName: 'Smith',
+        pictureUrl: 'https://example.com/pic.jpg',
+      });
+    });
+
+    it('skips profile sync and returns provisioned user when Auth0 profile fetch fails', async () => {
+      const auth0Id = 'google-oauth2|456';
+      const email = 'social2@example.com';
+      const provisioned = {
+        id: 'u-new2',
+        auth0Id,
+        email,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
+        provisioned,
+      );
+      (mockAuth0ManagementService.getUserById as Mock).mockRejectedValue(
+        new Error('Auth0 unavailable'),
+      );
+
+      const result = await service.syncUser(auth0Id, email);
+
+      expect(result).toBe(provisioned);
+      expect(mockUsersService.updateProfile).not.toHaveBeenCalled();
+    });
+
+    it('does not fetch profile for returning users', async () => {
+      const existing = {
+        id: 'u-1',
+        auth0Id: 'auth0|1',
+        email: 'a@b.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(existing);
+
+      await service.syncUser('auth0|1', 'a@b.com');
+
+      expect(mockAuth0ManagementService.getUserById).not.toHaveBeenCalled();
+      expect(mockUsersService.updateProfile).not.toHaveBeenCalled();
+    });
+
+    it('uses profile data passed directly to syncUser when available', async () => {
+      const auth0Id = 'auth0|789';
+      const email = 'direct@example.com';
+      const provisioned = {
+        id: 'u-new3',
+        auth0Id,
+        email,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const updated = { ...provisioned, firstName: 'Dave' };
+
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
+        provisioned,
+      );
+      (mockUsersService.updateProfile as Mock).mockResolvedValue(updated);
+
+      const result = await service.syncUser(auth0Id, email, {
+        firstName: 'Dave',
+      });
+
+      // Management API should NOT be called when profile is already provided
+      expect(mockAuth0ManagementService.getUserById).not.toHaveBeenCalled();
+      expect(mockUsersService.updateProfile).toHaveBeenCalledWith('u-new3', {
+        firstName: 'Dave',
+      });
+      expect(result).toBe(updated);
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('delegates to usersService.updateProfile', async () => {
+      const updated = {
+        id: 'u-1',
+        auth0Id: 'auth0|1',
+        email: 'a@b.com',
+        firstName: 'Alice',
+        lastName: 'Smith',
+        pictureUrl: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      (mockUsersService.updateProfile as Mock).mockResolvedValue(updated);
+
+      const result = await service.updateProfile('u-1', { firstName: 'Alice', lastName: 'Smith' });
+
+      expect(result).toBe(updated);
+      expect(mockUsersService.updateProfile).toHaveBeenCalledWith('u-1', {
+        firstName: 'Alice',
+        lastName: 'Smith',
+      });
+    });
+
+    it('propagates errors from usersService', async () => {
+      (mockUsersService.updateProfile as Mock).mockRejectedValue(
+        new Error('DB error'),
+      );
+
+      await expect(
+        service.updateProfile('u-1', { firstName: 'X' }),
+      ).rejects.toThrow('DB error');
     });
   });
 });

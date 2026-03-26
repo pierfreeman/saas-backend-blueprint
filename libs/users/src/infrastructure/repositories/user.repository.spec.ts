@@ -109,4 +109,45 @@ describe('UserRepository', () => {
       });
     });
   });
+
+  describe('updateProfile', () => {
+    it('updates all profile fields', async () => {
+      const updated = {
+        id: 'u-1',
+        firstName: 'Alice',
+        lastName: 'Smith',
+        pictureUrl: 'https://example.com/pic.jpg',
+      };
+      mockPrisma.user.update = vi.fn().mockResolvedValue(updated);
+
+      const result = await repo.updateProfile('u-1', {
+        firstName: 'Alice',
+        lastName: 'Smith',
+        pictureUrl: 'https://example.com/pic.jpg',
+      });
+
+      expect(result).toBe(updated);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
+        data: {
+          firstName: 'Alice',
+          lastName: 'Smith',
+          pictureUrl: 'https://example.com/pic.jpg',
+        },
+      });
+    });
+
+    it('allows partial updates (only provided fields)', async () => {
+      const updated = { id: 'u-1', firstName: 'Bob' };
+      mockPrisma.user.update = vi.fn().mockResolvedValue(updated);
+
+      const result = await repo.updateProfile('u-1', { firstName: 'Bob' });
+
+      expect(result).toBe(updated);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
+        data: { firstName: 'Bob' },
+      });
+    });
+  });
 });

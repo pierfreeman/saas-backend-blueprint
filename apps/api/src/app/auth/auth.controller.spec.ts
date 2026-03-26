@@ -1,11 +1,11 @@
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { NotFoundException } from '@nestjs/common';
 import { RequestUser } from '@libs/common';
 import { vi } from 'vitest';
 
 const mockAuthService = {
   syncUser: vi.fn(),
+  updateProfile: vi.fn(),
 } as unknown as AuthService;
 
 const baseUser: RequestUser = {
@@ -17,6 +17,9 @@ const dbUser = {
   id: 'db-u-1',
   auth0Id: 'auth0|u1',
   email: 'user@example.com',
+  firstName: null,
+  lastName: null,
+  pictureUrl: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -30,7 +33,7 @@ describe('AuthController', () => {
   });
 
   describe('getMe', () => {
-    it('returns id, sub and email for an authenticated user', async () => {
+    it('returns id, auth0Id, email and profile fields', async () => {
       mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
 
       const result = await controller.getMe(baseUser);
@@ -39,11 +42,44 @@ describe('AuthController', () => {
         id: 'db-u-1',
         auth0Id: 'auth0|u1',
         email: 'user@example.com',
+        firstName: null,
+        lastName: null,
+        pictureUrl: null,
       });
       expect(mockAuthService.syncUser).toHaveBeenCalledWith(
         'auth0|u1',
         'user@example.com',
       );
+    });
+
+    it('returns profile fields when populated', async () => {
+      const dbUserWithProfile = {
+        ...dbUser,
+        firstName: 'Alice',
+        lastName: 'Smith',
+        pictureUrl: 'https://example.com/avatar.jpg',
+      };
+      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUserWithProfile);
+
+      const result = await controller.getMe(baseUser);
+
+      expect(result.firstName).toBe('Alice');
+      expect(result.lastName).toBe('Smith');
+      expect(result.pictureUrl).toBe('https://example.com/avatar.jpg');
+    });
+
+    it('returns the db email (not the JWT email) in the response', async () => {
+      const dbUserWithDifferentEmail = {
+        ...dbUser,
+        email: 'updated@example.com',
+      };
+      mockAuthService.syncUser = vi
+        .fn()
+        .mockResolvedValue(dbUserWithDifferentEmail);
+
+      const result = await controller.getMe(baseUser);
+      expect(result.email).toBe('updated@example.com');
+      expect(result.id).toBe('db-u-1');
     });
 
     it('propagates errors thrown by syncUser', async () => {
@@ -53,20 +89,69 @@ describe('AuthController', () => {
 
       await expect(controller.getMe(baseUser)).rejects.toThrow('DB down');
     });
+  });
 
-    it('always uses the JWT email (not the db record email) in the response', async () => {
-      const dbUserWithDifferentEmail = {
+  describe('updateMe', () => {
+    it('syncs the user then updates profile fields', async () => {
+      const updated = {
         ...dbUser,
-        email: 'updated@example.com',
+        firstName: 'Bob',
+        lastName: 'Jones',
+        pictureUrl: 'https://example.com/bob.jpg',
       };
-      mockAuthService.syncUser = vi
-        .fn()
-        .mockResolvedValue(dbUserWithDifferentEmail);
+      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
+      mockAuthService.updateProfile = vi.fn().mockResolvedValue(updated);
 
-      // JWT email is still baseUser.email
-      const result = await controller.getMe(baseUser);
-      expect(result.email).toBe(baseUser.email);
-      expect(result.id).toBe('db-u-1');
+      const result = await controller.updateMe(baseUser, {
+        firstName: 'Bob',
+        lastName: 'Jones',
+        pictureUrl: 'https://example.com/bob.jpg',
+      });
+
+      expect(mockAuthService.syncUser).toHaveBeenCalledWith(
+        'auth0|u1',
+        'user@example.com',
+      );
+      expect(mockAuthService.updateProfile).toHaveBeenCalledWith('db-u-1', {
+        firstName: 'Bob',
+        lastName: 'Jones',
+        pictureUrl: 'https://example.com/bob.jpg',
+      });
+      expect(result).toEqual({
+        id: 'db-u-1',
+        email: 'user@example.com',
+        firstName: 'Bob',
+        lastName: 'Jones',
+        pictureUrl: 'https://example.com/bob.jpg',
+      });
+    });
+
+    it('accepts partial updates', async () => {
+      const updated = { ...dbUser, firstName: 'Carol' };
+      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
+      mockAuthService.updateProfile = vi.fn().mockResolvedValue(updated);
+
+      const result = await controller.updateMe(baseUser, {
+        firstName: 'Carol',
+      });
+
+      expect(mockAuthService.updateProfile).toHaveBeenCalledWith('db-u-1', {
+        firstName: 'Carol',
+        lastName: undefined,
+        pictureUrl: undefined,
+      });
+      expect(result.firstName).toBe('Carol');
+    });
+
+    it('propagates errors thrown by updateProfile', async () => {
+      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
+      mockAuthService.updateProfile = vi
+        .fn()
+        .mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        controller.updateMe(baseUser, { firstName: 'X' }),
+      ).rejects.toThrow('DB error');
     });
   });
 });
