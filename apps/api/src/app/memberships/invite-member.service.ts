@@ -98,11 +98,15 @@ export class InviteMemberService {
       inviterUserId,
     );
 
-    // 5. Send passwordless magic-link only for new/pending users.
-    //    Users who already have a real Auth0 account (social or DB connection)
-    //    can log in with their existing credentials — sending a passwordless
-    //    link to them would cause Auth0 to return 400 (connection mismatch).
-    if (user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
+    // 5. Send passwordless magic-link unless the user is on a social connection.
+    //    Social-connection users (google-oauth2|, github|, …) cannot receive a
+    //    passwordless link — Auth0 returns 400 (connection mismatch) for them.
+    //    New/pending users and database-connection users (auth0|) can.
+    const isSocialConnection =
+      !user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX) &&
+      !user.auth0Id.startsWith('auth0|');
+
+    if (!isSocialConnection) {
       const baseUrl =
         this.configService.get<string>('FRONTEND_BASE_URL') ??
         'http://localhost:4200';

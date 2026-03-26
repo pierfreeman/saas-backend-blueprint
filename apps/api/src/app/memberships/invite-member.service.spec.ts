@@ -80,8 +80,8 @@ describe('InviteMemberService', () => {
     );
   });
 
-  describe('invite — existing user (real Auth0 account)', () => {
-    it('creates membership without sending a passwordless link', async () => {
+  describe('invite — existing user (database / auth0| connection)', () => {
+    it('creates membership and sends passwordless link', async () => {
       mockUsersService.findByEmail.mockResolvedValue(existingUser);
 
       const result = await service.invite(
@@ -97,10 +97,13 @@ describe('InviteMemberService', () => {
         { userId: existingUser.id, role: MembershipRole.MEMBER },
         inviterUser.id,
       );
-      // User already has a real Auth0 account — no passwordless link needed
+      // auth0| users can receive a passwordless link
       expect(
         mockAuth0ManagementService.sendPasswordlessLink,
-      ).not.toHaveBeenCalled();
+      ).toHaveBeenCalledWith(
+        existingUser.email,
+        'http://localhost:4200/auth/callback',
+      );
     });
   });
 
@@ -128,6 +131,31 @@ describe('InviteMemberService', () => {
         pendingUser.email,
         'http://localhost:4200/auth/callback',
       );
+    });
+  });
+
+  describe('invite — existing user (social / google-oauth2 connection)', () => {
+    it('creates membership without sending a passwordless link', async () => {
+      const socialUser = {
+        id: 'u-social',
+        email: 'social@example.com',
+        auth0Id: 'google-oauth2|123456789',
+      };
+      mockUsersService.findByEmail.mockResolvedValue(socialUser);
+
+      const result = await service.invite(
+        { email: socialUser.email, role: MembershipRole.MEMBER },
+        'org-1',
+        inviterUser.id,
+      );
+
+      expect(result).toEqual({ message: 'Invitation sent successfully.' });
+      expect(mockUsersService.createUser).not.toHaveBeenCalled();
+      expect(mockMembershipsService.createMembership).toHaveBeenCalled();
+      // Social-connection users cannot receive a passwordless link (Auth0 rejects with 400)
+      expect(
+        mockAuth0ManagementService.sendPasswordlessLink,
+      ).not.toHaveBeenCalled();
     });
   });
 
