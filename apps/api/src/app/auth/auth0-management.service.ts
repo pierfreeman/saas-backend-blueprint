@@ -12,6 +12,10 @@ export interface Auth0User {
   user_id: string;
   email: string;
   email_verified: boolean;
+  given_name?: string;
+  family_name?: string;
+  name?: string;
+  picture?: string;
   identities: Array<{ connection: string; provider: string }>;
 }
 

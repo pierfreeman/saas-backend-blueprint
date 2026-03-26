@@ -26,6 +26,13 @@ export class UserRepository {
     return this.prisma.user.update({ where: { id }, data: { auth0Id } });
   }
 
+  async updateProfile(
+    id: string,
+    data: { firstName?: string; lastName?: string; pictureUrl?: string },
+  ): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data });
+  }
+
   /**
    * Creates a bare user record without provisioning an org.
    * Used only as an emergency fallback in infrastructure guards when

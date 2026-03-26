@@ -1,5 +1,12 @@
 import { JwtAuthGuard, RequestUser } from '@libs/common';
-import { Controller, Get, HttpStatus, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -46,6 +53,27 @@ export class AuthController {
           description: 'Email address from the Auth0 token.',
           example: 'alice@example.com',
         },
+        firstName: {
+          type: 'string',
+          nullable: true,
+          description:
+            'Given name. Synced from Auth0 on first social login; editable via PATCH /auth/me.',
+          example: 'Alice',
+        },
+        lastName: {
+          type: 'string',
+          nullable: true,
+          description:
+            'Family name. Synced from Auth0 on first social login; editable via PATCH /auth/me.',
+          example: 'Smith',
+        },
+        pictureUrl: {
+          type: 'string',
+          nullable: true,
+          description:
+            'Profile picture URL. Synced from Auth0 on first social login; editable via PATCH /auth/me.',
+          example: 'https://lh3.googleusercontent.com/a/example',
+        },
       },
       required: ['id', 'auth0Id', 'email'],
     },
@@ -65,28 +93,70 @@ export class AuthController {
     id: string;
     auth0Id: string;
     email: string;
-    // organization: {
-    //   id: string;
-    //   name: string;
-    //   plan: string;
-    //   status: string;
-    // } | null;
+    firstName: string | null;
+    lastName: string | null;
+    pictureUrl: string | null;
   }> {
     const dbUser = await this.authService.syncUser(user.sub, user.email);
     return {
       id: dbUser.id,
       auth0Id: user.sub,
-      email: user.email,
-      // organization: userWithOrg?.memberships?.[0]?.organization
-      //   ? {
-      //       id: userWithOrg.memberships[0].organization.id,
-      //       name: userWithOrg.memberships[0].organization.name,
-      //       plan:
-      //         userWithOrg.memberships[0].organization.subscription?.plan ||
-      //         'FREE',
-      //       status: userWithOrg.memberships[0].organization.status,
-      //     }
-      //   : null,
+      email: dbUser.email,
+      firstName: dbUser.firstName ?? null,
+      lastName: dbUser.lastName ?? null,
+      pictureUrl: dbUser.pictureUrl ?? null,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  @ApiOperation({
+    summary: 'Update the current user profile',
+    description:
+      'Allows the authenticated user to update their first name, last name, and profile picture URL. ' +
+      'All fields are optional; only provided fields are updated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Updated user profile.',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        email: { type: 'string', format: 'email' },
+        firstName: { type: 'string', nullable: true },
+        lastName: { type: 'string', nullable: true },
+        pictureUrl: { type: 'string', nullable: true },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  async updateMe(
+    @CurrentUser() user: RequestUser,
+    @Body()
+    body: { firstName?: string; lastName?: string; pictureUrl?: string },
+  ): Promise<{
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    pictureUrl: string | null;
+  }> {
+    const dbUser = await this.authService.syncUser(user.sub, user.email);
+    const updated = await this.authService.updateProfile(dbUser.id, {
+      firstName: body.firstName,
+      lastName: body.lastName,
+      pictureUrl: body.pictureUrl,
+    });
+    return {
+      id: updated.id,
+      email: updated.email,
+      firstName: updated.firstName ?? null,
+      lastName: updated.lastName ?? null,
+      pictureUrl: updated.pictureUrl ?? null,
     };
   }
 }

@@ -30,6 +30,13 @@ export class UsersService {
     return this.userRepository.updateAuth0Id(id, auth0Id);
   }
 
+  async updateProfile(
+    id: string,
+    data: { firstName?: string; lastName?: string; pictureUrl?: string },
+  ): Promise<User> {
+    return this.userRepository.updateProfile(id, data);
+  }
+
   async provisionWithPersonalOrg(
     auth0Id: string,
     email: string,

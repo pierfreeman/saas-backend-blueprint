@@ -31,7 +31,11 @@ export class AuthService {
    *   keeping one Prisma record per user and avoiding a unique-constraint error on email.
    *   Safe because both passwordless and Google login always produce verified emails.
    */
-  async syncUser(auth0Id: string, email: string): Promise<User> {
+  async syncUser(
+    auth0Id: string,
+    email: string,
+    profile?: { firstName?: string; lastName?: string; pictureUrl?: string },
+  ): Promise<User> {
     // Normalize email to lowercase for consistent lookup regardless of how Auth0
     // or the invite form submitted the address.
     const normalizedEmail = email.toLowerCase();
@@ -94,12 +98,52 @@ export class AuthService {
     this.logger.log(
       `First login for Auth0 ID: ${auth0Id} -- provisioning user + org`,
     );
+
+    // Resolve profile data from Auth0 Management API for social logins (e.g. Google),
+    // falling back to any profile claims already extracted from the JWT.
+    let resolvedProfile = profile ?? {};
+    if (
+      !resolvedProfile.firstName &&
+      !resolvedProfile.lastName &&
+      !resolvedProfile.pictureUrl
+    ) {
+      try {
+        const auth0User =
+          await this.auth0ManagementService.getUserById(auth0Id);
+        resolvedProfile = {
+          firstName: auth0User.given_name,
+          lastName: auth0User.family_name,
+          pictureUrl: auth0User.picture,
+        };
+      } catch (err) {
+        this.logger.warn(
+          `Could not fetch Auth0 profile for ${auth0Id} — skipping profile sync`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     const user = await this.usersService.provisionWithPersonalOrg(
       auth0Id,
       resolvedEmail,
     );
     this.logger.log(`Provisioned user ${user.id} with personal org`);
+
+    if (
+      resolvedProfile.firstName ||
+      resolvedProfile.lastName ||
+      resolvedProfile.pictureUrl
+    ) {
+      return this.usersService.updateProfile(user.id, resolvedProfile);
+    }
     return user;
+  }
+
+  async updateProfile(
+    userId: string,
+    data: { firstName?: string; lastName?: string; pictureUrl?: string },
+  ): Promise<User> {
+    return this.usersService.updateProfile(userId, data);
   }
 
   async findUserByAuth0Id(auth0Id: string): Promise<User | null> {

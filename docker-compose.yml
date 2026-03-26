@@ -120,6 +120,7 @@ services:
     env_file: .env
     ports:
       - '${API_PORT:-3000}:3000'
+      - '9229:9229' # Expose debug port
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
