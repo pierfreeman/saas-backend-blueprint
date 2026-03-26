@@ -39,9 +39,9 @@ describe('AuthService', () => {
 
       (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (
-        mockUsersService.provisionWithPersonalOrg as Mock
-      ).mockResolvedValue(createdUser);
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
+        createdUser,
+      );
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
 
@@ -157,9 +157,9 @@ describe('AuthService', () => {
         identities: [],
       });
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (
-        mockUsersService.provisionWithPersonalOrg as Mock
-      ).mockResolvedValue(createdUser);
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
+        createdUser,
+      );
 
       const result = await service.syncUser(auth0Id, placeholderEmail);
 
@@ -222,9 +222,9 @@ describe('AuthService', () => {
         new Error('Management API unavailable'),
       );
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (
-        mockUsersService.provisionWithPersonalOrg as Mock
-      ).mockResolvedValue(createdUser);
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
+        createdUser,
+      );
 
       const result = await service.syncUser(auth0Id, placeholderEmail);
 
@@ -280,9 +280,7 @@ describe('AuthService', () => {
 
       (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       // A non-pending user exists with this email (OTP account not yet linked)
-      (mockUsersService.findByEmail as Mock).mockResolvedValue(
-        existingOtpUser,
-      );
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(existingOtpUser);
       (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(relinked);
 
       const result = await service.syncUser(
@@ -373,9 +371,7 @@ describe('AuthService', () => {
 
       (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       // A non-pending user exists with this email (OTP account not yet linked)
-      (mockUsersService.findByEmail as Mock).mockResolvedValue(
-        existingOtpUser,
-      );
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(existingOtpUser);
       (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(relinked);
 
       const result = await service.syncUser(
@@ -435,9 +431,9 @@ describe('AuthService', () => {
     it('propagates errors from provisionWithPersonalOrg', async () => {
       (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (
-        mockUsersService.provisionWithPersonalOrg as Mock
-      ).mockRejectedValue(new Error('Transaction aborted'));
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockRejectedValue(
+        new Error('Transaction aborted'),
+      );
 
       await expect(service.syncUser('auth0|new', 'new@b.com')).rejects.toThrow(
         'Transaction aborted',
@@ -605,7 +601,10 @@ describe('AuthService', () => {
       };
       (mockUsersService.updateProfile as Mock).mockResolvedValue(updated);
 
-      const result = await service.updateProfile('u-1', { firstName: 'Alice', lastName: 'Smith' });
+      const result = await service.updateProfile('u-1', {
+        firstName: 'Alice',
+        lastName: 'Smith',
+      });
 
       expect(result).toBe(updated);
       expect(mockUsersService.updateProfile).toHaveBeenCalledWith('u-1', {
