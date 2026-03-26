@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/observability/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:observability"],
+  "tags": [
+    "type:lib",
+    "scope:observability"
+  ],
   "targets": {
     "build": {
       "executor": "nx:noop",
@@ -11,10 +14,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/observability"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/observability"
+      ],
       "options": {
-        "jestConfig": "libs/observability/jest.config.cts"
+        "configFile": "libs/observability/vitest.config.ts"
       }
     },
     "typecheck": {

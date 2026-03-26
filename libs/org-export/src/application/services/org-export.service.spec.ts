@@ -7,6 +7,7 @@ import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { ActivityLogService } from '@libs/activity-log';
 import { ExportStatus, OrganizationStatus } from '@prisma/client';
+import { vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
@@ -16,34 +17,34 @@ const JOB_UUID = 'd4e5f6a7-b8c9-6012-de34-fa5678bc9012';
 
 function buildRepoMock() {
   return {
-    findOrgById: jest.fn(),
-    createJobAndExport: jest.fn(),
-    findExportByIdAndOrg: jest.fn(),
-    findExportsByOrg: jest.fn(),
+    findOrgById: vi.fn(),
+    createJobAndExport: vi.fn(),
+    findExportByIdAndOrg: vi.fn(),
+    findExportsByOrg: vi.fn(),
   };
 }
 
 function buildEventBusMock() {
   return {
-    publish: jest.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildLegalAuditMock() {
   return {
-    recordEvent: jest.fn().mockResolvedValue(undefined),
+    recordEvent: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildActivityLogMock() {
   return {
-    logActivity: jest.fn(),
+    logActivity: vi.fn(),
   };
 }
 
 function buildConfigMock() {
   return {
-    get: jest.fn((key: string, defaultValue?: unknown) => {
+    get: vi.fn((key: string, defaultValue?: unknown) => {
       return defaultValue;
     }),
   };
@@ -107,7 +108,7 @@ describe('OrgExportService', () => {
     service = module.get<OrgExportService>(OrgExportService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ─── requestExport ──────────────────────────────────────────────────────────
 

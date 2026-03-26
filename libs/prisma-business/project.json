@@ -3,23 +3,39 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/prisma-business/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:prisma-business"],
+  "tags": [
+    "type:lib",
+    "scope:prisma-business"
+  ],
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "options": {
         "outputPath": "dist/libs/prisma-business",
         "tsConfig": "libs/prisma-business/tsconfig.lib.json",
         "packageJson": "libs/prisma-business/package.json",
         "main": "libs/prisma-business/src/index.ts",
-        "assets": ["libs/prisma-business/*.md"]
+        "assets": [
+          "libs/prisma-business/*.md"
+        ]
       }
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
         "command": "tsc --project libs/prisma-business/tsconfig.lib.json --noEmit"
+      }
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/unit/libs/prisma-business"
+      ],
+      "options": {
+        "configFile": "libs/prisma-business/vitest.config.ts"
       }
     }
   }

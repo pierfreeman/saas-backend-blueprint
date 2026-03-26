@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { RemoveMemberService } from './remove-member.service';
 import { PENDING_AUTH0_ID_PREFIX } from '../auth/auth.service';
+import { vi } from 'vitest';
 
 const baseMembership = {
   id: 'm-1',
@@ -30,18 +31,18 @@ const pendingUser = {
 };
 
 const mockMembershipsService = {
-  findById: jest.fn(),
-  deleteMembership: jest.fn(),
-  findByUser: jest.fn(),
+  findById: vi.fn(),
+  deleteMembership: vi.fn(),
+  findByUser: vi.fn(),
 };
 
 const mockUsersService = {
-  findById: jest.fn(),
-  deleteUser: jest.fn(),
+  findById: vi.fn(),
+  deleteUser: vi.fn(),
 };
 
 const mockAuth0ManagementService = {
-  deleteUser: jest.fn(),
+  deleteUser: vi.fn(),
 };
 
 function buildService(): RemoveMemberService {
@@ -56,7 +57,7 @@ describe('RemoveMemberService', () => {
   let service: RemoveMemberService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     service = buildService();
 
     // Default happy-path stubs (last membership, real Auth0 user)

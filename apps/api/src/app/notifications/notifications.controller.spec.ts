@@ -7,17 +7,18 @@ import { AuthService } from '../auth/auth.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { MarkManyReadDto } from './dto/mark-many-read.dto';
 import { QueryNotificationsDto } from './dto/query-notifications.dto';
+import { Mock, vi } from 'vitest';
 
 // Prevent Jest from loading the full @libs/notifications module graph (which
 // pulls in ioredis, socket.io, jwks-rsa — all ESM-only) and causing parse
 // errors. The controller only needs NotificationsService as a DI token.
-jest.mock('@libs/notifications', () => ({
+vi.mock('@libs/notifications', () => ({
   NotificationsService: class MockNotificationsService {},
 }));
 
 // AuthService is a plain NestJS class — no ESM issues. Mock at module level
 // so imports are resolved without PrismaBusinessService transitive deps.
-jest.mock('../auth/auth.service');
+vi.mock('../auth/auth.service');
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -44,18 +45,18 @@ function makeReq(sub = 'user-1'): any {
 // ── Mock service ──────────────────────────────────────────────────────────────
 
 const mockService = {
-  getUserNotifications: jest.fn(),
-  getUnreadCount: jest.fn(),
-  createNotification: jest.fn(),
-  markAsRead: jest.fn(),
-  markManyAsRead: jest.fn(),
-  deleteNotification: jest.fn(),
+  getUserNotifications: vi.fn(),
+  getUnreadCount: vi.fn(),
+  createNotification: vi.fn(),
+  markAsRead: vi.fn(),
+  markManyAsRead: vi.fn(),
+  deleteNotification: vi.fn(),
 };
 
 // findUserByAuth0Id resolves sub → { id: sub } so service assertions keep
 // matching the sub value used in makeReq() calls.
 const mockAuthService = {
-  findUserByAuth0Id: jest.fn((sub: string) => Promise.resolve({ id: sub })),
+  findUserByAuth0Id: vi.fn((sub: string) => Promise.resolve({ id: sub })),
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ describe('NotificationsController', () => {
   let controller: NotificationsController;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [NotificationsController],

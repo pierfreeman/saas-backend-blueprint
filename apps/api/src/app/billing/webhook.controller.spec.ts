@@ -10,6 +10,7 @@ import {
   BillingService,
 } from '@libs/billing';
 import { LegalAuditService } from '@libs/legal-audit';
+import { Mocked, vi } from 'vitest';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -47,28 +48,28 @@ const makeRequest = (rawBody?: Buffer): RawBodyRequest<Request> =>
 
 describe('WebhookController', () => {
   let controller: WebhookController;
-  let stripeService: jest.Mocked<StripeService>;
-  let dispatcher: jest.Mocked<WebhookDispatcherService>;
-  let legalAudit: jest.Mocked<LegalAuditService>;
-  let billingService: jest.Mocked<BillingService>;
+  let stripeService: Mocked<StripeService>;
+  let dispatcher: Mocked<WebhookDispatcherService>;
+  let legalAudit: Mocked<LegalAuditService>;
+  let billingService: Mocked<BillingService>;
 
   beforeEach(() => {
     stripeService = {
-      constructWebhookEvent: jest.fn(),
-    } as unknown as jest.Mocked<StripeService>;
+      constructWebhookEvent: vi.fn(),
+    } as unknown as Mocked<StripeService>;
 
     dispatcher = {
-      dispatch: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<WebhookDispatcherService>;
+      dispatch: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Mocked<WebhookDispatcherService>;
 
     legalAudit = {
-      recordEvent: jest.fn(),
-    } as unknown as jest.Mocked<LegalAuditService>;
+      recordEvent: vi.fn(),
+    } as unknown as Mocked<LegalAuditService>;
 
     billingService = {
-      findBillingEvent: jest.fn(),
-      createBillingEvent: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<BillingService>;
+      findBillingEvent: vi.fn(),
+      createBillingEvent: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Mocked<BillingService>;
 
     controller = new WebhookController(
       stripeService,
@@ -76,14 +77,14 @@ describe('WebhookController', () => {
       legalAudit,
       billingService,
     );
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ─── Input validation ───────────────────────────────────────────────────
 
   describe('input validation', () => {
     it('throws BadRequestException when raw body is missing', async () => {
-      legalAudit.recordEvent = jest.fn();
+      legalAudit.recordEvent = vi.fn();
 
       await expect(
         controller.handleWebhook(makeRequest(undefined), SIGNATURE),
@@ -97,7 +98,7 @@ describe('WebhookController', () => {
     });
 
     it('throws BadRequestException when stripe-signature header is missing', async () => {
-      legalAudit.recordEvent = jest.fn();
+      legalAudit.recordEvent = vi.fn();
 
       await expect(
         controller.handleWebhook(makeRequest(RAW_BODY), ''),
@@ -112,7 +113,7 @@ describe('WebhookController', () => {
       stripeService.constructWebhookEvent.mockImplementation(() => {
         throw new Error('No signatures found matching the expected signature');
       });
-      legalAudit.recordEvent = jest.fn();
+      legalAudit.recordEvent = vi.fn();
 
       await expect(
         controller.handleWebhook(makeRequest(RAW_BODY), 'bad-sig'),
@@ -130,7 +131,7 @@ describe('WebhookController', () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
       billingService.findBillingEvent.mockResolvedValue(null);
-      legalAudit.recordEvent = jest.fn();
+      legalAudit.recordEvent = vi.fn();
 
       await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
 
@@ -217,7 +218,7 @@ describe('WebhookController', () => {
       stripeService.constructWebhookEvent.mockReturnValue(event);
       billingService.findBillingEvent.mockResolvedValue(null);
       const recordEvents: string[] = [];
-      legalAudit.recordEvent = jest.fn().mockImplementation((e) => {
+      legalAudit.recordEvent = vi.fn().mockImplementation((e) => {
         recordEvents.push(e.eventType);
       });
 

@@ -2,6 +2,7 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ObservabilityExceptionFilter } from './observability-exception.filter';
 import { ObservabilityLoggerService } from '../logger/logger.service';
+import { Mock, Mocked, vi } from 'vitest';
 
 function makeHost(
   overrides: {
@@ -10,8 +11,8 @@ function makeHost(
     tenantContext?: { tenantId?: string; userId?: string; role?: string };
   } = {},
 ) {
-  const json = jest.fn();
-  const status = jest.fn().mockReturnValue({ json });
+  const json = vi.fn();
+  const status = vi.fn().mockReturnValue({ json });
   return {
     switchToHttp: () => ({
       getResponse: () => ({ status }),
@@ -28,18 +29,18 @@ function makeHost(
 
 describe('ObservabilityExceptionFilter', () => {
   let filter: ObservabilityExceptionFilter;
-  let logger: jest.Mocked<ObservabilityLoggerService>;
+  let logger: Mocked<ObservabilityLoggerService>;
 
   beforeEach(async () => {
-    const mockLogger: jest.Mocked<Partial<ObservabilityLoggerService>> = {
-      logCtx: jest.fn(),
-      errorCtx: jest.fn(),
-      warnCtx: jest.fn(),
-      debugCtx: jest.fn(),
-      log: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn(),
+    const mockLogger: Mocked<Partial<ObservabilityLoggerService>> = {
+      logCtx: vi.fn(),
+      errorCtx: vi.fn(),
+      warnCtx: vi.fn(),
+      debugCtx: vi.fn(),
+      log: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -55,7 +56,7 @@ describe('ObservabilityExceptionFilter', () => {
     logger = module.get(ObservabilityLoggerService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   it('returns 500 for unknown errors', () => {
     const host = makeHost({
@@ -63,7 +64,7 @@ describe('ObservabilityExceptionFilter', () => {
     });
     filter.catch(new Error('Unexpected'), host as any);
 
-    const [statusCode] = (host.status as jest.Mock).mock.calls[0];
+    const [statusCode] = (host.status as Mock).mock.calls[0];
     expect(statusCode).toBe(500);
   });
 
@@ -88,7 +89,7 @@ describe('ObservabilityExceptionFilter', () => {
       host as any,
     );
 
-    const [statusCode] = (host.status as jest.Mock).mock.calls[0];
+    const [statusCode] = (host.status as Mock).mock.calls[0];
     expect(statusCode).toBe(400);
   });
 
@@ -118,7 +119,7 @@ describe('ObservabilityExceptionFilter', () => {
       host as any,
     );
 
-    const jsonArg = (host.json as jest.Mock).mock.calls[0][0] as Record<
+    const jsonArg = (host.json as Mock).mock.calls[0][0] as Record<
       string,
       unknown
     >;

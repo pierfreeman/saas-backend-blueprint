@@ -1,21 +1,29 @@
 import { SqsConsumerService } from './sqs-consumer.service';
 import { WorkerController, HeavyJobPayload } from './worker.controller';
 import { DOMAIN_EVENTS, DomainEvent } from '@libs/events';
+import { Mocked, vi } from 'vitest';
 
 // ── AWS SDK mock ─────────────────────────────────────────────────────────────
-const mockSend = jest.fn();
-jest.mock('@aws-sdk/client-sqs', () => ({
-  SQSClient: jest.fn().mockImplementation(() => ({ send: mockSend })),
-  ReceiveMessageCommand: jest.fn().mockImplementation((input) => ({ input })),
-  DeleteMessageCommand: jest.fn().mockImplementation((input) => ({ input })),
+const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
+
+vi.mock('@aws-sdk/client-sqs', () => ({
+  SQSClient: vi.fn(function (this: unknown) {
+    return { send: mockSend };
+  }),
+  ReceiveMessageCommand: vi.fn(function (this: unknown, input: unknown) {
+    return { input };
+  }),
+  DeleteMessageCommand: vi.fn(function (this: unknown, input: unknown) {
+    return { input };
+  }),
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function makeController(): jest.Mocked<WorkerController> {
+function makeController(): Mocked<WorkerController> {
   return {
-    handleHeavyJobCreated: jest.fn().mockResolvedValue(undefined),
-    handleOrgDeletionRequested: jest.fn().mockResolvedValue(undefined),
-  } as unknown as jest.Mocked<WorkerController>;
+    handleHeavyJobCreated: vi.fn().mockResolvedValue(undefined),
+    handleOrgDeletionRequested: vi.fn().mockResolvedValue(undefined),
+  } as unknown as Mocked<WorkerController>;
 }
 
 function makeEvent(
@@ -45,14 +53,14 @@ function makeSqsMessage(
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 describe('SqsConsumerService', () => {
-  let controller: jest.Mocked<WorkerController>;
+  let controller: Mocked<WorkerController>;
   let service: SqsConsumerService;
 
   const QUEUE_URL =
     'http://localstack:4566/000000000000/saas-backend-heavy-jobs';
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     delete process.env['SQS_STANDARD_QUEUE_URL'];
     controller = makeController();
     service = new SqsConsumerService(controller);
@@ -69,9 +77,7 @@ describe('SqsConsumerService', () => {
       process.env['SQS_STANDARD_QUEUE_URL'] = QUEUE_URL;
       // Create the instance first, then spy on its prototype method
       const svc = new SqsConsumerService(controller);
-      const pollSpy = jest
-        .spyOn(svc as any, 'poll')
-        .mockResolvedValue(undefined);
+      const pollSpy = vi.spyOn(svc as any, 'poll').mockResolvedValue(undefined);
 
       svc.onModuleInit();
 
@@ -170,7 +176,7 @@ describe('SqsConsumerService', () => {
       (service as any).queueUrl = QUEUE_URL;
       (service as any).running = true;
 
-      const sleepSpy = jest
+      const sleepSpy = vi
         .spyOn(service as any, 'sleep')
         .mockResolvedValue(undefined);
 

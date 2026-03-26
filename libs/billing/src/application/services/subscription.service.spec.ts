@@ -8,6 +8,7 @@ import { BillingStatus as PrismaBillingStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 import { BillingStatus } from '../../domain/enums/billing-status.enum';
+import { Mock, Mocked, vi } from 'vitest';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -60,10 +61,10 @@ const makeCtx = (overrides: Partial<SyncContext> = {}): SyncContext => ({
 
 describe('SubscriptionService', () => {
   let service: SubscriptionService;
-  let billingRepository: jest.Mocked<BillingRepository>;
-  let activityLog: jest.Mocked<ActivityLogService>;
-  let legalAudit: jest.Mocked<LegalAuditService>;
-  let eventBus: jest.Mocked<EventBusService>;
+  let billingRepository: Mocked<BillingRepository>;
+  let activityLog: Mocked<ActivityLogService>;
+  let legalAudit: Mocked<LegalAuditService>;
+  let eventBus: Mocked<EventBusService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -72,24 +73,24 @@ describe('SubscriptionService', () => {
         {
           provide: BillingRepository,
           useValue: {
-            findOrgById: jest.fn(),
-            findOrgByStripeCustomerId: jest.fn(),
-            updateOrgBillingData: jest.fn().mockResolvedValue(undefined),
-            updateOrgAndSnapshotTx: jest.fn().mockResolvedValue(undefined),
-            createSubscriptionSnapshot: jest.fn().mockResolvedValue(undefined),
+            findOrgById: vi.fn(),
+            findOrgByStripeCustomerId: vi.fn(),
+            updateOrgBillingData: vi.fn().mockResolvedValue(undefined),
+            updateOrgAndSnapshotTx: vi.fn().mockResolvedValue(undefined),
+            createSubscriptionSnapshot: vi.fn().mockResolvedValue(undefined),
           },
         },
         {
           provide: ActivityLogService,
-          useValue: { logActivity: jest.fn() },
+          useValue: { logActivity: vi.fn() },
         },
         {
           provide: LegalAuditService,
-          useValue: { recordEvent: jest.fn() },
+          useValue: { recordEvent: vi.fn() },
         },
         {
           provide: EventBusService,
-          useValue: { publish: jest.fn().mockResolvedValue(undefined) },
+          useValue: { publish: vi.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -166,7 +167,7 @@ describe('SubscriptionService', () => {
       await service.syncFromStripeSubscription(sub, makeCtx());
 
       const [, , snapshotArg] = (
-        billingRepository.updateOrgAndSnapshotTx as jest.Mock
+        billingRepository.updateOrgAndSnapshotTx as Mock
       ).mock.calls[0];
 
       expect(snapshotArg.periodStart).toEqual(
@@ -531,16 +532,16 @@ describe('SubscriptionService', () => {
 
     beforeEach(() => {
       (
-        billingRepository as jest.Mocked<BillingRepository> & {
-          findOrgById: jest.Mock;
+        billingRepository as Mocked<BillingRepository> & {
+          findOrgById: Mock;
         }
       ).findOrgById.mockResolvedValue(makeOrg());
     });
 
     it('persists billingStatus ACTIVE, stripeCustomerId, and subscriptionId', async () => {
       (
-        billingRepository as jest.Mocked<BillingRepository> & {
-          findOrgById: jest.Mock;
+        billingRepository as Mocked<BillingRepository> & {
+          findOrgById: Mock;
         }
       ).findOrgById.mockResolvedValue(
         makeOrg({ stripeCustomerId: null, subscriptionId: null }),
@@ -560,8 +561,8 @@ describe('SubscriptionService', () => {
 
     it('skips stripeCustomerId when org already has one', async () => {
       (
-        billingRepository as jest.Mocked<BillingRepository> & {
-          findOrgById: jest.Mock;
+        billingRepository as Mocked<BillingRepository> & {
+          findOrgById: Mock;
         }
       ).findOrgById.mockResolvedValue(
         makeOrg({ stripeCustomerId: 'cus_test_001', subscriptionId: null }),
@@ -570,7 +571,7 @@ describe('SubscriptionService', () => {
       await service.handleCheckoutCompleted(makeSession(), checkoutCtx());
 
       const [, updateArg] = (
-        billingRepository.updateOrgBillingData as jest.Mock
+        billingRepository.updateOrgBillingData as Mock
       ).mock.calls[0];
       expect(updateArg).not.toHaveProperty('stripeCustomerId');
       expect(updateArg).toMatchObject({
@@ -581,8 +582,8 @@ describe('SubscriptionService', () => {
 
     it('does not include subscriptionId when session has no subscription', async () => {
       (
-        billingRepository as jest.Mocked<BillingRepository> & {
-          findOrgById: jest.Mock;
+        billingRepository as Mocked<BillingRepository> & {
+          findOrgById: Mock;
         }
       ).findOrgById.mockResolvedValue(
         makeOrg({ stripeCustomerId: null, subscriptionId: null }),
@@ -594,7 +595,7 @@ describe('SubscriptionService', () => {
       );
 
       const [, updateArg] = (
-        billingRepository.updateOrgBillingData as jest.Mock
+        billingRepository.updateOrgBillingData as Mock
       ).mock.calls[0];
       expect(updateArg).not.toHaveProperty('subscriptionId');
       expect(updateArg).toMatchObject({
@@ -622,8 +623,8 @@ describe('SubscriptionService', () => {
 
       expect(
         (
-          billingRepository as jest.Mocked<BillingRepository> & {
-            findOrgById: jest.Mock;
+          billingRepository as Mocked<BillingRepository> & {
+            findOrgById: Mock;
           }
         ).findOrgById,
       ).not.toHaveBeenCalled();
@@ -638,8 +639,8 @@ describe('SubscriptionService', () => {
 
       expect(
         (
-          billingRepository as jest.Mocked<BillingRepository> & {
-            findOrgById: jest.Mock;
+          billingRepository as Mocked<BillingRepository> & {
+            findOrgById: Mock;
           }
         ).findOrgById,
       ).not.toHaveBeenCalled();
@@ -648,8 +649,8 @@ describe('SubscriptionService', () => {
 
     it('returns early when org is not found', async () => {
       (
-        billingRepository as jest.Mocked<BillingRepository> & {
-          findOrgById: jest.Mock;
+        billingRepository as Mocked<BillingRepository> & {
+          findOrgById: Mock;
         }
       ).findOrgById.mockResolvedValue(null);
 
@@ -673,8 +674,8 @@ describe('SubscriptionService', () => {
 
     it('extracts subscriptionId from subscription object (non-string)', async () => {
       (
-        billingRepository as jest.Mocked<BillingRepository> & {
-          findOrgById: jest.Mock;
+        billingRepository as Mocked<BillingRepository> & {
+          findOrgById: Mock;
         }
       ).findOrgById.mockResolvedValue(
         makeOrg({ stripeCustomerId: 'cus_test_001', subscriptionId: null }),
@@ -767,7 +768,7 @@ describe('SubscriptionService', () => {
       ).resolves.not.toThrow();
 
       const [, , snapshotArg] = (
-        billingRepository.updateOrgAndSnapshotTx as jest.Mock
+        billingRepository.updateOrgAndSnapshotTx as Mock
       ).mock.calls[0];
       // Should still be a Date instance
       expect(snapshotArg.periodStart).toBeInstanceOf(Date);

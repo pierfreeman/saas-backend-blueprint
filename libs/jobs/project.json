@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/jobs/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:jobs"],
+  "tags": [
+    "type:lib",
+    "scope:jobs"
+  ],
   "// targets": "to see all targets run: nx show project jobs --web",
   "targets": {
     "build": {
@@ -12,10 +15,13 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/jobs"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/jobs"
+      ],
       "options": {
-        "jestConfig": "libs/jobs/jest.config.cts"
+        "configFile": "libs/jobs/vitest.config.ts",
+        "passWithNoTests": true
       }
     },
     "typecheck": {

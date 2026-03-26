@@ -12,50 +12,51 @@ import { UploadPolicyService } from './upload-policy.service';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { FileStatus, StorageProvider } from '../../domain/enums/storage.enums';
+import { Mock, Mocked, vi } from 'vitest';
 
 describe('StorageService', () => {
   let service: StorageService;
-  let configService: jest.Mocked<ConfigService>;
-  let s3Provider: jest.Mocked<S3Provider>;
-  let storageRepository: jest.Mocked<StorageRepository>;
-  let uploadPolicyService: jest.Mocked<UploadPolicyService>;
-  let activityLog: jest.Mocked<ActivityLogService>;
-  let legalAudit: jest.Mocked<LegalAuditService>;
+  let configService: Mocked<ConfigService>;
+  let s3Provider: Mocked<S3Provider>;
+  let storageRepository: Mocked<StorageRepository>;
+  let uploadPolicyService: Mocked<UploadPolicyService>;
+  let activityLog: Mocked<ActivityLogService>;
+  let legalAudit: Mocked<LegalAuditService>;
 
   beforeEach(async () => {
     configService = {
-      get: jest.fn(),
-    } as unknown as jest.Mocked<ConfigService>;
+      get: vi.fn(),
+    } as unknown as Mocked<ConfigService>;
 
     s3Provider = {
-      generateUploadUrl: jest.fn(),
-      generateDownloadUrl: jest.fn(),
-      deleteObject: jest.fn(),
-      objectExists: jest.fn(),
-      getObjectSize: jest.fn(),
-    } as unknown as jest.Mocked<S3Provider>;
+      generateUploadUrl: vi.fn(),
+      generateDownloadUrl: vi.fn(),
+      deleteObject: vi.fn(),
+      objectExists: vi.fn(),
+      getObjectSize: vi.fn(),
+    } as unknown as Mocked<S3Provider>;
 
     storageRepository = {
-      createFile: jest.fn(),
-      findByIdAndOrg: jest.fn(),
-      confirmUpload: jest.fn(),
-      deleteFile: jest.fn(),
-      findByOrg: jest.fn(),
-      findByPrefix: jest.fn(),
-      markExpired: jest.fn(),
-    } as unknown as jest.Mocked<StorageRepository>;
+      createFile: vi.fn(),
+      findByIdAndOrg: vi.fn(),
+      confirmUpload: vi.fn(),
+      deleteFile: vi.fn(),
+      findByOrg: vi.fn(),
+      findByPrefix: vi.fn(),
+      markExpired: vi.fn(),
+    } as unknown as Mocked<StorageRepository>;
 
     uploadPolicyService = {
-      validateUploadRequest: jest.fn(),
-    } as unknown as jest.Mocked<UploadPolicyService>;
+      validateUploadRequest: vi.fn(),
+    } as unknown as Mocked<UploadPolicyService>;
 
     activityLog = {
-      logActivity: jest.fn(),
-    } as unknown as jest.Mocked<ActivityLogService>;
+      logActivity: vi.fn(),
+    } as unknown as Mocked<ActivityLogService>;
 
     legalAudit = {
-      recordEvent: jest.fn(),
-    } as unknown as jest.Mocked<LegalAuditService>;
+      recordEvent: vi.fn(),
+    } as unknown as Mocked<LegalAuditService>;
 
     // Mock config
     configService.get.mockImplementation((key: string) => {

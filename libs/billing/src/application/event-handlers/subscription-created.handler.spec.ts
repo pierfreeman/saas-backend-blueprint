@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SubscriptionCreatedHandler } from './subscription-created.handler';
 import { SubscriptionService } from '../../application/services/subscription.service';
 import Stripe from 'stripe';
+import { Mocked, vi } from 'vitest';
 
 const makeStripeSubscription = (
   overrides: Partial<Stripe.Subscription> = {},
@@ -37,7 +38,7 @@ const makeStripeEvent = (
 
 describe('SubscriptionCreatedHandler', () => {
   let handler: SubscriptionCreatedHandler;
-  let subscriptionService: jest.Mocked<SubscriptionService>;
+  let subscriptionService: Mocked<SubscriptionService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -46,7 +47,7 @@ describe('SubscriptionCreatedHandler', () => {
         {
           provide: SubscriptionService,
           useValue: {
-            handleSubscriptionCreated: jest.fn().mockResolvedValue(undefined),
+            handleSubscriptionCreated: vi.fn().mockResolvedValue(undefined),
           },
         },
       ],

@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/organizations/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:organizations"],
+  "tags": [
+    "type:lib",
+    "scope:organizations"
+  ],
   "targets": {
     "build": {
       "executor": "nx:noop",
@@ -11,10 +14,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/organizations"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/organizations"
+      ],
       "options": {
-        "jestConfig": "libs/organizations/jest.config.cts"
+        "configFile": "libs/organizations/vitest.config.ts"
       }
     },
     "typecheck": {

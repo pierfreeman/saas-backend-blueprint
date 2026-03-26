@@ -4,6 +4,7 @@ import { OrgDeletionSchedulerService } from './org-deletion-scheduler.service';
 import { OrgDeletionRepository } from '../../infrastructure/repositories/org-deletion.repository';
 import { OrgDeletionService } from './org-deletion.service';
 import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
+import { vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
 const ORG1_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
@@ -11,19 +12,19 @@ const ORG2_UUID = 'b2c3d4e5-f6a7-4890-bc12-de3456fa7890';
 
 function buildRepoMock() {
   return {
-    findOrgsEligibleForDeletion: jest.fn().mockResolvedValue([]),
+    findOrgsEligibleForDeletion: vi.fn().mockResolvedValue([]),
   };
 }
 
 function buildDeletionServiceMock() {
   return {
-    requestDeletion: jest.fn().mockResolvedValue(undefined),
+    requestDeletion: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildConfigMock() {
   return {
-    get: jest.fn((key: string) => {
+    get: vi.fn((key: string) => {
       if (key === 'ORG_DELETION_CHECK_CRON') return '0 3 * * *';
       return undefined;
     }),
@@ -69,20 +70,20 @@ describe('OrgDeletionSchedulerService', () => {
     );
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ─── checkExpiredOrganizations ──────────────────────────────────────────────
 
   describe('checkExpiredOrganizations', () => {
     it('finds SUSPENDED orgs with deletionScheduledAt in the past', async () => {
       const now = new Date('2026-02-15');
-      jest.useFakeTimers().setSystemTime(now);
+      vi.useFakeTimers().setSystemTime(now);
 
       await service.checkExpiredOrganizations();
 
       expect(repo.findOrgsEligibleForDeletion).toHaveBeenCalledWith(now);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('triggers deletion for each expired organization', async () => {
@@ -140,7 +141,7 @@ describe('OrgDeletionSchedulerService', () => {
 
     it('logs when no organizations are eligible for deletion', async () => {
       repo.findOrgsEligibleForDeletion.mockResolvedValueOnce([]);
-      const logSpy = jest
+      const logSpy = vi
         .spyOn(service['logger'], 'log')
         .mockImplementation(() => undefined);
 
@@ -156,7 +157,7 @@ describe('OrgDeletionSchedulerService', () => {
       const org2 = makeOrganization(ORG2_UUID, new Date('2026-02-10'));
 
       repo.findOrgsEligibleForDeletion.mockResolvedValueOnce([org1, org2]);
-      const logSpy = jest
+      const logSpy = vi
         .spyOn(service['logger'], 'log')
         .mockImplementation(() => undefined);
 

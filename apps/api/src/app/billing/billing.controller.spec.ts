@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BillingController } from './billing.controller';
 import { BillingService } from '@libs/billing';
 import { BillingStatus } from '@libs/billing';
+import { Mocked, vi } from 'vitest';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -24,20 +25,20 @@ const makeSubscriptionEntity = () => ({
 
 describe('BillingController', () => {
   let controller: BillingController;
-  let billingService: jest.Mocked<BillingService>;
+  let billingService: Mocked<BillingService>;
 
   beforeEach(() => {
     billingService = {
-      createCheckoutSession: jest.fn(),
-      createPortalSession: jest.fn(),
-      getSubscription: jest.fn(),
-      cancelSubscription: jest.fn(),
-      getSubscriptionHistory: jest.fn(),
-      ensureStripeCustomer: jest.fn(),
-    } as unknown as jest.Mocked<BillingService>;
+      createCheckoutSession: vi.fn(),
+      createPortalSession: vi.fn(),
+      getSubscription: vi.fn(),
+      cancelSubscription: vi.fn(),
+      getSubscriptionHistory: vi.fn(),
+      ensureStripeCustomer: vi.fn(),
+    } as unknown as Mocked<BillingService>;
 
     controller = new BillingController(billingService);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ─── POST /billing/checkout ─────────────────────────────────────────────

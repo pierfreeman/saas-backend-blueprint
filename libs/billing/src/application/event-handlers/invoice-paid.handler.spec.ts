@@ -1,9 +1,10 @@
 import { InvoicePaidHandler } from './invoice-paid.handler';
 import { SubscriptionService } from '../../application/services/subscription.service';
 import Stripe from 'stripe';
+import { Mock, vi } from 'vitest';
 
 const mockSubscriptionService = {
-  handleInvoicePaid: jest.fn(),
+  handleInvoicePaid: vi.fn(),
 } as unknown as SubscriptionService;
 
 const makeInvoice = (overrides: Partial<Stripe.Invoice> = {}): Stripe.Invoice =>
@@ -26,14 +27,14 @@ describe('InvoicePaidHandler', () => {
   let handler: InvoicePaidHandler;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     handler = new InvoicePaidHandler(mockSubscriptionService);
   });
 
   it('delegates to SubscriptionService.handleInvoicePaid with the invoice object', async () => {
     const invoice = makeInvoice();
     const event = makeEvent(invoice);
-    (mockSubscriptionService.handleInvoicePaid as jest.Mock).mockResolvedValue(
+    (mockSubscriptionService.handleInvoicePaid as Mock).mockResolvedValue(
       undefined,
     );
 
@@ -46,7 +47,7 @@ describe('InvoicePaidHandler', () => {
 
   it('resolves without throwing for a well-formed event', async () => {
     const event = makeEvent(makeInvoice());
-    (mockSubscriptionService.handleInvoicePaid as jest.Mock).mockResolvedValue(
+    (mockSubscriptionService.handleInvoicePaid as Mock).mockResolvedValue(
       undefined,
     );
 
@@ -55,7 +56,7 @@ describe('InvoicePaidHandler', () => {
 
   it('propagates errors from SubscriptionService', async () => {
     const event = makeEvent(makeInvoice());
-    (mockSubscriptionService.handleInvoicePaid as jest.Mock).mockRejectedValue(
+    (mockSubscriptionService.handleInvoicePaid as Mock).mockRejectedValue(
       new Error('DB error'),
     );
 

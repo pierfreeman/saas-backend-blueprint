@@ -4,16 +4,16 @@
  * Two ioredis connections are created (publisher first, subscriber second).
  * We capture them via Ctor.__instances so each test can reference both.
  */
-jest.mock('ioredis', () => {
+vi.mock('ioredis', () => {
   const makeInstance = () => ({
-    publish: jest.fn().mockResolvedValue(1),
-    psubscribe: jest.fn().mockResolvedValue(undefined),
-    subscribe: jest.fn().mockResolvedValue(undefined),
-    on: jest.fn(),
-    quit: jest.fn().mockResolvedValue('OK'),
+    publish: vi.fn().mockResolvedValue(1),
+    psubscribe: vi.fn().mockResolvedValue(undefined),
+    subscribe: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
+    quit: vi.fn().mockResolvedValue('OK'),
   });
 
-  const Ctor: any = jest.fn(() => {
+  const Ctor: any = vi.fn(function (this: any) {
     const inst = makeInstance();
     Ctor.__instances.push(inst);
     return inst;
@@ -25,17 +25,18 @@ jest.mock('ioredis', () => {
 
 import Redis from 'ioredis';
 import { NotificationsPubSubService } from './notifications-pubsub.service';
+import { Mock, vi } from 'vitest';
 import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_PATTERNS,
 } from '../../types/notification.types';
 
 type IoRedisMock = {
-  publish: jest.Mock;
-  psubscribe: jest.Mock;
-  subscribe: jest.Mock;
-  on: jest.Mock;
-  quit: jest.Mock;
+  publish: Mock;
+  psubscribe: Mock;
+  subscribe: Mock;
+  on: Mock;
+  quit: Mock;
 };
 
 const getInstances = (): [IoRedisMock, IoRedisMock] =>
@@ -46,7 +47,7 @@ function getListener(
   subscriber: IoRedisMock,
   eventName: string,
 ): ((...args: unknown[]) => void) | undefined {
-  const call = (subscriber.on as jest.Mock).mock.calls.find(
+  const call = (subscriber.on as Mock).mock.calls.find(
     ([ev]: [string]) => ev === eventName,
   );
   return call?.[1] as ((...args: unknown[]) => void) | undefined;
@@ -56,7 +57,7 @@ describe('NotificationsPubSubService', () => {
   let service: NotificationsPubSubService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     (Redis as any).__instances = [];
     service = new NotificationsPubSubService();
   });
@@ -131,7 +132,7 @@ describe('NotificationsPubSubService', () => {
   describe('subscribeToUserPattern', () => {
     it('psubscribes to the user pattern', () => {
       const [, subscriber] = getInstances();
-      service.subscribeToUserPattern(jest.fn());
+      service.subscribeToUserPattern(vi.fn());
       expect(subscriber.psubscribe).toHaveBeenCalledWith(
         NOTIFICATION_PATTERNS.user,
       );
@@ -139,7 +140,7 @@ describe('NotificationsPubSubService', () => {
 
     it('invokes handler when a matching pmessage arrives', () => {
       const [, subscriber] = getInstances();
-      const handler = jest.fn();
+      const handler = vi.fn();
       service.subscribeToUserPattern(handler);
 
       const listener = getListener(subscriber, 'pmessage');
@@ -161,7 +162,7 @@ describe('NotificationsPubSubService', () => {
 
     it('ignores messages from non-user channels', () => {
       const [, subscriber] = getInstances();
-      const handler = jest.fn();
+      const handler = vi.fn();
       service.subscribeToUserPattern(handler);
 
       const listener = getListener(subscriber, 'pmessage');
@@ -180,7 +181,7 @@ describe('NotificationsPubSubService', () => {
   describe('subscribeToOrgPattern', () => {
     it('psubscribes to the org pattern', () => {
       const [, subscriber] = getInstances();
-      service.subscribeToOrgPattern(jest.fn());
+      service.subscribeToOrgPattern(vi.fn());
       expect(subscriber.psubscribe).toHaveBeenCalledWith(
         NOTIFICATION_PATTERNS.org,
       );
@@ -188,7 +189,7 @@ describe('NotificationsPubSubService', () => {
 
     it('invokes handler when a matching org pmessage arrives', () => {
       const [, subscriber] = getInstances();
-      const handler = jest.fn();
+      const handler = vi.fn();
       service.subscribeToOrgPattern(handler);
 
       const listener = getListener(subscriber, 'pmessage');
@@ -212,7 +213,7 @@ describe('NotificationsPubSubService', () => {
   describe('subscribeToGlobal', () => {
     it('subscribes to the global channel', () => {
       const [, subscriber] = getInstances();
-      service.subscribeToGlobal(jest.fn());
+      service.subscribeToGlobal(vi.fn());
       expect(subscriber.subscribe).toHaveBeenCalledWith(
         NOTIFICATION_CHANNELS.global,
       );
@@ -220,7 +221,7 @@ describe('NotificationsPubSubService', () => {
 
     it('invokes handler when a global message arrives', () => {
       const [, subscriber] = getInstances();
-      const handler = jest.fn();
+      const handler = vi.fn();
       service.subscribeToGlobal(handler);
 
       const listener = getListener(subscriber, 'message');
@@ -253,9 +254,9 @@ describe('NotificationsPubSubService', () => {
   describe('Redis connection event handlers', () => {
     it('logs on publisher connect', () => {
       const [publisher] = getInstances();
-      const logSpy = jest
+      const logSpy = vi
         .spyOn((service as any).logger, 'log')
-        .mockImplementation(jest.fn());
+        .mockImplementation(vi.fn());
 
       const connectCb = getListener(publisher, 'connect');
       expect(connectCb).toBeDefined();
@@ -268,9 +269,9 @@ describe('NotificationsPubSubService', () => {
 
     it('logs on subscriber connect', () => {
       const [, subscriber] = getInstances();
-      const logSpy = jest
+      const logSpy = vi
         .spyOn((service as any).logger, 'log')
-        .mockImplementation(jest.fn());
+        .mockImplementation(vi.fn());
 
       const connectCb = getListener(subscriber, 'connect');
       expect(connectCb).toBeDefined();
@@ -283,9 +284,9 @@ describe('NotificationsPubSubService', () => {
 
     it('logs on publisher error', () => {
       const [publisher] = getInstances();
-      const errorSpy = jest
+      const errorSpy = vi
         .spyOn((service as any).logger, 'error')
-        .mockImplementation(jest.fn());
+        .mockImplementation(vi.fn());
 
       const errorCb = getListener(publisher, 'error') as
         | ((e: Error) => void)
@@ -301,9 +302,9 @@ describe('NotificationsPubSubService', () => {
 
     it('logs on subscriber error', () => {
       const [, subscriber] = getInstances();
-      const errorSpy = jest
+      const errorSpy = vi
         .spyOn((service as any).logger, 'error')
-        .mockImplementation(jest.fn());
+        .mockImplementation(vi.fn());
 
       const errorCb = getListener(subscriber, 'error') as
         | ((e: Error) => void)
@@ -323,10 +324,10 @@ describe('NotificationsPubSubService', () => {
   describe('safeHandle (via subscribeToGlobal)', () => {
     it('logs an error and does not throw when the message is invalid JSON', () => {
       const [, subscriber] = getInstances();
-      const handler = jest.fn();
-      const errorSpy = jest
+      const handler = vi.fn();
+      const errorSpy = vi
         .spyOn((service as any).logger, 'error')
-        .mockImplementation(jest.fn());
+        .mockImplementation(vi.fn());
 
       service.subscribeToGlobal(handler);
 

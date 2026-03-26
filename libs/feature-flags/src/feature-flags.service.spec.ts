@@ -4,6 +4,7 @@ import { CacheService } from '@libs/redis';
 import { LocalTransport, DOMAIN_EVENTS } from '@libs/events';
 import { BillingStatus } from '@prisma/client';
 import { OrganizationEntitlements } from './interfaces/entitlements.interface';
+import { Mock, vi } from 'vitest';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ const makeBillingService = (overrides?: {
   billingStatus?: BillingStatus;
 }) =>
   ({
-    getOrgBillingStatus: jest.fn().mockResolvedValue(
+    getOrgBillingStatus: vi.fn().mockResolvedValue(
       overrides === undefined
         ? null
         : {
@@ -30,12 +31,12 @@ const makeBillingService = (overrides?: {
 
 const makeCache = (cached?: OrganizationEntitlements | null) =>
   ({
-    get: jest.fn().mockResolvedValue(cached ?? null),
-    set: jest.fn().mockResolvedValue(undefined),
-    del: jest.fn().mockResolvedValue(undefined),
+    get: vi.fn().mockResolvedValue(cached ?? null),
+    set: vi.fn().mockResolvedValue(undefined),
+    del: vi.fn().mockResolvedValue(undefined),
   }) as unknown as CacheService;
 
-const makeTransport = () => ({ on: jest.fn() }) as unknown as LocalTransport;
+const makeTransport = () => ({ on: vi.fn() }) as unknown as LocalTransport;
 
 function buildService(
   billingService: BillingService,
@@ -49,7 +50,7 @@ function buildService(
 
 describe('FeatureFlagsService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     delete process.env['STRIPE_PRICE_ID_PRO'];
     delete process.env['STRIPE_PRICE_ID_ENTERPRISE'];
   });
@@ -88,7 +89,7 @@ describe('FeatureFlagsService', () => {
 
     it('the registered handler calls invalidateEntitlements with the orgId from the event payload', async () => {
       const cache = makeCache();
-      const transport: { on: jest.Mock } = { on: jest.fn() };
+      const transport: { on: Mock } = { on: vi.fn() };
       const service = buildService(
         makeBillingService(),
         cache,
@@ -112,7 +113,7 @@ describe('FeatureFlagsService', () => {
 
     it('the handler is a no-op when payload contains no orgId', async () => {
       const cache = makeCache();
-      const transport: { on: jest.Mock } = { on: jest.fn() };
+      const transport: { on: Mock } = { on: vi.fn() };
       const service = buildService(
         makeBillingService(),
         cache,

@@ -25,24 +25,25 @@ import { ObservabilityModule } from '../observability.module';
 import { ObservabilityExceptionFilter } from './observability-exception.filter';
 import { ObservabilityLoggerService } from '../logger/logger.service';
 import { SentryService } from '../sentry/sentry.service';
+import { MockInstance, vi } from 'vitest';
 
 // Prevent actual Sentry SDK network calls during tests
-jest.mock('@sentry/node', () => ({
-  init: jest.fn(),
-  withScope: jest
+vi.mock('@sentry/node', () => ({
+  init: vi.fn(),
+  withScope: vi
     .fn()
     .mockImplementation((cb: (scope: object) => void) =>
-      cb({ setTag: jest.fn(), setUser: jest.fn(), setExtra: jest.fn() }),
+      cb({ setTag: vi.fn(), setUser: vi.fn(), setExtra: vi.fn() }),
     ),
-  captureException: jest.fn(),
-  captureMessage: jest.fn(),
-  getCurrentScope: jest.fn(() => ({ setTag: jest.fn(), setUser: jest.fn() })),
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+  getCurrentScope: vi.fn(() => ({ setTag: vi.fn(), setUser: vi.fn() })),
   logger: {
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
@@ -81,8 +82,8 @@ const ISO_REGEX = /^\d{4}-\d{2}-\d{2}T/;
 describe('ObservabilityExceptionFilter (integration)', () => {
   let app: INestApplication;
   let logger: ObservabilityLoggerService;
-  let errorCtxSpy: jest.SpyInstance;
-  let warnCtxSpy: jest.SpyInstance;
+  let errorCtxSpy: MockInstance;
+  let warnCtxSpy: MockInstance;
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -96,12 +97,12 @@ describe('ObservabilityExceptionFilter (integration)', () => {
 
     logger = app.get(ObservabilityLoggerService);
 
-    errorCtxSpy = jest.spyOn(logger, 'errorCtx');
-    warnCtxSpy = jest.spyOn(logger, 'warnCtx');
+    errorCtxSpy = vi.spyOn(logger, 'errorCtx');
+    warnCtxSpy = vi.spyOn(logger, 'warnCtx');
   });
 
   afterAll(() => app.close());
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   // ── Happy path ─────────────────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ describe('ObservabilityExceptionFilter (integration)', () => {
 
     it("does NOT call sentry.captureException — Sentry capture is SentryInterceptor's responsibility", async () => {
       const sentrySvc = app.get(SentryService);
-      const captureSpy = jest.spyOn(sentrySvc, 'captureException');
+      const captureSpy = vi.spyOn(sentrySvc, 'captureException');
       await supertest(app.getHttpServer()).get('/test/crash');
       expect(captureSpy).not.toHaveBeenCalled();
     });
@@ -190,7 +191,7 @@ describe('ObservabilityExceptionFilter (integration)', () => {
     });
 
     it('does NOT call sentry.captureException for a 4xx exception', async () => {
-      const captureSpy = jest.spyOn(app.get(SentryService), 'captureException');
+      const captureSpy = vi.spyOn(app.get(SentryService), 'captureException');
       await supertest(app.getHttpServer()).get('/test/http-error');
       expect(captureSpy).not.toHaveBeenCalled();
     });

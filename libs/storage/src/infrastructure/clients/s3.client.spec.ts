@@ -1,15 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { S3StorageClient } from './s3.client';
+import { Mock, Mocked, vi } from 'vitest';
 
 describe('S3StorageClient', () => {
   let client: S3StorageClient;
-  let configService: jest.Mocked<ConfigService>;
+  let configService: Mocked<ConfigService>;
 
   beforeEach(async () => {
     configService = {
-      get: jest.fn(),
-    } as unknown as jest.Mocked<ConfigService>;
+      get: vi.fn(),
+    } as unknown as Mocked<ConfigService>;
 
     // Mock S3 config
     configService.get.mockImplementation((key: string) => {
@@ -68,7 +69,7 @@ describe('S3StorageClient', () => {
 
   describe('deleteObject', () => {
     it('sends a DeleteObjectCommand and resolves', async () => {
-      const mockSend = jest.fn().mockResolvedValue({});
+      const mockSend = vi.fn().mockResolvedValue({});
       (client as unknown as Record<string, unknown>)['client'] = {
         send: mockSend,
       };
@@ -80,7 +81,7 @@ describe('S3StorageClient', () => {
     });
 
     it('propagates errors from S3', async () => {
-      const mockSend = jest
+      const mockSend = vi
         .fn()
         .mockRejectedValue(new Error('S3 delete failed'));
       (client as unknown as Record<string, unknown>)['client'] = {
@@ -97,7 +98,7 @@ describe('S3StorageClient', () => {
 
   describe('objectExists', () => {
     it('returns true when HeadObject succeeds', async () => {
-      const mockSend = jest.fn().mockResolvedValue({});
+      const mockSend = vi.fn().mockResolvedValue({});
       (client as unknown as Record<string, unknown>)['client'] = {
         send: mockSend,
       };
@@ -110,7 +111,7 @@ describe('S3StorageClient', () => {
       const notFound = Object.assign(new Error('Not Found'), {
         name: 'NotFound',
       });
-      const mockSend = jest.fn().mockRejectedValue(notFound);
+      const mockSend = vi.fn().mockRejectedValue(notFound);
       (client as unknown as Record<string, unknown>)['client'] = {
         send: mockSend,
       };
@@ -123,7 +124,7 @@ describe('S3StorageClient', () => {
       const accessDenied = Object.assign(new Error('Access Denied'), {
         name: 'AccessDenied',
       });
-      const mockSend = jest.fn().mockRejectedValue(accessDenied);
+      const mockSend = vi.fn().mockRejectedValue(accessDenied);
       (client as unknown as Record<string, unknown>)['client'] = {
         send: mockSend,
       };

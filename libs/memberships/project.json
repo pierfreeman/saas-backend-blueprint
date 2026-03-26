@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/memberships/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:memberships"],
+  "tags": [
+    "type:lib",
+    "scope:memberships"
+  ],
   "targets": {
     "build": {
       "executor": "nx:noop",
@@ -11,10 +14,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/memberships"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/memberships"
+      ],
       "options": {
-        "jestConfig": "libs/memberships/jest.config.cts"
+        "configFile": "libs/memberships/vitest.config.ts"
       }
     },
     "typecheck": {

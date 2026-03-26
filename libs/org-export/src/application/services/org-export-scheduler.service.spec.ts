@@ -2,14 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OrgExportSchedulerService } from './org-export-scheduler.service';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
 import { ExportStatus } from '@prisma/client';
+import { Mock, vi } from 'vitest';
 
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
 const EXPORT_UUID = 'c3d4e5f6-a7b8-5901-cd23-ef4567ab8901';
 
 function buildRepoMock() {
   return {
-    findExpiredExports: jest.fn(),
-    markExportsExpiredBatch: jest.fn().mockResolvedValue(0),
+    findExpiredExports: vi.fn(),
+    markExportsExpiredBatch: vi.fn().mockResolvedValue(0),
   };
 }
 
@@ -41,23 +42,23 @@ describe('OrgExportSchedulerService', () => {
     service = module.get<OrgExportSchedulerService>(OrgExportSchedulerService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ─── markExpiredExports ─────────────────────────────────────────────────────
 
   describe('markExpiredExports', () => {
     beforeEach(() => {
       // Mock console.error to suppress error logs during tests
-      jest.spyOn(console, 'error').mockImplementation(jest.fn());
+      vi.spyOn(console, 'error').mockImplementation(vi.fn());
     });
 
     afterEach(() => {
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it('finds exports that are COMPLETED and have expired', async () => {
       const now = new Date('2026-01-02T00:00:00Z');
-      jest.useFakeTimers().setSystemTime(now);
+      vi.useFakeTimers().setSystemTime(now);
 
       const expiredExport = makeExport({
         expiresAt: new Date('2026-01-01T00:00:00Z'),
@@ -69,12 +70,12 @@ describe('OrgExportSchedulerService', () => {
 
       expect(repo.findExpiredExports).toHaveBeenCalledWith(now);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('marks expired exports as EXPIRED', async () => {
       const now = new Date('2026-01-02T00:00:00Z');
-      jest.useFakeTimers().setSystemTime(now);
+      vi.useFakeTimers().setSystemTime(now);
 
       const expiredExports = [
         makeExport({ id: 'export-1' }),
@@ -90,7 +91,7 @@ describe('OrgExportSchedulerService', () => {
         'export-2',
       ]);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('returns early when no expired exports found', async () => {
@@ -120,7 +121,7 @@ describe('OrgExportSchedulerService', () => {
 
     it('only processes COMPLETED exports (not PENDING or PROCESSING)', async () => {
       const now = new Date('2026-01-02T00:00:00Z');
-      jest.useFakeTimers().setSystemTime(now);
+      vi.useFakeTimers().setSystemTime(now);
 
       repo.findExpiredExports.mockResolvedValueOnce([]);
 
@@ -128,12 +129,12 @@ describe('OrgExportSchedulerService', () => {
 
       expect(repo.findExpiredExports).toHaveBeenCalledWith(now);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('ignores exports with null expiresAt', async () => {
       const now = new Date('2026-01-02T00:00:00Z');
-      jest.useFakeTimers().setSystemTime(now);
+      vi.useFakeTimers().setSystemTime(now);
 
       repo.findExpiredExports.mockResolvedValueOnce([]);
 
@@ -141,12 +142,12 @@ describe('OrgExportSchedulerService', () => {
 
       expect(repo.findExpiredExports).toHaveBeenCalledWith(now);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('handles large batch of expired exports', async () => {
       const now = new Date('2026-01-02T00:00:00Z');
-      jest.useFakeTimers().setSystemTime(now);
+      vi.useFakeTimers().setSystemTime(now);
 
       const expiredExports = Array.from({ length: 100 }, (_, i) =>
         makeExport({ id: `export-${i}` }),
@@ -160,12 +161,12 @@ describe('OrgExportSchedulerService', () => {
         expiredExports.map((e) => e.id),
       );
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('compares expiration time correctly', async () => {
       const now = new Date('2026-01-02T12:00:00Z');
-      jest.useFakeTimers().setSystemTime(now);
+      vi.useFakeTimers().setSystemTime(now);
 
       const justExpired = makeExport({
         id: 'just-expired',
@@ -183,7 +184,7 @@ describe('OrgExportSchedulerService', () => {
         'just-expired',
       ]);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
   });
 });

@@ -1,15 +1,16 @@
 // Mock @prisma/client so no real DB engine is loaded and no connections are made.
-jest.mock('@prisma/client', () => {
+vi.mock('@prisma/client', () => {
   class PrismaClient {
-    $connect = jest.fn().mockResolvedValue(undefined);
-    $disconnect = jest.fn().mockResolvedValue(undefined);
-    $on = jest.fn();
+    $connect = vi.fn().mockResolvedValue(undefined);
+    $disconnect = vi.fn().mockResolvedValue(undefined);
+    $on = vi.fn();
   }
   return { PrismaClient };
 });
 
 import { ConfigService } from '@nestjs/config';
 import { PrismaBusinessService } from './prisma-business.service';
+import { Mock, vi } from 'vitest';
 
 function makeConfig(overrides: Record<string, string> = {}): ConfigService {
   return {
@@ -21,7 +22,7 @@ describe('PrismaBusinessService', () => {
   let service: PrismaBusinessService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     service = new PrismaBusinessService(
       makeConfig({ 'database.url': 'postgresql://test' }),
     );
@@ -59,7 +60,7 @@ describe('PrismaBusinessService', () => {
     });
 
     it('calls deleteMany on injected model accessors in non-production', async () => {
-      const deleteMany = jest.fn().mockResolvedValue({ count: 0 });
+      const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
       (service as any)['orgExport'] = { deleteMany };
       (service as any)['activityLog'] = { deleteMany };
       (service as any)['billingEvent'] = { deleteMany };

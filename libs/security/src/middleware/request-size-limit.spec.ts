@@ -2,6 +2,7 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
+import { vi } from 'vitest';
 import {
   RequestSizeLimitMiddleware,
   parseSize,
@@ -73,28 +74,28 @@ describe('RequestSizeLimitMiddleware', () => {
 
   it('allows requests under the size limit', () => {
     const req = makeReq(500 * 1024); // 500 KB
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
   });
 
   it('allows requests with no content-length header', () => {
     const req = makeReq(); // no content-length
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
   });
 
   it('allows requests exactly at the limit', () => {
     const req = makeReq(1024 * 1024); // == 1 MB
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
   });
 
   it('blocks requests over the size limit with 413', () => {
     const req = makeReq(1024 * 1024 + 1); // 1 MB + 1 byte
-    const next = jest.fn();
+    const next = vi.fn();
     expect(() => middleware.use(req, mockRes, next)).toThrow(HttpException);
     try {
       middleware.use(req, mockRes, next);
@@ -108,26 +109,26 @@ describe('RequestSizeLimitMiddleware', () => {
 
   it('respects a custom limit configured via ConfigService', () => {
     const custom = buildMiddleware('100kb');
-    const next = jest.fn();
+    const next = vi.fn();
 
     // Under limit
     middleware.use(makeReq(50 * 1024), mockRes, next);
     expect(next).toHaveBeenCalledTimes(1);
 
     // Over 100 KB limit
-    expect(() => custom.use(makeReq(200 * 1024), mockRes, jest.fn())).toThrow(
+    expect(() => custom.use(makeReq(200 * 1024), mockRes, vi.fn())).toThrow(
       HttpException,
     );
   });
 
   it('uses 2 MiB default when config value is missing', () => {
     const def = buildMiddleware('2mb');
-    const next = jest.fn();
+    const next = vi.fn();
     // Under default limit
     def.use(makeReq(1024 * 1024), mockRes, next);
     expect(next).toHaveBeenCalled();
     // Over default limit
-    expect(() => def.use(makeReq(3 * 1024 * 1024), mockRes, jest.fn())).toThrow(
+    expect(() => def.use(makeReq(3 * 1024 * 1024), mockRes, vi.fn())).toThrow(
       HttpException,
     );
   });

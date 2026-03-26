@@ -9,6 +9,7 @@ import { LegalAuditService } from '@libs/legal-audit';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { BillingStatus } from '../../domain/enums/billing-status.enum';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
+import { Mocked, vi } from 'vitest';
 
 const mockOrg = (): SubscriptionEntity => ({
   orgId: 'org-uuid-001',
@@ -24,12 +25,12 @@ const mockOrg = (): SubscriptionEntity => ({
 
 describe('BillingService', () => {
   let service: BillingService;
-  let billingRepository: jest.Mocked<BillingRepository>;
-  let stripeService: jest.Mocked<StripeService>;
-  let activityLog: jest.Mocked<ActivityLogService>;
-  let legalAudit: jest.Mocked<LegalAuditService>;
-  let eventBus: jest.Mocked<EventBusService>;
-  let configService: jest.Mocked<ConfigService>;
+  let billingRepository: Mocked<BillingRepository>;
+  let stripeService: Mocked<StripeService>;
+  let activityLog: Mocked<ActivityLogService>;
+  let legalAudit: Mocked<LegalAuditService>;
+  let eventBus: Mocked<EventBusService>;
+  let configService: Mocked<ConfigService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -38,37 +39,37 @@ describe('BillingService', () => {
         {
           provide: BillingRepository,
           useValue: {
-            findOrgById: jest.fn(),
-            updateOrgBillingData: jest.fn(),
-            createBillingEvent: jest.fn(),
-            findSnapshotsByOrgId: jest.fn(),
-            findOrgMeta: jest.fn(),
+            findOrgById: vi.fn(),
+            updateOrgBillingData: vi.fn(),
+            createBillingEvent: vi.fn(),
+            findSnapshotsByOrgId: vi.fn(),
+            findOrgMeta: vi.fn(),
           },
         },
         {
           provide: StripeService,
           useValue: {
-            createCustomer: jest.fn(),
-            createCheckoutSession: jest.fn(),
-            createPortalSession: jest.fn(),
-            cancelSubscription: jest.fn(),
+            createCustomer: vi.fn(),
+            createCheckoutSession: vi.fn(),
+            createPortalSession: vi.fn(),
+            cancelSubscription: vi.fn(),
           },
         },
         {
           provide: ActivityLogService,
-          useValue: { logActivity: jest.fn() },
+          useValue: { logActivity: vi.fn() },
         },
         {
           provide: LegalAuditService,
-          useValue: { recordEvent: jest.fn() },
+          useValue: { recordEvent: vi.fn() },
         },
         {
           provide: EventBusService,
-          useValue: { publish: jest.fn().mockResolvedValue(undefined) },
+          useValue: { publish: vi.fn().mockResolvedValue(undefined) },
         },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn() },
+          useValue: { get: vi.fn() },
         },
       ],
     }).compile();

@@ -80,7 +80,7 @@ describe('Invite & Remove Member (integration)', () => {
       // AUTH0_SPA_CLIENT_ID is set in .env.test; AUTH0_M2M_CLIENT_ID is empty.
       // Spy verifies the service called sendPasswordlessLink with the right args.
       // The unit tests for Auth0ManagementService cover the actual HTTP payload.
-      const passwordlessSpy = jest
+      const passwordlessSpy = vi
         .spyOn(auth0Service, 'sendPasswordlessLink')
         .mockResolvedValue(undefined);
 
@@ -122,7 +122,7 @@ describe('Invite & Remove Member (integration)', () => {
         email: `existing-${uid()}@test.local`,
       });
 
-      const passwordlessSpy = jest
+      const passwordlessSpy = vi
         .spyOn(auth0Service, 'sendPasswordlessLink')
         .mockResolvedValue(undefined);
 
@@ -203,7 +203,7 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `link-flow-${uid()}@test.local`;
 
       // Step 1: invite creates the pending:uuid record
-      jest
+      vi
         .spyOn(auth0Service, 'sendPasswordlessLink')
         .mockResolvedValue(undefined);
       const inviteRes = await agent
@@ -259,7 +259,7 @@ describe('Invite & Remove Member (integration)', () => {
       // so we verify orchestration (was it called? with what args?) without
       // hitting the network. The unit tests for Auth0ManagementService cover
       // the actual HTTP call independently.
-      const deleteSpy = jest
+      const deleteSpy = vi
         .spyOn(auth0Service, 'deleteUser')
         .mockResolvedValue(undefined);
 
@@ -296,7 +296,7 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `pending-remove-${uid()}@test.local`;
 
       // Invite creates the pending:uuid record
-      jest
+      vi
         .spyOn(auth0Service, 'sendPasswordlessLink')
         .mockResolvedValue(undefined);
       await agent
@@ -311,7 +311,7 @@ describe('Invite & Remove Member (integration)', () => {
       }))!.id;
 
       // Spy to assert Auth0 deleteUser is never called for pending users
-      const deleteSpy = jest
+      const deleteSpy = vi
         .spyOn(auth0Service, 'deleteUser')
         .mockResolvedValue(undefined);
 
@@ -354,7 +354,7 @@ describe('Invite & Remove Member (integration)', () => {
         MembershipRole.MEMBER,
       );
 
-      const deleteSpy = jest
+      const deleteSpy = vi
         .spyOn(auth0Service, 'deleteUser')
         .mockResolvedValue(undefined);
 

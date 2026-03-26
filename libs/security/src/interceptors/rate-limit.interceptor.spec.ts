@@ -16,19 +16,16 @@ import { of } from 'rxjs';
 import { RateLimitInterceptor } from './rate-limit.interceptor';
 import { RateLimitService } from '../services/rate-limit.service';
 import type { RateLimitResult } from '../services/rate-limit.service';
+import { Mock, Mocked, vi } from 'vitest';
+import { LegalAuditService } from '@libs/legal-audit';
 
 // Mock @libs/legal-audit to avoid compiling Prisma-generated client in unit tests
-jest.mock('@libs/legal-audit', () => ({
+vi.mock('@libs/legal-audit', () => ({
   LegalAuditService: class MockLegalAuditService {
-    recordEvent = jest.fn();
+    recordEvent = vi.fn();
   },
   LegalAuditModule: { module: class {} },
 }));
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { LegalAuditService } = require('@libs/legal-audit') as {
-  LegalAuditService: new () => { recordEvent: jest.Mock };
-};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -62,7 +59,7 @@ function makeContext(
 ): ExecutionContext {
   const headers: Record<string, string> = {};
   const res = {
-    setHeader: jest.fn(),
+    setHeader: vi.fn(),
     __headers: headers,
   };
 
@@ -93,18 +90,18 @@ function makeNext(): CallHandler {
 
 describe('RateLimitInterceptor', () => {
   let interceptor: RateLimitInterceptor;
-  let rateLimitService: jest.Mocked<RateLimitService>;
-  let legalAuditService: { recordEvent: jest.Mock };
-  let reflector: jest.Mocked<Reflector>;
+  let rateLimitService: Mocked<RateLimitService>;
+  let legalAuditService: { recordEvent: Mock };
+  let reflector: Mocked<Reflector>;
 
   beforeEach(async () => {
     const rls = {
-      checkByIp: jest.fn().mockResolvedValue(makeAllowed()),
-      checkByUser: jest.fn().mockResolvedValue(makeAllowed()),
-      checkByTenant: jest.fn().mockResolvedValue(makeAllowed()),
+      checkByIp: vi.fn().mockResolvedValue(makeAllowed()),
+      checkByUser: vi.fn().mockResolvedValue(makeAllowed()),
+      checkByTenant: vi.fn().mockResolvedValue(makeAllowed()),
     };
     const las = new LegalAuditService();
-    const ref = { getAllAndOverride: jest.fn().mockReturnValue(false) };
+    const ref = { getAllAndOverride: vi.fn().mockReturnValue(false) };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -116,15 +113,12 @@ describe('RateLimitInterceptor', () => {
     }).compile();
 
     interceptor = module.get(RateLimitInterceptor);
-    rateLimitService =
-      module.get<jest.Mocked<RateLimitService>>(RateLimitService);
-    legalAuditService = module.get<{ recordEvent: jest.Mock }>(
-      LegalAuditService,
-    );
-    reflector = module.get<jest.Mocked<Reflector>>(Reflector);
+    rateLimitService = module.get<Mocked<RateLimitService>>(RateLimitService);
+    legalAuditService = module.get<{ recordEvent: Mock }>(LegalAuditService);
+    reflector = module.get<Mocked<Reflector>>(Reflector);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ── Non-HTTP contexts ─────────────────────────────────────────────────────
 
@@ -136,7 +130,7 @@ describe('RateLimitInterceptor', () => {
         getClass: () => ({}),
       } as unknown as ExecutionContext;
       const next = makeNext();
-      const spy = jest.spyOn(next, 'handle');
+      const spy = vi.spyOn(next, 'handle');
       await interceptor.intercept(wsCtx, next);
       expect(spy).toHaveBeenCalledTimes(1);
       expect(rateLimitService.checkByIp).not.toHaveBeenCalled();
@@ -150,7 +144,7 @@ describe('RateLimitInterceptor', () => {
       reflector.getAllAndOverride.mockReturnValue(true);
       const ctx = makeContext({});
       const next = makeNext();
-      const spy = jest.spyOn(next, 'handle');
+      const spy = vi.spyOn(next, 'handle');
       await interceptor.intercept(ctx, next);
       expect(spy).toHaveBeenCalledTimes(1);
       expect(rateLimitService.checkByIp).not.toHaveBeenCalled();
@@ -163,11 +157,11 @@ describe('RateLimitInterceptor', () => {
     it('calls next.handle and sets rate-limit response headers', async () => {
       const ctx = makeContext({});
       const next = makeNext();
-      const spy = jest.spyOn(next, 'handle');
+      const spy = vi.spyOn(next, 'handle');
       await interceptor.intercept(ctx, next);
       expect(spy).toHaveBeenCalledTimes(1);
 
-      const res = (ctx as unknown as { __resMock: { setHeader: jest.Mock } })
+      const res = (ctx as unknown as { __resMock: { setHeader: Mock } })
         .__resMock;
       expect(res.setHeader).toHaveBeenCalledWith(
         'X-RateLimit-Limit',
@@ -225,7 +219,7 @@ describe('RateLimitInterceptor', () => {
 
     it('sets Retry-After header before throwing', async () => {
       const ctx = makeContext({});
-      const res = (ctx as unknown as { __resMock: { setHeader: jest.Mock } })
+      const res = (ctx as unknown as { __resMock: { setHeader: Mock } })
         .__resMock;
       await interceptor.intercept(ctx, makeNext()).catch(() => undefined);
       expect(res.setHeader).toHaveBeenCalledWith(

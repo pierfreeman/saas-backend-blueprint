@@ -5,6 +5,7 @@ import { NotificationsPubSubService } from './notifications-pubsub.service';
 import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { CacheService } from '@libs/redis';
 import { UNREAD_CACHE_KEY } from '../../types/notification.types';
+import { vi } from 'vitest';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -25,32 +26,32 @@ const baseNotif = {
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockRedisClient = {
-  incr: jest.fn().mockResolvedValue(1),
-  expire: jest.fn().mockResolvedValue(1),
-  decrby: jest.fn().mockResolvedValue(0),
-  del: jest.fn().mockResolvedValue(1),
-  get: jest.fn().mockResolvedValue(null),
-  set: jest.fn().mockResolvedValue('OK'),
+  incr: vi.fn().mockResolvedValue(1),
+  expire: vi.fn().mockResolvedValue(1),
+  decrby: vi.fn().mockResolvedValue(0),
+  del: vi.fn().mockResolvedValue(1),
+  get: vi.fn().mockResolvedValue(null),
+  set: vi.fn().mockResolvedValue('OK'),
 };
 
 const mockCache = {
-  getClient: jest.fn().mockReturnValue(mockRedisClient),
+  getClient: vi.fn().mockReturnValue(mockRedisClient),
 };
 
 const mockPubSub = {
-  publishUserNotification: jest.fn().mockResolvedValue(undefined),
+  publishUserNotification: vi.fn().mockResolvedValue(undefined),
 };
 
 const mockRepo = {
-  create: jest.fn(),
-  findByUser: jest.fn(),
-  countUnread: jest.fn(),
-  findUnreadByIdAndUser: jest.fn(),
-  markAsRead: jest.fn(),
-  markManyAsRead: jest.fn(),
-  markAllAsRead: jest.fn(),
-  findByIdAndUser: jest.fn(),
-  delete: jest.fn(),
+  create: vi.fn(),
+  findByUser: vi.fn(),
+  countUnread: vi.fn(),
+  findUnreadByIdAndUser: vi.fn(),
+  markAsRead: vi.fn(),
+  markManyAsRead: vi.fn(),
+  markAllAsRead: vi.fn(),
+  findByIdAndUser: vi.fn(),
+  delete: vi.fn(),
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ describe('NotificationsService', () => {
   let service: NotificationsService;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

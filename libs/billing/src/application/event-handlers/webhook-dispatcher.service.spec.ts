@@ -5,14 +5,15 @@ import { SubscriptionUpdatedHandler } from './subscription-updated.handler';
 import { InvoicePaidHandler } from './invoice-paid.handler';
 import { InvoiceFailedHandler } from './invoice-failed.handler';
 import Stripe from 'stripe';
+import { vi } from 'vitest';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockCheckoutCompletedHandler = { handle: jest.fn() };
-const mockSubscriptionCreatedHandler = { handle: jest.fn() };
-const mockSubscriptionUpdatedHandler = { handle: jest.fn() };
-const mockInvoicePaidHandler = { handle: jest.fn() };
-const mockInvoiceFailedHandler = { handle: jest.fn() };
+const mockCheckoutCompletedHandler = { handle: vi.fn() };
+const mockSubscriptionCreatedHandler = { handle: vi.fn() };
+const mockSubscriptionUpdatedHandler = { handle: vi.fn() };
+const mockInvoicePaidHandler = { handle: vi.fn() };
+const mockInvoiceFailedHandler = { handle: vi.fn() };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ describe('WebhookDispatcherService', () => {
   let service: WebhookDispatcherService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     service = new WebhookDispatcherService(
       mockCheckoutCompletedHandler as unknown as CheckoutCompletedHandler,
       mockSubscriptionCreatedHandler as unknown as SubscriptionCreatedHandler,

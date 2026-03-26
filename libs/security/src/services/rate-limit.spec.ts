@@ -1,19 +1,20 @@
 import { RateLimitService } from './rate-limit.service';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { Mock, vi } from 'vitest';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function makeRedisStub(counters: Map<string, number> = new Map()) {
   return {
-    incr: jest.fn(async (key: string) => {
+    incr: vi.fn(async (key: string) => {
       const val = (counters.get(key) ?? 0) + 1;
       counters.set(key, val);
       return val;
     }),
-    expire: jest.fn(async () => 1),
-    quit: jest.fn(async () => 'OK'),
-    on: jest.fn(),
+    expire: vi.fn(async () => 1),
+    quit: vi.fn(async () => 'OK'),
+    on: vi.fn(),
   };
 }
 
@@ -58,7 +59,7 @@ describe('RateLimitService', () => {
 
   afterEach(async () => {
     // Skip quit on test Redis stub
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('checkByIp', () => {
@@ -131,7 +132,7 @@ describe('RateLimitService', () => {
 
   describe('fail-open behaviour', () => {
     it('returns allowed=true when Redis throws', async () => {
-      (redisStub.incr as jest.Mock).mockRejectedValueOnce(
+      (redisStub.incr as Mock).mockRejectedValueOnce(
         new Error('Redis connection refused'),
       );
       const result = await service.checkByIp('1.2.3.4');

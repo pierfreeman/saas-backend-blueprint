@@ -8,6 +8,7 @@ import { LegalAuditService } from '@libs/legal-audit';
 import { ActivityLogService } from '@libs/activity-log';
 import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
 import { OrganizationStatus } from '@prisma/client';
+import { vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
@@ -15,33 +16,33 @@ const USER_UUID = 'b2c3d4e5-f6a7-4890-bc12-de3456fa7890';
 
 function buildRepoMock() {
   return {
-    findOrgById: jest.fn(),
-    markPendingDeletion: jest.fn().mockResolvedValue(undefined),
-    findSuspendedOrgsWithExpiredSubscriptions: jest.fn().mockResolvedValue([]),
+    findOrgById: vi.fn(),
+    markPendingDeletion: vi.fn().mockResolvedValue(undefined),
+    findSuspendedOrgsWithExpiredSubscriptions: vi.fn().mockResolvedValue([]),
   };
 }
 
 function buildEventBusMock() {
   return {
-    publish: jest.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildLegalAuditMock() {
   return {
-    recordEvent: jest.fn().mockResolvedValue(undefined),
+    recordEvent: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildActivityLogMock() {
   return {
-    logActivity: jest.fn(),
+    logActivity: vi.fn(),
   };
 }
 
 function buildConfigMock() {
   return {
-    get: jest.fn((key: string, defaultValue?: unknown) => {
+    get: vi.fn((key: string, defaultValue?: unknown) => {
       if (key === 'ORG_DELETION_RETENTION_DAYS') return defaultValue || 30;
       return defaultValue;
     }),
@@ -92,7 +93,7 @@ describe('OrgDeletionService', () => {
     service = module.get<OrgDeletionService>(OrgDeletionService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ─── requestDeletion ────────────────────────────────────────────────────────
 

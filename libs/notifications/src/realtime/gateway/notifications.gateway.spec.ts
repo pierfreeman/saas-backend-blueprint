@@ -5,57 +5,60 @@ import { NotificationsPubSubService } from '../../application/services/notificat
 import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { ConfigService } from '@nestjs/config';
 import { Server } from 'socket.io';
+import { vi } from 'vitest';
 
 // ── Redis adapter mock ────────────────────────────────────────────────────────
 // Everything is defined inside the factory so it is available when the factory
 // is invoked during the module-loading phase (after jest.mock hoisting).
 
-jest.mock('ioredis', () => {
+vi.mock('ioredis', () => {
   const instance = {
-    duplicate: jest.fn().mockReturnThis(),
-    on: jest.fn(),
-    quit: jest.fn().mockResolvedValue('OK'),
+    duplicate: vi.fn().mockReturnThis(),
+    on: vi.fn(),
+    quit: vi.fn().mockResolvedValue('OK'),
   };
-  const Ctor: any = jest.fn(() => instance);
+  const Ctor: any = vi.fn(function (this: any) {
+    return instance;
+  });
   Ctor.__instance = instance;
   return { __esModule: true, default: Ctor };
 });
 
-jest.mock('@socket.io/redis-adapter', () => ({
-  createAdapter: jest.fn().mockReturnValue({}),
+vi.mock('@socket.io/redis-adapter', () => ({
+  createAdapter: vi.fn().mockReturnValue({}),
 }));
 
 // jwks-rsa pulls in jose (ESM-only) which Jest cannot parse without extra
 // transform config. We mock the whole module because verifyToken is already
 // exercised via jest.spyOn in the individual tests below.
-jest.mock('jwks-rsa', () => ({
-  JwksClient: jest.fn().mockImplementation(() => ({
-    getSigningKey: jest.fn(),
-  })),
+vi.mock('jwks-rsa', () => ({
+  JwksClient: vi.fn(function (this: unknown) {
+    return { getSigningKey: vi.fn() };
+  }),
 }));
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockPubSub = {
-  subscribeToUserPattern: jest.fn(),
-  subscribeToOrgPattern: jest.fn(),
-  subscribeToGlobal: jest.fn(),
+  subscribeToUserPattern: vi.fn(),
+  subscribeToOrgPattern: vi.fn(),
+  subscribeToGlobal: vi.fn(),
 };
 
 const mockNotificationsService = {
-  getUserNotifications: jest.fn().mockResolvedValue([]),
-  markAsRead: jest.fn().mockResolvedValue({}),
-  markAllAsRead: jest.fn().mockResolvedValue(undefined),
-  getUnreadCount: jest.fn().mockResolvedValue(2),
+  getUserNotifications: vi.fn().mockResolvedValue([]),
+  markAsRead: vi.fn().mockResolvedValue({}),
+  markAllAsRead: vi.fn().mockResolvedValue(undefined),
+  getUnreadCount: vi.fn().mockResolvedValue(2),
 };
 
 const mockRepo = {
-  findUserByAuth0Id: jest.fn(),
-  findActiveOrgMemberships: jest.fn(),
+  findUserByAuth0Id: vi.fn(),
+  findActiveOrgMemberships: vi.fn(),
 };
 
 const mockConfig = {
-  get: jest.fn().mockImplementation((key: string) => {
+  get: vi.fn().mockImplementation((key: string) => {
     const map: Record<string, string> = {
       'auth.audience': 'https://api.test',
       'auth.issuer': 'https://test.auth0.local/',
@@ -79,9 +82,9 @@ function makeSocket(
       query: {},
       headers: {},
     },
-    join: jest.fn().mockResolvedValue(undefined),
-    disconnect: jest.fn(),
-    emit: jest.fn(),
+    join: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn(),
+    emit: vi.fn(),
   };
 }
 
@@ -91,7 +94,7 @@ describe('NotificationsGateway', () => {
   let gateway: NotificationsGateway;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -110,7 +113,7 @@ describe('NotificationsGateway', () => {
 
   describe('afterInit', () => {
     it('registers all three Redis subscription handlers', () => {
-      const mockServer = { adapter: jest.fn() } as unknown as Server;
+      const mockServer = { adapter: vi.fn() } as unknown as Server;
       gateway.afterInit(mockServer);
 
       expect(mockPubSub.subscribeToUserPattern).toHaveBeenCalledTimes(1);
@@ -119,7 +122,7 @@ describe('NotificationsGateway', () => {
     });
 
     it('attaches the Redis adapter to the server', () => {
-      const mockServer = { adapter: jest.fn() } as unknown as Server;
+      const mockServer = { adapter: vi.fn() } as unknown as Server;
       gateway.afterInit(mockServer);
 
       expect(mockServer.adapter).toHaveBeenCalledTimes(1);
@@ -141,9 +144,9 @@ describe('NotificationsGateway', () => {
 
     it('disconnects when the token cannot be verified', async () => {
       // verifyToken will reject because we stub it with an invalid token.
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockRejectedValue(new Error('invalid signature'));
+      vi.spyOn(gateway as any, 'verifyToken').mockRejectedValue(
+        new Error('invalid signature'),
+      );
 
       const client = makeSocket();
 
@@ -153,9 +156,9 @@ describe('NotificationsGateway', () => {
     });
 
     it('disconnects when the user is not found in the DB', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|unknown' });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|unknown',
+      });
 
       mockRepo.findUserByAuth0Id.mockResolvedValue(null);
 
@@ -166,9 +169,9 @@ describe('NotificationsGateway', () => {
     });
 
     it('joins user/org rooms and emits unread count on success', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|user-1' });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
 
       mockRepo.findUserByAuth0Id.mockResolvedValue({
         id: 'user-uuid-1',
@@ -201,9 +204,9 @@ describe('NotificationsGateway', () => {
   describe('handleDisconnect', () => {
     it('removes the socket from the userSockets map', async () => {
       // Connect first so the map gets an entry.
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|user-1' });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
 
       mockRepo.findUserByAuth0Id.mockResolvedValue({
         id: 'user-uuid-1',
@@ -339,9 +342,9 @@ describe('NotificationsGateway', () => {
       );
 
       const mockServer = {
-        adapter: jest.fn(),
-        to: jest.fn().mockReturnThis(),
-        emit: jest.fn(),
+        adapter: vi.fn(),
+        to: vi.fn().mockReturnThis(),
+        emit: vi.fn(),
       } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
@@ -365,9 +368,9 @@ describe('NotificationsGateway', () => {
       );
 
       const mockServer = {
-        adapter: jest.fn(),
-        to: jest.fn().mockReturnThis(),
-        emit: jest.fn(),
+        adapter: vi.fn(),
+        to: vi.fn().mockReturnThis(),
+        emit: vi.fn(),
       } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
@@ -386,9 +389,9 @@ describe('NotificationsGateway', () => {
       );
 
       const mockServer = {
-        adapter: jest.fn(),
-        to: jest.fn().mockReturnThis(),
-        emit: jest.fn(),
+        adapter: vi.fn(),
+        to: vi.fn().mockReturnThis(),
+        emit: vi.fn(),
       } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
@@ -406,9 +409,9 @@ describe('NotificationsGateway', () => {
 
   describe('extractToken (private, accessed via handleConnection)', () => {
     it('extracts token from handshake.query.token', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|user-1' });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
       mockRepo.findUserByAuth0Id.mockResolvedValue(null); // disconnect after verify
 
       const client = makeSocket({
@@ -420,9 +423,9 @@ describe('NotificationsGateway', () => {
     });
 
     it('extracts token from handshake.headers.authorization', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|user-1' });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
       mockRepo.findUserByAuth0Id.mockResolvedValue(null);
 
       const client = makeSocket({
@@ -438,9 +441,9 @@ describe('NotificationsGateway', () => {
     });
 
     it('disconnects when payload has no sub claim', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: undefined });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: undefined,
+      });
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);

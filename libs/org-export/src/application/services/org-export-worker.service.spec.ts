@@ -7,6 +7,7 @@ import { LegalAuditService } from '@libs/legal-audit';
 import { StorageService, S3StorageClient } from '@libs/storage';
 import { EmailService } from '@libs/email';
 import { ExportStatus } from '@prisma/client';
+import { Mock, Mocked, vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
@@ -16,12 +17,12 @@ const JOB_UUID = 'd4e5f6a7-b8c9-6012-de34-fa5678bc9012';
 
 function buildRepoMock() {
   return {
-    findExportRecord: jest.fn(),
-    markExportProcessing: jest.fn().mockResolvedValue(undefined),
-    aggregateOrgData: jest.fn(),
-    completeExport: jest.fn().mockResolvedValue(undefined),
-    failExport: jest.fn().mockResolvedValue(undefined),
-    findUserById: jest.fn().mockResolvedValue(null),
+    findExportRecord: vi.fn(),
+    markExportProcessing: vi.fn().mockResolvedValue(undefined),
+    aggregateOrgData: vi.fn(),
+    completeExport: vi.fn().mockResolvedValue(undefined),
+    failExport: vi.fn().mockResolvedValue(undefined),
+    findUserById: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -39,19 +40,19 @@ function makeOrgData(overrides = {}) {
 
 function buildEventBusMock() {
   return {
-    publish: jest.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildLegalAuditMock() {
   return {
-    recordEvent: jest.fn().mockResolvedValue(undefined),
+    recordEvent: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildStorageMock() {
   return {
-    generateDownloadUrl: jest.fn().mockResolvedValue({
+    generateDownloadUrl: vi.fn().mockResolvedValue({
       downloadUrl: 'https://storage.example.com/exports/...',
       expiresAt: new Date('2026-01-02'),
       filename: '20260101_Test_Organization_Export.zip',
@@ -63,7 +64,7 @@ function buildStorageMock() {
 
 function buildConfigMock() {
   return {
-    get: jest.fn((key: string, defaultValue?: unknown) => {
+    get: vi.fn((key: string, defaultValue?: unknown) => {
       if (key === 'EXPORT_URL_EXPIRATION_HOURS') return defaultValue || 24;
       return defaultValue;
     }),
@@ -108,10 +109,10 @@ describe('OrgExportWorkerService', () => {
   let legalAudit: ReturnType<typeof buildLegalAuditMock>;
   let storage: ReturnType<typeof buildStorageMock>;
   let config: ReturnType<typeof buildConfigMock>;
-  let email: jest.Mocked<Pick<EmailService, 'sendTransactionalEmail'>>;
+  let email: Mocked<Pick<EmailService, 'sendTransactionalEmail'>>;
   let s3Client: {
-    putObject: jest.Mock;
-    generatePresignedDownloadUrl: jest.Mock;
+    putObject: Mock;
+    generatePresignedDownloadUrl: Mock;
   };
 
   beforeEach(async () => {
@@ -120,10 +121,10 @@ describe('OrgExportWorkerService', () => {
     legalAudit = buildLegalAuditMock();
     storage = buildStorageMock();
     config = buildConfigMock();
-    email = { sendTransactionalEmail: jest.fn().mockResolvedValue(undefined) };
+    email = { sendTransactionalEmail: vi.fn().mockResolvedValue(undefined) };
     s3Client = {
-      putObject: jest.fn().mockResolvedValue(undefined),
-      generatePresignedDownloadUrl: jest
+      putObject: vi.fn().mockResolvedValue(undefined),
+      generatePresignedDownloadUrl: vi
         .fn()
         .mockResolvedValue('https://s3.example.com/presigned-url'),
     };
@@ -144,7 +145,7 @@ describe('OrgExportWorkerService', () => {
     service = module.get<OrgExportWorkerService>(OrgExportWorkerService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ─── executeExport ──────────────────────────────────────────────────────────
 
@@ -310,7 +311,7 @@ describe('OrgExportWorkerService', () => {
 
     it('uses configured expiration hours for download URL', async () => {
       const customConfig = {
-        get: jest.fn((key: string, defaultValue?: unknown) => {
+        get: vi.fn((key: string, defaultValue?: unknown) => {
           if (key === 'EXPORT_URL_EXPIRATION_HOURS') return 48;
           return defaultValue;
         }),

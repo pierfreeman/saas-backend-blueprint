@@ -7,30 +7,31 @@ import {
   EmailProvider,
 } from './providers/email-provider.interface';
 import { TemplateRendererService } from './templates/template-renderer.service';
+import { Mocked, vi } from 'vitest';
 
 describe('EmailService', () => {
   let service: EmailService;
-  let emailProvider: jest.Mocked<EmailProvider>;
-  let templateRenderer: jest.Mocked<TemplateRendererService>;
-  let activityLog: jest.Mocked<ActivityLogService>;
-  let legalAudit: jest.Mocked<LegalAuditService>;
+  let emailProvider: Mocked<EmailProvider>;
+  let templateRenderer: Mocked<TemplateRendererService>;
+  let activityLog: Mocked<ActivityLogService>;
+  let legalAudit: Mocked<LegalAuditService>;
 
   beforeEach(async () => {
-    const mockEmailProvider: jest.Mocked<EmailProvider> = {
-      sendEmail: jest.fn().mockResolvedValue(undefined),
+    const mockEmailProvider: Mocked<EmailProvider> = {
+      sendEmail: vi.fn().mockResolvedValue(undefined),
     };
 
     const mockTemplateRenderer = {
-      render: jest.fn().mockResolvedValue('<html>Test Email</html>'),
-      clearCache: jest.fn(),
+      render: vi.fn().mockResolvedValue('<html>Test Email</html>'),
+      clearCache: vi.fn(),
     };
 
     const mockActivityLog = {
-      logActivity: jest.fn().mockResolvedValue(undefined),
+      logActivity: vi.fn().mockResolvedValue(undefined),
     };
 
     const mockLegalAudit = {
-      recordEvent: jest.fn().mockResolvedValue(undefined),
+      recordEvent: vi.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({

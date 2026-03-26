@@ -9,6 +9,7 @@ import {
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
 import { OrgExportWorkerService } from '@libs/org-export';
+import { Mock, vi } from 'vitest';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -27,23 +28,23 @@ const makeEvent = (
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockJobRepo = {
-  markProcessing: jest.fn(),
-  markDone: jest.fn(),
-  markFailed: jest.fn(),
+  markProcessing: vi.fn(),
+  markDone: vi.fn(),
+  markFailed: vi.fn(),
 } as unknown as JobService;
 
 const mockPubSub = {
-  publish: jest.fn(),
+  publish: vi.fn(),
 } as unknown as PubSubService;
 
 const mockOrgDeletionWorker = {
-  scheduleDeletion: jest.fn(),
-  executeDeletion: jest.fn(),
+  scheduleDeletion: vi.fn(),
+  executeDeletion: vi.fn(),
 } as unknown as OrgDeletionWorkerService;
 
 const mockOrgExportWorker = {
-  scheduleExport: jest.fn(),
-  executeExport: jest.fn(),
+  scheduleExport: vi.fn(),
+  executeExport: vi.fn(),
 } as unknown as OrgExportWorkerService;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -52,11 +53,11 @@ describe('WorkerController', () => {
   let controller: WorkerController;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (mockJobRepo.markProcessing as jest.Mock).mockResolvedValue(undefined);
-    (mockJobRepo.markDone as jest.Mock).mockResolvedValue(undefined);
-    (mockJobRepo.markFailed as jest.Mock).mockResolvedValue(undefined);
-    (mockPubSub.publish as jest.Mock).mockResolvedValue(undefined);
+    vi.clearAllMocks();
+    (mockJobRepo.markProcessing as Mock).mockResolvedValue(undefined);
+    (mockJobRepo.markDone as Mock).mockResolvedValue(undefined);
+    (mockJobRepo.markFailed as Mock).mockResolvedValue(undefined);
+    (mockPubSub.publish as Mock).mockResolvedValue(undefined);
     controller = new WorkerController(
       mockJobRepo,
       mockPubSub,
@@ -79,7 +80,7 @@ describe('WorkerController', () => {
     it('publishes a PROCESSING message to Redis before work starts', async () => {
       await controller.handleHeavyJobCreated(makeEvent());
 
-      const firstPublish = (mockPubSub.publish as jest.Mock).mock.calls[0];
+      const firstPublish = (mockPubSub.publish as Mock).mock.calls[0];
       expect(firstPublish[0]).toBe('job:update:org-1');
       expect(firstPublish[1]).toMatchObject({
         jobId: 'job_001',
@@ -92,7 +93,7 @@ describe('WorkerController', () => {
     it('publishes a DONE message to Redis on successful completion', async () => {
       await controller.handleHeavyJobCreated(makeEvent());
 
-      const publishCalls = (mockPubSub.publish as jest.Mock).mock.calls;
+      const publishCalls = (mockPubSub.publish as Mock).mock.calls;
       expect(publishCalls).toHaveLength(2);
 
       const donePublish = publishCalls[1];
@@ -106,7 +107,7 @@ describe('WorkerController', () => {
     });
 
     it('transitions the job PROCESSING → FAILED and publishes on doWork error', async () => {
-      jest
+      vi
         .spyOn(controller as any, 'doWork')
         .mockRejectedValueOnce(new Error('computation failed'));
 
@@ -119,7 +120,7 @@ describe('WorkerController', () => {
         'computation failed',
       );
 
-      const publishCalls = (mockPubSub.publish as jest.Mock).mock.calls;
+      const publishCalls = (mockPubSub.publish as Mock).mock.calls;
       expect(publishCalls[1][1]).toMatchObject({
         status: JobStatus.FAILED,
         error: 'computation failed',
@@ -137,7 +138,7 @@ describe('WorkerController', () => {
       });
       await controller.handleHeavyJobCreated(event);
 
-      const firstPublish = (mockPubSub.publish as jest.Mock).mock.calls[0];
+      const firstPublish = (mockPubSub.publish as Mock).mock.calls[0];
       expect(firstPublish[1].userId).toBeUndefined();
     });
 
@@ -148,14 +149,14 @@ describe('WorkerController', () => {
       });
       await controller.handleHeavyJobCreated(event);
 
-      const allChannels = (mockPubSub.publish as jest.Mock).mock.calls.map(
+      const allChannels = (mockPubSub.publish as Mock).mock.calls.map(
         ([ch]) => ch,
       );
       expect(allChannels).toEqual(['job:update:org-xyz', 'job:update:org-xyz']);
     });
 
     it('extracts error message from non-Error thrown values', async () => {
-      jest
+      vi
         .spyOn(controller as any, 'doWork')
         .mockRejectedValueOnce('plain string error');
 
@@ -168,7 +169,7 @@ describe('WorkerController', () => {
         'Unknown error',
       );
 
-      const failedPublish = (mockPubSub.publish as jest.Mock).mock.calls[1][1];
+      const failedPublish = (mockPubSub.publish as Mock).mock.calls[1][1];
       expect(failedPublish.error).toBe('Unknown error');
     });
   });
@@ -192,7 +193,7 @@ describe('WorkerController', () => {
     });
 
     beforeEach(() => {
-      (mockOrgDeletionWorker.executeDeletion as jest.Mock).mockResolvedValue(
+      (mockOrgDeletionWorker.executeDeletion as Mock).mockResolvedValue(
         undefined,
       );
     });
@@ -212,7 +213,7 @@ describe('WorkerController', () => {
 
     it('propagates errors thrown by OrgDeletionWorkerService', async () => {
       (
-        mockOrgDeletionWorker.executeDeletion as jest.Mock
+        mockOrgDeletionWorker.executeDeletion as Mock
       ).mockRejectedValueOnce(new Error('deletion failed'));
 
       await expect(

@@ -4,9 +4,10 @@ import { ActivityLogService } from '@libs/activity-log';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 import { JwtAuthGuard } from '@libs/common';
 import { OrgContextGuard, RBACGuard } from '@libs/rbac';
+import { vi } from 'vitest';
 
 const mockActivityLogService = {
-  findByOrg: jest.fn(),
+  findByOrg: vi.fn(),
 };
 
 const allowAllGuard = { canActivate: () => true };
@@ -30,7 +31,7 @@ describe('ActivityLogController', () => {
       .compile();
 
     controller = module.get<ActivityLogController>(ActivityLogController);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('list', () => {

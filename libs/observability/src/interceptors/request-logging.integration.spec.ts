@@ -25,24 +25,25 @@ import { ObservabilityModule } from '../observability.module';
 import { ObservabilityExceptionFilter } from '../filters/observability-exception.filter';
 import { ObservabilityLoggerService } from '../logger/logger.service';
 import { RequestLoggingInterceptor } from './request-logging.interceptor';
+import { MockInstance, vi } from 'vitest';
 
-jest.mock('@sentry/node', () => ({
-  init: jest.fn(),
-  withScope: jest
+vi.mock('@sentry/node', () => ({
+  init: vi.fn(),
+  withScope: vi
     .fn()
     .mockImplementation((cb: (scope: object) => void) =>
-      cb({ setTag: jest.fn(), setUser: jest.fn() }),
+      cb({ setTag: vi.fn(), setUser: vi.fn() }),
     ),
-  captureException: jest.fn(),
-  captureMessage: jest.fn(),
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
   logger: {
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
-  getCurrentScope: jest.fn(() => ({ setTag: jest.fn(), setUser: jest.fn() })),
+  getCurrentScope: vi.fn(() => ({ setTag: vi.fn(), setUser: vi.fn() })),
 }));
 
 // ── Minimal test controller ──────────────────────────────────────────────────
@@ -104,18 +105,18 @@ async function buildApp(tenantCtx?: TenantCtx): Promise<INestApplication> {
 describe('RequestLoggingInterceptor (integration)', () => {
   let app: INestApplication;
   let logger: ObservabilityLoggerService;
-  let logCtxSpy: jest.SpyInstance;
-  let warnCtxSpy: jest.SpyInstance;
+  let logCtxSpy: MockInstance;
+  let warnCtxSpy: MockInstance;
 
   beforeAll(async () => {
     app = await buildApp();
     logger = app.get(ObservabilityLoggerService);
-    logCtxSpy = jest.spyOn(logger, 'logCtx');
-    warnCtxSpy = jest.spyOn(logger, 'warnCtx');
+    logCtxSpy = vi.spyOn(logger, 'logCtx');
+    warnCtxSpy = vi.spyOn(logger, 'warnCtx');
   });
 
   afterAll(() => app.close());
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   // ── 2xx requests ──────────────────────────────────────────────────────────
 
@@ -193,11 +194,11 @@ describe('RequestLoggingInterceptor (integration)', () => {
 
   describe('tenant context propagation', () => {
     let appWithTenant: INestApplication;
-    let tenantLogCtxSpy: jest.SpyInstance;
+    let tenantLogCtxSpy: MockInstance;
 
     beforeAll(async () => {
       appWithTenant = await buildApp({ tenantId: 'tenant-99', role: 'ADMIN' });
-      tenantLogCtxSpy = jest.spyOn(
+      tenantLogCtxSpy = vi.spyOn(
         appWithTenant.get(ObservabilityLoggerService),
         'logCtx',
       );

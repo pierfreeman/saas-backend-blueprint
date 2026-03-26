@@ -12,19 +12,16 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { IpFilterGuard } from './ip-filter.guard';
+import { Mock, vi } from 'vitest';
+import { LegalAuditService } from '@libs/legal-audit';
 
 // Mock @libs/legal-audit to avoid compiling Prisma-generated client in unit tests
-jest.mock('@libs/legal-audit', () => ({
+vi.mock('@libs/legal-audit', () => ({
   LegalAuditService: class MockLegalAuditService {
-    recordEvent = jest.fn();
+    recordEvent = vi.fn();
   },
   LegalAuditModule: { module: class {} },
 }));
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { LegalAuditService } = require('@libs/legal-audit') as {
-  LegalAuditService: new () => { recordEvent: jest.Mock };
-};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -50,7 +47,7 @@ function makeContext(ip: string): ExecutionContext {
 
 async function buildGuard(config: FilterConfig = {}): Promise<{
   guard: IpFilterGuard;
-  legalAudit: { recordEvent: jest.Mock };
+  legalAudit: { recordEvent: Mock };
 }> {
   const legalAudit = new LegalAuditService();
 
@@ -78,7 +75,7 @@ async function buildGuard(config: FilterConfig = {}): Promise<{
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 describe('IpFilterGuard', () => {
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ── Both lists disabled (default) ─────────────────────────────────────────
 

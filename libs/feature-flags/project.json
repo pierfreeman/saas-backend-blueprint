@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/feature-flags/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:feature-flags"],
+  "tags": [
+    "type:lib",
+    "scope:feature-flags"
+  ],
   "targets": {
     "build": {
       "executor": "nx:noop",
@@ -11,10 +14,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/feature-flags"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/feature-flags"
+      ],
       "options": {
-        "jestConfig": "libs/feature-flags/jest.config.cts",
+        "configFile": "libs/feature-flags/vitest.config.ts",
         "passWithNoTests": true
       }
     },

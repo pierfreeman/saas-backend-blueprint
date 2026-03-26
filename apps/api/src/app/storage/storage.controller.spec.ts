@@ -8,16 +8,17 @@ import { JwtAuthGuard } from '@libs/common';
 import { OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { ConfirmUploadDto } from './dto/confirm-upload.dto';
+import { Mock, vi } from 'vitest';
 
 // Prevent loading the full module graphs (AWS SDK, Prisma, Stripe, ESM-only deps).
-jest.mock('@libs/storage', () => ({
+vi.mock('@libs/storage', () => ({
   StorageService: class MockStorageService {},
   UploadPolicyService: class MockUploadPolicyService {},
 }));
-jest.mock('@libs/feature-flags', () => ({
+vi.mock('@libs/feature-flags', () => ({
   FeatureFlagsService: class MockFeatureFlagsService {},
 }));
-jest.mock('@libs/billing', () => ({
+vi.mock('@libs/billing', () => ({
   BillingService: class MockBillingService {},
 }));
 
@@ -79,24 +80,24 @@ const baseFile = {
 // ── Mock services ─────────────────────────────────────────────────────────────
 
 const mockService = {
-  generateUploadUrl: jest.fn(),
-  confirmUpload: jest.fn(),
-  generateDownloadUrl: jest.fn(),
-  getFile: jest.fn(),
-  listFiles: jest.fn(),
-  deleteFile: jest.fn(),
+  generateUploadUrl: vi.fn(),
+  confirmUpload: vi.fn(),
+  generateDownloadUrl: vi.fn(),
+  getFile: vi.fn(),
+  listFiles: vi.fn(),
+  deleteFile: vi.fn(),
 };
 
 const mockUploadPolicyService = {
-  getStorageQuota: jest.fn(),
+  getStorageQuota: vi.fn(),
 };
 
 const mockFeatureFlagsService = {
-  getEntitlements: jest.fn(),
+  getEntitlements: vi.fn(),
 };
 
 const mockBillingService = {
-  getOrgBillingStatus: jest.fn(),
+  getOrgBillingStatus: vi.fn(),
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -105,7 +106,7 @@ describe('StorageController', () => {
   let controller: StorageController;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // Default happy-path mocks for plan resolution
     mockFeatureFlagsService.getEntitlements.mockResolvedValue({ plan: 'FREE' });

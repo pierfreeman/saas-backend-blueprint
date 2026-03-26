@@ -8,6 +8,7 @@
 import { JobsGateway } from './jobs.gateway';
 import { PubSubService } from '@libs/redis';
 import { JobStatus } from '@prisma/client';
+import { Mock, Mocked, vi } from 'vitest';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,10 +34,10 @@ function makeSocket(overrides: Record<string, unknown> = {}) {
       query: {},
       headers: {},
     },
-    join: jest.fn(async (room: string) => {
+    join: vi.fn(async (room: string) => {
       rooms.add(room);
     }),
-    disconnect: jest.fn(),
+    disconnect: vi.fn(),
     userId: undefined as string | undefined,
     tenantId: undefined as string | undefined,
     _rooms: rooms,
@@ -47,12 +48,12 @@ function makeSocket(overrides: Record<string, unknown> = {}) {
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockServer = {
-  to: jest.fn().mockReturnThis(),
-  emit: jest.fn(),
+  to: vi.fn().mockReturnThis(),
+  emit: vi.fn(),
 };
 
-const mockPubSub: jest.Mocked<Pick<PubSubService, 'pSubscribe'>> = {
-  pSubscribe: jest.fn(),
+const mockPubSub: Mocked<Pick<PubSubService, 'pSubscribe'>> = {
+  pSubscribe: vi.fn(),
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -61,7 +62,7 @@ describe('JobsGateway', () => {
   let gateway: JobsGateway;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     gateway = new JobsGateway(mockPubSub as unknown as PubSubService);
     // Inject the mock server (normally set by NestJS via @WebSocketServer).
     (gateway as any).server = mockServer;
@@ -226,7 +227,7 @@ describe('JobsGateway', () => {
       await gateway.handleConnection(socket as any);
 
       expect(socket.join).toHaveBeenCalledWith('user:user-4');
-      const joinCalls = (socket.join as jest.Mock).mock.calls.map(
+      const joinCalls = (socket.join as Mock).mock.calls.map(
         ([r]: [string]) => r,
       );
       expect(joinCalls.some((r) => r.startsWith('tenant:'))).toBe(false);
@@ -242,7 +243,7 @@ describe('JobsGateway', () => {
     });
 
     it('logs the correct user id on disconnect', () => {
-      const logSpy = jest
+      const logSpy = vi
         .spyOn((gateway as any).logger, 'log')
         .mockImplementation(() => undefined);
 

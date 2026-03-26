@@ -2,9 +2,10 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { NotFoundException } from '@nestjs/common';
 import { RequestUser } from '@libs/common';
+import { vi } from 'vitest';
 
 const mockAuthService = {
-  syncUser: jest.fn(),
+  syncUser: vi.fn(),
 } as unknown as AuthService;
 
 const baseUser: RequestUser = {
@@ -24,13 +25,13 @@ describe('AuthController', () => {
   let controller: AuthController;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     controller = new AuthController(mockAuthService);
   });
 
   describe('getMe', () => {
     it('returns id, sub and email for an authenticated user', async () => {
-      mockAuthService.syncUser = jest.fn().mockResolvedValue(dbUser);
+      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
 
       const result = await controller.getMe(baseUser);
 
@@ -46,7 +47,7 @@ describe('AuthController', () => {
     });
 
     it('propagates errors thrown by syncUser', async () => {
-      mockAuthService.syncUser = jest
+      mockAuthService.syncUser = vi
         .fn()
         .mockRejectedValue(new Error('DB down'));
 
@@ -58,7 +59,7 @@ describe('AuthController', () => {
         ...dbUser,
         email: 'updated@example.com',
       };
-      mockAuthService.syncUser = jest
+      mockAuthService.syncUser = vi
         .fn()
         .mockResolvedValue(dbUserWithDifferentEmail);
 

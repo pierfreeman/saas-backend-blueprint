@@ -17,6 +17,7 @@ import {
 } from '../decorators/security.decorators';
 import securityConfig from '../config/security.config';
 import type { Request } from 'express';
+import { vi } from 'vitest';
 
 // ── extractClientIp ──────────────────────────────────────────────────────────
 
@@ -215,7 +216,7 @@ describe('security decorators', () => {
   describe('SkipRateLimit', () => {
     it('attaches the correct metadata key with value true', () => {
       // Spy on SetMetadata without actually executing NestJS decorator machinery
-      const setMetadataSpy = jest.spyOn({ SetMetadata }, 'SetMetadata');
+      const setMetadataSpy = vi.spyOn({ SetMetadata }, 'SetMetadata');
       const decorator = SkipRateLimit();
       expect(decorator).toBeDefined();
       // Verify the key constant matches what the interceptor reads

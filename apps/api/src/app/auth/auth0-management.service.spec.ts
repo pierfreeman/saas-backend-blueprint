@@ -1,12 +1,13 @@
 import { Auth0ManagementService } from './auth0-management.service';
+import { Mock, vi } from 'vitest';
 
-const mockGet = jest.fn();
-const mockPost = jest.fn();
-const mockAxiosGet = jest.fn();
-const mockAxiosDelete = jest.fn();
+const mockGet = vi.fn();
+const mockPost = vi.fn();
+const mockAxiosGet = vi.fn();
+const mockAxiosDelete = vi.fn();
 
 // Mock axios instance — supports post (token + passwordless), get and delete
-jest.mock('axios', () => ({
+vi.mock('axios', () => ({
   create: () => ({
     post: mockPost,
     get: mockAxiosGet,
@@ -34,7 +35,7 @@ describe('Auth0ManagementService', () => {
   let service: Auth0ManagementService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockGet.mockImplementation((key: string) => {
       const cfg: Record<string, string> = {
         'auth.domain': 'test.auth0.com',

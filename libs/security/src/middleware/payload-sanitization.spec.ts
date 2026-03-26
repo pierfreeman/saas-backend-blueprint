@@ -3,19 +3,16 @@ import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { PayloadSanitizationMiddleware } from './payload-sanitization.middleware';
+import { Mock, vi } from 'vitest';
+import { LegalAuditService } from '@libs/legal-audit';
 
 // Mock @libs/legal-audit to avoid compiling Prisma-generated client in unit tests
-jest.mock('@libs/legal-audit', () => ({
+vi.mock('@libs/legal-audit', () => ({
   LegalAuditService: class MockLegalAuditService {
-    recordEvent = jest.fn();
+    recordEvent = vi.fn();
   },
   LegalAuditModule: { module: class {} },
 }));
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { LegalAuditService } = require('@libs/legal-audit') as {
-  LegalAuditService: new () => { recordEvent: jest.Mock };
-};
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -36,7 +33,7 @@ const mockRes = {} as Response;
 
 describe('PayloadSanitizationMiddleware', () => {
   let middleware: PayloadSanitizationMiddleware;
-  let legalAudit: { recordEvent: jest.Mock };
+  let legalAudit: { recordEvent: Mock };
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -60,7 +57,7 @@ describe('PayloadSanitizationMiddleware', () => {
 
     middleware = module.get(PayloadSanitizationMiddleware);
     legalAudit = module.get(LegalAuditService) as unknown as {
-      recordEvent: jest.Mock;
+      recordEvent: Mock;
     };
   });
 
@@ -68,7 +65,7 @@ describe('PayloadSanitizationMiddleware', () => {
 
   it('passes clean body through without modification', () => {
     const req = makeReq({ body: { email: 'user@example.com', name: 'Alice' } });
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
     expect(req.body).toEqual({ email: 'user@example.com', name: 'Alice' });
@@ -77,7 +74,7 @@ describe('PayloadSanitizationMiddleware', () => {
 
   it('passes request with no body', () => {
     const req = makeReq({ body: undefined });
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
   });
@@ -103,7 +100,7 @@ describe('PayloadSanitizationMiddleware', () => {
     const disabled = disabledModule.get(PayloadSanitizationMiddleware);
 
     const req = makeReq({ body: { q: "' UNION SELECT * FROM users--" } });
-    const next = jest.fn();
+    const next = vi.fn();
     disabled.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
   });
@@ -112,7 +109,7 @@ describe('PayloadSanitizationMiddleware', () => {
 
   it('blocks body with MongoDB $where operator key', () => {
     const req = makeReq({ body: { $where: 'this.isAdmin === true' } });
-    const next = jest.fn();
+    const next = vi.fn();
     expect(() => middleware.use(req, mockRes, next)).toThrow(
       BadRequestException,
     );
@@ -128,7 +125,7 @@ describe('PayloadSanitizationMiddleware', () => {
     const req = makeReq({
       body: { filter: { age: { $gt: 0 } } },
     });
-    const next = jest.fn();
+    const next = vi.fn();
     expect(() => middleware.use(req, mockRes, next)).toThrow(
       BadRequestException,
     );
@@ -136,7 +133,7 @@ describe('PayloadSanitizationMiddleware', () => {
 
   it('blocks $ operator inside an array element', () => {
     const req = makeReq({ body: { items: [{ $ne: null }] } });
-    const next = jest.fn();
+    const next = vi.fn();
     expect(() => middleware.use(req, mockRes, next)).toThrow(
       BadRequestException,
     );
@@ -148,7 +145,7 @@ describe('PayloadSanitizationMiddleware', () => {
     const req = makeReq({
       body: { search: '1 UNION SELECT username,password FROM users' },
     });
-    const next = jest.fn();
+    const next = vi.fn();
     expect(() => middleware.use(req, mockRes, next)).toThrow(
       BadRequestException,
     );
@@ -164,7 +161,7 @@ describe('PayloadSanitizationMiddleware', () => {
       body: undefined,
       query: { q: 'DROP TABLE users' },
     });
-    const next = jest.fn();
+    const next = vi.fn();
     expect(() => middleware.use(req, mockRes, next)).toThrow(
       BadRequestException,
     );
@@ -172,7 +169,7 @@ describe('PayloadSanitizationMiddleware', () => {
 
   it("blocks boolean-based injection (' OR 1=1)", () => {
     const req = makeReq({ body: { username: "admin' OR 1=1" } });
-    const next = jest.fn();
+    const next = vi.fn();
     expect(() => middleware.use(req, mockRes, next)).toThrow(
       BadRequestException,
     );
@@ -186,7 +183,7 @@ describe('PayloadSanitizationMiddleware', () => {
         comment: 'order by preference',
       },
     });
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
   });
@@ -197,7 +194,7 @@ describe('PayloadSanitizationMiddleware', () => {
     const req = makeReq({
       body: { comment: 'Hello <script>alert(1)</script> World' },
     });
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
     expect((req.body as Record<string, string>)['comment']).not.toContain(
@@ -212,7 +209,7 @@ describe('PayloadSanitizationMiddleware', () => {
     const req = makeReq({
       body: { url: 'javascript:alert(document.cookie)' },
     });
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
     expect((req.body as Record<string, string>)['url']).not.toContain(
@@ -224,7 +221,7 @@ describe('PayloadSanitizationMiddleware', () => {
     const req = makeReq({
       body: { bio: '<img src=x onerror=alert(1)>' },
     });
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
     expect((req.body as Record<string, string>)['bio']).not.toContain(
@@ -236,7 +233,7 @@ describe('PayloadSanitizationMiddleware', () => {
     const req = makeReq({
       body: { profile: { bio: 'Hi <script>xss</script>' } },
     });
-    const next = jest.fn();
+    const next = vi.fn();
     middleware.use(req, mockRes, next);
     expect(next).toHaveBeenCalled();
     const body = req.body as { profile: { bio: string } };

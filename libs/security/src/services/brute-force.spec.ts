@@ -1,6 +1,7 @@
 import { BruteForceService } from './brute-force.service';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { Mock, vi } from 'vitest';
 
 // ─── Redis stub ──────────────────────────────────────────────────────────────
 
@@ -10,26 +11,26 @@ function makeRedisStub() {
 
   return {
     store,
-    exists: jest.fn(async (...keys: string[]) => {
+    exists: vi.fn(async (...keys: string[]) => {
       return keys.filter((k) => store.has(k)).length;
     }),
-    incr: jest.fn(async (key: string) => {
+    incr: vi.fn(async (key: string) => {
       const val = Number.parseInt(store.get(key) ?? '0', 10) + 1;
       store.set(key, String(val));
       return val;
     }),
-    expire: jest.fn(async (key: string, ttl: number) => {
+    expire: vi.fn(async (key: string, ttl: number) => {
       ttls.set(key, ttl);
       return 1;
     }),
-    set: jest.fn(
+    set: vi.fn(
       async (key: string, val: string, _ex: string, _ttl: number) => {
         store.set(key, val);
         ttls.set(key, _ttl);
         return 'OK';
       },
     ),
-    del: jest.fn(async (...keys: string[]) => {
+    del: vi.fn(async (...keys: string[]) => {
       let count = 0;
       for (const k of keys) {
         if (store.delete(k)) count++;
@@ -37,12 +38,12 @@ function makeRedisStub() {
       }
       return count;
     }),
-    get: jest.fn(async (key: string) => store.get(key) ?? null),
-    ttl: jest.fn(
+    get: vi.fn(async (key: string) => store.get(key) ?? null),
+    ttl: vi.fn(
       async (key: string) => ttls.get(key) ?? /* -2 = key does not exist */ -2,
     ),
-    quit: jest.fn(async () => 'OK'),
-    on: jest.fn(),
+    quit: vi.fn(async () => 'OK'),
+    on: vi.fn(),
   };
 }
 
@@ -80,7 +81,7 @@ describe('BruteForceService', () => {
     (service as unknown as { client: unknown })['client'] = redis;
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   describe('recordFailedAttempt', () => {
     it('increments the attempt counter', async () => {
@@ -169,14 +170,14 @@ describe('BruteForceService', () => {
 
   describe('fail-open behaviour', () => {
     it('returns locked=false when Redis throws on isLocked', async () => {
-      (redis.exists as jest.Mock).mockRejectedValueOnce(
+      (redis.exists as Mock).mockRejectedValueOnce(
         new Error('Redis unavailable'),
       );
       expect(await service.isLocked('ip:1.2.3.4')).toBe(false);
     });
 
     it('returns locked=false when Redis throws on recordFailedAttempt', async () => {
-      (redis.exists as jest.Mock).mockRejectedValueOnce(
+      (redis.exists as Mock).mockRejectedValueOnce(
         new Error('Redis unavailable'),
       );
       const result = await service.recordFailedAttempt('ip:x');

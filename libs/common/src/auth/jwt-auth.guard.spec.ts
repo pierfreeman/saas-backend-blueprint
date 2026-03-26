@@ -1,8 +1,9 @@
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { vi } from 'vitest';
 
 // Stub the Passport AuthGuard base class to avoid real JWT processing
-jest.mock('@nestjs/passport', () => ({
+vi.mock('@nestjs/passport', () => ({
   AuthGuard: () => {
     class MockAuthGuard {
       canActivate(_ctx: ExecutionContext): boolean {

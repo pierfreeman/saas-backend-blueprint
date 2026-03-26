@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ActivityLogService } from './activity-log.service';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
@@ -10,9 +11,9 @@ const ENTITY_UUID = 'c3d4e5f6-a7b8-4901-cd23-ef4567ab8901';
 function buildPrismaMock() {
   return {
     activityLog: {
-      create: jest.fn().mockResolvedValue({ id: 'some-id' }),
-      findMany: jest.fn().mockResolvedValue([]),
-      count: jest.fn().mockResolvedValue(0),
+      create: vi.fn().mockResolvedValue({ id: 'some-id' }),
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
     },
   };
 }
@@ -49,7 +50,7 @@ describe('ActivityLogService', () => {
     service = module.get<ActivityLogService>(ActivityLogService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ─── logActivity ────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ describe('ActivityLogService', () => {
 
     it('does not throw when prisma.activityLog.create rejects (fire-and-forget)', async () => {
       prisma.activityLog.create.mockRejectedValueOnce(new Error('DB down'));
-      const loggerSpy = jest
+      const loggerSpy = vi
         .spyOn(service.logger, 'error')
         .mockImplementation(() => undefined);
 
@@ -91,7 +92,7 @@ describe('ActivityLogService', () => {
     });
 
     it('skips write and warns when orgId is not a valid UUID', async () => {
-      const warnSpy = jest
+      const warnSpy = vi
         .spyOn(service.logger, 'warn')
         .mockImplementation(() => undefined);
 

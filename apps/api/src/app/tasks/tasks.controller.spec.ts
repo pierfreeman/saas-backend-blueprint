@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '@libs/common';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { JobStatus } from '@prisma/client';
 import { Request } from 'express';
+import { Mocked, vi } from 'vitest';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ const makeReq = (sub = TEST_USER_ID): Partial<Request> => ({
 
 describe('TasksController', () => {
   let controller: TasksController;
-  let tasksService: jest.Mocked<TasksService>;
+  let tasksService: Mocked<TasksService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -48,8 +49,8 @@ describe('TasksController', () => {
         {
           provide: TasksService,
           useValue: {
-            createHeavyJob: jest.fn(),
-            findJobById: jest.fn(),
+            createHeavyJob: vi.fn(),
+            findJobById: vi.fn(),
           },
         },
       ],
@@ -59,7 +60,7 @@ describe('TasksController', () => {
       .compile();
 
     controller = module.get(TasksController);
-    tasksService = module.get(TasksService) as jest.Mocked<TasksService>;
+    tasksService = module.get(TasksService) as Mocked<TasksService>;
   });
 
   // ── POST /tasks/heavy-job ──────────────────────────────────────────────────

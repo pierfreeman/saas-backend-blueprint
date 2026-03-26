@@ -4,6 +4,7 @@ import { InternalServerErrorException } from '@nestjs/common';
 import Stripe from 'stripe';
 import { StripeService } from './stripe.service';
 import { StripeClient } from './stripe.client';
+import { Mock, vi } from 'vitest';
 
 /**
  * Unit tests for StripeService.
@@ -12,20 +13,20 @@ import { StripeClient } from './stripe.client';
 describe('StripeService', () => {
   let service: StripeService;
   let mockStripeInstance: {
-    customers: { create: jest.Mock };
-    checkout: { sessions: { create: jest.Mock } };
-    billingPortal: { sessions: { create: jest.Mock } };
-    subscriptions: { retrieve: jest.Mock; update: jest.Mock };
-    webhooks: { constructEvent: jest.Mock };
+    customers: { create: Mock };
+    checkout: { sessions: { create: Mock } };
+    billingPortal: { sessions: { create: Mock } };
+    subscriptions: { retrieve: Mock; update: Mock };
+    webhooks: { constructEvent: Mock };
   };
 
   beforeEach(async () => {
     mockStripeInstance = {
-      customers: { create: jest.fn() },
-      checkout: { sessions: { create: jest.fn() } },
-      billingPortal: { sessions: { create: jest.fn() } },
-      subscriptions: { retrieve: jest.fn(), update: jest.fn() },
-      webhooks: { constructEvent: jest.fn() },
+      customers: { create: vi.fn() },
+      checkout: { sessions: { create: vi.fn() } },
+      billingPortal: { sessions: { create: vi.fn() } },
+      subscriptions: { retrieve: vi.fn(), update: vi.fn() },
+      webhooks: { constructEvent: vi.fn() },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -40,7 +41,7 @@ describe('StripeService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((key: string) => {
+            get: vi.fn((key: string) => {
               if (key === 'STRIPE_WEBHOOK_SECRET') return 'whsec_test_secret';
               return undefined;
             }),
@@ -275,7 +276,7 @@ describe('StripeService', () => {
           { provide: StripeClient, useValue: { stripe: mockStripeInstance } },
           {
             provide: ConfigService,
-            useValue: { get: jest.fn().mockReturnValue(undefined) },
+            useValue: { get: vi.fn().mockReturnValue(undefined) },
           },
         ],
       });
@@ -301,11 +302,11 @@ describe('StripeService', () => {
 
     beforeEach(async () => {
       fastMock = {
-        customers: { create: jest.fn() },
-        checkout: { sessions: { create: jest.fn() } },
-        billingPortal: { sessions: { create: jest.fn() } },
-        subscriptions: { retrieve: jest.fn(), update: jest.fn() },
-        webhooks: { constructEvent: jest.fn() },
+        customers: { create: vi.fn() },
+        checkout: { sessions: { create: vi.fn() } },
+        billingPortal: { sessions: { create: vi.fn() } },
+        subscriptions: { retrieve: vi.fn(), update: vi.fn() },
+        webhooks: { constructEvent: vi.fn() },
       };
 
       const module: TestingModule = await Test.createTestingModule({

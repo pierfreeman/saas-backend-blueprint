@@ -1,24 +1,22 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { vi } from 'vitest';
 
 // Stub PassportStrategy and passport-jwt to avoid real JWKS setup
-jest.mock('@nestjs/passport', () => ({
+vi.mock('@nestjs/passport', () => ({
   PassportStrategy: () => class {},
 }));
-jest.mock('passport-jwt', () => ({
+vi.mock('passport-jwt', () => ({
   Strategy: class {},
-  ExtractJwt: { fromAuthHeaderAsBearerToken: jest.fn(() => jest.fn()) },
+  ExtractJwt: { fromAuthHeaderAsBearerToken: vi.fn(() => vi.fn()) },
 }));
-jest.mock('jwks-rsa', () => ({ passportJwtSecret: jest.fn(() => jest.fn()) }));
+vi.mock('jwks-rsa', () => ({ passportJwtSecret: vi.fn(() => vi.fn()) }));
 
-// Import AFTER mocks
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { JwtStrategy } = require('./jwt.strategy') as {
-  JwtStrategy: new (config: any, auth: any) => { validate: (p: any) => any };
-};
+// JwtStrategy is loaded after mocks via dynamic import in beforeAll
+let JwtStrategy: new (config: any, auth: any) => { validate: (p: any) => any };
 
 const mockConfigService = {
-  get: jest.fn((key: string) => {
+  get: vi.fn((key: string) => {
     const map: Record<string, string> = {
       'auth.domain': 'example.auth0.com',
       'auth.audience': 'https://api.example.com',
@@ -30,7 +28,7 @@ const mockConfigService = {
 };
 
 const mockAuthService = {
-  syncUser: jest.fn(),
+  syncUser: vi.fn(),
 } as unknown as AuthService;
 
 const dbUser = {
@@ -44,13 +42,18 @@ const dbUser = {
 describe('JwtStrategy.validate', () => {
   let strategy: { validate: (p: any) => Promise<any> };
 
+  beforeAll(async () => {
+    const mod = await import('./jwt.strategy');
+    JwtStrategy = mod.JwtStrategy;
+  });
+
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     strategy = new JwtStrategy(mockConfigService, mockAuthService);
   });
 
   it('returns sub and email from DB user on success', async () => {
-    mockAuthService.syncUser = jest.fn().mockResolvedValue(dbUser);
+    mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
 
     const result = await strategy.validate({
       sub: 'auth0|u1',
@@ -67,7 +70,7 @@ describe('JwtStrategy.validate', () => {
   });
 
   it('uses placeholder email when payload.email is missing', async () => {
-    mockAuthService.syncUser = jest.fn().mockResolvedValue(dbUser);
+    mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
 
     await strategy.validate({
       sub: 'auth0|u1',
@@ -94,9 +97,7 @@ describe('JwtStrategy.validate', () => {
   });
 
   it('throws UnauthorizedException when syncUser throws', async () => {
-    mockAuthService.syncUser = jest
-      .fn()
-      .mockRejectedValue(new Error('DB error'));
+    mockAuthService.syncUser = vi.fn().mockRejectedValue(new Error('DB error'));
 
     await expect(
       strategy.validate({

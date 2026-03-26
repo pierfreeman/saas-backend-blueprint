@@ -1,15 +1,16 @@
 // Mock @prisma/legal-client so no real DB engine is loaded and no connections are made.
-jest.mock('@prisma/legal-client', () => {
+vi.mock('@prisma/legal-client', () => {
   class PrismaClient {
-    $connect = jest.fn().mockResolvedValue(undefined);
-    $disconnect = jest.fn().mockResolvedValue(undefined);
-    $on = jest.fn();
+    $connect = vi.fn().mockResolvedValue(undefined);
+    $disconnect = vi.fn().mockResolvedValue(undefined);
+    $on = vi.fn();
   }
   return { PrismaClient };
 });
 
 import { ConfigService } from '@nestjs/config';
 import { PrismaLegalService } from './prisma-legal.service';
+import { Mock, vi } from 'vitest';
 
 function makeConfig(overrides: Record<string, string> = {}): ConfigService {
   return {
@@ -21,7 +22,7 @@ describe('PrismaLegalService', () => {
   let service: PrismaLegalService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     service = new PrismaLegalService(
       makeConfig({ 'database.legalAuditUrl': 'postgresql://legal-test' }),
     );

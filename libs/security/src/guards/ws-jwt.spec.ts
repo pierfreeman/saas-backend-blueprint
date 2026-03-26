@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { WsException } from '@nestjs/websockets';
 import { ExecutionContext } from '@nestjs/common';
 import { Socket } from 'socket.io';
+import { vi } from 'vitest';
 
 // ─── JWT mock helpers ────────────────────────────────────────────────────────
 
@@ -15,38 +16,46 @@ const VALID_PAYLOAD = {
 };
 
 // Capture the mock instance the guard creates so tests can override it per-call
-let lastJwksInstance: { getSigningKey: jest.Mock } | null = null;
+const { lastJwksInstanceRef, mockVerify } = vi.hoisted(() => ({
+  lastJwksInstanceRef: {
+    current: null as { getSigningKey: ReturnType<typeof vi.fn> } | null,
+  },
+  mockVerify: vi.fn(),
+}));
 
-jest.mock('jwks-rsa', () => ({
-  JwksClient: jest.fn().mockImplementation(() => {
+vi.mock('jwks-rsa', () => ({
+  JwksClient: vi.fn(function (this: unknown) {
     const inst = {
-      getSigningKey: jest.fn(
+      getSigningKey: vi.fn(
         (_kid: string, cb: (err: Error | null, key: unknown) => void) => {
           cb(null, { getPublicKey: () => 'mock-public-key' });
         },
       ),
     };
-    lastJwksInstance = inst;
+    lastJwksInstanceRef.current = inst;
     return inst;
   }),
 }));
 
-jest.mock('jsonwebtoken', () => ({
-  decode: jest.fn(() => ({
+vi.mock('jsonwebtoken', () => ({
+  decode: vi.fn(() => ({
     header: { kid: 'test-key-id', alg: 'RS256' },
     payload: VALID_PAYLOAD,
   })),
-  verify: jest.fn(
-    (
-      _token: string,
-      _key: string,
-      _opts: unknown,
-      cb: (err: Error | null, payload: unknown) => void,
-    ) => {
-      cb(null, VALID_PAYLOAD);
-    },
-  ),
+  verify: mockVerify,
 }));
+
+// Initialize mockVerify default implementation
+mockVerify.mockImplementation(
+  (
+    _token: string,
+    _key: string,
+    _opts: unknown,
+    cb: (err: Error | null, payload: unknown) => void,
+  ) => {
+    cb(null, VALID_PAYLOAD);
+  },
+);
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -74,6 +83,19 @@ describe('WsJwtGuard', () => {
   let guard: WsJwtGuard;
 
   beforeEach(async () => {
+    vi.clearAllMocks();
+    lastJwksInstanceRef.current = null;
+    // Re-apply default verify implementation after clearAllMocks
+    mockVerify.mockImplementation(
+      (
+        _token: string,
+        _key: string,
+        _opts: unknown,
+        cb: (err: Error | null, payload: unknown) => void,
+      ) => {
+        cb(null, VALID_PAYLOAD);
+      },
+    );
     const module = await Test.createTestingModule({
       providers: [
         WsJwtGuard,
@@ -131,20 +153,25 @@ describe('WsJwtGuard', () => {
     });
 
     it('throws WsException when JWT verification fails', async () => {
-      const jwt = require('jsonwebtoken');
-      const verifySpy = jest.spyOn(jwt, 'verify') as jest.SpyInstance;
-      verifySpy.mockImplementationOnce((_t, _k, _o, cb) => {
-        (cb as (err: Error | null) => void)(new Error('TokenExpiredError'));
-      });
+      mockVerify.mockImplementationOnce(
+        (
+          _t: unknown,
+          _k: unknown,
+          _o: unknown,
+          cb: (err: Error | null) => void,
+        ) => {
+          cb(new Error('TokenExpiredError'));
+        },
+      );
 
       const ctx = makeSocketContext('expired.token');
       await expect(guard.canActivate(ctx)).rejects.toThrow(WsException);
     });
 
     it('throws WsException when JWKS fetch fails', async () => {
-      // lastJwksInstance is the JwksClient instance the guard created in beforeEach
-      expect(lastJwksInstance).not.toBeNull();
-      lastJwksInstance!.getSigningKey.mockImplementationOnce(
+      // lastJwksInstanceRef.current is the JwksClient instance the guard created in beforeEach
+      expect(lastJwksInstanceRef.current).not.toBeNull();
+      lastJwksInstanceRef.current!.getSigningKey.mockImplementationOnce(
         (_kid: string, cb: (err: Error | null) => void) => {
           cb(new Error('JWKS fetch failed'));
         },

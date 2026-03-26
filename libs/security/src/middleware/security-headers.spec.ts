@@ -2,17 +2,18 @@ import { HelmetMiddleware } from './helmet.middleware';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import type { Request, Response } from 'express';
+import { vi } from 'vitest';
 
 function makeRes() {
   const headers: Record<string, string> = {};
   return {
     headers,
     res: {
-      setHeader: jest.fn((k: string, v: string) => {
+      setHeader: vi.fn((k: string, v: string) => {
         headers[k] = v;
       }),
-      removeHeader: jest.fn(),
-      getHeader: jest.fn((k: string) => headers[k]),
+      removeHeader: vi.fn(),
+      getHeader: vi.fn((k: string) => headers[k]),
     } as unknown as Response,
   };
 }
@@ -43,7 +44,7 @@ describe('HelmetMiddleware', () => {
     it('calls next()', () => {
       const req = {} as Request;
       // Helmet calls next internally; simulate with a basic mock
-      const next = jest.fn();
+      const next = vi.fn();
       // Use a minimal response object that satisfies helmet's req
       const { res } = makeRes();
       // Helmet may throw if res does not have all Express methods;

@@ -9,47 +9,48 @@ import { StripeService } from '@libs/billing';
 import { EmailService } from '@libs/email';
 import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
 import { OrganizationStatus } from '@prisma/client';
+import { Mock, vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
 
 function buildRepoMock() {
   return {
-    findOrgById: jest.fn(),
-    findUserByAuth0Id: jest.fn().mockResolvedValue(null),
-    deleteDatabaseRecords: jest.fn().mockResolvedValue(undefined),
-    markDeleted: jest.fn().mockResolvedValue(undefined),
+    findOrgById: vi.fn(),
+    findUserByAuth0Id: vi.fn().mockResolvedValue(null),
+    deleteDatabaseRecords: vi.fn().mockResolvedValue(undefined),
+    markDeleted: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildEventBusMock() {
   return {
-    publish: jest.fn().mockResolvedValue(undefined),
+    publish: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildLegalAuditMock() {
   return {
-    recordEvent: jest.fn().mockResolvedValue(undefined),
+    recordEvent: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildStripeServiceMock() {
   return {
-    terminateSubscription: jest.fn().mockResolvedValue(undefined),
-    deleteCustomer: jest.fn().mockResolvedValue(undefined),
+    terminateSubscription: vi.fn().mockResolvedValue(undefined),
+    deleteCustomer: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function buildCacheMock() {
   return {
-    deleteByPattern: jest.fn().mockResolvedValue(0),
+    deleteByPattern: vi.fn().mockResolvedValue(0),
   };
 }
 
 function buildStorageMock() {
   return {
-    deleteFolder: jest.fn().mockResolvedValue(undefined),
+    deleteFolder: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -78,7 +79,7 @@ describe('OrgDeletionWorkerService', () => {
   let cache: ReturnType<typeof buildCacheMock>;
   let storage: ReturnType<typeof buildStorageMock>;
   let stripeService: ReturnType<typeof buildStripeServiceMock>;
-  let email: { sendTransactionalEmail: jest.Mock };
+  let email: { sendTransactionalEmail: Mock };
 
   beforeEach(async () => {
     repo = buildRepoMock();
@@ -87,7 +88,7 @@ describe('OrgDeletionWorkerService', () => {
     cache = buildCacheMock();
     storage = buildStorageMock();
     stripeService = buildStripeServiceMock();
-    email = { sendTransactionalEmail: jest.fn().mockResolvedValue(undefined) };
+    email = { sendTransactionalEmail: vi.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -105,7 +106,7 @@ describe('OrgDeletionWorkerService', () => {
     service = module.get<OrgDeletionWorkerService>(OrgDeletionWorkerService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ─── executeDeletion ────────────────────────────────────────────────────────
 

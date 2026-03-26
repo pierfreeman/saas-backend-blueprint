@@ -22,24 +22,25 @@ import * as supertest from 'supertest';
 import { ObservabilityModule } from '../observability.module';
 import { SentryInterceptor } from './sentry.interceptor';
 import { SentryService } from './sentry.service';
+import { MockInstance, vi } from 'vitest';
 
-jest.mock('@sentry/node', () => ({
-  init: jest.fn(),
-  withScope: jest
+vi.mock('@sentry/node', () => ({
+  init: vi.fn(),
+  withScope: vi
     .fn()
     .mockImplementation((cb: (scope: object) => void) =>
-      cb({ setTag: jest.fn(), setUser: jest.fn() }),
+      cb({ setTag: vi.fn(), setUser: vi.fn() }),
     ),
-  captureException: jest.fn(),
-  captureMessage: jest.fn(),
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
   logger: {
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
-  getCurrentScope: jest.fn(() => ({ setTag: jest.fn(), setUser: jest.fn() })),
+  getCurrentScope: vi.fn(() => ({ setTag: vi.fn(), setUser: vi.fn() })),
 }));
 
 // ── Minimal test controller ──────────────────────────────────────────────────
@@ -103,7 +104,7 @@ describe('SentryInterceptor (integration)', () => {
 
   describe('server errors (5xx) — capture and context forwarding', () => {
     let app: INestApplication;
-    let captureExceptionSpy: jest.SpyInstance;
+    let captureExceptionSpy: MockInstance;
 
     beforeAll(async () => {
       app = await buildApp({
@@ -111,14 +112,14 @@ describe('SentryInterceptor (integration)', () => {
         userId: 'user-7',
         role: 'OWNER',
       });
-      captureExceptionSpy = jest.spyOn(
+      captureExceptionSpy = vi.spyOn(
         app.get(SentryService),
         'captureException',
       );
     });
 
     afterAll(() => app.close());
-    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => vi.clearAllMocks());
 
     it('calls sentry.captureException once for a 5xx with the thrown Error', async () => {
       await supertest(app.getHttpServer()).get('/sentry-test/crash');
@@ -156,18 +157,18 @@ describe('SentryInterceptor (integration)', () => {
 
   describe('client errors (4xx) — no Sentry capture', () => {
     let app: INestApplication;
-    let captureExceptionSpy: jest.SpyInstance;
+    let captureExceptionSpy: MockInstance;
 
     beforeAll(async () => {
       app = await buildApp();
-      captureExceptionSpy = jest.spyOn(
+      captureExceptionSpy = vi.spyOn(
         app.get(SentryService),
         'captureException',
       );
     });
 
     afterAll(() => app.close());
-    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => vi.clearAllMocks());
 
     it('does NOT call sentry.captureException for a 403 Forbidden', async () => {
       await supertest(app.getHttpServer()).get('/sentry-test/forbidden');
@@ -191,11 +192,11 @@ describe('SentryInterceptor (integration)', () => {
         buildApp({ tenantId: 'beta', userId: 'u2', role: 'MEMBER' }),
       ]);
 
-      const spyAlpha = jest.spyOn(
+      const spyAlpha = vi.spyOn(
         appAlpha.get(SentryService),
         'captureException',
       );
-      const spyBeta = jest.spyOn(
+      const spyBeta = vi.spyOn(
         appBeta.get(SentryService),
         'captureException',
       );
@@ -225,7 +226,7 @@ describe('SentryInterceptor (integration)', () => {
 
     it('omits Sentry context fields when req.tenantContext is not set', async () => {
       const appNoCtx = await buildApp(); // no tenantCtx middleware
-      const spy = jest.spyOn(appNoCtx.get(SentryService), 'captureException');
+      const spy = vi.spyOn(appNoCtx.get(SentryService), 'captureException');
 
       await supertest(appNoCtx.getHttpServer()).get('/sentry-test/crash');
 

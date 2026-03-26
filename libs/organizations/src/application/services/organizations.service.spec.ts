@@ -3,26 +3,27 @@ import { OrganizationsRepository } from '../../infrastructure/repositories/organ
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { vi } from 'vitest';
 
 const mockActivityLog = {
-  logActivity: jest.fn(),
+  logActivity: vi.fn(),
 } as unknown as ActivityLogService;
 const mockLegalAudit = {
-  recordEvent: jest.fn(),
+  recordEvent: vi.fn(),
 } as unknown as LegalAuditService;
 
 const mockTx = {
-  organization: { create: jest.fn() },
-  membership: { create: jest.fn() },
+  organization: { create: vi.fn() },
+  membership: { create: vi.fn() },
 };
 
 const mockRepo = {
-  createWithOwner: jest.fn(),
-  findById: jest.fn(),
-  findByUserId: jest.fn(),
-  update: jest.fn(),
-  deleteJobs: jest.fn(),
-  delete: jest.fn(),
+  createWithOwner: vi.fn(),
+  findById: vi.fn(),
+  findByUserId: vi.fn(),
+  update: vi.fn(),
+  deleteJobs: vi.fn(),
+  delete: vi.fn(),
 } as unknown as OrganizationsRepository;
 
 const baseOrg = {
@@ -36,7 +37,7 @@ describe('OrganizationsService', () => {
   let service: OrganizationsService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     service = new OrganizationsService(
       mockRepo,
       mockActivityLog,
@@ -46,7 +47,7 @@ describe('OrganizationsService', () => {
 
   describe('createOrganization', () => {
     it('creates org and assigns OWNER membership via repository', async () => {
-      mockRepo.createWithOwner = jest.fn().mockResolvedValue(baseOrg);
+      mockRepo.createWithOwner = vi.fn().mockResolvedValue(baseOrg);
 
       const result = await service.createOrganization('u-1', { name: 'Acme' });
 
@@ -55,7 +56,7 @@ describe('OrganizationsService', () => {
     });
 
     it('fires logActivity and recordEvent after successful creation', async () => {
-      mockRepo.createWithOwner = jest.fn().mockResolvedValue(baseOrg);
+      mockRepo.createWithOwner = vi.fn().mockResolvedValue(baseOrg);
 
       await service.createOrganization('u-1', { name: 'Acme' });
 
@@ -74,7 +75,7 @@ describe('OrganizationsService', () => {
     });
 
     it('throws BadRequestException when repository throws', async () => {
-      mockRepo.createWithOwner = jest
+      mockRepo.createWithOwner = vi
         .fn()
         .mockRejectedValue(new Error('DB error'));
       await expect(
@@ -85,12 +86,12 @@ describe('OrganizationsService', () => {
 
   describe('findById', () => {
     it('returns org when found', async () => {
-      mockRepo.findById = jest.fn().mockResolvedValue(baseOrg);
+      mockRepo.findById = vi.fn().mockResolvedValue(baseOrg);
       expect(await service.findById('org-1')).toBe(baseOrg);
     });
 
     it('throws NotFoundException when not found', async () => {
-      mockRepo.findById = jest.fn().mockResolvedValue(null);
+      mockRepo.findById = vi.fn().mockResolvedValue(null);
       await expect(service.findById('nonexistent')).rejects.toThrow(
         NotFoundException,
       );
@@ -99,12 +100,12 @@ describe('OrganizationsService', () => {
 
   describe('findByUserId', () => {
     it('returns orgs via repository', async () => {
-      mockRepo.findByUserId = jest.fn().mockResolvedValue([baseOrg]);
+      mockRepo.findByUserId = vi.fn().mockResolvedValue([baseOrg]);
       expect(await service.findByUserId('u-1')).toEqual([baseOrg]);
     });
 
     it('returns empty array when user has no memberships', async () => {
-      mockRepo.findByUserId = jest.fn().mockResolvedValue([]);
+      mockRepo.findByUserId = vi.fn().mockResolvedValue([]);
       expect(await service.findByUserId('u-none')).toEqual([]);
     });
   });
@@ -112,8 +113,8 @@ describe('OrganizationsService', () => {
   describe('updateOrganization', () => {
     it('updates org and fires audit events', async () => {
       const updated = { ...baseOrg, name: 'NewName' };
-      mockRepo.findById = jest.fn().mockResolvedValue(baseOrg);
-      mockRepo.update = jest.fn().mockResolvedValue(updated);
+      mockRepo.findById = vi.fn().mockResolvedValue(baseOrg);
+      mockRepo.update = vi.fn().mockResolvedValue(updated);
 
       const result = await service.updateOrganization('org-1', {
         name: 'NewName',
@@ -126,7 +127,7 @@ describe('OrganizationsService', () => {
     });
 
     it('throws NotFoundException for unknown org', async () => {
-      mockRepo.findById = jest.fn().mockResolvedValue(null);
+      mockRepo.findById = vi.fn().mockResolvedValue(null);
       await expect(
         service.updateOrganization('bad-id', { name: 'X' }),
       ).rejects.toThrow(NotFoundException);
@@ -135,9 +136,9 @@ describe('OrganizationsService', () => {
 
   describe('deleteOrganization', () => {
     it('deletes jobs + org and records legal audit event', async () => {
-      mockRepo.findById = jest.fn().mockResolvedValue(baseOrg);
-      mockRepo.deleteJobs = jest.fn().mockResolvedValue(undefined);
-      mockRepo.delete = jest.fn().mockResolvedValue(undefined);
+      mockRepo.findById = vi.fn().mockResolvedValue(baseOrg);
+      mockRepo.deleteJobs = vi.fn().mockResolvedValue(undefined);
+      mockRepo.delete = vi.fn().mockResolvedValue(undefined);
 
       await service.deleteOrganization('org-1');
 
@@ -149,7 +150,7 @@ describe('OrganizationsService', () => {
     });
 
     it('throws NotFoundException for unknown org', async () => {
-      mockRepo.findById = jest.fn().mockResolvedValue(null);
+      mockRepo.findById = vi.fn().mockResolvedValue(null);
       await expect(service.deleteOrganization('bad-id')).rejects.toThrow(
         NotFoundException,
       );

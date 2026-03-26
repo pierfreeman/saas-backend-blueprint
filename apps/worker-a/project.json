@@ -63,7 +63,10 @@
       }
     },
     "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/apps/worker-a"],
       "options": {
+        "configFile": "apps/worker-a/vitest.config.ts",
         "passWithNoTests": true
       }
     },

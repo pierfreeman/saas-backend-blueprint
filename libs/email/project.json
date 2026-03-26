@@ -17,10 +17,18 @@
       }
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/email"],
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/email"],
       "options": {
-        "jestConfig": "libs/email/jest.config.cts",
+        "configFile": "libs/email/vitest.config.ts",
+        "passWithNoTests": true
+      }
+    },
+    "test-integration": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/integration/libs/email"],
+      "options": {
+        "configFile": "libs/email/vitest.integration.config.ts",
         "passWithNoTests": true
       }
     }

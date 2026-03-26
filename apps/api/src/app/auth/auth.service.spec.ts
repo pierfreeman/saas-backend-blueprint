@@ -1,27 +1,28 @@
 import { AuthService, PENDING_AUTH0_ID_PREFIX } from './auth.service';
 import { UsersService } from '@libs/users';
 import { Auth0ManagementService } from './auth0-management.service';
+import { Mock, vi } from 'vitest';
 
 const mockUsersService = {
-  findByAuth0Id: jest.fn(),
-  findByEmail: jest.fn(),
-  updateEmail: jest.fn(),
-  updateAuth0Id: jest.fn(),
-  findById: jest.fn(),
-  provisionWithPersonalOrg: jest.fn(),
+  findByAuth0Id: vi.fn(),
+  findByEmail: vi.fn(),
+  updateEmail: vi.fn(),
+  updateAuth0Id: vi.fn(),
+  findById: vi.fn(),
+  provisionWithPersonalOrg: vi.fn(),
 } as unknown as UsersService;
 
 const mockAuth0ManagementService = {
-  getUserById: jest.fn(),
+  getUserById: vi.fn(),
 } as unknown as Auth0ManagementService;
 
 describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Default: no pending user found by email
-    (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
+    (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
     service = new AuthService(mockUsersService, mockAuth0ManagementService);
   });
 
@@ -35,10 +36,10 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
       (
-        mockUsersService.provisionWithPersonalOrg as jest.Mock
+        mockUsersService.provisionWithPersonalOrg as Mock
       ).mockResolvedValue(createdUser);
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
@@ -58,7 +59,7 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(existing);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(existing);
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
       expect(result).toBe(existing);
@@ -74,8 +75,8 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
       const updated = { ...existing, email: 'new@b.com' };
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(existing);
-      (mockUsersService.updateEmail as jest.Mock).mockResolvedValue(updated);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(existing);
+      (mockUsersService.updateEmail as Mock).mockResolvedValue(updated);
 
       const result = await service.syncUser('auth0|1', 'new@b.com');
       expect(result).toBe(updated);
@@ -93,7 +94,7 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(existing);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(existing);
 
       const result = await service.syncUser(
         'auth0|1',
@@ -115,10 +116,10 @@ describe('AuthService', () => {
       };
       const linked = { ...pending, auth0Id: 'google-oauth2|456' };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       // The JWT delivers 'Invited@Example.com' but the stored email is lowercase
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(pending);
-      (mockUsersService.updateAuth0Id as jest.Mock).mockResolvedValue(linked);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(pending);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(linked);
 
       const result = await service.syncUser(
         'google-oauth2|456',
@@ -147,16 +148,16 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
-      (mockAuth0ManagementService.getUserById as jest.Mock).mockResolvedValue({
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockAuth0ManagementService.getUserById as Mock).mockResolvedValue({
         user_id: auth0Id,
         email: realEmail,
         email_verified: true,
         identities: [],
       });
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
       (
-        mockUsersService.provisionWithPersonalOrg as jest.Mock
+        mockUsersService.provisionWithPersonalOrg as Mock
       ).mockResolvedValue(createdUser);
 
       const result = await service.syncUser(auth0Id, placeholderEmail);
@@ -184,15 +185,15 @@ describe('AuthService', () => {
       };
       const linked = { ...pending, auth0Id };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
-      (mockAuth0ManagementService.getUserById as jest.Mock).mockResolvedValue({
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockAuth0ManagementService.getUserById as Mock).mockResolvedValue({
         user_id: auth0Id,
         email: realEmail,
         email_verified: true,
         identities: [],
       });
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(pending);
-      (mockUsersService.updateAuth0Id as jest.Mock).mockResolvedValue(linked);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(pending);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(linked);
 
       const result = await service.syncUser(auth0Id, placeholderEmail);
 
@@ -215,13 +216,13 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
-      (mockAuth0ManagementService.getUserById as jest.Mock).mockRejectedValue(
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockAuth0ManagementService.getUserById as Mock).mockRejectedValue(
         new Error('Management API unavailable'),
       );
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
       (
-        mockUsersService.provisionWithPersonalOrg as jest.Mock
+        mockUsersService.provisionWithPersonalOrg as Mock
       ).mockResolvedValue(createdUser);
 
       const result = await service.syncUser(auth0Id, placeholderEmail);
@@ -249,9 +250,9 @@ describe('AuthService', () => {
         auth0Id: 'google-oauth2|456',
       };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(pending);
-      (mockUsersService.updateAuth0Id as jest.Mock).mockResolvedValue(linked);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(pending);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(linked);
 
       const result = await service.syncUser(
         'google-oauth2|456',
@@ -276,12 +277,12 @@ describe('AuthService', () => {
       };
       const relinked = { ...existingOtpUser, auth0Id: 'google-oauth2|789' };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       // A non-pending user exists with this email (OTP account not yet linked)
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(
         existingOtpUser,
       );
-      (mockUsersService.updateAuth0Id as jest.Mock).mockResolvedValue(relinked);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(relinked);
 
       const result = await service.syncUser(
         'google-oauth2|789',
@@ -309,10 +310,10 @@ describe('AuthService', () => {
       };
       const linked = { ...pending, auth0Id: 'google-oauth2|456' };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       // The JWT delivers 'Invited@Example.com' but the stored email is lowercase
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(pending);
-      (mockUsersService.updateAuth0Id as jest.Mock).mockResolvedValue(linked);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(pending);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(linked);
 
       const result = await service.syncUser(
         'google-oauth2|456',
@@ -342,9 +343,9 @@ describe('AuthService', () => {
         auth0Id: 'google-oauth2|456',
       };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(pending);
-      (mockUsersService.updateAuth0Id as jest.Mock).mockResolvedValue(linked);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(pending);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(linked);
 
       const result = await service.syncUser(
         'google-oauth2|456',
@@ -369,12 +370,12 @@ describe('AuthService', () => {
       };
       const relinked = { ...existingOtpUser, auth0Id: 'google-oauth2|789' };
 
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       // A non-pending user exists with this email (OTP account not yet linked)
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(
         existingOtpUser,
       );
-      (mockUsersService.updateAuth0Id as jest.Mock).mockResolvedValue(relinked);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(relinked);
 
       const result = await service.syncUser(
         'google-oauth2|789',
@@ -400,12 +401,12 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(user);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(user);
       expect(await service.findUserByAuth0Id('auth0|1')).toBe(user);
     });
 
     it('returns null when not found', async () => {
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       expect(await service.findUserByAuth0Id('auth0|x')).toBeNull();
     });
   });
@@ -419,22 +420,22 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      (mockUsersService.findById as jest.Mock).mockResolvedValue(user);
+      (mockUsersService.findById as Mock).mockResolvedValue(user);
       expect(await service.findUserById('u-1')).toBe(user);
     });
 
     it('returns null when not found', async () => {
-      (mockUsersService.findById as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findById as Mock).mockResolvedValue(null);
       expect(await service.findUserById('nonexistent')).toBeNull();
     });
   });
 
   describe('syncUser — edge cases', () => {
     it('propagates errors from provisionWithPersonalOrg', async () => {
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(null);
-      (mockUsersService.findByEmail as jest.Mock).mockResolvedValue(null);
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
       (
-        mockUsersService.provisionWithPersonalOrg as jest.Mock
+        mockUsersService.provisionWithPersonalOrg as Mock
       ).mockRejectedValue(new Error('Transaction aborted'));
 
       await expect(service.syncUser('auth0|new', 'new@b.com')).rejects.toThrow(
@@ -443,7 +444,7 @@ describe('AuthService', () => {
     });
 
     it('propagates DB errors from findByAuth0Id', async () => {
-      (mockUsersService.findByAuth0Id as jest.Mock).mockRejectedValue(
+      (mockUsersService.findByAuth0Id as Mock).mockRejectedValue(
         new Error('Connection refused'),
       );
 
@@ -460,8 +461,8 @@ describe('AuthService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      (mockUsersService.findByAuth0Id as jest.Mock).mockResolvedValue(existing);
-      (mockUsersService.updateEmail as jest.Mock).mockRejectedValue(
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(existing);
+      (mockUsersService.updateEmail as Mock).mockRejectedValue(
         new Error('Update failed'),
       );
 

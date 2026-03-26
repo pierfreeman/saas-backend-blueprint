@@ -4,17 +4,18 @@ import { EventBusService } from '@libs/events';
 import { JobService } from '@libs/jobs';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { JobStatus } from '@prisma/client';
+import { Mock, vi } from 'vitest';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────────────
 
 const mockEventBus = {
-  publish: jest.fn(),
+  publish: vi.fn(),
 } as unknown as EventBusService;
 
 const mockJobService = {
-  create: jest.fn(),
-  delete: jest.fn(),
-  findByIdAndOrg: jest.fn(),
+  create: vi.fn(),
+  delete: vi.fn(),
+  findByIdAndOrg: vi.fn(),
 } as unknown as JobService;
 
 const validDto: CreateTaskDto = { name: 'test-job', data: { key: 'value' } };
@@ -40,23 +41,23 @@ describe('TasksService', () => {
   let service: TasksService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (mockJobService.create as jest.Mock).mockResolvedValue(undefined);
-    (mockJobService.delete as jest.Mock).mockResolvedValue(undefined);
+    vi.clearAllMocks();
+    (mockJobService.create as Mock).mockResolvedValue(undefined);
+    (mockJobService.delete as Mock).mockResolvedValue(undefined);
     service = new TasksService(mockEventBus, mockJobService);
   });
 
   // ── createHeavyJob ──────────────────────────────────────────────────────────
   describe('createHeavyJob', () => {
     it('creates a PENDING job record before publishing the event', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
 
       const result = await service.createHeavyJob('org-1', validDto, 'user-1');
 
       // jobRepo.create must be called before eventBus.publish
-      const createOrder = (mockJobService.create as jest.Mock).mock
+      const createOrder = (mockJobService.create as Mock).mock
         .invocationCallOrder[0];
-      const publishOrder = (mockEventBus.publish as jest.Mock).mock
+      const publishOrder = (mockEventBus.publish as Mock).mock
         .invocationCallOrder[0];
       expect(createOrder).toBeLessThan(publishOrder);
 
@@ -70,7 +71,7 @@ describe('TasksService', () => {
     });
 
     it('publishes a HEAVY_JOB_CREATED event with the correct shape', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
 
       const result = await service.createHeavyJob('org-1', validDto, 'user-1');
 
@@ -89,7 +90,7 @@ describe('TasksService', () => {
     });
 
     it('returns a UUID jobId', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
       const result = await service.createHeavyJob('org-1', validDto);
       expect(result.jobId).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
@@ -97,14 +98,14 @@ describe('TasksService', () => {
     });
 
     it('includes a valid Date timestamp in the event', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
       await service.createHeavyJob('org-2', { name: 'job-2' });
-      const event = (mockEventBus.publish as jest.Mock).mock.calls[0][0];
+      const event = (mockEventBus.publish as Mock).mock.calls[0][0];
       expect(event.timestamp).toBeInstanceOf(Date);
     });
 
     it('deletes the PENDING job and re-throws when publish fails', async () => {
-      mockEventBus.publish = jest
+      mockEventBus.publish = vi
         .fn()
         .mockRejectedValue(new Error('SQS unavailable'));
 
@@ -116,7 +117,7 @@ describe('TasksService', () => {
     });
 
     it('generates a unique UUID jobId per invocation', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
       const r1 = await service.createHeavyJob('org-1', { name: 'j1' });
       const r2 = await service.createHeavyJob('org-1', { name: 'j2' });
       expect(r1.jobId).not.toBe(r2.jobId);
@@ -126,7 +127,7 @@ describe('TasksService', () => {
   // ── findJobById ─────────────────────────────────────────────────────────────
   describe('findJobById', () => {
     it('returns the job when found for the given tenant', async () => {
-      (mockJobService.findByIdAndOrg as jest.Mock).mockResolvedValue(baseJob);
+      (mockJobService.findByIdAndOrg as Mock).mockResolvedValue(baseJob);
 
       const job = await service.findJobById('job-uuid-1', 'org-1');
 
@@ -138,7 +139,7 @@ describe('TasksService', () => {
     });
 
     it('throws NotFoundException when the job does not exist', async () => {
-      (mockJobService.findByIdAndOrg as jest.Mock).mockRejectedValue(
+      (mockJobService.findByIdAndOrg as Mock).mockRejectedValue(
         new NotFoundException('Job job-uuid-1 not found'),
       );
 
@@ -148,7 +149,7 @@ describe('TasksService', () => {
     });
 
     it('throws NotFoundException when the job belongs to a different tenant (IDOR prevention)', async () => {
-      (mockJobService.findByIdAndOrg as jest.Mock).mockRejectedValue(
+      (mockJobService.findByIdAndOrg as Mock).mockRejectedValue(
         new NotFoundException('Job job-uuid-1 not found'),
       );
 

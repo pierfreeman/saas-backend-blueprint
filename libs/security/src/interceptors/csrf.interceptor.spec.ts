@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { of } from 'rxjs';
 import { CsrfInterceptor } from './csrf.interceptor';
+import { Mock, Mocked, vi } from 'vitest';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ interface RequestStub {
 }
 
 function makeContext(req: RequestStub, skipCsrf = false): ExecutionContext {
-  const cookieMock = jest.fn();
+  const cookieMock = vi.fn();
   const res = { cookie: cookieMock };
 
   return {
@@ -59,13 +60,13 @@ function makeConfig(enabled = true, secureCookie = false): ConfigService {
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 describe('CsrfInterceptor', () => {
-  let reflector: jest.Mocked<Reflector>;
+  let reflector: Mocked<Reflector>;
 
   async function buildInterceptor(enabled = true): Promise<CsrfInterceptor> {
     const reflectorMock = {
-      getAllAndOverride: jest.fn().mockReturnValue(false),
+      getAllAndOverride: vi.fn().mockReturnValue(false),
     };
-    reflector = reflectorMock as unknown as jest.Mocked<Reflector>;
+    reflector = reflectorMock as unknown as Mocked<Reflector>;
 
     const module = await Test.createTestingModule({
       providers: [
@@ -78,7 +79,7 @@ describe('CsrfInterceptor', () => {
     return module.get(CsrfInterceptor);
   }
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ── Disabled ─────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ describe('CsrfInterceptor', () => {
       const interceptor = await buildInterceptor(false);
       const ctx = makeContext({ method: 'POST', headers: {} });
       const next = makeNextHandler();
-      const spy = jest.spyOn(next, 'handle');
+      const spy = vi.spyOn(next, 'handle');
       interceptor.intercept(ctx, next).subscribe();
       expect(spy).toHaveBeenCalledTimes(1);
     });
@@ -104,7 +105,7 @@ describe('CsrfInterceptor', () => {
         getClass: () => ({}),
       } as unknown as ExecutionContext;
       const next = makeNextHandler();
-      const spy = jest.spyOn(next, 'handle');
+      const spy = vi.spyOn(next, 'handle');
       interceptor.intercept(wsCtx, next).subscribe();
       expect(spy).toHaveBeenCalledTimes(1);
     });
@@ -118,7 +119,7 @@ describe('CsrfInterceptor', () => {
       reflector.getAllAndOverride.mockReturnValue(true);
       const ctx = makeContext({ method: 'POST', headers: {} });
       const next = makeNextHandler();
-      const spy = jest.spyOn(next, 'handle');
+      const spy = vi.spyOn(next, 'handle');
       interceptor.intercept(ctx, next).subscribe();
       expect(spy).toHaveBeenCalledTimes(1);
     });
@@ -132,7 +133,7 @@ describe('CsrfInterceptor', () => {
       async (method) => {
         const interceptor = await buildInterceptor(true);
         const ctx = makeContext({ method, headers: {} });
-        const resMock = (ctx as unknown as { __resMock: { cookie: jest.Mock } })
+        const resMock = (ctx as unknown as { __resMock: { cookie: Mock } })
           .__resMock;
         const next = makeNextHandler();
 
@@ -200,7 +201,7 @@ describe('CsrfInterceptor', () => {
         headers: { 'x-csrf-token': token },
       });
       const next = makeNextHandler();
-      const spy = jest.spyOn(next, 'handle');
+      const spy = vi.spyOn(next, 'handle');
 
       await new Promise<void>((resolve) => {
         interceptor.intercept(ctx, next).subscribe({ complete: resolve });

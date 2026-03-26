@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { CorsMiddleware } from './cors.middleware';
 import type { Request, Response } from 'express';
+import { vi } from 'vitest';
 
 function makeReq(origin?: string, method = 'GET'): Partial<Request> {
   return {
@@ -21,19 +22,19 @@ function makeRes(): {
   let ended = false;
 
   const res: Partial<Response> = {
-    setHeader: jest.fn((key: string, val: string) => {
+    setHeader: vi.fn((key: string, val: string) => {
       headers[key.toLowerCase()] = val;
       return res as Response;
     }),
-    status: jest.fn((code: number) => {
+    status: vi.fn((code: number) => {
       statusCode = code;
       return res as Response;
     }),
-    end: jest.fn(() => {
+    end: vi.fn(() => {
       ended = true;
       return res as Response;
     }),
-    json: jest.fn((body) => {
+    json: vi.fn((body) => {
       statusCode = (body as { statusCode: number }).statusCode;
       ended = true;
       return res as Response;
@@ -84,7 +85,7 @@ describe('CorsMiddleware', () => {
     it('sets Access-Control-Allow-Origin for a listed origin', () => {
       const req = makeReq('https://app.example.com');
       const { res, headers } = makeRes();
-      const next = jest.fn();
+      const next = vi.fn();
 
       middleware.use(req as Request, res as Response, next);
 
@@ -97,7 +98,7 @@ describe('CorsMiddleware', () => {
     it('sets Access-Control-Allow-Credentials when credentials=true', () => {
       const req = makeReq('https://app.example.com');
       const { res, headers } = makeRes();
-      middleware.use(req as Request, res as Response, jest.fn());
+      middleware.use(req as Request, res as Response, vi.fn());
 
       expect(headers['access-control-allow-credentials']).toBe('true');
     });
@@ -106,7 +107,7 @@ describe('CorsMiddleware', () => {
       const req = makeReq('https://admin.example.com', 'OPTIONS');
       const state = makeRes();
 
-      middleware.use(req as Request, state.res as Response, jest.fn());
+      middleware.use(req as Request, state.res as Response, vi.fn());
 
       expect(state.statusCode).toBe(204);
       expect(state.ended).toBe(true);
@@ -118,7 +119,7 @@ describe('CorsMiddleware', () => {
       const req = makeReq('https://evil.attacker.com');
       const state = makeRes();
 
-      middleware.use(req as Request, state.res as Response, jest.fn());
+      middleware.use(req as Request, state.res as Response, vi.fn());
 
       expect(state.statusCode).toBe(403);
       expect(state.ended).toBe(true);
@@ -128,7 +129,7 @@ describe('CorsMiddleware', () => {
       const req = makeReq('https://evil.attacker.com', 'OPTIONS');
       const state = makeRes();
 
-      middleware.use(req as Request, state.res as Response, jest.fn());
+      middleware.use(req as Request, state.res as Response, vi.fn());
 
       expect(state.statusCode).toBe(403);
       expect(state.ended).toBe(true);
@@ -136,7 +137,7 @@ describe('CorsMiddleware', () => {
 
     it('does NOT call next() for a blocked origin', () => {
       const req = makeReq('https://evil.attacker.com');
-      const next = jest.fn();
+      const next = vi.fn();
       middleware.use(req as Request, makeRes().res as Response, next);
 
       expect(next).not.toHaveBeenCalled();
@@ -146,7 +147,7 @@ describe('CorsMiddleware', () => {
   describe('No Origin header (server-to-server)', () => {
     it('passes through requests without an Origin header', () => {
       const req = makeReq(); // no origin
-      const next = jest.fn();
+      const next = vi.fn();
       middleware.use(req as Request, makeRes().res as Response, next);
 
       expect(next).toHaveBeenCalled();

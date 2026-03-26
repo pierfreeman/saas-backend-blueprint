@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/legal-audit/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:legal-audit"],
+  "tags": [
+    "type:lib",
+    "scope:legal-audit"
+  ],
   "targets": {
     "build": {
       "executor": "nx:noop",
@@ -11,10 +14,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/legal-audit"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/legal-audit"
+      ],
       "options": {
-        "jestConfig": "libs/legal-audit/jest.config.cts"
+        "configFile": "libs/legal-audit/vitest.config.ts"
       }
     },
     "typecheck": {

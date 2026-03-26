@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { InviteMemberService } from './invite-member.service';
 import { PENDING_AUTH0_ID_PREFIX } from '../auth/auth.service';
+import { vi } from 'vitest';
 
 const baseMembership = {
   id: 'm-1',
@@ -31,26 +32,26 @@ const pendingUser = {
 };
 
 const mockUsersService = {
-  findById: jest.fn(),
-  findByEmail: jest.fn(),
-  createUser: jest.fn(),
+  findById: vi.fn(),
+  findByEmail: vi.fn(),
+  createUser: vi.fn(),
 };
 
 const mockMembershipsService = {
-  findByUserAndOrg: jest.fn(),
-  createMembership: jest.fn(),
+  findByUserAndOrg: vi.fn(),
+  createMembership: vi.fn(),
 };
 
 const mockOrganizationsService = {
-  findById: jest.fn(),
+  findById: vi.fn(),
 };
 
 const mockAuth0ManagementService = {
-  sendPasswordlessLink: jest.fn(),
+  sendPasswordlessLink: vi.fn(),
 };
 
 const mockConfigService = {
-  get: jest.fn().mockReturnValue('http://localhost:4200'),
+  get: vi.fn().mockReturnValue('http://localhost:4200'),
 };
 
 function buildService() {
@@ -67,7 +68,7 @@ describe('InviteMemberService', () => {
   let service: InviteMemberService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     service = buildService();
 
     // Default happy-path returns

@@ -1,5 +1,5 @@
 /**
- * Jest globalSetup — runs in its own Node.js process before all test suites.
+ * Vitest globalSetup — runs in its own Node.js process before all test suites.
  *
  * Responsibilities:
  *  1. Loads .env.test so migration commands use test database URLs.
@@ -12,7 +12,7 @@ import { execSync } from 'child_process';
 import * as path from 'node:path';
 import * as dotenv from 'dotenv';
 
-module.exports = async function globalSetup() {
+export default async function globalSetup() {
   // Load .env.test so migration commands have the correct DATABASE_URLs.
   // override: true is needed because NX pre-loads .env before running targets,
   // which would otherwise prevent the test values from taking effect.
@@ -36,4 +36,4 @@ module.exports = async function globalSetup() {
   });
 
   console.log('[global-setup] Migrations complete.\n');
-};
+}

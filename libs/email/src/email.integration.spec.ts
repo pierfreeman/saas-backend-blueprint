@@ -1,15 +1,31 @@
 import { ConfigModule } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import * as SendGridMail from '@sendgrid/mail';
 import { EmailModule } from './email.module';
 import { EmailService } from './email.service';
+import { vi } from 'vitest';
 import {
   EMAIL_PROVIDER,
   EmailProvider,
 } from './providers/email-provider.interface';
 
-// Mock SendGrid module
-jest.mock('@sendgrid/mail');
+// Hoist mocks so the factory below can reference them (vi.hoisted runs
+// before vi.mock factories and module imports).
+const { mockSend, mockSetApiKey } = vi.hoisted(() => ({
+  mockSend: vi.fn(),
+  mockSetApiKey: vi.fn(),
+}));
+
+// Explicit factory: the @sendgrid/mail package uses `export =` (CJS singleton).
+// When compiled via esModuleInterop the provider resolves `SendGridMail.default`
+// first, so we must stub *both* the default export and the named exports with
+// the same mock functions to guarantee the same reference is checked in
+// assertions regardless of which resolution path the provider takes.
+vi.mock('@sendgrid/mail', () => ({
+  __esModule: true,
+  default: { send: mockSend, setApiKey: mockSetApiKey },
+  send: mockSend,
+  setApiKey: mockSetApiKey,
+}));
 
 describe('Email Integration Tests', () => {
   let module: TestingModule;
@@ -17,11 +33,10 @@ describe('Email Integration Tests', () => {
   let emailProvider: EmailProvider;
 
   beforeEach(async () => {
-    // Mock SendGrid
-    (SendGridMail.send as jest.Mock) = jest
-      .fn()
-      .mockResolvedValue([{ statusCode: 202 }]);
-    (SendGridMail.setApiKey as jest.Mock) = jest.fn();
+    // Reset mocks between tests — must call mockReset on the shared functions
+    // (not reassign them, which would break the reference inside the module).
+    mockSend.mockReset().mockResolvedValue([{ statusCode: 202 }]);
+    mockSetApiKey.mockReset();
 
     module = await Test.createTestingModule({
       imports: [
@@ -65,14 +80,14 @@ describe('Email Integration Tests', () => {
           loginUrl: 'https://app.example.com/auth/login/xyz789',
           expirationMinutes: 15,
         },
-        orgId: 'org-test',
-        userId: 'user-test',
+        orgId: '00000000-0000-0000-0000-000000000001',
+        userId: '00000000-0000-0000-0000-000000000002',
       });
 
       // Wait for async email sending
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      expect(SendGridMail.send).toHaveBeenCalledWith(
+      expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'test@example.com',
           subject: 'Sign in to your account',
@@ -91,7 +106,7 @@ describe('Email Integration Tests', () => {
     });
 
     it('should initialize SendGrid with API key', () => {
-      expect(SendGridMail.setApiKey).toHaveBeenCalledWith('test-api-key');
+      expect(mockSetApiKey).toHaveBeenCalledWith('test-api-key');
     });
   });
 });

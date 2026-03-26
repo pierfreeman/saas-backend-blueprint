@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/rbac/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:rbac"],
+  "tags": [
+    "type:lib",
+    "scope:rbac"
+  ],
   "targets": {
     "build": {
       "executor": "nx:noop",
@@ -11,10 +14,13 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/rbac"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/rbac"
+      ],
       "options": {
-        "jestConfig": "libs/rbac/jest.config.cts"
+        "configFile": "libs/rbac/vitest.config.ts",
+        "passWithNoTests": true
       }
     },
     "typecheck": {

@@ -1,9 +1,10 @@
 import { SubscriptionUpdatedHandler } from './subscription-updated.handler';
 import { SubscriptionService } from '../../application/services/subscription.service';
 import Stripe from 'stripe';
+import { Mock, vi } from 'vitest';
 
 const mockSubscriptionService = {
-  handleSubscriptionUpdated: jest.fn(),
+  handleSubscriptionUpdated: vi.fn(),
 } as unknown as SubscriptionService;
 
 const makeSub = (
@@ -46,7 +47,7 @@ describe('SubscriptionUpdatedHandler', () => {
   let handler: SubscriptionUpdatedHandler;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     handler = new SubscriptionUpdatedHandler(mockSubscriptionService);
   });
 
@@ -69,7 +70,7 @@ describe('SubscriptionUpdatedHandler', () => {
     const sub = makeSub({ status: 'canceled' });
     const event = makeEvent('customer.subscription.deleted', sub);
     (
-      mockSubscriptionService.handleSubscriptionUpdated as jest.Mock
+      mockSubscriptionService.handleSubscriptionUpdated as Mock
     ).mockResolvedValue(undefined);
 
     await expect(handler.handle(event)).resolves.not.toThrow();
@@ -94,7 +95,7 @@ describe('SubscriptionUpdatedHandler', () => {
       previousAttributes,
     );
     (
-      mockSubscriptionService.handleSubscriptionUpdated as jest.Mock
+      mockSubscriptionService.handleSubscriptionUpdated as Mock
     ).mockResolvedValue(undefined);
 
     await handler.handle(event);
@@ -111,7 +112,7 @@ describe('SubscriptionUpdatedHandler', () => {
     const sub = makeSub();
     const event = makeEvent('customer.subscription.updated', sub);
     (
-      mockSubscriptionService.handleSubscriptionUpdated as jest.Mock
+      mockSubscriptionService.handleSubscriptionUpdated as Mock
     ).mockResolvedValue(undefined);
 
     await handler.handle(event);
@@ -128,7 +129,7 @@ describe('SubscriptionUpdatedHandler', () => {
     const sub = makeSub();
     const event = makeEvent('customer.subscription.updated', sub);
     (
-      mockSubscriptionService.handleSubscriptionUpdated as jest.Mock
+      mockSubscriptionService.handleSubscriptionUpdated as Mock
     ).mockRejectedValue(new Error('DB error'));
 
     await expect(handler.handle(event)).rejects.toThrow('DB error');

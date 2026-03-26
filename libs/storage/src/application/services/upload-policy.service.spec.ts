@@ -3,20 +3,21 @@ import { ConfigService } from '@nestjs/config';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UploadPolicyService } from './upload-policy.service';
 import { StorageRepository } from '../../infrastructure/repositories/storage.repository';
+import { Mock, Mocked, vi } from 'vitest';
 
 describe('UploadPolicyService', () => {
   let service: UploadPolicyService;
-  let configService: jest.Mocked<ConfigService>;
-  let storageRepository: jest.Mocked<StorageRepository>;
+  let configService: Mocked<ConfigService>;
+  let storageRepository: Mocked<StorageRepository>;
 
   beforeEach(async () => {
     configService = {
-      get: jest.fn(),
-    } as unknown as jest.Mocked<ConfigService>;
+      get: vi.fn(),
+    } as unknown as Mocked<ConfigService>;
 
     storageRepository = {
-      getStorageUsage: jest.fn(),
-    } as unknown as jest.Mocked<StorageRepository>;
+      getStorageUsage: vi.fn(),
+    } as unknown as Mocked<StorageRepository>;
 
     // Mock storage quotas config — values mirror the production defaults in storage.config.ts
     configService.get.mockImplementation((key: string) => {
@@ -247,7 +248,7 @@ describe('UploadPolicyService', () => {
     });
 
     it('throws BadRequestException when MIME type not in allowedMimeTypes', async () => {
-      jest.spyOn(service, 'getUploadPolicy').mockReturnValue({
+      vi.spyOn(service, 'getUploadPolicy').mockReturnValue({
         maxFileSizeBytes: 100 * 1024 * 1024,
         allowedMimeTypes: ['image/png', 'image/jpeg'],
       });
@@ -268,7 +269,7 @@ describe('UploadPolicyService', () => {
     });
 
     it('throws BadRequestException when MIME type is in forbiddenMimeTypes', async () => {
-      jest.spyOn(service, 'getUploadPolicy').mockReturnValue({
+      vi.spyOn(service, 'getUploadPolicy').mockReturnValue({
         maxFileSizeBytes: 100 * 1024 * 1024,
         forbiddenMimeTypes: ['application/x-msdownload', 'application/x-sh'],
       });

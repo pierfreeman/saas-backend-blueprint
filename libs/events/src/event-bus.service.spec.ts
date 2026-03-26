@@ -7,16 +7,17 @@ import {
 } from './event-bus.service';
 import { DomainEvent } from './interfaces/domain-event.interface';
 import { DOMAIN_EVENTS } from './constants/event-routing.constants';
+import { Mock, vi } from 'vitest';
 
 const mockTransport = () => ({
-  send: jest.fn().mockResolvedValue('msg-id-123'),
+  send: vi.fn().mockResolvedValue('msg-id-123'),
 });
 
 describe('EventBusService', () => {
   let service: EventBusService;
-  let localSend: jest.Mock;
-  let standardSend: jest.Mock;
-  let fifoSend: jest.Mock;
+  let localSend: Mock;
+  let standardSend: Mock;
+  let fifoSend: Mock;
 
   const buildEvent = (eventType: string): DomainEvent => ({
     eventType,
@@ -46,7 +47,7 @@ describe('EventBusService', () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     delete process.env['EVENT_BUS_TRANSPORT'];
   });
 

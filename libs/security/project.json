@@ -10,10 +10,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/unit/libs/security"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/unit/libs/security"
+      ],
       "options": {
-        "jestConfig": "libs/security/jest.config.cts"
+        "configFile": "libs/security/vitest.config.ts"
       }
     },
     "typecheck": {
@@ -23,5 +25,8 @@
       }
     }
   },
-  "tags": ["type:lib", "scope:security"]
+  "tags": [
+    "type:lib",
+    "scope:security"
+  ]
 }

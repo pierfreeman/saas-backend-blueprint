@@ -19,19 +19,16 @@ import { Test } from '@nestjs/testing';
 import { of, throwError } from 'rxjs';
 import { SecurityAuditInterceptor } from './security-audit.interceptor';
 import { BruteForceService } from '../services/brute-force.service';
+import { Mock, Mocked, vi } from 'vitest';
+import { LegalAuditService } from '@libs/legal-audit';
 
 // Mock @libs/legal-audit to avoid compiling Prisma-generated client in unit tests
-jest.mock('@libs/legal-audit', () => ({
+vi.mock('@libs/legal-audit', () => ({
   LegalAuditService: class MockLegalAuditService {
-    recordEvent = jest.fn();
+    recordEvent = vi.fn();
   },
   LegalAuditModule: { module: class {} },
 }));
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { LegalAuditService } = require('@libs/legal-audit') as {
-  LegalAuditService: new () => { recordEvent: jest.Mock };
-};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -72,21 +69,19 @@ function nextThrowing(err: unknown): CallHandler {
 
 describe('SecurityAuditInterceptor', () => {
   let interceptor: SecurityAuditInterceptor;
-  let bruteForceService: jest.Mocked<BruteForceService>;
-  let legalAuditService: { recordEvent: jest.Mock };
+  let bruteForceService: Mocked<BruteForceService>;
+  let legalAuditService: { recordEvent: Mock };
 
   beforeEach(async () => {
     const bfs = {
-      resetAttempts: jest.fn().mockResolvedValue(undefined),
-      recordFailedAttempt: jest
-        .fn()
-        .mockResolvedValue({
-          locked: false,
-          attempts: 1,
-          lockoutRemainingSeconds: 0,
-        }),
-      isLocked: jest.fn().mockResolvedValue(false),
-      getState: jest.fn(),
+      resetAttempts: vi.fn().mockResolvedValue(undefined),
+      recordFailedAttempt: vi.fn().mockResolvedValue({
+        locked: false,
+        attempts: 1,
+        lockoutRemainingSeconds: 0,
+      }),
+      isLocked: vi.fn().mockResolvedValue(false),
+      getState: vi.fn(),
     };
     const las = new LegalAuditService();
 
@@ -100,13 +95,11 @@ describe('SecurityAuditInterceptor', () => {
 
     interceptor = module.get(SecurityAuditInterceptor);
     bruteForceService =
-      module.get<jest.Mocked<BruteForceService>>(BruteForceService);
-    legalAuditService = module.get<{ recordEvent: jest.Mock }>(
-      LegalAuditService,
-    );
+      module.get<Mocked<BruteForceService>>(BruteForceService);
+    legalAuditService = module.get<{ recordEvent: Mock }>(LegalAuditService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ── Non-HTTP context ──────────────────────────────────────────────────────
 
@@ -117,7 +110,7 @@ describe('SecurityAuditInterceptor', () => {
         switchToHttp: () => ({}),
       } as unknown as ExecutionContext;
       const next = nextReturning();
-      const spy = jest.spyOn(next, 'handle');
+      const spy = vi.spyOn(next, 'handle');
       interceptor.intercept(wsCtx, next).subscribe();
       expect(spy).toHaveBeenCalledTimes(1);
       expect(bruteForceService.resetAttempts).not.toHaveBeenCalled();

@@ -1,9 +1,10 @@
 import { InvoiceFailedHandler } from './invoice-failed.handler';
 import { SubscriptionService } from '../../application/services/subscription.service';
 import Stripe from 'stripe';
+import { Mock, vi } from 'vitest';
 
 const mockSubscriptionService = {
-  handleInvoiceFailed: jest.fn(),
+  handleInvoiceFailed: vi.fn(),
 } as unknown as SubscriptionService;
 
 const makeInvoice = (overrides: Partial<Stripe.Invoice> = {}): Stripe.Invoice =>
@@ -27,7 +28,7 @@ describe('InvoiceFailedHandler', () => {
   let handler: InvoiceFailedHandler;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     handler = new InvoiceFailedHandler(mockSubscriptionService);
   });
 
@@ -35,7 +36,7 @@ describe('InvoiceFailedHandler', () => {
     const invoice = makeInvoice();
     const event = makeEvent(invoice);
     (
-      mockSubscriptionService.handleInvoiceFailed as jest.Mock
+      mockSubscriptionService.handleInvoiceFailed as Mock
     ).mockResolvedValue(undefined);
 
     await handler.handle(event);
@@ -48,7 +49,7 @@ describe('InvoiceFailedHandler', () => {
   it('resolves without throwing for a well-formed event', async () => {
     const event = makeEvent(makeInvoice({ attempt_count: 3 }));
     (
-      mockSubscriptionService.handleInvoiceFailed as jest.Mock
+      mockSubscriptionService.handleInvoiceFailed as Mock
     ).mockResolvedValue(undefined);
 
     await expect(handler.handle(event)).resolves.not.toThrow();
@@ -57,7 +58,7 @@ describe('InvoiceFailedHandler', () => {
   it('propagates errors from SubscriptionService', async () => {
     const event = makeEvent(makeInvoice());
     (
-      mockSubscriptionService.handleInvoiceFailed as jest.Mock
+      mockSubscriptionService.handleInvoiceFailed as Mock
     ).mockRejectedValue(new Error('Payment processor unavailable'));
 
     await expect(handler.handle(event)).rejects.toThrow(

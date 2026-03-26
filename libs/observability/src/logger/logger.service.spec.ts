@@ -1,20 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ObservabilityLoggerService } from './logger.service';
+import { MockInstance, vi } from 'vitest';
 
-jest.mock('@sentry/node', () => ({
+vi.mock('@sentry/node', () => ({
   logger: {
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 describe('ObservabilityLoggerService', () => {
   let service: ObservabilityLoggerService;
-  let stdoutSpy: jest.SpyInstance;
-  let stderrSpy: jest.SpyInstance;
+  let stdoutSpy: MockInstance;
+  let stderrSpy: MockInstance;
   let savedLogLevel: string | undefined;
   let savedLogFormat: string | undefined;
 
@@ -36,8 +37,8 @@ describe('ObservabilityLoggerService', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
-    jest.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
     if (savedLogLevel === undefined) {
       delete process.env['LOG_LEVEL'];
     } else {
@@ -54,10 +55,10 @@ describe('ObservabilityLoggerService', () => {
 
   describe('pretty mode', () => {
     beforeEach(() => {
-      stdoutSpy = jest
+      stdoutSpy = vi
         .spyOn(process.stdout, 'write')
         .mockImplementation(() => true);
-      stderrSpy = jest
+      stderrSpy = vi
         .spyOn(process.stderr, 'write')
         .mockImplementation(() => true);
     });
@@ -167,10 +168,10 @@ describe('ObservabilityLoggerService', () => {
       process.env = { ...originalEnv, NODE_ENV: 'production' };
       // Re-instantiate so isJson is evaluated with new env
       service = new ObservabilityLoggerService();
-      stdoutSpy = jest
+      stdoutSpy = vi
         .spyOn(process.stdout, 'write')
         .mockImplementation(() => true);
-      stderrSpy = jest
+      stderrSpy = vi
         .spyOn(process.stderr, 'write')
         .mockImplementation(() => true);
     });

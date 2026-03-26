@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/billing/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:billing"],
+  "tags": [
+    "type:lib",
+    "scope:billing"
+  ],
   "targets": {
     "build": {
       "executor": "nx:noop",
@@ -11,10 +14,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/unit/libs/billing"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/unit/libs/billing"
+      ],
       "options": {
-        "jestConfig": "libs/billing/jest.config.cts"
+        "configFile": "libs/billing/vitest.config.ts"
       }
     },
     "typecheck": {

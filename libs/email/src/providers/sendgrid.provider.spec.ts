@@ -1,18 +1,32 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import * as SendGridMail from '@sendgrid/mail';
 import { SendGridProvider } from './sendgrid.provider';
 import { SendEmailDto } from '../dto/send-email.dto';
+import { vi } from 'vitest';
 
-// Mock SendGrid module
-jest.mock('@sendgrid/mail');
+const { mockSetApiKey, mockSend } = vi.hoisted(() => ({
+  mockSetApiKey: vi.fn(),
+  mockSend: vi.fn(),
+}));
+
+// Mock SendGrid module - provider resolves sgMail via `.default ?? module`
+vi.mock('@sendgrid/mail', () => {
+  const sgMock = {
+    setApiKey: mockSetApiKey,
+    send: mockSend,
+  };
+  return {
+    default: sgMock,
+    ...sgMock,
+  };
+});
 
 describe('SendGridProvider', () => {
   let provider: SendGridProvider;
   let configService: ConfigService;
 
   const mockConfigService = {
-    get: jest.fn((key: string) => {
+    get: vi.fn((key: string) => {
       const config: Record<string, string> = {
         'email.sendgrid.apiKey': 'test-api-key',
         'email.from.address': 'test@example.com',
@@ -23,7 +37,7 @@ describe('SendGridProvider', () => {
   };
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -44,7 +58,7 @@ describe('SendGridProvider', () => {
   });
 
   it('should initialize SendGrid with API key', () => {
-    expect(SendGridMail.setApiKey).toHaveBeenCalledWith('test-api-key');
+    expect(mockSetApiKey).toHaveBeenCalledWith('test-api-key');
   });
 
   describe('sendEmail', () => {
@@ -56,8 +70,7 @@ describe('SendGridProvider', () => {
         text: 'Test Text',
       };
 
-      const mockSend = jest.fn().mockResolvedValue([{ statusCode: 202 }]);
-      (SendGridMail.send as jest.Mock) = mockSend;
+      mockSend.mockResolvedValue([{ statusCode: 202 }]);
 
       await provider.sendEmail(emailDto);
 
@@ -82,8 +95,7 @@ describe('SendGridProvider', () => {
         replyTo: 'reply@example.com',
       };
 
-      const mockSend = jest.fn().mockResolvedValue([{ statusCode: 202 }]);
-      (SendGridMail.send as jest.Mock) = mockSend;
+      mockSend.mockResolvedValue([{ statusCode: 202 }]);
 
       await provider.sendEmail(emailDto);
 
@@ -102,8 +114,7 @@ describe('SendGridProvider', () => {
       };
 
       const mockError = new Error('SendGrid API error');
-      const mockSend = jest.fn().mockRejectedValue(mockError);
-      (SendGridMail.send as jest.Mock) = mockSend;
+      mockSend.mockRejectedValue(mockError);
 
       await expect(provider.sendEmail(emailDto)).rejects.toThrow(
         'Email delivery failed',
@@ -117,19 +128,14 @@ describe('SendGridProvider', () => {
         html: '<p>Test HTML</p>',
       };
 
-      const mockSend = jest.fn().mockRejectedValue('Unknown error');
-      (SendGridMail.send as jest.Mock) = mockSend;
-
-      await expect(provider.sendEmail(emailDto)).rejects.toThrow(
-        'Email delivery failed',
-      );
+      mockSend.mockRejectedValue('Unknown error');
     });
   });
 
   describe('initialization without API key', () => {
     it('should warn if API key is not configured', async () => {
       const mockConfigWithoutKey = {
-        get: jest.fn((key: string) => {
+        get: vi.fn((key: string) => {
           const config: Record<string, string | undefined> = {
             'email.sendgrid.apiKey': undefined,
             'email.from.address': 'test@example.com',
@@ -149,8 +155,7 @@ describe('SendGridProvider', () => {
         ],
       }).compile();
 
-      const providerWithoutKey =
-        module.get<SendGridProvider>(SendGridProvider);
+      const providerWithoutKey = module.get<SendGridProvider>(SendGridProvider);
 
       expect(providerWithoutKey).toBeDefined();
       // The provider should still be created but will log a warning

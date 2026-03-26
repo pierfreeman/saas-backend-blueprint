@@ -1,6 +1,13 @@
+// Prevent @prisma/legal-client from being loaded (it requires prisma generate).
+// The test mocks PrismaLegalService at the DI level anyway.
+vi.mock('@prisma/legal-client', () => ({
+  PrismaClient: class PrismaClient {},
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { LegalAuditService } from './legal-audit.service';
 import { PrismaLegalService } from '@libs/prisma-legal';
+import { vi } from 'vitest';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
@@ -8,7 +15,7 @@ const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
 function buildPrismaLegalMock() {
   return {
     auditEvent: {
-      create: jest.fn().mockResolvedValue({ id: 'legal-id' }),
+      create: vi.fn().mockResolvedValue({ id: 'legal-id' }),
     },
   };
 }
@@ -30,7 +37,7 @@ describe('LegalAuditService', () => {
     service = module.get<LegalAuditService>(LegalAuditService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   // ─── recordEvent ────────────────────────────────────────────────────────────
 
@@ -71,7 +78,7 @@ describe('LegalAuditService', () => {
       prismaLegal.auditEvent.create.mockRejectedValueOnce(
         new Error('Legal DB unavailable'),
       );
-      const loggerSpy = jest
+      const loggerSpy = vi
         .spyOn((service as any).logger, 'error')
         .mockImplementation(() => undefined);
 

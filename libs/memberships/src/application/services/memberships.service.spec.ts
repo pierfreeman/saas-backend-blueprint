@@ -6,25 +6,26 @@ import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { IMembershipCacheNotifier } from '../../membership-cache-notifier.token';
 import { ISeatLimitProvider } from '../../seat-limit-provider.token';
+import { Mock, vi } from 'vitest';
 
 const mockActivityLog = {
-  logActivity: jest.fn(),
+  logActivity: vi.fn(),
 } as unknown as ActivityLogService;
 const mockLegalAudit = {
-  recordEvent: jest.fn(),
+  recordEvent: vi.fn(),
 } as unknown as LegalAuditService;
-const mockCacheNotifier: IMembershipCacheNotifier = { invalidate: jest.fn() };
-const mockSeatLimitProvider: ISeatLimitProvider = { getMaxSeats: jest.fn() };
+const mockCacheNotifier: IMembershipCacheNotifier = { invalidate: vi.fn() };
+const mockSeatLimitProvider: ISeatLimitProvider = { getMaxSeats: vi.fn() };
 
 const mockRepo = {
-  countActive: jest.fn(),
-  create: jest.fn(),
-  findByOrg: jest.fn(),
-  findByUser: jest.fn(),
-  findById: jest.fn(),
-  findByUserAndOrg: jest.fn(),
-  update: jest.fn(),
-  delete: jest.fn(),
+  countActive: vi.fn(),
+  create: vi.fn(),
+  findByOrg: vi.fn(),
+  findByUser: vi.fn(),
+  findById: vi.fn(),
+  findByUserAndOrg: vi.fn(),
+  update: vi.fn(),
+  delete: vi.fn(),
 } as unknown as MembershipsRepository;
 
 const baseMembership = {
@@ -41,7 +42,7 @@ describe('MembershipsService', () => {
   let service: MembershipsService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     service = new MembershipsService(
       mockRepo,
       mockActivityLog,
@@ -53,10 +54,10 @@ describe('MembershipsService', () => {
 
   describe('createMembership', () => {
     it('creates a membership and invalidates cache', async () => {
-      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(10);
-      mockRepo.countActive = jest.fn().mockResolvedValue(1);
-      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
-      mockCacheNotifier.invalidate = jest.fn().mockResolvedValue(undefined);
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(10);
+      mockRepo.countActive = vi.fn().mockResolvedValue(1);
+      mockRepo.create = vi.fn().mockResolvedValue(baseMembership);
+      mockCacheNotifier.invalidate = vi.fn().mockResolvedValue(undefined);
 
       const result = await service.createMembership('org-1', {
         userId: 'u-1',
@@ -75,8 +76,8 @@ describe('MembershipsService', () => {
 
   describe('createMembership — seat limit enforcement', () => {
     it('throws ForbiddenException when active member count reaches the plan limit', async () => {
-      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(3);
-      mockRepo.countActive = jest.fn().mockResolvedValue(3);
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(3);
+      mockRepo.countActive = vi.fn().mockResolvedValue(3);
 
       await expect(
         service.createMembership('org-1', {
@@ -90,9 +91,9 @@ describe('MembershipsService', () => {
     });
 
     it('allows creation when under the plan seat limit', async () => {
-      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(3);
-      mockRepo.countActive = jest.fn().mockResolvedValue(2);
-      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(3);
+      mockRepo.countActive = vi.fn().mockResolvedValue(2);
+      mockRepo.create = vi.fn().mockResolvedValue(baseMembership);
 
       expect(
         await service.createMembership('org-1', {
@@ -103,8 +104,8 @@ describe('MembershipsService', () => {
     });
 
     it('enforces FREE plan limit of 3 seats', async () => {
-      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(3);
-      mockRepo.countActive = jest.fn().mockResolvedValue(3);
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(3);
+      mockRepo.countActive = vi.fn().mockResolvedValue(3);
 
       await expect(
         service.createMembership('org-1', {
@@ -115,9 +116,9 @@ describe('MembershipsService', () => {
     });
 
     it('allows up to 10 members on PRO plan', async () => {
-      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(10);
-      mockRepo.countActive = jest.fn().mockResolvedValue(9);
-      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(10);
+      mockRepo.countActive = vi.fn().mockResolvedValue(9);
+      mockRepo.create = vi.fn().mockResolvedValue(baseMembership);
 
       await expect(
         service.createMembership('org-1', {
@@ -135,7 +136,7 @@ describe('MembershipsService', () => {
         mockCacheNotifier,
         undefined,
       );
-      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
+      mockRepo.create = vi.fn().mockResolvedValue(baseMembership);
 
       await serviceWithoutProvider.createMembership('org-1', {
         userId: 'u-2',
@@ -149,7 +150,7 @@ describe('MembershipsService', () => {
 
   describe('findByOrg', () => {
     it('delegates to repository', async () => {
-      mockRepo.findByOrg = jest.fn().mockResolvedValue([baseMembership]);
+      mockRepo.findByOrg = vi.fn().mockResolvedValue([baseMembership]);
       expect(await service.findByOrg('org-1')).toEqual([baseMembership]);
       expect(mockRepo.findByOrg).toHaveBeenCalledWith('org-1');
     });
@@ -157,21 +158,21 @@ describe('MembershipsService', () => {
 
   describe('findByUser', () => {
     it('delegates to repository', async () => {
-      mockRepo.findByUser = jest.fn().mockResolvedValue([baseMembership]);
+      mockRepo.findByUser = vi.fn().mockResolvedValue([baseMembership]);
       expect(await service.findByUser('u-1')).toEqual([baseMembership]);
     });
   });
 
   describe('getMembershipOrThrow', () => {
     it('returns membership when found', async () => {
-      mockRepo.findByUserAndOrg = jest.fn().mockResolvedValue(baseMembership);
+      mockRepo.findByUserAndOrg = vi.fn().mockResolvedValue(baseMembership);
       expect(await service.getMembershipOrThrow('u-1', 'org-1')).toBe(
         baseMembership,
       );
     });
 
     it('throws ForbiddenException when not found', async () => {
-      mockRepo.findByUserAndOrg = jest.fn().mockResolvedValue(null);
+      mockRepo.findByUserAndOrg = vi.fn().mockResolvedValue(null);
       await expect(
         service.getMembershipOrThrow('u-1', 'org-x'),
       ).rejects.toThrow(ForbiddenException);
@@ -181,9 +182,9 @@ describe('MembershipsService', () => {
   describe('updateMembership', () => {
     it('updates role and invalidates cache', async () => {
       const updated = { ...baseMembership, role: 'ADMIN' as MembershipRole };
-      mockRepo.findById = jest.fn().mockResolvedValue(baseMembership);
-      mockRepo.update = jest.fn().mockResolvedValue(updated);
-      mockCacheNotifier.invalidate = jest.fn().mockResolvedValue(undefined);
+      mockRepo.findById = vi.fn().mockResolvedValue(baseMembership);
+      mockRepo.update = vi.fn().mockResolvedValue(updated);
+      mockCacheNotifier.invalidate = vi.fn().mockResolvedValue(undefined);
 
       const result = await service.updateMembership('m-1', 'org-1', {
         role: 'ADMIN' as MembershipRole,
@@ -194,7 +195,7 @@ describe('MembershipsService', () => {
     });
 
     it('throws NotFoundException when membership not found', async () => {
-      mockRepo.findById = jest.fn().mockResolvedValue(null);
+      mockRepo.findById = vi.fn().mockResolvedValue(null);
       await expect(
         service.updateMembership('m-x', 'org-1', {
           role: 'ADMIN' as MembershipRole,
@@ -203,7 +204,7 @@ describe('MembershipsService', () => {
     });
 
     it('throws NotFoundException when membership belongs to a different org', async () => {
-      mockRepo.findById = jest
+      mockRepo.findById = vi
         .fn()
         .mockResolvedValue({ ...baseMembership, orgId: 'org-other' });
       await expect(
@@ -216,9 +217,9 @@ describe('MembershipsService', () => {
 
   describe('deleteMembership', () => {
     it('deletes membership and invalidates cache', async () => {
-      mockRepo.findById = jest.fn().mockResolvedValue(baseMembership);
-      mockRepo.delete = jest.fn().mockResolvedValue(undefined);
-      mockCacheNotifier.invalidate = jest.fn().mockResolvedValue(undefined);
+      mockRepo.findById = vi.fn().mockResolvedValue(baseMembership);
+      mockRepo.delete = vi.fn().mockResolvedValue(undefined);
+      mockCacheNotifier.invalidate = vi.fn().mockResolvedValue(undefined);
 
       await service.deleteMembership('m-1', 'org-1');
 
@@ -227,7 +228,7 @@ describe('MembershipsService', () => {
     });
 
     it('throws NotFoundException when membership not found', async () => {
-      mockRepo.findById = jest.fn().mockResolvedValue(null);
+      mockRepo.findById = vi.fn().mockResolvedValue(null);
       await expect(service.deleteMembership('m-x', 'org-1')).rejects.toThrow(
         NotFoundException,
       );
@@ -243,9 +244,9 @@ describe('MembershipsService', () => {
         undefined,
         mockSeatLimitProvider,
       );
-      (mockSeatLimitProvider.getMaxSeats as jest.Mock).mockResolvedValue(10);
-      mockRepo.countActive = jest.fn().mockResolvedValue(1);
-      mockRepo.create = jest.fn().mockResolvedValue(baseMembership);
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(10);
+      mockRepo.countActive = vi.fn().mockResolvedValue(1);
+      mockRepo.create = vi.fn().mockResolvedValue(baseMembership);
 
       const result = await serviceWithoutCache.createMembership('org-1', {
         userId: 'u-1',
@@ -259,14 +260,14 @@ describe('MembershipsService', () => {
 
   describe('findByUserAndOrg', () => {
     it('returns membership when found', async () => {
-      mockRepo.findByUserAndOrg = jest.fn().mockResolvedValue(baseMembership);
+      mockRepo.findByUserAndOrg = vi.fn().mockResolvedValue(baseMembership);
       expect(await service.findByUserAndOrg('u-1', 'org-1')).toBe(
         baseMembership,
       );
     });
 
     it('returns null when not found', async () => {
-      mockRepo.findByUserAndOrg = jest.fn().mockResolvedValue(null);
+      mockRepo.findByUserAndOrg = vi.fn().mockResolvedValue(null);
       expect(await service.findByUserAndOrg('u-1', 'org-x')).toBeNull();
     });
   });

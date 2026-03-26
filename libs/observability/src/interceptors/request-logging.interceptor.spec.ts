@@ -3,6 +3,7 @@ import { RequestLoggingInterceptor } from './request-logging.interceptor';
 import { ObservabilityLoggerService } from '../logger/logger.service';
 import { ExecutionContext } from '@nestjs/common';
 import { of } from 'rxjs';
+import { Mocked, vi } from 'vitest';
 
 function makeHttpContext(options: {
   method?: string;
@@ -25,13 +26,13 @@ function makeHttpContext(options: {
 
 describe('RequestLoggingInterceptor', () => {
   let interceptor: RequestLoggingInterceptor;
-  let logger: jest.Mocked<ObservabilityLoggerService>;
+  let logger: Mocked<ObservabilityLoggerService>;
 
   beforeEach(async () => {
-    const mockLogger: jest.Mocked<Partial<ObservabilityLoggerService>> = {
-      logCtx: jest.fn(),
-      warnCtx: jest.fn(),
-      errorCtx: jest.fn(),
+    const mockLogger: Mocked<Partial<ObservabilityLoggerService>> = {
+      logCtx: vi.fn(),
+      warnCtx: vi.fn(),
+      errorCtx: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -47,9 +48,9 @@ describe('RequestLoggingInterceptor', () => {
     logger = module.get(ObservabilityLoggerService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
-  it('logs a successful request using logCtx', (done) => {
+  it('logs a successful request using logCtx', () => {
     const ctx = makeHttpContext({
       method: 'GET',
       url: '/api/orgs',
@@ -57,39 +58,49 @@ describe('RequestLoggingInterceptor', () => {
       tenantContext: { tenantId: 'tid-1', role: 'ADMIN' },
     });
 
-    interceptor.intercept(ctx, { handle: () => of({ data: 'ok' }) }).subscribe({
-      complete: () => {
-        expect(logger.logCtx).toHaveBeenCalledTimes(1);
-        const [message, meta] = logger.logCtx.mock.calls[0];
-        expect(message).toContain('GET');
-        expect(message).toContain('/api/orgs');
-        expect((meta as Record<string, unknown>)['tenantId']).toBe('tid-1');
-        expect((meta as Record<string, unknown>)['actorRole']).toBe('ADMIN');
-        done();
-      },
+    return new Promise<void>((resolve) => {
+      interceptor
+        .intercept(ctx, { handle: () => of({ data: 'ok' }) })
+        .subscribe({
+          complete: () => {
+            expect(logger.logCtx).toHaveBeenCalledTimes(1);
+            const [message, meta] = logger.logCtx.mock.calls[0];
+            expect(message).toContain('GET');
+            expect(message).toContain('/api/orgs');
+            expect((meta as Record<string, unknown>)['tenantId']).toBe('tid-1');
+            expect((meta as Record<string, unknown>)['actorRole']).toBe(
+              'ADMIN',
+            );
+            resolve();
+          },
+        });
     });
   });
 
-  it('passes the value through unchanged', (done) => {
+  it('passes the value through unchanged', () => {
     const ctx = makeHttpContext({ url: '/health' });
-    interceptor
-      .intercept(ctx, { handle: () => of({ status: 'ok' }) })
-      .subscribe({
-        next: (val) => {
-          expect(val).toEqual({ status: 'ok' });
-          done();
-        },
-      });
+    return new Promise<void>((resolve) => {
+      interceptor
+        .intercept(ctx, { handle: () => of({ status: 'ok' }) })
+        .subscribe({
+          next: (val) => {
+            expect(val).toEqual({ status: 'ok' });
+            resolve();
+          },
+        });
+    });
   });
 
-  it('is transparent for non-HTTP contexts (WebSocket)', (done) => {
+  it('is transparent for non-HTTP contexts (WebSocket)', () => {
     const wsCtx = { getType: () => 'ws' } as unknown as ExecutionContext;
-    interceptor.intercept(wsCtx, { handle: () => of('ws-data') }).subscribe({
-      next: (val) => {
-        expect(val).toBe('ws-data');
-        expect(logger.logCtx).not.toHaveBeenCalled();
-        done();
-      },
+    return new Promise<void>((resolve) => {
+      interceptor.intercept(wsCtx, { handle: () => of('ws-data') }).subscribe({
+        next: (val) => {
+          expect(val).toBe('ws-data');
+          expect(logger.logCtx).not.toHaveBeenCalled();
+          resolve();
+        },
+      });
     });
   });
 });

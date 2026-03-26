@@ -1,37 +1,38 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SentryService } from './sentry.service';
 import * as Sentry from '@sentry/node';
+import { Mock, vi } from 'vitest';
 
 // jest.mock is hoisted before ALL variable declarations, so we cannot reference
-// file-level variables inside the factory. Instead, mock withScope as a plain jest.fn()
+// file-level variables inside the factory. Instead, mock withScope as a plain vi.fn()
 // and configure it in beforeEach using mockImplementation.
-jest.mock('@sentry/node', () => ({
-  withScope: jest.fn(),
-  captureException: jest.fn(),
-  captureMessage: jest.fn(),
+vi.mock('@sentry/node', () => ({
+  withScope: vi.fn(),
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
   logger: {
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
-  getCurrentScope: jest.fn(),
+  getCurrentScope: vi.fn(),
 }));
 
 const mockScope = {
-  setUser: jest.fn(),
-  setTag: jest.fn(),
+  setUser: vi.fn(),
+  setTag: vi.fn(),
 };
 
 describe('SentryService', () => {
   let service: SentryService;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // Configure withScope to synchronously call its callback with mockScope
-    (Sentry.withScope as jest.Mock).mockImplementation(
+    (Sentry.withScope as Mock).mockImplementation(
       (cb: (scope: typeof mockScope) => void) => cb(mockScope),
     );
 
@@ -42,7 +43,7 @@ describe('SentryService', () => {
     service = module.get<SentryService>(SentryService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   describe('captureException', () => {
     it('calls Sentry.withScope and Sentry.captureException', () => {
@@ -116,7 +117,7 @@ describe('SentryService', () => {
 
   describe('withScope', () => {
     it('executes callback with Sentry.withScope', () => {
-      const cb = jest.fn();
+      const cb = vi.fn();
       service.withScope(cb);
       expect(Sentry.withScope).toHaveBeenCalledTimes(1);
     });

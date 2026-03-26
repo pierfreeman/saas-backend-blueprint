@@ -1,9 +1,10 @@
 import { CheckoutCompletedHandler } from './checkout-completed.handler';
 import { SubscriptionService } from '../../application/services/subscription.service';
 import Stripe from 'stripe';
+import { vi } from 'vitest';
 
 const mockSubscriptionService = {
-  handleCheckoutCompleted: jest.fn(),
+  handleCheckoutCompleted: vi.fn(),
 };
 
 const makeEvent = (
@@ -22,7 +23,7 @@ describe('CheckoutCompletedHandler', () => {
   let handler: CheckoutCompletedHandler;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     handler = new CheckoutCompletedHandler(
       mockSubscriptionService as unknown as SubscriptionService,
     );

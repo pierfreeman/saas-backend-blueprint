@@ -4,20 +4,16 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
 import type { Request } from 'express';
+import { Mock, Mocked, vi } from 'vitest';
+import { LegalAuditService } from '@libs/legal-audit';
 
 // Mock @libs/legal-audit to avoid compiling Prisma-generated client in unit tests
-jest.mock('@libs/legal-audit', () => ({
+vi.mock('@libs/legal-audit', () => ({
   LegalAuditService: class MockLegalAuditService {
-    recordEvent = jest.fn();
+    recordEvent = vi.fn();
   },
   LegalAuditModule: { module: class {} },
 }));
-
-// Import after mock is defined
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { LegalAuditService } = require('@libs/legal-audit') as {
-  LegalAuditService: new () => { recordEvent: jest.Mock };
-};
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -37,8 +33,8 @@ function makeHttpContext(ip = '1.2.3.4'): ExecutionContext {
 
 describe('BruteForceGuard', () => {
   let guard: BruteForceGuard;
-  let bruteForceService: jest.Mocked<BruteForceService>;
-  let legalAuditService: { recordEvent: jest.Mock };
+  let bruteForceService: Mocked<BruteForceService>;
+  let legalAuditService: { recordEvent: Mock };
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -47,22 +43,22 @@ describe('BruteForceGuard', () => {
         {
           provide: BruteForceService,
           useValue: {
-            getState: jest.fn(),
-            isLocked: jest.fn(),
-            recordFailedAttempt: jest.fn(),
-            resetAttempts: jest.fn(),
+            getState: vi.fn(),
+            isLocked: vi.fn(),
+            recordFailedAttempt: vi.fn(),
+            resetAttempts: vi.fn(),
           },
         },
         {
           provide: LegalAuditService,
           useValue: {
-            recordEvent: jest.fn(),
+            recordEvent: vi.fn(),
           },
         },
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn(),
+            get: vi.fn(),
           },
         },
       ],
@@ -70,10 +66,8 @@ describe('BruteForceGuard', () => {
 
     guard = module.get(BruteForceGuard);
     bruteForceService =
-      module.get<jest.Mocked<BruteForceService>>(BruteForceService);
-    legalAuditService = module.get<{ recordEvent: jest.Mock }>(
-      LegalAuditService,
-    );
+      module.get<Mocked<BruteForceService>>(BruteForceService);
+    legalAuditService = module.get<{ recordEvent: Mock }>(LegalAuditService);
   });
 
   describe('Unlocked IP', () => {
