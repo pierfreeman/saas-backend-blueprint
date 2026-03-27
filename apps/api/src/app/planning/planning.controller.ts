@@ -37,6 +37,10 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { QueryEventsDto, MAX_RANGE_DAYS } from './dto/query-events.dto';
 import { RsvpEventDto } from './dto/rsvp-event.dto';
 import { CreateExceptionDto } from './dto/create-exception.dto';
+import { EventDetailResponseDto } from './dto/event-detail-response.dto';
+import { EventOccurrenceResponseDto } from './dto/event-occurrence-response.dto';
+import { EventAttendeeResponseDto } from './dto/event-attendee-response.dto';
+import { EventExceptionResponseDto } from './dto/event-exception-response.dto';
 
 interface OrgRequest extends Request {
   membership: Membership;
@@ -62,7 +66,11 @@ export class PlanningController {
       'All other attendeeIds receive an in-app invite notification.',
   })
   @ApiParam({ name: 'orgId', description: 'Organisation UUID' })
-  @ApiResponse({ status: HttpStatus.CREATED, description: 'Event created.' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Event created.',
+    type: EventDetailResponseDto,
+  })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Validation error or invalid RRULE.',
@@ -109,6 +117,8 @@ export class PlanningController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Array of event occurrences sorted by startUtc.',
+    type: EventOccurrenceResponseDto,
+    isArray: true,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -150,7 +160,11 @@ export class PlanningController {
   })
   @ApiParam({ name: 'orgId', description: 'Organisation UUID' })
   @ApiParam({ name: 'id', description: 'Event UUID' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Event detail.' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Event detail.',
+    type: EventDetailResponseDto,
+  })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Event not found.',
@@ -175,7 +189,11 @@ export class PlanningController {
   })
   @ApiParam({ name: 'orgId', description: 'Organisation UUID' })
   @ApiParam({ name: 'id', description: 'Event UUID' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Updated event.' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Updated event.',
+    type: EventDetailResponseDto,
+  })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Validation error.',
@@ -221,7 +239,11 @@ export class PlanningController {
   })
   @ApiParam({ name: 'orgId', description: 'Organisation UUID' })
   @ApiParam({ name: 'id', description: 'Event UUID' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Event deleted.' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Event deleted.',
+    schema: { type: 'object', properties: { message: { type: 'string' } } },
+  })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Event not found.',
@@ -258,7 +280,11 @@ export class PlanningController {
   })
   @ApiParam({ name: 'orgId', description: 'Organisation UUID' })
   @ApiParam({ name: 'id', description: 'Event UUID' })
-  @ApiResponse({ status: HttpStatus.CREATED, description: 'RSVP recorded.' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'RSVP recorded.',
+    type: EventAttendeeResponseDto,
+  })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Event not found.',
@@ -289,6 +315,7 @@ export class PlanningController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Exception created or updated.',
+    type: EventExceptionResponseDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
