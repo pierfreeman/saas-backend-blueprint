@@ -45,7 +45,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reportsDirectory: '../../coverage/integration/apps/api-e2e',
-      reporter: ['lcov', 'html'],
+      reporter: ['text', 'lcov', 'html'],
     },
   },
 });

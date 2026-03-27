@@ -25,7 +25,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reportsDirectory: '../../coverage/unit/apps/worker-a',
-      reporter: ['lcov', 'html'],
+      reporter: ['text', 'lcov', 'html'],
       include: ['src/**/*.ts'],
       exclude: ['src/main.ts', 'src/**/*.module.ts', 'src/**/*.d.ts'],
       thresholds: {

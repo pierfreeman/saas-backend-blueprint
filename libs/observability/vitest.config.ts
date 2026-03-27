@@ -27,7 +27,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reportsDirectory: '../../coverage/unit/libs/observability',
-      reporter: ['lcov', 'html'],
+      reporter: ['text', 'lcov', 'html'],
     },
   },
 });

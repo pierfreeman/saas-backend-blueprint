@@ -26,7 +26,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reportsDirectory: '../../coverage/unit/libs/prisma-legal',
-      reporter: ['lcov', 'html'],
+      reporter: ['text', 'lcov', 'html'],
     },
   },
 });
