@@ -253,4 +253,62 @@ describe('JobsGateway', () => {
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('user-5'));
     });
   });
+
+  // ── handleConnection error path (lines 123-124) ──────────────────────────
+
+  describe('handleConnection — unexpected error in catch block', () => {
+    it('disconnects the socket when client.join throws unexpectedly', async () => {
+      const token = makeToken('user-err');
+      const socket = makeSocket({
+        handshake: {
+          auth: { token },
+          query: {},
+          headers: {},
+        },
+      });
+      // Force client.join to throw to trigger the catch block (lines 123-124)
+      (socket.join as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('join failed'),
+      );
+
+      await gateway.handleConnection(socket as any);
+
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── decodeJwt — token with fewer than 2 segments (line 170) ─────────────
+
+  describe('decodeJwt private method — short token branch', () => {
+    it('returns null when the token has fewer than 2 segments', async () => {
+      // A token without a "." has only 1 segment — triggers `if (segments.length < 2) return null`
+      const socket = makeSocket({
+        handshake: {
+          auth: { token: 'nosegments' },
+          query: {},
+          headers: {},
+        },
+      });
+
+      await gateway.handleConnection(socket as any);
+
+      // No valid sub → must disconnect
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns null when the JWT payload is invalid JSON', async () => {
+      // Two segments but the second is not valid base64url JSON
+      const header = Buffer.from('{"alg":"RS256"}').toString('base64url');
+      const badPayload = '!!!not-valid-base64!!!';
+      const token = `${header}.${badPayload}.sig`;
+
+      const socket = makeSocket({
+        handshake: { auth: { token }, query: {}, headers: {} },
+      });
+
+      await gateway.handleConnection(socket as any);
+
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    });
+  });
 });

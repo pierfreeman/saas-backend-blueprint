@@ -173,5 +173,26 @@ describe('TasksController', () => {
       const result = await controller.getJobStatus('job-uuid-1', TEST_ORG_ID);
       expect(result.result).toBeUndefined();
     });
+
+    it('includes finishedAt when the job has completed', async () => {
+      const finishedAt = new Date('2026-02-27T10:00:05Z');
+      tasksService.findJobById.mockResolvedValue({
+        ...baseJob,
+        finishedAt,
+        status: JobStatus.DONE,
+      } as any);
+      const result = await controller.getJobStatus('job-uuid-1', TEST_ORG_ID);
+      expect(result.finishedAt).toEqual(finishedAt);
+    });
+
+    it('maps non-null error string to the DTO', async () => {
+      tasksService.findJobById.mockResolvedValue({
+        ...baseJob,
+        error: 'processing error',
+        status: JobStatus.FAILED,
+      } as any);
+      const result = await controller.getJobStatus('job-uuid-1', TEST_ORG_ID);
+      expect(result.error).toBe('processing error');
+    });
   });
 });

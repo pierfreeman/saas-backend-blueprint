@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { BillingController } from './billing.controller';
 import { BillingService } from '@libs/billing';
 import { BillingStatus } from '@libs/billing';
@@ -347,5 +348,55 @@ describe('BillingController', () => {
         controller.getSubscriptionHistory('unknown-org', '50', '0'),
       ).rejects.toThrow(NotFoundException);
     });
+  });
+});
+
+// ─── CurrentDbUserId param decorator ────────────────────────────────────────
+
+function getDecoratorFactory(
+  target: object,
+  method: string,
+  paramIndex: number,
+): (data: unknown, ctx: unknown) => unknown {
+  const metadata = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    target,
+    method,
+  ) as Record<
+    string,
+    { index: number; factory?: (d: unknown, c: unknown) => unknown }
+  >;
+  const entry = Object.values(metadata ?? {}).find(
+    (e) => e.index === paramIndex,
+  );
+  if (!entry?.factory)
+    throw new Error(`No factory at param ${paramIndex} of ${method}`);
+  return entry.factory;
+}
+
+function makeBillingCtx(user?: Record<string, unknown>) {
+  return { switchToHttp: () => ({ getRequest: () => ({ user }) }) };
+}
+
+describe('CurrentDbUserId param decorator', () => {
+  it('returns dbUserId from request.user when present', () => {
+    // createCheckoutSession: param 0 = @Body, param 1 = @CurrentDbUserId
+    const factory = getDecoratorFactory(
+      BillingController,
+      'createCheckoutSession',
+      1,
+    );
+    expect(
+      factory(undefined, makeBillingCtx({ dbUserId: 'db-user-123' })),
+    ).toBe('db-user-123');
+  });
+
+  it('returns undefined when request.user is absent', () => {
+    const factory = getDecoratorFactory(
+      BillingController,
+      'createCheckoutSession',
+      1,
+    );
+    expect(factory(undefined, makeBillingCtx(undefined))).toBeUndefined();
   });
 });

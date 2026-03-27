@@ -153,5 +153,16 @@ describe('RemoveMemberService', () => {
       expect(mockAuth0ManagementService.deleteUser).not.toHaveBeenCalled();
       expect(mockUsersService.deleteUser).not.toHaveBeenCalled();
     });
+
+    it('still deletes Prisma user when Auth0 deletion throws a non-Error value (line 63 branch)', async () => {
+      // Covers `err instanceof Error ? err.message : String(err)` when err is not an Error
+      mockAuth0ManagementService.deleteUser.mockRejectedValue(
+        'plain-string-error',
+      );
+
+      await service.remove('m-1', 'org-1', 'actor-id');
+
+      expect(mockUsersService.deleteUser).toHaveBeenCalledWith('u-1');
+    });
   });
 });

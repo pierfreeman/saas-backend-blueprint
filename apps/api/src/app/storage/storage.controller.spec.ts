@@ -570,4 +570,32 @@ describe('StorageController', () => {
       expect(factory(undefined, ctx)).toBeUndefined();
     });
   });
+
+  describe('#resolveOrgPlan — billing is null (line 462 branch)', () => {
+    it('returns orgStorageLimit=null when getOrgBillingStatus resolves to null', async () => {
+      // Covers `billing?.storageLimit ?? null` when billing is null
+      mockFeatureFlagsService.getEntitlements.mockResolvedValue({
+        plan: 'FREE',
+      });
+      mockBillingService.getOrgBillingStatus.mockResolvedValue(null);
+      mockService.generateUploadUrl.mockResolvedValue({
+        fileId: FILE_ID,
+        uploadUrl: 'https://s3.example.com/upload?sig=xxx',
+        storageKey: 'org/org-uuid-1/file-uuid-1',
+        expiresAt: NOW,
+      });
+
+      await controller.generateUploadUrl(
+        { filename: 'f.pdf', mimeType: 'application/pdf', size: 1024 },
+        ORG_ID,
+        USER_ID,
+      );
+
+      expect(mockService.generateUploadUrl).toHaveBeenCalledWith(
+        expect.any(Object),
+        'free',
+        null, // orgStorageLimit is null when billing is null
+      );
+    });
+  });
 });

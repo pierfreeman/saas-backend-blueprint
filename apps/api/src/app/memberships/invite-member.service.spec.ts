@@ -252,4 +252,20 @@ describe('InviteMemberService', () => {
       );
     });
   });
+
+  describe('invite — org resolves to null (not found via null return)', () => {
+    it('throws NotFoundException when findById resolves to null', async () => {
+      // Covers the `if (!org)` null-check branch (line 65)
+      mockOrganizationsService.findById.mockResolvedValue(null);
+      mockUsersService.findByEmail.mockResolvedValue(existingUser);
+
+      await expect(
+        service.invite(
+          { email: existingUser.email, role: MembershipRole.MEMBER },
+          'org-null',
+          inviterUser.id,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
 });

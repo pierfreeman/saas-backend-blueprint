@@ -226,5 +226,40 @@ describe('WebhookController', () => {
 
       expect(recordEvents[0]).toBe('stripe.webhook.received');
     });
+
+    it('uses "Unknown error" when constructWebhookEvent throws a non-Error value', async () => {
+      // Covers line 113: `err instanceof Error ? err.message : 'Unknown error'`
+      stripeService.constructWebhookEvent.mockImplementation(() => {
+        throw 'plain-string-error';
+      });
+      legalAudit.recordEvent = vi.fn();
+
+      await expect(
+        controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ error: 'Unknown error' }),
+        }),
+      );
+    });
+
+    it('passes undefined orgId when event.data.object has no metadata property at all', async () => {
+      // Covers line 145: ?.metadata?.['orgId'] when metadata is entirely absent
+      const event = makeStripeEvent();
+      (event.data.object as unknown as Record<string, unknown>)['metadata'] =
+        undefined;
+      stripeService.constructWebhookEvent.mockReturnValue(event);
+      billingService.findBillingEvent.mockResolvedValue(null);
+
+      await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
+
+      expect(billingService.createBillingEvent).toHaveBeenCalledWith(
+        'evt_001',
+        expect.any(String),
+        undefined,
+      );
+    });
   });
 });

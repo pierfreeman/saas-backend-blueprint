@@ -206,5 +206,14 @@ describe('NotificationsController', () => {
         'user-1',
       );
     });
+
+    it('throws NotFoundException when user is not found in DB (resolveUser line 227)', async () => {
+      // Covers the `if (!user) throw new NotFoundException` branch in resolveUser
+      mockAuthService.findUserByAuth0Id = vi.fn().mockResolvedValue(null);
+
+      await expect(
+        controller.deleteNotification('notif-uuid-1', makeReq()),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });

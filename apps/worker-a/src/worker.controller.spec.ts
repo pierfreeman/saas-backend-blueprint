@@ -8,7 +8,10 @@ import {
 } from '@libs/org-deletion';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
-import { OrgExportWorkerService } from '@libs/org-export';
+import {
+  OrgExportWorkerService,
+  OrgExportRequestedEventPayload,
+} from '@libs/org-export';
 import { Mock, vi } from 'vitest';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -107,9 +110,9 @@ describe('WorkerController', () => {
     });
 
     it('transitions the job PROCESSING → FAILED and publishes on doWork error', async () => {
-      vi
-        .spyOn(controller as any, 'doWork')
-        .mockRejectedValueOnce(new Error('computation failed'));
+      vi.spyOn(controller as any, 'doWork').mockRejectedValueOnce(
+        new Error('computation failed'),
+      );
 
       await expect(
         controller.handleHeavyJobCreated(makeEvent()),
@@ -156,9 +159,9 @@ describe('WorkerController', () => {
     });
 
     it('extracts error message from non-Error thrown values', async () => {
-      vi
-        .spyOn(controller as any, 'doWork')
-        .mockRejectedValueOnce('plain string error');
+      vi.spyOn(controller as any, 'doWork').mockRejectedValueOnce(
+        'plain string error',
+      );
 
       await expect(controller.handleHeavyJobCreated(makeEvent())).rejects.toBe(
         'plain string error',
@@ -212,9 +215,9 @@ describe('WorkerController', () => {
     });
 
     it('propagates errors thrown by OrgDeletionWorkerService', async () => {
-      (
-        mockOrgDeletionWorker.executeDeletion as Mock
-      ).mockRejectedValueOnce(new Error('deletion failed'));
+      (mockOrgDeletionWorker.executeDeletion as Mock).mockRejectedValueOnce(
+        new Error('deletion failed'),
+      );
 
       await expect(
         controller.handleOrgDeletionRequested(makeOrgEvent()),
@@ -240,6 +243,55 @@ describe('WorkerController', () => {
         'Expired Corp',
         event.payload.requestedAt,
       );
+    });
+  });
+
+  describe('handleOrgExportRequested', () => {
+    const makeExportEvent = (
+      override: Partial<DomainEvent<OrgExportRequestedEventPayload>> = {},
+    ): DomainEvent<OrgExportRequestedEventPayload> => ({
+      eventType: 'org.export.requested',
+      timestamp: new Date(),
+      tenantId: 'org-exp-1',
+      eventId: 'evt-exp-1',
+      payload: {
+        orgId: 'org-exp-1',
+        exportId: 'exp-001',
+        jobId: 'job-exp-1',
+        orgName: 'Export Corp',
+        requestedByUserId: 'user-exp-1',
+        requestedAt: new Date('2026-03-01T00:00:00Z'),
+      },
+      ...override,
+    });
+
+    beforeEach(() => {
+      (mockOrgExportWorker.executeExport as Mock).mockResolvedValue(undefined);
+    });
+
+    it('delegates to OrgExportWorkerService with correct arguments', async () => {
+      const event = makeExportEvent();
+      await controller.handleOrgExportRequested(event);
+
+      expect(mockOrgExportWorker.executeExport).toHaveBeenCalledTimes(1);
+      expect(mockOrgExportWorker.executeExport).toHaveBeenCalledWith(
+        'org-exp-1',
+        'exp-001',
+        'job-exp-1',
+        'Export Corp',
+        'user-exp-1',
+        event.payload.requestedAt,
+      );
+    });
+
+    it('propagates errors thrown by OrgExportWorkerService', async () => {
+      (mockOrgExportWorker.executeExport as Mock).mockRejectedValueOnce(
+        new Error('export failed'),
+      );
+
+      await expect(
+        controller.handleOrgExportRequested(makeExportEvent()),
+      ).rejects.toThrow('export failed');
     });
   });
 });

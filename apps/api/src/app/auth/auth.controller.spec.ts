@@ -153,5 +153,17 @@ describe('AuthController', () => {
         controller.updateMe(baseUser, { firstName: 'X' }),
       ).rejects.toThrow('DB error');
     });
+
+    it('returns null for firstName when updateProfile returns null firstName', async () => {
+      // dbUser has firstName: null — exercises the null branch of `updated.firstName ?? null`
+      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
+      mockAuthService.updateProfile = vi.fn().mockResolvedValue(dbUser);
+
+      const result = await controller.updateMe(baseUser, {});
+
+      expect(result.firstName).toBeNull();
+      expect(result.lastName).toBeNull();
+      expect(result.pictureUrl).toBeNull();
+    });
   });
 });

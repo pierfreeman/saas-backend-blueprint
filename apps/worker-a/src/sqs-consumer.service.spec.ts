@@ -23,6 +23,7 @@ function makeController(): Mocked<WorkerController> {
   return {
     handleHeavyJobCreated: vi.fn().mockResolvedValue(undefined),
     handleOrgDeletionRequested: vi.fn().mockResolvedValue(undefined),
+    handleOrgExportRequested: vi.fn().mockResolvedValue(undefined),
   } as unknown as Mocked<WorkerController>;
 }
 
@@ -210,10 +211,23 @@ describe('SqsConsumerService', () => {
       expect(controller.handleOrgDeletionRequested).toHaveBeenCalledWith(event);
     });
 
+    it('routes org.export.requested to WorkerController', async () => {
+      const event = makeEvent({ eventType: 'org.export.requested' });
+      await (service as any).dispatch(event);
+      expect(controller.handleOrgExportRequested).toHaveBeenCalledWith(event);
+    });
+
     it('logs a warning and does not throw for unknown event types', async () => {
       const event = makeEvent({ eventType: 'unknown.event' });
       await expect((service as any).dispatch(event)).resolves.not.toThrow();
       expect(controller.handleHeavyJobCreated).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── sleep ───────────────────────────────────────────────────────────────────
+  describe('sleep', () => {
+    it('resolves after the given number of milliseconds', async () => {
+      await expect((service as any).sleep(0)).resolves.toBeUndefined();
     });
   });
 });

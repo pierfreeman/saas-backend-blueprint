@@ -25,6 +25,8 @@ const mockOrgDeletionService = {
 
 const mockOrgExportService = {
   requestExport: vi.fn(),
+  getExport: vi.fn(),
+  listExports: vi.fn(),
 } as unknown as OrgExportService;
 
 const jwtUser: RequestUser = { sub: 'auth0|u1', email: 'user@example.com' };
@@ -212,6 +214,117 @@ describe('OrganizationsController', () => {
       await expect(
         controller.requestDeletion(jwtUser, 'org-1'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ---------- requestExport -------------------------------------------------
+  describe('requestExport()', () => {
+    it('calls orgExportService.requestExport and returns exportId and message', async () => {
+      setupDbUser();
+      (mockOrgExportService.requestExport as Mock).mockResolvedValue(
+        'export-uuid-1',
+      );
+
+      const result = await controller.requestExport(jwtUser, 'org-1');
+
+      expect(result).toEqual({
+        exportId: 'export-uuid-1',
+        message: 'Export request accepted',
+      });
+      expect(mockOrgExportService.requestExport).toHaveBeenCalledWith(
+        'org-1',
+        'db-u-1',
+      );
+    });
+
+    it('throws NotFoundException when user is not found in DB', async () => {
+      mockAuthService.findUserByAuth0Id = vi.fn().mockResolvedValue(null);
+
+      await expect(controller.requestExport(jwtUser, 'org-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('propagates errors from orgExportService.requestExport', async () => {
+      setupDbUser();
+      (mockOrgExportService.requestExport as Mock).mockRejectedValue(
+        new Error('export failed'),
+      );
+
+      await expect(controller.requestExport(jwtUser, 'org-1')).rejects.toThrow(
+        'export failed',
+      );
+    });
+  });
+
+  // ---------- getExport -----------------------------------------------------
+  describe('getExport()', () => {
+    it('returns the export details from orgExportService', async () => {
+      const exportDetail = {
+        id: 'export-uuid-1',
+        status: 'COMPLETED',
+        downloadUrl: 'https://s3/file',
+      };
+      (mockOrgExportService.getExport as Mock).mockResolvedValue(exportDetail);
+
+      const result = await controller.getExport('org-1', 'export-uuid-1');
+
+      expect(result).toBe(exportDetail);
+      expect(mockOrgExportService.getExport).toHaveBeenCalledWith(
+        'export-uuid-1',
+        'org-1',
+      );
+    });
+
+    it('propagates NotFoundException when export is not found', async () => {
+      (mockOrgExportService.getExport as Mock).mockRejectedValue(
+        new NotFoundException('Export not found'),
+      );
+
+      await expect(
+        controller.getExport('org-1', 'missing-export'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ---------- listExports ---------------------------------------------------
+  describe('listExports()', () => {
+    it('lists exports without pagination params', async () => {
+      const exports = [{ id: 'export-uuid-1', status: 'COMPLETED' }];
+      (mockOrgExportService.listExports as Mock).mockResolvedValue(exports);
+
+      const result = await controller.listExports('org-1');
+
+      expect(result).toBe(exports);
+      expect(mockOrgExportService.listExports).toHaveBeenCalledWith(
+        'org-1',
+        undefined,
+        undefined,
+      );
+    });
+
+    it('parses limit and offset query params as integers', async () => {
+      (mockOrgExportService.listExports as Mock).mockResolvedValue([]);
+
+      await controller.listExports('org-1', '10', '20');
+
+      expect(mockOrgExportService.listExports).toHaveBeenCalledWith(
+        'org-1',
+        10,
+        20,
+      );
+    });
+
+    it('passes undefined for limit when not provided, but parses offset', async () => {
+      (mockOrgExportService.listExports as Mock).mockResolvedValue([]);
+
+      await controller.listExports('org-1', undefined, '5');
+
+      expect(mockOrgExportService.listExports).toHaveBeenCalledWith(
+        'org-1',
+        undefined,
+        5,
+      );
     });
   });
 });

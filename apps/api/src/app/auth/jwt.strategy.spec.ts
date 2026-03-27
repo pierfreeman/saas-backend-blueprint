@@ -108,4 +108,55 @@ describe('JwtStrategy.validate', () => {
       }),
     ).rejects.toThrow(UnauthorizedException);
   });
+
+  it('throws when Auth0 configuration is incomplete (missing config values)', () => {
+    const incompleteConfig = { get: vi.fn().mockReturnValue(undefined) };
+    expect(
+      () => new JwtStrategy(incompleteConfig as any, mockAuthService),
+    ).toThrow('Auth0 configuration is incomplete');
+  });
+
+  it('reads namespaced email claim when claimsNamespace is configured', async () => {
+    const namespace = 'https://myapp.example.com';
+    const nsConfigService = {
+      get: vi.fn((key: string) => {
+        const map: Record<string, string> = {
+          'auth.domain': 'example.auth0.com',
+          'auth.audience': 'https://api.example.com',
+          'auth.issuer': 'https://example.auth0.com/',
+          'auth.jwksUri': 'https://example.auth0.com/.well-known/jwks.json',
+          'auth.claimsNamespace': namespace,
+        };
+        return map[key];
+      }),
+    };
+    const nsStrategy = new JwtStrategy(nsConfigService as any, mockAuthService);
+    mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
+
+    await nsStrategy.validate({
+      sub: 'auth0|u1',
+      [`${namespace}/email`]: 'namespaced@example.com',
+      iss: 'https://example.auth0.com/',
+      aud: 'https://api.example.com',
+    });
+
+    expect(mockAuthService.syncUser).toHaveBeenCalledWith(
+      'auth0|u1',
+      'namespaced@example.com',
+    );
+  });
+
+  it('throws UnauthorizedException when syncUser throws a non-Error value', async () => {
+    // Covers the `'Unknown error'` branch of `error instanceof Error ? error.stack : 'Unknown error'`
+    mockAuthService.syncUser = vi.fn().mockRejectedValue('plain string error');
+
+    await expect(
+      strategy.validate({
+        sub: 'auth0|u1',
+        email: 'a@b.com',
+        iss: 'https://example.auth0.com/',
+        aud: 'https://api.example.com',
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+  });
 });

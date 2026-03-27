@@ -623,4 +623,40 @@ describe('AuthService', () => {
       ).rejects.toThrow('DB error');
     });
   });
+
+  describe('syncUser — non-Error catch branches (lines 73 & 121)', () => {
+    it('handles non-Error thrown by Management API in both email and profile resolution', async () => {
+      // Placeholder email triggers the email-resolution block (line 73 branch).
+      // Since getUserById is mocked to throw a non-Error for ALL calls,
+      // the profile-sync block (line 121 branch) is also exercised.
+      const auth0Id = 'auth0|non-error-test';
+      const placeholderEmail = `${auth0Id}@auth0.placeholder`;
+      const provisioned = {
+        id: 'u-ne',
+        auth0Id,
+        email: placeholderEmail,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      // Throw a plain string (not an Error) to hit the `err` branch of the ternary
+      (mockAuth0ManagementService.getUserById as Mock).mockRejectedValue(
+        'non-error string failure',
+      );
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
+        provisioned,
+      );
+
+      const result = await service.syncUser(auth0Id, placeholderEmail);
+
+      // Must degrade gracefully — placeholder email is used and user is provisioned
+      expect(result).toBe(provisioned);
+      expect(mockUsersService.provisionWithPersonalOrg).toHaveBeenCalledWith(
+        auth0Id,
+        placeholderEmail,
+      );
+    });
+  });
 });

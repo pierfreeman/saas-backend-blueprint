@@ -106,6 +106,54 @@ describe('Auth0ManagementService', () => {
     });
   });
 
+  describe('token caching', () => {
+    it('reuses a cached token without calling the token endpoint again', async () => {
+      mockAxiosGet.mockResolvedValue({ data: [] });
+
+      // First call fetches a fresh token
+      await service.findUsersByEmail('a@example.com');
+      expect(mockPost).toHaveBeenCalledTimes(1);
+
+      // Second call should reuse the cached token
+      await service.findUsersByEmail('b@example.com');
+      expect(mockPost).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getUserById', () => {
+    it('fetches a user by their Auth0 user_id', async () => {
+      const auth0User = {
+        user_id: 'google-oauth2|123',
+        email: 'alice@example.com',
+        email_verified: true,
+        identities: [
+          { connection: 'google-oauth2', provider: 'google-oauth2' },
+        ],
+      };
+      mockAxiosGet.mockResolvedValue({ data: auth0User });
+
+      const result = await service.getUserById('google-oauth2|123');
+
+      expect(result).toEqual(auth0User);
+      expect(mockAxiosGet).toHaveBeenCalledWith(
+        'https://test.auth0.com/api/v2/users/google-oauth2%7C123',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer mgmt-token',
+          }),
+        }),
+      );
+    });
+
+    it('propagates errors from the HTTP request', async () => {
+      mockAxiosGet.mockRejectedValue(new Error('User not found'));
+
+      await expect(service.getUserById('auth0|unknown')).rejects.toThrow(
+        'User not found',
+      );
+    });
+  });
+
   describe('deleteUser', () => {
     it('sends a DELETE request to the users endpoint with encoded auth0UserId', async () => {
       mockAxiosDelete.mockResolvedValue({});
@@ -139,6 +187,104 @@ describe('Auth0ManagementService', () => {
       await expect(service.deleteUser('auth0|xyz')).rejects.toThrow(
         'Auth0 network error',
       );
+    });
+  });
+
+  describe('sendPasswordlessLink', () => {
+    beforeEach(() => {
+      mockGet.mockImplementation((key: string) => {
+        const cfg: Record<string, string> = {
+          'auth.domain': 'test.auth0.com',
+          'auth.m2mClientId': 'client-id',
+          'auth.m2mClientSecret': 'client-secret',
+          'auth.spaClientId': 'spa-client-id',
+        };
+        return cfg[key];
+      });
+    });
+
+    it('sends a passwordless link via the Auth0 Authentication API', async () => {
+      mockPost.mockImplementation((url: string) => {
+        if (url.includes('/oauth/token')) {
+          return Promise.resolve({
+            data: {
+              access_token: 'mgmt-token',
+              expires_in: 86400,
+              token_type: 'Bearer',
+            },
+          });
+        }
+        return Promise.resolve({ data: {} });
+      });
+
+      await service.sendPasswordlessLink(
+        'alice@example.com',
+        'https://app.example.com/callback',
+      );
+
+      expect(mockPost).toHaveBeenCalledWith(
+        'https://test.auth0.com/passwordless/start',
+        expect.objectContaining({
+          client_id: 'spa-client-id',
+          connection: 'email',
+          email: 'alice@example.com',
+          send: 'code',
+          authParams: expect.objectContaining({
+            redirect_uri: 'https://app.example.com/callback',
+          }),
+        }),
+      );
+    });
+
+    it('throws when Auth0 SPA client ID is not configured', async () => {
+      mockGet.mockImplementation((key: string) => {
+        const cfg: Record<string, string> = {
+          'auth.domain': 'test.auth0.com',
+        };
+        return cfg[key];
+      });
+      service = buildService();
+
+      await expect(
+        service.sendPasswordlessLink(
+          'alice@example.com',
+          'https://app.example.com/callback',
+        ),
+      ).rejects.toThrow('Auth0 SPA client ID is not configured');
+    });
+
+    it('throws when Auth0 domain is not configured', async () => {
+      mockGet.mockReturnValue(undefined);
+      service = buildService();
+
+      await expect(
+        service.sendPasswordlessLink(
+          'alice@example.com',
+          'https://app.example.com/callback',
+        ),
+      ).rejects.toThrow('Auth0 SPA client ID is not configured');
+    });
+
+    it('propagates errors from the HTTP request', async () => {
+      mockPost.mockImplementation((url: string) => {
+        if (url.includes('/oauth/token')) {
+          return Promise.resolve({
+            data: {
+              access_token: 'mgmt-token',
+              expires_in: 86400,
+              token_type: 'Bearer',
+            },
+          });
+        }
+        return Promise.reject(new Error('Passwordless API error'));
+      });
+
+      await expect(
+        service.sendPasswordlessLink(
+          'alice@example.com',
+          'https://app.example.com/callback',
+        ),
+      ).rejects.toThrow('Passwordless API error');
     });
   });
 });
