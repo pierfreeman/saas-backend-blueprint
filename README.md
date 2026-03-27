@@ -134,6 +134,7 @@ prisma/
 | Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation         |
 | Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration        |
 | File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                       |
+| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, calendar range queries                          |
 
 ### Architectural
 
