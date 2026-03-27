@@ -152,7 +152,7 @@ export class WorkerController {
       trigger,
       orgName,
       requestedAt,
-      ...(userId ? [userId as string] : []),
+      ...(userId ? [userId] : []),
     );
   }
 

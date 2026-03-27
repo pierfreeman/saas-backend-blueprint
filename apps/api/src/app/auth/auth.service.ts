@@ -36,93 +36,88 @@ export class AuthService {
     email: string,
     profile?: { firstName?: string; lastName?: string; pictureUrl?: string },
   ): Promise<User> {
-    // Normalize email to lowercase for consistent lookup regardless of how Auth0
-    // or the invite form submitted the address.
     const normalizedEmail = email.toLowerCase();
 
     const existingUser = await this.usersService.findByAuth0Id(auth0Id);
-
     if (existingUser) {
-      // Don't overwrite a real stored email with the placeholder that the JWT
-      // falls back to when no Post-Login Action has injected the email claim.
-      if (
-        existingUser.email !== normalizedEmail &&
-        !normalizedEmail.endsWith('@auth0.placeholder')
-      ) {
-        this.logger.log(`Updating email for user ${existingUser.id}`);
-        return this.usersService.updateEmail(existingUser.id, normalizedEmail);
-      }
-      return existingUser;
+      return this.handleExistingUser(existingUser, normalizedEmail);
     }
 
-    // No user found by auth0Id — before doing an email lookup, resolve the
-    // real email if the JWT fell back to the synthetic placeholder (happens
-    // when no Auth0 Post-Login Action injects the email into the access token).
-    let resolvedEmail = normalizedEmail;
-    if (resolvedEmail.endsWith('@auth0.placeholder')) {
-      try {
-        const auth0User =
-          await this.auth0ManagementService.getUserById(auth0Id);
-        resolvedEmail = auth0User.email.toLowerCase();
-        this.logger.log(
-          `Resolved real email from Auth0 Management API for ${auth0Id}: ${resolvedEmail}`,
-        );
-      } catch (err) {
-        this.logger.warn(
-          `Could not resolve email for ${auth0Id} from Management API — keeping placeholder`,
-          err instanceof Error ? err.message : err,
-        );
-      }
-    }
-    // Check by email. This handles two cases:
-    //   a) Invited-pending user: auth0Id starts with `pending:` placeholder.
-    //   b) Auth0 account linking failure: a verified user exists with this email
-    //      but a different auth0Id (e.g. OTP account not yet linked to Google).
-    // In both cases we update the stored auth0Id to the current JWT sub, keeping
-    // a single Prisma record and all memberships intact.
+    const resolvedEmail = await this.resolveEmail(auth0Id, normalizedEmail);
     const userByEmail = await this.usersService.findByEmail(resolvedEmail);
     if (userByEmail) {
-      if (userByEmail.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
-        this.logger.log(
-          `Linking invited pending user ${resolvedEmail} to real Auth0 ID ${auth0Id}`,
-        );
-      } else {
-        this.logger.warn(
-          `Auth0 account linking fallback: relinking ${resolvedEmail} ` +
-            `from ${userByEmail.auth0Id} to ${auth0Id}`,
-        );
-      }
-      return this.usersService.updateAuth0Id(userByEmail.id, auth0Id);
+      return this.relinkExistingUser(userByEmail, auth0Id, resolvedEmail);
     }
 
+    return this.provisionNewUser(auth0Id, resolvedEmail, profile);
+  }
+
+  private async handleExistingUser(
+    existingUser: User,
+    normalizedEmail: string,
+  ): Promise<User> {
+    if (
+      existingUser.email !== normalizedEmail &&
+      !normalizedEmail.endsWith('@auth0.placeholder')
+    ) {
+      this.logger.log(`Updating email for user ${existingUser.id}`);
+      return this.usersService.updateEmail(existingUser.id, normalizedEmail);
+    }
+    return existingUser;
+  }
+
+  private async resolveEmail(
+    auth0Id: string,
+    normalizedEmail: string,
+  ): Promise<string> {
+    if (!normalizedEmail.endsWith('@auth0.placeholder')) {
+      return normalizedEmail;
+    }
+
+    try {
+      const auth0User = await this.auth0ManagementService.getUserById(auth0Id);
+      const resolvedEmail = auth0User.email.toLowerCase();
+      this.logger.log(
+        `Resolved real email from Auth0 Management API for ${auth0Id}: ${resolvedEmail}`,
+      );
+      return resolvedEmail;
+    } catch (err) {
+      this.logger.warn(
+        `Could not resolve email for ${auth0Id} from Management API — keeping placeholder`,
+        err instanceof Error ? err.message : err,
+      );
+      return normalizedEmail;
+    }
+  }
+
+  private async relinkExistingUser(
+    userByEmail: User,
+    auth0Id: string,
+    resolvedEmail: string,
+  ): Promise<User> {
+    if (userByEmail.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
+      this.logger.log(
+        `Linking invited pending user ${resolvedEmail} to real Auth0 ID ${auth0Id}`,
+      );
+    } else {
+      this.logger.warn(
+        `Auth0 account linking fallback: relinking ${resolvedEmail} ` +
+          `from ${userByEmail.auth0Id} to ${auth0Id}`,
+      );
+    }
+    return this.usersService.updateAuth0Id(userByEmail.id, auth0Id);
+  }
+
+  private async provisionNewUser(
+    auth0Id: string,
+    resolvedEmail: string,
+    profile?: { firstName?: string; lastName?: string; pictureUrl?: string },
+  ): Promise<User> {
     this.logger.log(
       `First login for Auth0 ID: ${auth0Id} -- provisioning user + org`,
     );
 
-    // Resolve profile data from Auth0 Management API for social logins (e.g. Google),
-    // falling back to any profile claims already extracted from the JWT.
-    let resolvedProfile = profile ?? {};
-    if (
-      !resolvedProfile.firstName &&
-      !resolvedProfile.lastName &&
-      !resolvedProfile.pictureUrl
-    ) {
-      try {
-        const auth0User =
-          await this.auth0ManagementService.getUserById(auth0Id);
-        resolvedProfile = {
-          firstName: auth0User.given_name,
-          lastName: auth0User.family_name,
-          pictureUrl: auth0User.picture,
-        };
-      } catch (err) {
-        this.logger.warn(
-          `Could not fetch Auth0 profile for ${auth0Id} — skipping profile sync`,
-          err instanceof Error ? err.message : err,
-        );
-      }
-    }
-
+    const resolvedProfile = await this.resolveProfile(auth0Id, profile);
     const user = await this.usersService.provisionWithPersonalOrg(
       auth0Id,
       resolvedEmail,
@@ -137,6 +132,35 @@ export class AuthService {
       return this.usersService.updateProfile(user.id, resolvedProfile);
     }
     return user;
+  }
+
+  private async resolveProfile(
+    auth0Id: string,
+    profile?: { firstName?: string; lastName?: string; pictureUrl?: string },
+  ): Promise<{ firstName?: string; lastName?: string; pictureUrl?: string }> {
+    const resolvedProfile = profile ?? {};
+    if (
+      resolvedProfile.firstName ||
+      resolvedProfile.lastName ||
+      resolvedProfile.pictureUrl
+    ) {
+      return resolvedProfile;
+    }
+
+    try {
+      const auth0User = await this.auth0ManagementService.getUserById(auth0Id);
+      return {
+        firstName: auth0User.given_name,
+        lastName: auth0User.family_name,
+        pictureUrl: auth0User.picture,
+      };
+    } catch (err) {
+      this.logger.warn(
+        `Could not fetch Auth0 profile for ${auth0Id} — skipping profile sync`,
+        err instanceof Error ? err.message : err,
+      );
+      return resolvedProfile;
+    }
   }
 
   async updateProfile(

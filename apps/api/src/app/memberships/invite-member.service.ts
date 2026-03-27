@@ -55,11 +55,8 @@ export class InviteMemberService {
   ): Promise<InviteMemberResult> {
     const email = dto.email.toLowerCase();
 
-    // 1. Fetch org + inviter concurrently
-    const [org, inviter] = await Promise.all([
-      this.organizationsService.findById(orgId),
-      this.usersService.findById(inviterUserId),
-    ]);
+    // 1. Fetch org
+    const org = await this.organizationsService.findById(orgId);
 
     if (!org) {
       throw new NotFoundException(`Organization ${orgId} not found.`);

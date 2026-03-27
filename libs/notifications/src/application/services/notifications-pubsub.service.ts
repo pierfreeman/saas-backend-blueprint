@@ -116,7 +116,7 @@ export class NotificationsPubSubService implements OnModuleDestroy {
    * every matching message. The gateway registers this once on `afterInit`.
    */
   subscribeToUserPattern(handler: NotificationHandler): void {
-    void this.subscriber.psubscribe(NOTIFICATION_PATTERNS.user);
+    this.subscriber.psubscribe(NOTIFICATION_PATTERNS.user);
 
     this.subscriber.on(
       'pmessage',
@@ -134,7 +134,7 @@ export class NotificationsPubSubService implements OnModuleDestroy {
    * every matching message.
    */
   subscribeToOrgPattern(handler: NotificationHandler): void {
-    void this.subscriber.psubscribe(NOTIFICATION_PATTERNS.org);
+    this.subscriber.psubscribe(NOTIFICATION_PATTERNS.org);
 
     this.subscriber.on(
       'pmessage',
@@ -152,7 +152,7 @@ export class NotificationsPubSubService implements OnModuleDestroy {
    * published message.
    */
   subscribeToGlobal(handler: NotificationHandler): void {
-    void this.subscriber.subscribe(NOTIFICATION_CHANNELS.global);
+    this.subscriber.subscribe(NOTIFICATION_CHANNELS.global);
 
     this.subscriber.on('message', (channel: string, raw: string) => {
       if (channel !== NOTIFICATION_CHANNELS.global) return;

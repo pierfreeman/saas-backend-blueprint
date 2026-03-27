@@ -29,7 +29,7 @@ export class RemoveMemberService {
   ): Promise<void> {
     // 1. Fetch BEFORE deletion to capture userId for cleanup check
     const membership = await this.membershipsService.findById(membershipId);
-    if (!membership || membership.orgId !== orgId) {
+    if (!membership?.orgId || membership.orgId !== orgId) {
       throw new NotFoundException('Membership not found');
     }
     const { userId } = membership;
@@ -53,7 +53,11 @@ export class RemoveMemberService {
     if (!user) return;
 
     // Delete Auth0 user first (best-effort; non-fatal if it fails)
-    if (!user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
+    if (user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
+      this.logger.log(
+        `Skipping Auth0 deletion for pending user ${userId} (never logged in)`,
+      );
+    } else {
       try {
         await this.auth0ManagementService.deleteUser(user.auth0Id);
         this.logger.log(`Deleted Auth0 user ${user.auth0Id}`);
@@ -63,10 +67,6 @@ export class RemoveMemberService {
             `Reason: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
-    } else {
-      this.logger.log(
-        `Skipping Auth0 deletion for pending user ${userId} (never logged in)`,
-      );
     }
 
     // Delete the Prisma user record (cascades any leftover memberships)

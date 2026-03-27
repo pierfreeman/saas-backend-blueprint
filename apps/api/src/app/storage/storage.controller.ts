@@ -452,13 +452,22 @@ export class StorageController {
       this.billingService.getOrgBillingStatus(orgId),
     ]);
 
-    const planType: PlanType =
-      entitlements.plan === 'PRO'
-        ? 'pro'
-        : entitlements.plan === 'ENTERPRISE'
-          ? 'enterprise'
-          : 'free';
+    const planType: PlanType = this.#mapPlanType(entitlements.plan);
 
     return { planType, orgStorageLimit: billing?.storageLimit ?? null };
+  }
+
+  /**
+   * Maps the entitlement plan string to the corresponding PlanType.
+   */
+  #mapPlanType(plan: string): PlanType {
+    switch (plan) {
+      case 'PRO':
+        return 'pro';
+      case 'ENTERPRISE':
+        return 'enterprise';
+      default:
+        return 'free';
+    }
   }
 }

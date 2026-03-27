@@ -129,6 +129,10 @@ describe('SendGridProvider', () => {
       };
 
       mockSend.mockRejectedValue('Unknown error');
+
+      await expect(provider.sendEmail(emailDto)).rejects.toThrow(
+        'Email delivery failed: Unknown error',
+      );
     });
   });
 
