@@ -98,12 +98,10 @@ describe('OrgDeletionSchedulerService', () => {
       expect(deletionService.requestDeletion).toHaveBeenCalledWith(
         ORG1_UUID,
         DeletionTrigger.SUBSCRIPTION_EXPIRY,
-        undefined,
       );
       expect(deletionService.requestDeletion).toHaveBeenCalledWith(
         ORG2_UUID,
         DeletionTrigger.SUBSCRIPTION_EXPIRY,
-        undefined,
       );
     });
 
