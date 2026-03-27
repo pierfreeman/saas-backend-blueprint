@@ -62,6 +62,38 @@ describe('NotificationsPubSubService', () => {
     service = new NotificationsPubSubService();
   });
 
+  // ── constructor retryStrategy (line 40) ──────────────────────────────────
+
+  describe('constructor — retryStrategy', () => {
+    it('returns increasing backoff capped at 2000ms', () => {
+      const opts = (Redis as any).mock.calls[0][0] as {
+        retryStrategy: (n: number) => number;
+      };
+      expect(opts.retryStrategy(1)).toBe(50);
+      expect(opts.retryStrategy(10)).toBe(500);
+      expect(opts.retryStrategy(100)).toBe(2000);
+    });
+
+    it('uses REDIS_HOST and REDIS_PORT env vars when set (lines 38-39)', () => {
+      process.env['REDIS_HOST'] = 'custom-host';
+      process.env['REDIS_PORT'] = '6380';
+      try {
+        vi.clearAllMocks();
+        (Redis as any).__instances = [];
+        new NotificationsPubSubService();
+        const opts = (Redis as any).mock.calls[0][0] as {
+          host: string;
+          port: number;
+        };
+        expect(opts.host).toBe('custom-host');
+        expect(opts.port).toBe(6380);
+      } finally {
+        delete process.env['REDIS_HOST'];
+        delete process.env['REDIS_PORT'];
+      }
+    });
+  });
+
   // ── publishUserNotification ───────────────────────────────────────────────
 
   describe('publishUserNotification', () => {
@@ -206,6 +238,21 @@ describe('NotificationsPubSubService', () => {
 
       expect(handler).toHaveBeenCalledWith(event);
     });
+
+    it('ignores messages from non-org channels (line 142 branch)', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      service.subscribeToOrgPattern(handler);
+
+      const listener = getListener(subscriber, 'pmessage');
+      listener!(
+        NOTIFICATION_PATTERNS.user,
+        NOTIFICATION_CHANNELS.user('user-1'),
+        JSON.stringify({}),
+      );
+
+      expect(handler).not.toHaveBeenCalled();
+    });
   });
 
   // ── subscribeToGlobal ─────────────────────────────────────────────────────
@@ -235,6 +282,17 @@ describe('NotificationsPubSubService', () => {
       listener!(NOTIFICATION_CHANNELS.global, JSON.stringify(event));
 
       expect(handler).toHaveBeenCalledWith(event);
+    });
+
+    it('ignores messages from non-global channels (line 158 branch)', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      service.subscribeToGlobal(handler);
+
+      const listener = getListener(subscriber, 'message');
+      listener!(NOTIFICATION_CHANNELS.user('user-1'), JSON.stringify({}));
+
+      expect(handler).not.toHaveBeenCalled();
     });
   });
 
@@ -337,6 +395,28 @@ describe('NotificationsPubSubService', () => {
       expect(handler).not.toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to parse'),
+      );
+    });
+  });
+
+  // ── publish error (lines 185-186) ─────────────────────────────────────────
+
+  describe('publish — error path', () => {
+    it('logs and re-throws when publisher.publish rejects', async () => {
+      const [publisher] = getInstances();
+      publisher.publish.mockRejectedValueOnce(new Error('Redis down'));
+
+      const errorSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(vi.fn());
+
+      await expect(
+        service.publishUserNotification('user-1', buildMsg('user-1')),
+      ).rejects.toThrow('Redis down');
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to publish'),
+        expect.any(Error),
       );
     });
   });

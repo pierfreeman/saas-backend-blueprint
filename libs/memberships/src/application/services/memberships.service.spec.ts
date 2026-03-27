@@ -156,6 +156,19 @@ describe('MembershipsService', () => {
     });
   });
 
+  describe('findById', () => {
+    it('returns membership when found', async () => {
+      mockRepo.findById = vi.fn().mockResolvedValue(baseMembership);
+      expect(await service.findById('m-1')).toBe(baseMembership);
+      expect(mockRepo.findById).toHaveBeenCalledWith('m-1');
+    });
+
+    it('returns null when not found', async () => {
+      mockRepo.findById = vi.fn().mockResolvedValue(null);
+      expect(await service.findById('m-x')).toBeNull();
+    });
+  });
+
   describe('findByUser', () => {
     it('delegates to repository', async () => {
       mockRepo.findByUser = vi.fn().mockResolvedValue([baseMembership]);
@@ -269,6 +282,87 @@ describe('MembershipsService', () => {
     it('returns null when not found', async () => {
       mockRepo.findByUserAndOrg = vi.fn().mockResolvedValue(null);
       expect(await service.findByUserAndOrg('u-1', 'org-x')).toBeNull();
+    });
+  });
+
+  describe('hasRole', () => {
+    it('returns true when membership has a matching role', async () => {
+      mockRepo.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue({ ...baseMembership, role: MembershipRole.ADMIN });
+
+      const result = await service.hasRole('u-1', 'org-1', [
+        MembershipRole.OWNER,
+        MembershipRole.ADMIN,
+      ]);
+
+      expect(result).toBe(true);
+    });
+
+    it('returns false when membership role is not in the list', async () => {
+      mockRepo.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue({ ...baseMembership, role: MembershipRole.MEMBER });
+
+      const result = await service.hasRole('u-1', 'org-1', [
+        MembershipRole.OWNER,
+      ]);
+
+      expect(result).toBe(false);
+    });
+
+    it('returns false when no membership exists', async () => {
+      mockRepo.findByUserAndOrg = vi.fn().mockResolvedValue(null);
+
+      const result = await service.hasRole('u-1', 'org-1', [
+        MembershipRole.OWNER,
+      ]);
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('isOwner', () => {
+    it('returns true when user is OWNER', async () => {
+      mockRepo.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue({ ...baseMembership, role: MembershipRole.OWNER });
+
+      expect(await service.isOwner('u-1', 'org-1')).toBe(true);
+    });
+
+    it('returns false when user is not OWNER', async () => {
+      mockRepo.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue({ ...baseMembership, role: MembershipRole.MEMBER });
+
+      expect(await service.isOwner('u-1', 'org-1')).toBe(false);
+    });
+  });
+
+  describe('isAdmin', () => {
+    it('returns true when user is OWNER', async () => {
+      mockRepo.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue({ ...baseMembership, role: MembershipRole.OWNER });
+
+      expect(await service.isAdmin('u-1', 'org-1')).toBe(true);
+    });
+
+    it('returns true when user is ADMIN', async () => {
+      mockRepo.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue({ ...baseMembership, role: MembershipRole.ADMIN });
+
+      expect(await service.isAdmin('u-1', 'org-1')).toBe(true);
+    });
+
+    it('returns false when user is MEMBER', async () => {
+      mockRepo.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue({ ...baseMembership, role: MembershipRole.MEMBER });
+
+      expect(await service.isAdmin('u-1', 'org-1')).toBe(false);
     });
   });
 });

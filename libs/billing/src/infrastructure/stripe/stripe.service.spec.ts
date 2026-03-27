@@ -13,19 +13,19 @@ import { Mock, vi } from 'vitest';
 describe('StripeService', () => {
   let service: StripeService;
   let mockStripeInstance: {
-    customers: { create: Mock };
+    customers: { create: Mock; del: Mock };
     checkout: { sessions: { create: Mock } };
     billingPortal: { sessions: { create: Mock } };
-    subscriptions: { retrieve: Mock; update: Mock };
+    subscriptions: { retrieve: Mock; update: Mock; cancel: Mock };
     webhooks: { constructEvent: Mock };
   };
 
   beforeEach(async () => {
     mockStripeInstance = {
-      customers: { create: vi.fn() },
+      customers: { create: vi.fn(), del: vi.fn() },
       checkout: { sessions: { create: vi.fn() } },
       billingPortal: { sessions: { create: vi.fn() } },
-      subscriptions: { retrieve: vi.fn(), update: vi.fn() },
+      subscriptions: { retrieve: vi.fn(), update: vi.fn(), cancel: vi.fn() },
       webhooks: { constructEvent: vi.fn() },
     };
 
@@ -439,6 +439,56 @@ describe('StripeService', () => {
       await fastService.cancelSubscription('sub_1');
 
       expect(fastMock.subscriptions.update).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ─── terminateSubscription ───────────────────────────────────────────────────
+
+  describe('terminateSubscription', () => {
+    it('cancels the subscription immediately via stripe.subscriptions.cancel', async () => {
+      mockStripeInstance.subscriptions.cancel.mockResolvedValue({
+        id: 'sub_001',
+        status: 'canceled',
+      });
+
+      await expect(
+        service.terminateSubscription('sub_001'),
+      ).resolves.not.toThrow();
+      expect(mockStripeInstance.subscriptions.cancel).toHaveBeenCalledWith(
+        'sub_001',
+      );
+    });
+
+    it('swallows errors (non-fatal) when cancellation fails', async () => {
+      mockStripeInstance.subscriptions.cancel.mockRejectedValue(
+        new Error('subscription already cancelled'),
+      );
+
+      await expect(
+        service.terminateSubscription('sub_001'),
+      ).resolves.not.toThrow();
+    });
+  });
+
+  // ─── deleteCustomer ──────────────────────────────────────────────────────────
+
+  describe('deleteCustomer', () => {
+    it('deletes the customer via stripe.customers.del', async () => {
+      mockStripeInstance.customers.del.mockResolvedValue({
+        id: 'cus_001',
+        deleted: true,
+      });
+
+      await expect(service.deleteCustomer('cus_001')).resolves.not.toThrow();
+      expect(mockStripeInstance.customers.del).toHaveBeenCalledWith('cus_001');
+    });
+
+    it('swallows errors (non-fatal) when deletion fails', async () => {
+      mockStripeInstance.customers.del.mockRejectedValue(
+        new Error('customer already deleted'),
+      );
+
+      await expect(service.deleteCustomer('cus_001')).resolves.not.toThrow();
     });
   });
 });

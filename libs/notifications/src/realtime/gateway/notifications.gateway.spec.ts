@@ -5,6 +5,7 @@ import { NotificationsPubSubService } from '../../application/services/notificat
 import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { ConfigService } from '@nestjs/config';
 import { Server } from 'socket.io';
+import * as jwt from 'jsonwebtoken';
 import { vi } from 'vitest';
 
 // ── Redis adapter mock ────────────────────────────────────────────────────────
@@ -35,6 +36,10 @@ vi.mock('jwks-rsa', () => ({
   JwksClient: vi.fn(function (this: unknown) {
     return { getSigningKey: vi.fn() };
   }),
+}));
+
+vi.mock('jsonwebtoken', () => ({
+  verify: vi.fn(),
 }));
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -444,6 +449,140 @@ describe('NotificationsGateway', () => {
       vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
         sub: undefined,
       });
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      expect(client.disconnect).toHaveBeenCalled();
+    });
+
+    it('falls back through all undefined handshake sub-properties (lines 335/338/342)', async () => {
+      // Covers the ?.auth, ?.query, ?.headers optional-chaining null branches.
+      const client = makeSocket({
+        handshake: { auth: undefined, query: undefined, headers: undefined },
+      });
+      await gateway.handleConnection(client as never);
+      expect(client.disconnect).toHaveBeenCalled();
+    });
+  });
+
+  // ── verifyToken internals (lines 358-378) ─────────────────────────────────
+
+  describe('verifyToken internals (without spy)', () => {
+    beforeEach(() => {
+      // Restore gateway.verifyToken spy set by extractToken tests so the real
+      // implementation runs; jwt.verify stays as the vi.mock vi.fn().
+      vi.restoreAllMocks();
+    });
+
+    it('rejects when getSigningKey returns an error', async () => {
+      const jwksError = new Error('JWKS fetch failed');
+      (gateway as any).jwksClient.getSigningKey.mockImplementation(
+        (_kid: string, cb: (err: Error | null, key?: unknown) => void) => {
+          cb(jwksError);
+        },
+      );
+
+      vi.mocked(jwt.verify).mockImplementation(
+        (_t: string, getKey: any, _opts: any, callback: any) => {
+          // Simulate jsonwebtoken calling getKey, then callback with the error
+          getKey({ kid: 'kid-1' }, (err: Error | null) => {
+            callback(err);
+          });
+          return undefined as any;
+        },
+      );
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      // verifyToken rejects → catch block → disconnect
+      expect(client.disconnect).toHaveBeenCalled();
+    });
+
+    it('resolves and completes connection when getSigningKey and jwt.verify both succeed', async () => {
+      const mockKey = { getPublicKey: () => 'mock-public-key' };
+      (gateway as any).jwksClient.getSigningKey.mockImplementation(
+        (_kid: string, cb: (err: null, key: typeof mockKey) => void) => {
+          cb(null, mockKey);
+        },
+      );
+
+      vi.mocked(jwt.verify).mockImplementation(
+        (_t: string, getKey: any, _opts: any, callback: any) => {
+          getKey({ kid: 'kid-1' }, (_err: null, _pubKey: string) => {
+            callback(null, { sub: 'auth0|user-1' });
+          });
+          return undefined as any;
+        },
+      );
+
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
+        id: 'user-uuid-1',
+        email: 'user@test.com',
+      });
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([]);
+      mockNotificationsService.getUnreadCount.mockResolvedValue(0);
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      expect(client.disconnect).not.toHaveBeenCalled();
+      expect(client.emit).toHaveBeenCalledWith(
+        'notification:unread-count',
+        expect.any(Object),
+      );
+    });
+
+    it('resolves when getSigningKey key is undefined (covers key?.getPublicKey() — line 364)', async () => {
+      (gateway as any).jwksClient.getSigningKey.mockImplementation(
+        (_kid: string, cb: (err: null, key?: undefined) => void) => {
+          cb(null, undefined);
+        },
+      );
+
+      vi.mocked(jwt.verify).mockImplementation(
+        (_t: string, getKey: any, _opts: any, callback: any) => {
+          getKey({ kid: 'kid-1' }, (err: Error | null, _pubKey: unknown) => {
+            if (err) callback(err);
+            else callback(null, { sub: 'auth0|user-1' });
+          });
+          return undefined as any;
+        },
+      );
+
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
+        id: 'user-uuid-1',
+        email: 'user@test.com',
+      });
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([]);
+      mockNotificationsService.getUnreadCount.mockResolvedValue(0);
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      expect(client.emit).toHaveBeenCalledWith(
+        'notification:unread-count',
+        expect.any(Object),
+      );
+    });
+
+    it('rejects when jwt.verify callback receives an error', async () => {
+      const mockKey = { getPublicKey: () => 'mock-public-key' };
+      (gateway as any).jwksClient.getSigningKey.mockImplementation(
+        (_kid: string, cb: (err: null, key: typeof mockKey) => void) => {
+          cb(null, mockKey);
+        },
+      );
+
+      vi.mocked(jwt.verify).mockImplementation(
+        (_t: string, getKey: any, _opts: any, callback: any) => {
+          getKey({ kid: 'kid-1' }, (_err: null, _pubKey: string) => {
+            callback(new Error('token expired'));
+          });
+          return undefined as any;
+        },
+      );
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);

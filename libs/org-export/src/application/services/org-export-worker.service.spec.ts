@@ -838,4 +838,96 @@ describe('OrgExportWorkerService', () => {
       expect(repo.completeExport).toHaveBeenCalled();
     });
   });
+
+  // ─── sendExportReadyEmail (lines 330-352) ──────────────────────────────────
+
+  describe('sendExportReadyEmail', () => {
+    const requestedAt = new Date('2026-01-01T10:00:00Z');
+    const orgName = 'Test Organization';
+
+    beforeEach(() => {
+      repo.findExportRecord.mockResolvedValue(makeExport());
+      repo.aggregateOrgData.mockResolvedValue(makeOrgData());
+    });
+
+    it('sends export-ready email when user is found (user-found path — lines 330-352)', async () => {
+      repo.findUserById.mockResolvedValueOnce({
+        id: USER_UUID,
+        email: 'owner@acme.com',
+      });
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(repo.findUserById).toHaveBeenCalledWith(USER_UUID);
+      expect(email.sendTransactionalEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: 'export-ready',
+          recipient: 'owner@acme.com',
+        }),
+      );
+      expect(repo.completeExport).toHaveBeenCalled();
+    });
+
+    it('does not abort export when email throws (Error catch — lines 345-350)', async () => {
+      repo.findUserById.mockResolvedValueOnce({
+        id: USER_UUID,
+        email: 'owner@acme.com',
+      });
+      email.sendTransactionalEmail.mockRejectedValueOnce(
+        new Error('SMTP error'),
+      );
+
+      await expect(
+        service.executeExport(
+          ORG_UUID,
+          EXPORT_UUID,
+          JOB_UUID,
+          orgName,
+          USER_UUID,
+          requestedAt,
+        ),
+      ).resolves.not.toThrow();
+      expect(repo.completeExport).toHaveBeenCalled();
+    });
+
+    it('does not abort export when email rejects with non-Error (String branch in catch)', async () => {
+      repo.findUserById.mockResolvedValueOnce({
+        id: USER_UUID,
+        email: 'owner@acme.com',
+      });
+      email.sendTransactionalEmail.mockRejectedValueOnce('plain SMTP failure');
+
+      await expect(
+        service.executeExport(
+          ORG_UUID,
+          EXPORT_UUID,
+          JOB_UUID,
+          orgName,
+          USER_UUID,
+          requestedAt,
+        ),
+      ).resolves.not.toThrow();
+    });
+  });
+
+  // ─── jsonReplacer (private — line 366) ─────────────────────────────────────
+
+  describe('jsonReplacer (private)', () => {
+    it('converts BigInt values to string (line 366)', () => {
+      const result = (service as any).jsonReplacer('size', BigInt(9999999));
+      expect(result).toBe('9999999');
+    });
+
+    it('passes through non-BigInt values unchanged', () => {
+      expect((service as any).jsonReplacer('name', 'Acme')).toBe('Acme');
+      expect((service as any).jsonReplacer('count', 42)).toBe(42);
+    });
+  });
 });

@@ -42,8 +42,10 @@ describe('BillingService', () => {
             findOrgById: vi.fn(),
             updateOrgBillingData: vi.fn(),
             createBillingEvent: vi.fn(),
+            findBillingEvent: vi.fn(),
             findSnapshotsByOrgId: vi.fn(),
             findOrgMeta: vi.fn(),
+            getOrgBillingStatus: vi.fn(),
           },
         },
         {
@@ -367,6 +369,67 @@ describe('BillingService', () => {
       await expect(
         service.getSubscriptionHistory('org-uuid-missing', 10, 0),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── getOrgBillingStatus ─────────────────────────────────────────────────────
+
+  describe('getOrgBillingStatus', () => {
+    it('delegates to billingRepository.getOrgBillingStatus', async () => {
+      const status = {
+        planId: 'price_pro',
+        billingStatus: 'ACTIVE',
+        storageLimit: null,
+      };
+      billingRepository.getOrgBillingStatus.mockResolvedValue(status as any);
+
+      const result = await service.getOrgBillingStatus('org-uuid-001');
+
+      expect(result).toEqual(status);
+      expect(billingRepository.getOrgBillingStatus).toHaveBeenCalledWith(
+        'org-uuid-001',
+      );
+    });
+
+    it('returns null when org has no billing record', async () => {
+      billingRepository.getOrgBillingStatus.mockResolvedValue(null as any);
+
+      const result = await service.getOrgBillingStatus('org-uuid-001');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ─── findBillingEvent ────────────────────────────────────────────────────────
+
+  describe('findBillingEvent', () => {
+    it('delegates to billingRepository.findBillingEvent', async () => {
+      billingRepository.findBillingEvent.mockResolvedValue({
+        id: 'be_001',
+      } as any);
+
+      const result = await service.findBillingEvent('evt_001');
+
+      expect(result).toEqual({ id: 'be_001' });
+      expect(billingRepository.findBillingEvent).toHaveBeenCalledWith(
+        'evt_001',
+      );
+    });
+  });
+
+  // ─── createBillingEvent ──────────────────────────────────────────────────────
+
+  describe('createBillingEvent', () => {
+    it('delegates to billingRepository.createBillingEvent', async () => {
+      billingRepository.createBillingEvent.mockResolvedValue(undefined as any);
+
+      await service.createBillingEvent('evt_001', 'hash_abc', 'org-uuid-001');
+
+      expect(billingRepository.createBillingEvent).toHaveBeenCalledWith(
+        'evt_001',
+        'hash_abc',
+        'org-uuid-001',
+      );
     });
   });
 });

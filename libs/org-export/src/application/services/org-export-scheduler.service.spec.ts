@@ -110,6 +110,12 @@ describe('OrgExportSchedulerService', () => {
       await expect(service.markExpiredExports()).resolves.not.toThrow();
     });
 
+    it('stringifies non-Error thrown during expiration check (else branch — line 49)', async () => {
+      repo.findExpiredExports.mockRejectedValueOnce('plain string error');
+
+      await expect(service.markExpiredExports()).resolves.not.toThrow();
+    });
+
     it('does not throw when updateMany fails', async () => {
       repo.findExpiredExports.mockResolvedValueOnce([makeExport()]);
       repo.markExportsExpiredBatch.mockRejectedValueOnce(

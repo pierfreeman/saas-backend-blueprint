@@ -44,6 +44,28 @@ describe('S3StorageClient', () => {
     expect(client.getBucket()).toBe('test-bucket');
   });
 
+  it('initializes without custom endpoint (else branch — line 49)', async () => {
+    const configWithoutEndpoint = {
+      get: vi.fn().mockReturnValue({
+        region: 'us-east-1',
+        accessKeyId: 'test-key',
+        secretAccessKey: 'test-secret',
+        bucket: 'test-bucket',
+        // no endpoint → skips forcePathStyle block
+      }),
+    } as unknown as Mocked<ConfigService>;
+
+    const mod = await Test.createTestingModule({
+      providers: [
+        S3StorageClient,
+        { provide: ConfigService, useValue: configWithoutEndpoint },
+      ],
+    }).compile();
+
+    const c = mod.get<S3StorageClient>(S3StorageClient);
+    expect(c.getBucket()).toBe('test-bucket');
+  });
+
   it('should generate presigned upload URL', async () => {
     const url = await client.generatePresignedUploadUrl(
       'org/test-org/test-file',
@@ -81,9 +103,7 @@ describe('S3StorageClient', () => {
     });
 
     it('propagates errors from S3', async () => {
-      const mockSend = vi
-        .fn()
-        .mockRejectedValue(new Error('S3 delete failed'));
+      const mockSend = vi.fn().mockRejectedValue(new Error('S3 delete failed'));
       (client as unknown as Record<string, unknown>)['client'] = {
         send: mockSend,
       };
@@ -132,6 +152,132 @@ describe('S3StorageClient', () => {
       await expect(client.objectExists('org/test-org/file-1')).rejects.toThrow(
         'Access Denied',
       );
+    });
+  });
+
+  // ── getObjectSize ─────────────────────────────────────────────────────────
+
+  describe('getObjectSize', () => {
+    it('returns BigInt of ContentLength when present', async () => {
+      const mockSend = vi.fn().mockResolvedValue({ ContentLength: 1024 });
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+        config: {},
+      };
+
+      const size = await client.getObjectSize('org/test-org/file-1');
+      expect(size).toBe(BigInt(1024));
+    });
+
+    it('returns BigInt(0) when ContentLength is undefined (?? 0 branch)', async () => {
+      const mockSend = vi.fn().mockResolvedValue({});
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+        config: {},
+      };
+
+      const size = await client.getObjectSize('org/test-org/file-1');
+      expect(size).toBe(BigInt(0));
+    });
+
+    it('propagates errors from S3', async () => {
+      const mockSend = vi
+        .fn()
+        .mockRejectedValue(new Error('HeadObject failed'));
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+        config: {},
+      };
+
+      await expect(client.getObjectSize('org/test-org/file-1')).rejects.toThrow(
+        'HeadObject failed',
+      );
+    });
+  });
+
+  // ── putObject ─────────────────────────────────────────────────────────────
+
+  describe('putObject', () => {
+    it('uploads a buffer and resolves', async () => {
+      const mockSend = vi.fn().mockResolvedValue({});
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+        config: {},
+      };
+
+      await expect(
+        client.putObject(
+          'org/test-org/file-1',
+          Buffer.from('hello'),
+          'text/plain',
+        ),
+      ).resolves.toBeUndefined();
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses default contentType when not specified', async () => {
+      const mockSend = vi.fn().mockResolvedValue({});
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+        config: {},
+      };
+
+      await client.putObject('org/test-org/file-1', Buffer.from('data'));
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('propagates errors from S3', async () => {
+      const mockSend = vi.fn().mockRejectedValue(new Error('PutObject failed'));
+      (client as unknown as Record<string, unknown>)['client'] = {
+        send: mockSend,
+        config: {},
+      };
+
+      await expect(
+        client.putObject('org/test-org/file-1', Buffer.from('data')),
+      ).rejects.toThrow('PutObject failed');
+    });
+  });
+
+  // ── rewritePublicEndpoint ─────────────────────────────────────────────────
+
+  describe('rewritePublicEndpoint (private)', () => {
+    it('rewrites origin to publicEndpoint when both are set', () => {
+      (client as unknown as Record<string, unknown>)['publicEndpoint'] =
+        'http://localhost:4566';
+      (client as unknown as Record<string, unknown>)['client'] = {
+        config: { endpoint: 'http://localstack:4566' },
+        send: vi.fn(),
+      };
+
+      const rewritten = (client as any).rewritePublicEndpoint(
+        'http://localstack:4566/test-bucket/key?X-Amz-Signature=abc',
+      );
+
+      expect(rewritten).toContain('localhost');
+      expect(rewritten).not.toContain('localstack');
+    });
+
+    it('returns original URL untouched when publicEndpoint is not set', () => {
+      (client as unknown as Record<string, unknown>)['publicEndpoint'] =
+        undefined;
+
+      const url = 'http://localstack:4566/bucket/key';
+      const result = (client as any).rewritePublicEndpoint(url);
+      expect(result).toBe(url);
+    });
+
+    it('returns original URL when parsing throws (catch branch)', () => {
+      (client as unknown as Record<string, unknown>)['publicEndpoint'] =
+        'http://localhost:4566';
+      (client as unknown as Record<string, unknown>)['client'] = {
+        config: { endpoint: 'http://localstack:4566' },
+        send: vi.fn(),
+      };
+
+      // Pass an invalid URL to trigger the catch block
+      const result = (client as any).rewritePublicEndpoint('not-a-valid-url');
+      expect(result).toBe('not-a-valid-url');
     });
   });
 });

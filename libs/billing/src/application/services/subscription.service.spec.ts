@@ -570,9 +570,8 @@ describe('SubscriptionService', () => {
 
       await service.handleCheckoutCompleted(makeSession(), checkoutCtx());
 
-      const [, updateArg] = (
-        billingRepository.updateOrgBillingData as Mock
-      ).mock.calls[0];
+      const [, updateArg] = (billingRepository.updateOrgBillingData as Mock)
+        .mock.calls[0];
       expect(updateArg).not.toHaveProperty('stripeCustomerId');
       expect(updateArg).toMatchObject({
         billingStatus: PrismaBillingStatus.ACTIVE,
@@ -594,9 +593,8 @@ describe('SubscriptionService', () => {
         checkoutCtx(),
       );
 
-      const [, updateArg] = (
-        billingRepository.updateOrgBillingData as Mock
-      ).mock.calls[0];
+      const [, updateArg] = (billingRepository.updateOrgBillingData as Mock)
+        .mock.calls[0];
       expect(updateArg).not.toHaveProperty('subscriptionId');
       expect(updateArg).toMatchObject({
         billingStatus: PrismaBillingStatus.ACTIVE,
@@ -655,6 +653,21 @@ describe('SubscriptionService', () => {
       ).findOrgById.mockResolvedValue(null);
 
       await service.handleCheckoutCompleted(makeSession(), checkoutCtx());
+
+      expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
+      expect(eventBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('returns early when findOrgById throws (catch → null, line 272)', async () => {
+      (
+        billingRepository as Mocked<BillingRepository> & {
+          findOrgById: Mock;
+        }
+      ).findOrgById.mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        service.handleCheckoutCompleted(makeSession(), checkoutCtx()),
+      ).resolves.not.toThrow();
 
       expect(billingRepository.updateOrgBillingData).not.toHaveBeenCalled();
       expect(eventBus.publish).not.toHaveBeenCalled();

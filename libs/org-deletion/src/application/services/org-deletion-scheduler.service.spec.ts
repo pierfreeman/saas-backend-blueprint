@@ -139,6 +139,26 @@ describe('OrgDeletionSchedulerService', () => {
       await expect(service.checkExpiredOrganizations()).resolves.not.toThrow();
     });
 
+    it('stringifies non-Error thrown by requestDeletion (inner catch — String branch)', async () => {
+      const org = makeOrganization(ORG1_UUID, new Date('2026-02-01'));
+      repo.findOrgsEligibleForDeletion.mockResolvedValueOnce([org]);
+      // Reject with a non-Error value: covers `String(error)` branch on line 70
+      deletionService.requestDeletion.mockRejectedValueOnce(
+        'plain string error',
+      );
+
+      await expect(service.checkExpiredOrganizations()).resolves.not.toThrow();
+    });
+
+    it('stringifies non-Error thrown by findOrgsEligibleForDeletion (outer catch — String branch)', async () => {
+      // Reject with a non-Error value: covers `String(error)` branch on line 80
+      repo.findOrgsEligibleForDeletion.mockRejectedValueOnce(
+        'plain string error',
+      );
+
+      await expect(service.checkExpiredOrganizations()).resolves.not.toThrow();
+    });
+
     it('logs when no organizations are eligible for deletion', async () => {
       repo.findOrgsEligibleForDeletion.mockResolvedValueOnce([]);
       const logSpy = vi

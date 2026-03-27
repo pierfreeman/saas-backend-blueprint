@@ -370,6 +370,45 @@ describe('OrgDeletionWorkerService', () => {
       expect(failEvent[0].payload.error).toContain('DB transaction error');
     });
 
+    it('stringifies non-Error thrown during deletion (String branch in catch)', async () => {
+      const org = makeOrganization();
+      repo.findOrgById.mockResolvedValueOnce(org);
+      storage.deleteFolder.mockRejectedValueOnce('plain string error');
+
+      await service.executeDeletion(
+        ORG_UUID,
+        DeletionTrigger.USER_REQUEST,
+        'Test Organization',
+        requestedAt,
+      );
+
+      const failEvent = eventBus.publish.mock.calls.find(
+        (call) => call[0].eventType === 'org.deletion.failed',
+      );
+      expect(failEvent).toBeDefined();
+      expect(failEvent[0].payload.error).toBe('Unknown error');
+    });
+
+    it('uses system triggerType in failure legal audit for SUBSCRIPTION_EXPIRY trigger', async () => {
+      const org = makeOrganization();
+      repo.findOrgById.mockResolvedValueOnce(org);
+      storage.deleteFolder.mockRejectedValueOnce(new Error('S3 error'));
+
+      await service.executeDeletion(
+        ORG_UUID,
+        DeletionTrigger.SUBSCRIPTION_EXPIRY,
+        'Test Organization',
+        requestedAt,
+      );
+
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'organization.deletion.failed',
+          triggerType: 'system',
+        }),
+      );
+    });
+
     it('enters catch in markOrganizationDeleted when markDeleted throws', async () => {
       const org = makeOrganization();
       repo.findOrgById.mockResolvedValueOnce(org);
@@ -441,6 +480,91 @@ describe('OrgDeletionWorkerService', () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (service as any).revokeExternalResources('cus_123', 'sub_456'),
       ).rejects.toThrow('already deleted');
+    });
+  });
+
+  // ─── sendDeletionConfirmationEmail ─────────────────────────────────────────
+
+  describe('sendDeletionConfirmationEmail (line 90 + lines 198-223)', () => {
+    const requestedAt = new Date('2026-01-01');
+
+    it('sends confirmation email when requestedByUserId is set and user is found (line 90)', async () => {
+      const org = makeOrganization();
+      repo.findOrgById.mockResolvedValueOnce(org);
+      repo.findUserByAuth0Id.mockResolvedValueOnce({ email: 'owner@acme.com' });
+
+      await service.executeDeletion(
+        ORG_UUID,
+        DeletionTrigger.USER_REQUEST,
+        'Test Organization',
+        requestedAt,
+        'auth0|owner-1', // requestedByUserId — triggers email path
+      );
+
+      expect(repo.findUserByAuth0Id).toHaveBeenCalledWith('auth0|owner-1');
+      expect(email.sendTransactionalEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: 'org-deletion-confirmation',
+          recipient: 'owner@acme.com',
+        }),
+      );
+    });
+
+    it('skips email (no abort) when user is not found for auth0Id (line 205)', async () => {
+      const org = makeOrganization();
+      repo.findOrgById.mockResolvedValueOnce(org);
+      repo.findUserByAuth0Id.mockResolvedValueOnce(null); // user not found
+
+      await service.executeDeletion(
+        ORG_UUID,
+        DeletionTrigger.USER_REQUEST,
+        'Test Organization',
+        requestedAt,
+        'auth0|unknown',
+      );
+
+      expect(email.sendTransactionalEmail).not.toHaveBeenCalled();
+      // Deletion still completes
+      expect(repo.deleteDatabaseRecords).toHaveBeenCalledWith(ORG_UUID);
+    });
+
+    it('does not abort deletion when email sending throws (lines 217-223)', async () => {
+      const org = makeOrganization();
+      repo.findOrgById.mockResolvedValueOnce(org);
+      repo.findUserByAuth0Id.mockResolvedValueOnce({ email: 'owner@acme.com' });
+      email.sendTransactionalEmail.mockRejectedValueOnce(
+        new Error('SMTP error'),
+      );
+
+      await expect(
+        service.executeDeletion(
+          ORG_UUID,
+          DeletionTrigger.USER_REQUEST,
+          'Test Organization',
+          requestedAt,
+          'auth0|owner-1',
+        ),
+      ).resolves.not.toThrow();
+
+      // Deletion still completes despite email failure
+      expect(repo.deleteDatabaseRecords).toHaveBeenCalledWith(ORG_UUID);
+    });
+
+    it('stringifies non-Error email failures (String branch in catch)', async () => {
+      const org = makeOrganization();
+      repo.findOrgById.mockResolvedValueOnce(org);
+      repo.findUserByAuth0Id.mockResolvedValueOnce({ email: 'owner@acme.com' });
+      email.sendTransactionalEmail.mockRejectedValueOnce('plain error string');
+
+      await expect(
+        service.executeDeletion(
+          ORG_UUID,
+          DeletionTrigger.USER_REQUEST,
+          'Test Organization',
+          requestedAt,
+          'auth0|owner-1',
+        ),
+      ).resolves.not.toThrow();
     });
   });
 });

@@ -249,4 +249,77 @@ describe('OrgDeletionService', () => {
       );
     });
   });
+
+  // ─── findOrgsEligibleForDeletion ───────────────────────────────────────────
+
+  describe('findOrgsEligibleForDeletion', () => {
+    it('returns empty array when no suspended orgs exist', async () => {
+      repo.findSuspendedOrgsWithExpiredSubscriptions.mockResolvedValueOnce([]);
+
+      const result = await service.findOrgsEligibleForDeletion();
+      expect(result).toEqual([]);
+    });
+
+    it('filters orgs whose retention window has not yet elapsed', async () => {
+      const now = new Date('2026-03-01');
+      vi.useFakeTimers().setSystemTime(now);
+
+      // retentionEnd = 2026-02-01 + 30d = 2026-03-03 → still in window → excluded
+      repo.findSuspendedOrgsWithExpiredSubscriptions.mockResolvedValueOnce([
+        {
+          id: ORG_UUID,
+          name: 'Acme',
+          subscriptionPeriodEnd: new Date('2026-02-01'),
+          retentionPeriodDays: 30,
+        },
+      ]);
+
+      const result = await service.findOrgsEligibleForDeletion();
+      expect(result).toHaveLength(0);
+
+      vi.useRealTimers();
+    });
+
+    it('returns orgs whose retention window has elapsed', async () => {
+      const now = new Date('2026-03-15');
+      vi.useFakeTimers().setSystemTime(now);
+
+      // retentionEnd = 2026-02-01 + 30d = 2026-03-03 → elapsed → included
+      repo.findSuspendedOrgsWithExpiredSubscriptions.mockResolvedValueOnce([
+        {
+          id: ORG_UUID,
+          name: 'Acme',
+          subscriptionPeriodEnd: new Date('2026-02-01'),
+          retentionPeriodDays: 30,
+        },
+      ]);
+
+      const result = await service.findOrgsEligibleForDeletion();
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({ id: ORG_UUID, name: 'Acme' });
+
+      vi.useRealTimers();
+    });
+
+    it('uses defaultRetentionDays when retentionPeriodDays is null', async () => {
+      const now = new Date('2026-03-15');
+      vi.useFakeTimers().setSystemTime(now);
+
+      // null retentionPeriodDays → falls back to default (30d from config)
+      // retentionEnd = 2026-02-01 + 30d = 2026-03-03 → elapsed → included
+      repo.findSuspendedOrgsWithExpiredSubscriptions.mockResolvedValueOnce([
+        {
+          id: ORG_UUID,
+          name: 'Acme',
+          subscriptionPeriodEnd: new Date('2026-02-01'),
+          retentionPeriodDays: null,
+        },
+      ]);
+
+      const result = await service.findOrgsEligibleForDeletion();
+      expect(result).toHaveLength(1);
+
+      vi.useRealTimers();
+    });
+  });
 });
