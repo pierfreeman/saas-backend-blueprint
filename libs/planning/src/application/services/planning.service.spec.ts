@@ -312,5 +312,308 @@ describe('PlanningService', () => {
       expect(repo.upsertException).toHaveBeenCalledOnce();
       expect(result.id).toBe('ex-1');
     });
+
+    it('throws ForbiddenException when MEMBER tries to modify another user exception', async () => {
+      repo.findEventById.mockResolvedValue(
+        makeEvent({
+          rrule: 'FREQ=WEEKLY;BYDAY=MO',
+          createdByUserId: 'someone-else',
+        }),
+      );
+
+      await expect(
+        service.createException(
+          'org-1',
+          'event-1',
+          { originalStartUtc: '2026-01-12T10:00:00Z' },
+          'other-user',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when event is missing', async () => {
+      repo.findEventById.mockResolvedValue(null);
+
+      await expect(
+        service.createException(
+          'org-1',
+          'missing',
+          { originalStartUtc: '2026-01-12T10:00:00Z' },
+          'user-1',
+          MembershipRole.ADMIN,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('createEvent — with invited attendees', () => {
+    it('adds each invited attendee as PENDING and skips the creator', async () => {
+      const event = makeEvent();
+      repo.createEvent.mockResolvedValue(event);
+      repo.upsertAttendee.mockResolvedValue({});
+      repo.findAttendees.mockResolvedValue([]);
+
+      await service.createEvent('org-1', 'user-creator', {
+        title: 'Team Sync',
+        start: '2026-01-05T10:00:00Z',
+        end: '2026-01-05T11:00:00Z',
+        eventTimezone: 'UTC',
+        attendeeIds: ['user-creator', 'user-2', 'user-3'],
+      });
+
+      // creator → YES; user-2 and user-3 → PENDING (creator not duplicated as PENDING)
+      expect(repo.upsertAttendee).toHaveBeenCalledWith(
+        'event-1',
+        'user-creator',
+        RSVPStatus.YES,
+      );
+      expect(repo.upsertAttendee).toHaveBeenCalledWith(
+        'event-1',
+        'user-2',
+        RSVPStatus.PENDING,
+      );
+      expect(repo.upsertAttendee).toHaveBeenCalledWith(
+        'event-1',
+        'user-3',
+        RSVPStatus.PENDING,
+      );
+    });
+
+    it('sends invite notifications to non-creator attendees', async () => {
+      const event = makeEvent();
+      repo.createEvent.mockResolvedValue(event);
+      repo.upsertAttendee.mockResolvedValue({});
+      repo.findAttendees.mockResolvedValue([]);
+
+      await service.createEvent('org-1', 'user-creator', {
+        title: 'Team Sync',
+        start: '2026-01-05T10:00:00Z',
+        end: '2026-01-05T11:00:00Z',
+        eventTimezone: 'UTC',
+        attendeeIds: ['user-creator', 'user-2'],
+      });
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-2',
+        'org-1',
+        expect.objectContaining({ type: 'event.invite' }),
+      );
+    });
+  });
+
+  describe('listEvents', () => {
+    it('returns an empty array when no events are in range', async () => {
+      repo.findEventsByRange.mockResolvedValue([]);
+
+      const result = await service.listEvents(
+        'org-1',
+        new Date('2026-01-01Z'),
+        new Date('2026-01-31Z'),
+      );
+
+      expect(result).toEqual([]);
+      expect(repo.findEventsByRange).toHaveBeenCalledOnce();
+    });
+
+    it('expands and sorts occurrences chronologically', async () => {
+      const event1 = makeEvent({ id: 'e1' });
+      const event2 = makeEvent({ id: 'e2' });
+      repo.findEventsByRange.mockResolvedValue([event1, event2]);
+
+      const occ1 = {
+        eventId: 'e1',
+        startUtc: new Date('2026-01-10T10:00:00Z'),
+      };
+      const occ2 = {
+        eventId: 'e2',
+        startUtc: new Date('2026-01-05T10:00:00Z'),
+      };
+      recurrenceService.expand
+        .mockReturnValueOnce([occ1])
+        .mockReturnValueOnce([occ2]);
+
+      const result = await service.listEvents(
+        'org-1',
+        new Date('2026-01-01Z'),
+        new Date('2026-01-31Z'),
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0].startUtc).toEqual(new Date('2026-01-05T10:00:00Z'));
+      expect(result[1].startUtc).toEqual(new Date('2026-01-10T10:00:00Z'));
+    });
+  });
+
+  describe('updateEvent', () => {
+    const baseUpdateDto = { version: 1, title: 'Updated' };
+
+    it('updates and returns the event', async () => {
+      const event = makeEvent();
+      const updated = makeEvent({ title: 'Updated', version: 2 });
+      repo.findEventById.mockResolvedValue(event);
+      repo.updateEvent.mockResolvedValue(updated);
+
+      const result = await service.updateEvent(
+        'org-1',
+        'event-1',
+        baseUpdateDto,
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      expect(repo.updateEvent).toHaveBeenCalledOnce();
+      expect(result.title).toBe('Updated');
+    });
+
+    it('throws NotFoundException when event does not exist', async () => {
+      repo.findEventById.mockResolvedValue(null);
+
+      await expect(
+        service.updateEvent(
+          'org-1',
+          'missing',
+          baseUpdateDto,
+          'user-1',
+          MembershipRole.ADMIN,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when MEMBER updates another user event', async () => {
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ createdByUserId: 'someone-else' }),
+      );
+
+      await expect(
+        service.updateEvent(
+          'org-1',
+          'event-1',
+          baseUpdateDto,
+          'other-user',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws BadRequestException for invalid RRULE', async () => {
+      repo.findEventById.mockResolvedValue(makeEvent());
+      recurrenceService.isValidRrule.mockReturnValue(false);
+
+      await expect(
+        service.updateEvent(
+          'org-1',
+          'event-1',
+          { version: 1, rrule: 'INVALID' },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when end is before start', async () => {
+      repo.findEventById.mockResolvedValue(makeEvent());
+
+      await expect(
+        service.updateEvent(
+          'org-1',
+          'event-1',
+          {
+            version: 1,
+            start: '2026-01-05T11:00:00Z',
+            end: '2026-01-05T10:00:00Z',
+          },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('fires activityLog and legalAudit', async () => {
+      repo.findEventById.mockResolvedValue(makeEvent());
+      repo.updateEvent.mockResolvedValue(
+        makeEvent({ title: 'Updated', attendees: [] }),
+      );
+
+      await service.updateEvent(
+        'org-1',
+        'event-1',
+        baseUpdateDto,
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      expect(activityLog.logActivity).toHaveBeenCalledOnce();
+      expect(legalAudit.recordEvent).toHaveBeenCalledOnce();
+    });
+
+    it('sends update notifications to attendees when notifyAttendees=true', async () => {
+      const attendee = { userId: 'user-2' };
+      repo.findEventById.mockResolvedValue(makeEvent());
+      repo.updateEvent.mockResolvedValue(
+        makeEvent({ title: 'Updated', attendees: [attendee] }),
+      );
+
+      await service.updateEvent(
+        'org-1',
+        'event-1',
+        { version: 1, title: 'Updated', notifyAttendees: true },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-2',
+        'org-1',
+        expect.objectContaining({ type: 'event.updated' }),
+      );
+    });
+
+    it('does not send notifications when notifyAttendees is false', async () => {
+      repo.findEventById.mockResolvedValue(makeEvent());
+      repo.updateEvent.mockResolvedValue(
+        makeEvent({ attendees: [{ userId: 'user-2' }] }),
+      );
+
+      await service.updateEvent(
+        'org-1',
+        'event-1',
+        { version: 1, notifyAttendees: false },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).not.toHaveBeenCalled();
+    });
+
+    it('allows OWNER to update any event', async () => {
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ createdByUserId: 'someone-else' }),
+      );
+      repo.updateEvent.mockResolvedValue(makeEvent({ attendees: [] }));
+
+      await expect(
+        service.updateEvent(
+          'org-1',
+          'event-1',
+          baseUpdateDto,
+          'owner-user',
+          MembershipRole.OWNER,
+        ),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('rsvp', () => {
+    it('throws NotFoundException when event does not exist', async () => {
+      repo.findEventById.mockResolvedValue(null);
+
+      await expect(
+        service.rsvp('org-1', 'missing', 'user-1', RSVPStatus.YES),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });
