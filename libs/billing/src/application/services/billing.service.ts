@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
+import { BillingStatus } from '@prisma/client';
 import { StripeService } from '../../infrastructure/stripe/stripe.service';
 import {
   BillingRepository,
@@ -105,9 +106,17 @@ export class BillingService {
     const org = await this.billingRepository.findOrgById(orgId);
 
     if (!org.stripeCustomerId) {
-      throw new BadRequestException(
-        'Organization does not have a Stripe customer. Call ensureStripeCustomer first.',
+      this.logger.log(
+        `No Stripe customer for org ${orgId} — provisioning one automatically`,
       );
+      const meta = await this.billingRepository.findOrgMeta(orgId);
+      await this.ensureStripeCustomer(
+        orgId,
+        meta.ownerEmail ?? `org-${orgId}@billing.local`,
+        meta.name,
+      );
+      const updated = await this.billingRepository.findOrgById(orgId);
+      org.stripeCustomerId = updated.stripeCustomerId;
     }
 
     const defaultSuccessUrl =
@@ -118,7 +127,7 @@ export class BillingService {
       'http://localhost:3000/billing/cancel';
 
     const session = await this.stripeService.createCheckoutSession({
-      customerId: org.stripeCustomerId,
+      customerId: org.stripeCustomerId!,
       priceId,
       successUrl: options.successUrl ?? defaultSuccessUrl,
       cancelUrl: options.cancelUrl ?? defaultCancelUrl,
@@ -165,9 +174,17 @@ export class BillingService {
     const org = await this.billingRepository.findOrgById(orgId);
 
     if (!org.stripeCustomerId) {
-      throw new BadRequestException(
-        'Organization does not have a Stripe customer. Cannot access billing portal.',
+      this.logger.log(
+        `No Stripe customer for org ${orgId} — provisioning one automatically`,
       );
+      const meta = await this.billingRepository.findOrgMeta(orgId);
+      await this.ensureStripeCustomer(
+        orgId,
+        meta.ownerEmail ?? `org-${orgId}@billing.local`,
+        meta.name,
+      );
+      const updated = await this.billingRepository.findOrgById(orgId);
+      org.stripeCustomerId = updated.stripeCustomerId;
     }
 
     const defaultReturnUrl =
@@ -175,7 +192,7 @@ export class BillingService {
       'http://localhost:3000/billing';
 
     const session = await this.stripeService.createPortalSession(
-      org.stripeCustomerId,
+      org.stripeCustomerId!,
       returnUrl ?? defaultReturnUrl,
     );
 
@@ -269,6 +286,32 @@ export class BillingService {
 
     this.logger.log(
       `Subscription ${org.subscriptionId} scheduled for cancellation (org: ${orgId})`,
+    );
+  }
+
+  async getOrgBillingStatus(orgId: string): Promise<{
+    planId: string | null;
+    billingStatus: BillingStatus;
+    storageLimit: bigint | null;
+  } | null> {
+    return this.billingRepository.getOrgBillingStatus(orgId);
+  }
+
+  async findBillingEvent(
+    stripeEventId: string,
+  ): Promise<{ id: string } | null> {
+    return this.billingRepository.findBillingEvent(stripeEventId);
+  }
+
+  async createBillingEvent(
+    stripeEventId: string,
+    payloadHash: string,
+    orgId?: string,
+  ): Promise<void> {
+    return this.billingRepository.createBillingEvent(
+      stripeEventId,
+      payloadHash,
+      orgId,
     );
   }
 }

@@ -27,7 +27,7 @@ import { HealthModule } from './health/health.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { NotificationsAppModule } from './notifications/notifications-app.module';
 import { OrganizationsModule } from './organizations/organizations.module';
-import { RBACModule } from './rbac/rbac.module';
+import { RBACModule } from '@libs/rbac';
 import { StorageAppModule } from './storage/storage-app.module';
 import { TasksModule } from './tasks/tasks.module';
 

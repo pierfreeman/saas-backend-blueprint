@@ -1,28 +1,31 @@
 // Factory mock — must be declared before any imports use ioredis.
 // The constructor returns a shared instance; tests reconfigure methods per-test
 // using mockResolvedValueOnce / mockRejectedValueOnce.
-jest.mock('ioredis', () => {
+vi.mock('ioredis', () => {
   const instance = {
-    on: jest.fn(),
-    quit: jest.fn().mockResolvedValue('OK'),
-    get: jest.fn().mockResolvedValue(null),
-    set: jest.fn().mockResolvedValue('OK'),
-    setex: jest.fn().mockResolvedValue('OK'),
-    del: jest.fn().mockResolvedValue(1),
-    exists: jest.fn().mockResolvedValue(1),
-    incr: jest.fn().mockResolvedValue(1),
-    expire: jest.fn().mockResolvedValue(1),
-    ttl: jest.fn().mockResolvedValue(60),
-    keys: jest.fn().mockResolvedValue([]),
-    flushdb: jest.fn().mockResolvedValue('OK'),
+    on: vi.fn(),
+    quit: vi.fn().mockResolvedValue('OK'),
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue('OK'),
+    setex: vi.fn().mockResolvedValue('OK'),
+    del: vi.fn().mockResolvedValue(1),
+    exists: vi.fn().mockResolvedValue(1),
+    incr: vi.fn().mockResolvedValue(1),
+    expire: vi.fn().mockResolvedValue(1),
+    ttl: vi.fn().mockResolvedValue(60),
+    keys: vi.fn().mockResolvedValue([]),
+    flushdb: vi.fn().mockResolvedValue('OK'),
   };
-  const Ctor: any = jest.fn(() => instance);
+  const Ctor: any = vi.fn(function (this: any) {
+    return instance;
+  });
   Ctor.__instance = instance;
   return { __esModule: true, default: Ctor };
 });
 
 import Redis from 'ioredis';
 import { CacheService } from './cache.service';
+import { vi } from 'vitest';
 
 // Access the shared mock client injected by the factory above
 const mockClient: any = (Redis as any).__instance;
@@ -31,7 +34,7 @@ describe('CacheService', () => {
   let service: CacheService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     service = new CacheService();
   });
 
@@ -222,8 +225,7 @@ describe('CacheService', () => {
     it('returns capped delay based on retry count', () => {
       // retryStrategy is passed to the Redis constructor; retrieve it from
       // the options captured by the mock constructor call.
-      const Redis = require('ioredis').default;
-      const ctorOptions = Redis.mock.calls.at(-1)?.[0] as any;
+      const ctorOptions = (Redis as any).mock.calls.at(-1)?.[0] as any;
       const retryStrategy = ctorOptions?.retryStrategy;
       expect(retryStrategy).toBeDefined();
       expect(retryStrategy(1)).toBe(50); // 1 * 50 = 50ms

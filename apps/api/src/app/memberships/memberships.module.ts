@@ -1,16 +1,35 @@
 import { Module } from '@nestjs/common';
-import { PrismaBusinessModule } from '@libs/prisma-business';
+import { ConfigModule } from '@nestjs/config';
 import { TenantModule } from '@libs/common';
-import { ActivityLogModule } from '@libs/activity-log';
-import { LegalAuditModule } from '@libs/legal-audit';
-import { MembershipsService } from './memberships.service';
+import {
+  MembershipsModule as MembershipsLibModule,
+  SEAT_LIMIT_PROVIDER,
+} from '@libs/memberships';
+import { OrganizationsModule } from '@libs/organizations';
+import { UsersModule } from '@libs/users';
 import { MembershipsController } from './memberships.controller';
-import { RBACModule } from '../rbac/rbac.module';
+import { RBACModule } from '@libs/rbac';
+import { InviteMemberService } from './invite-member.service';
+import { RemoveMemberService } from './remove-member.service';
+import { AuthModule } from '../auth/auth.module';
+import { FeatureFlagsModule, FeatureFlagsService } from '@libs/feature-flags';
 
 @Module({
-  imports: [PrismaBusinessModule, RBACModule, TenantModule, ActivityLogModule, LegalAuditModule],
+  imports: [
+    MembershipsLibModule,
+    RBACModule,
+    TenantModule,
+    UsersModule,
+    OrganizationsModule,
+    ConfigModule,
+    AuthModule,
+    FeatureFlagsModule,
+  ],
   controllers: [MembershipsController],
-  providers: [MembershipsService],
-  exports: [MembershipsService],
+  providers: [
+    InviteMemberService,
+    RemoveMemberService,
+    { provide: SEAT_LIMIT_PROVIDER, useExisting: FeatureFlagsService },
+  ],
 })
 export class MembershipsModule {}

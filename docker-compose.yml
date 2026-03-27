@@ -1,4 +1,12 @@
 services:
+  # ─── Mailpit (local email catcher) ──────────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP — set SMTP_HOST=localhost SMTP_PORT=1025 in .env
+      - '8025:8025' # Web UI — open http://localhost:8025 to view emails
+
   # ─── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:17-alpine
@@ -112,6 +120,7 @@ services:
     env_file: .env
     ports:
       - '${API_PORT:-3000}:3000'
+      - '9229:9229' # Expose debug port
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
@@ -130,7 +139,10 @@ services:
       SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-billing-events.fifo
       # --- S3 via LocalStack ---
       AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_S3_PUBLIC_ENDPOINT: http://localhost:4566
       AWS_S3_BUCKET: saas-backend-storage
+      # --- Email via Mailpit (dev) ---
+      SMTP_HOST: mailpit
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -163,6 +175,9 @@ services:
       SQS_ENDPOINT_URL: http://localstack:4566
       SQS_STANDARD_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-heavy-jobs
       SQS_FIFO_QUEUE_URL: http://localstack:4566/000000000000/saas-backend-billing-events.fifo
+      SMTP_HOST: mailpit
+      AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_S3_PUBLIC_ENDPOINT: http://localhost:4566
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -172,6 +187,24 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+
+  # ─── Stripe CLI (webhook forwarder — dev only) ───────────────────────────────
+  # Forwards Stripe test events to the local API container.
+  # The signing secret is deterministic per STRIPE_SECRET_KEY and matches the
+  # STRIPE_WEBHOOK_SECRET value in .env (run `docker run --rm stripe/stripe-cli
+  # listen --print-secret --api-key <key>` to regenerate it).
+  stripe-cli:
+    image: stripe/stripe-cli
+    command: >
+      listen
+      --forward-to http://api:3000/billing/webhook
+      --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,invoice.payment_succeeded,invoice.payment_failed
+    environment:
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_DEVICE_NAME: saas-local
+    depends_on:
+      - api
+    restart: on-failure
 
 volumes:
   postgres_data:

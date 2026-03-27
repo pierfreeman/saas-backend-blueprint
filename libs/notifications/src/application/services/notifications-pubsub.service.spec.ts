@@ -1,0 +1,440 @@
+/**
+ * Unit tests for NotificationsPubSubService.
+ *
+ * Two ioredis connections are created (publisher first, subscriber second).
+ * We capture them via Ctor.__instances so each test can reference both.
+ */
+vi.mock('ioredis', () => {
+  const makeInstance = () => ({
+    publish: vi.fn().mockResolvedValue(1),
+    psubscribe: vi.fn().mockResolvedValue(undefined),
+    subscribe: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
+    quit: vi.fn().mockResolvedValue('OK'),
+  });
+
+  const Ctor: any = vi.fn(function (this: any) {
+    const inst = makeInstance();
+    Ctor.__instances.push(inst);
+    return inst;
+  });
+  Ctor.__instances = [];
+
+  return { __esModule: true, default: Ctor };
+});
+
+import Redis from 'ioredis';
+import { NotificationsPubSubService } from './notifications-pubsub.service';
+import { Mock, vi } from 'vitest';
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_PATTERNS,
+} from '../../types/notification.types';
+
+type IoRedisMock = {
+  publish: Mock;
+  psubscribe: Mock;
+  subscribe: Mock;
+  on: Mock;
+  quit: Mock;
+};
+
+const getInstances = (): [IoRedisMock, IoRedisMock] =>
+  (Redis as any).__instances as [IoRedisMock, IoRedisMock];
+
+/** Extract a listener registered via subscriber.on(eventName, fn). */
+function getListener(
+  subscriber: IoRedisMock,
+  eventName: string,
+): ((...args: unknown[]) => void) | undefined {
+  const call = (subscriber.on as Mock).mock.calls.find(
+    ([ev]: [string]) => ev === eventName,
+  );
+  return call?.[1] as ((...args: unknown[]) => void) | undefined;
+}
+
+describe('NotificationsPubSubService', () => {
+  let service: NotificationsPubSubService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (Redis as any).__instances = [];
+    service = new NotificationsPubSubService();
+  });
+
+  // ── constructor retryStrategy (line 40) ──────────────────────────────────
+
+  describe('constructor — retryStrategy', () => {
+    it('returns increasing backoff capped at 2000ms', () => {
+      const opts = (Redis as any).mock.calls[0][0] as {
+        retryStrategy: (n: number) => number;
+      };
+      expect(opts.retryStrategy(1)).toBe(50);
+      expect(opts.retryStrategy(10)).toBe(500);
+      expect(opts.retryStrategy(100)).toBe(2000);
+    });
+
+    it('uses REDIS_HOST and REDIS_PORT env vars when set (lines 38-39)', () => {
+      process.env['REDIS_HOST'] = 'custom-host';
+      process.env['REDIS_PORT'] = '6380';
+      try {
+        vi.clearAllMocks();
+        (Redis as any).__instances = [];
+        new NotificationsPubSubService();
+        const opts = (Redis as any).mock.calls[0][0] as {
+          host: string;
+          port: number;
+        };
+        expect(opts.host).toBe('custom-host');
+        expect(opts.port).toBe(6380);
+      } finally {
+        delete process.env['REDIS_HOST'];
+        delete process.env['REDIS_PORT'];
+      }
+    });
+  });
+
+  // ── publishUserNotification ───────────────────────────────────────────────
+
+  describe('publishUserNotification', () => {
+    it('publishes to the correct user channel', async () => {
+      const userId = 'user-abc';
+      const msg = buildMsg(userId);
+      const [publisher] = getInstances();
+
+      await service.publishUserNotification(userId, msg);
+
+      expect(publisher.publish).toHaveBeenCalledTimes(1);
+      const [channel, raw] = publisher.publish.mock.calls[0] as [
+        string,
+        string,
+      ];
+      expect(channel).toBe(NOTIFICATION_CHANNELS.user(userId));
+
+      const parsed = JSON.parse(raw) as { scope: string; userId: string };
+      expect(parsed.scope).toBe('user');
+      expect(parsed.userId).toBe(userId);
+    });
+  });
+
+  // ── publishOrgNotification ────────────────────────────────────────────────
+
+  describe('publishOrgNotification', () => {
+    it('publishes to the correct org channel', async () => {
+      const orgId = 'org-xyz';
+      const msg = buildMsg('user-1', orgId);
+      const [publisher] = getInstances();
+
+      await service.publishOrgNotification(orgId, msg);
+
+      const [channel, raw] = publisher.publish.mock.calls[0] as [
+        string,
+        string,
+      ];
+      expect(channel).toBe(NOTIFICATION_CHANNELS.org(orgId));
+
+      const parsed = JSON.parse(raw) as { scope: string; orgId: string };
+      expect(parsed.scope).toBe('org');
+      expect(parsed.orgId).toBe(orgId);
+    });
+  });
+
+  // ── publishGlobalNotification ─────────────────────────────────────────────
+
+  describe('publishGlobalNotification', () => {
+    it('publishes to the global channel', async () => {
+      const msg = buildMsg('user-1');
+      const [publisher] = getInstances();
+
+      await service.publishGlobalNotification(msg);
+
+      const [channel, raw] = publisher.publish.mock.calls[0] as [
+        string,
+        string,
+      ];
+      expect(channel).toBe(NOTIFICATION_CHANNELS.global);
+
+      const parsed = JSON.parse(raw) as { scope: string };
+      expect(parsed.scope).toBe('global');
+    });
+  });
+
+  // ── subscribeToUserPattern ────────────────────────────────────────────────
+
+  describe('subscribeToUserPattern', () => {
+    it('psubscribes to the user pattern', () => {
+      const [, subscriber] = getInstances();
+      service.subscribeToUserPattern(vi.fn());
+      expect(subscriber.psubscribe).toHaveBeenCalledWith(
+        NOTIFICATION_PATTERNS.user,
+      );
+    });
+
+    it('invokes handler when a matching pmessage arrives', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      service.subscribeToUserPattern(handler);
+
+      const listener = getListener(subscriber, 'pmessage');
+      expect(listener).toBeDefined();
+
+      const event = {
+        scope: 'user',
+        payload: buildMsg('user-1'),
+        timestamp: '',
+      };
+      listener!(
+        NOTIFICATION_PATTERNS.user,
+        NOTIFICATION_CHANNELS.user('user-1'),
+        JSON.stringify(event),
+      );
+
+      expect(handler).toHaveBeenCalledWith(event);
+    });
+
+    it('ignores messages from non-user channels', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      service.subscribeToUserPattern(handler);
+
+      const listener = getListener(subscriber, 'pmessage');
+      listener!(
+        NOTIFICATION_PATTERNS.org,
+        NOTIFICATION_CHANNELS.org('org-1'),
+        JSON.stringify({}),
+      );
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── subscribeToOrgPattern ─────────────────────────────────────────────────
+
+  describe('subscribeToOrgPattern', () => {
+    it('psubscribes to the org pattern', () => {
+      const [, subscriber] = getInstances();
+      service.subscribeToOrgPattern(vi.fn());
+      expect(subscriber.psubscribe).toHaveBeenCalledWith(
+        NOTIFICATION_PATTERNS.org,
+      );
+    });
+
+    it('invokes handler when a matching org pmessage arrives', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      service.subscribeToOrgPattern(handler);
+
+      const listener = getListener(subscriber, 'pmessage');
+      const event = {
+        scope: 'org',
+        payload: buildMsg('user-1', 'org-42'),
+        timestamp: '',
+      };
+      listener!(
+        NOTIFICATION_PATTERNS.org,
+        NOTIFICATION_CHANNELS.org('org-42'),
+        JSON.stringify(event),
+      );
+
+      expect(handler).toHaveBeenCalledWith(event);
+    });
+
+    it('ignores messages from non-org channels (line 142 branch)', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      service.subscribeToOrgPattern(handler);
+
+      const listener = getListener(subscriber, 'pmessage');
+      listener!(
+        NOTIFICATION_PATTERNS.user,
+        NOTIFICATION_CHANNELS.user('user-1'),
+        JSON.stringify({}),
+      );
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── subscribeToGlobal ─────────────────────────────────────────────────────
+
+  describe('subscribeToGlobal', () => {
+    it('subscribes to the global channel', () => {
+      const [, subscriber] = getInstances();
+      service.subscribeToGlobal(vi.fn());
+      expect(subscriber.subscribe).toHaveBeenCalledWith(
+        NOTIFICATION_CHANNELS.global,
+      );
+    });
+
+    it('invokes handler when a global message arrives', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      service.subscribeToGlobal(handler);
+
+      const listener = getListener(subscriber, 'message');
+      expect(listener).toBeDefined();
+
+      const event = {
+        scope: 'global',
+        payload: buildMsg('user-1'),
+        timestamp: '',
+      };
+      listener!(NOTIFICATION_CHANNELS.global, JSON.stringify(event));
+
+      expect(handler).toHaveBeenCalledWith(event);
+    });
+
+    it('ignores messages from non-global channels (line 158 branch)', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      service.subscribeToGlobal(handler);
+
+      const listener = getListener(subscriber, 'message');
+      listener!(NOTIFICATION_CHANNELS.user('user-1'), JSON.stringify({}));
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── onModuleDestroy ───────────────────────────────────────────────────────
+
+  describe('onModuleDestroy', () => {
+    it('closes both Redis connections', async () => {
+      const [publisher, subscriber] = getInstances();
+      await service.onModuleDestroy();
+      expect(publisher.quit).toHaveBeenCalledTimes(1);
+      expect(subscriber.quit).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── connect / error event handlers ───────────────────────────────────────
+
+  describe('Redis connection event handlers', () => {
+    it('logs on publisher connect', () => {
+      const [publisher] = getInstances();
+      const logSpy = vi
+        .spyOn((service as any).logger, 'log')
+        .mockImplementation(vi.fn());
+
+      const connectCb = getListener(publisher, 'connect');
+      expect(connectCb).toBeDefined();
+      connectCb!();
+
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('publisher connected'),
+      );
+    });
+
+    it('logs on subscriber connect', () => {
+      const [, subscriber] = getInstances();
+      const logSpy = vi
+        .spyOn((service as any).logger, 'log')
+        .mockImplementation(vi.fn());
+
+      const connectCb = getListener(subscriber, 'connect');
+      expect(connectCb).toBeDefined();
+      connectCb!();
+
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('subscriber connected'),
+      );
+    });
+
+    it('logs on publisher error', () => {
+      const [publisher] = getInstances();
+      const errorSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(vi.fn());
+
+      const errorCb = getListener(publisher, 'error') as
+        | ((e: Error) => void)
+        | undefined;
+      expect(errorCb).toBeDefined();
+      errorCb!(new Error('conn refused'));
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('publisher error'),
+        expect.any(Error),
+      );
+    });
+
+    it('logs on subscriber error', () => {
+      const [, subscriber] = getInstances();
+      const errorSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(vi.fn());
+
+      const errorCb = getListener(subscriber, 'error') as
+        | ((e: Error) => void)
+        | undefined;
+      expect(errorCb).toBeDefined();
+      errorCb!(new Error('conn refused'));
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('subscriber error'),
+        expect.any(Error),
+      );
+    });
+  });
+
+  // ── safeHandle ────────────────────────────────────────────────────────────
+
+  describe('safeHandle (via subscribeToGlobal)', () => {
+    it('logs an error and does not throw when the message is invalid JSON', () => {
+      const [, subscriber] = getInstances();
+      const handler = vi.fn();
+      const errorSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(vi.fn());
+
+      service.subscribeToGlobal(handler);
+
+      const listener = getListener(subscriber, 'message');
+      listener!(NOTIFICATION_CHANNELS.global, 'not-valid-json');
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to parse'),
+      );
+    });
+  });
+
+  // ── publish error (lines 185-186) ─────────────────────────────────────────
+
+  describe('publish — error path', () => {
+    it('logs and re-throws when publisher.publish rejects', async () => {
+      const [publisher] = getInstances();
+      publisher.publish.mockRejectedValueOnce(new Error('Redis down'));
+
+      const errorSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(vi.fn());
+
+      await expect(
+        service.publishUserNotification('user-1', buildMsg('user-1')),
+      ).rejects.toThrow('Redis down');
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to publish'),
+        expect.any(Error),
+      );
+    });
+  });
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function buildMsg(userId: string, orgId = 'org-1') {
+  return {
+    notificationId: 'notif-1',
+    userId,
+    orgId,
+    type: 'test',
+    title: 'Test',
+    body: 'Body',
+    metadata: null,
+    // Cast so TypeScript accepts the value; using an ISO string ensures the
+    // value survives JSON.stringify → JSON.parse unchanged in subscriber tests.
+    createdAt: '2026-01-01T00:00:00.000Z' as unknown as Date,
+  };
+}

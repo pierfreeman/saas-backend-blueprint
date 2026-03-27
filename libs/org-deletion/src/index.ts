@@ -1,7 +1,7 @@
-export * from './lib/org-deletion.module';
-export * from './lib/org-deletion.service';
-export * from './lib/org-deletion-worker.service';
-export * from './lib/org-deletion-scheduler.service';
-export * from './lib/constants/org-deletion-event.constants';
-export * from './lib/interfaces/org-deletion-event.interface';
-
+export * from './org-deletion.module';
+export * from './application/services/org-deletion.service';
+export * from './application/services/org-deletion-worker.service';
+export * from './application/services/org-deletion-scheduler.service';
+export * from './constants/org-deletion-event.constants';
+export * from './interfaces/org-deletion-event.interface';
+export * from './infrastructure/repositories/org-deletion.repository';

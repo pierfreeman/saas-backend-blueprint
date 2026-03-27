@@ -32,8 +32,8 @@ import { LocalTransport, DOMAIN_EVENTS } from '@libs/events';
 import { BillingStatus } from '@prisma/client';
 
 const PRO_PRICE_ID = process.env['STRIPE_PRICE_ID_PRO'] ?? 'price_test_pro';
-const BASIC_PRICE_ID =
-  process.env['STRIPE_PRICE_ID_BASIC'] ?? 'price_test_basic';
+const ENTERPRISE_PRICE_ID =
+  process.env['STRIPE_PRICE_ID_ENTERPRISE'] ?? 'price_test_enterprise';
 
 /** Flush any pending Promises and allow in-process Redis operations to complete. */
 function waitForEventHandlers(): Promise<void> {
@@ -184,7 +184,7 @@ describe('FeatureFlagsService – Redis cache (integration)', () => {
         where: { id: ctx.org.id },
         data: {
           billingStatus: BillingStatus.ACTIVE,
-          planId: PRO_PRICE_ID,
+          planId: ENTERPRISE_PRICE_ID,
         },
       });
 
@@ -249,19 +249,19 @@ describe('FeatureFlagsService – Redis cache (integration)', () => {
         where: { id: ctx.org.id },
         data: {
           billingStatus: BillingStatus.ACTIVE,
-          planId: BASIC_PRICE_ID,
+          planId: ENTERPRISE_PRICE_ID,
         },
       });
       const token = generateTestToken({ sub: ctx.owner.auth0Id });
       const cacheKey = `entitlements:${ctx.org.id}`;
 
-      // Warm cache — PRO tier
+      // Warm cache — ENTERPRISE tier
       const warm = await agent
         .get(`/organizations/${ctx.org.id}/entitlements`)
         .set('Authorization', `Bearer ${token}`)
         .set('x-org-id', ctx.org.id);
 
-      expect(warm.body.plan).toBe('PRO');
+      expect(warm.body.plan).toBe('ENTERPRISE');
       expect(await cache.get(cacheKey)).not.toBeNull();
 
       // Emit cancellation event

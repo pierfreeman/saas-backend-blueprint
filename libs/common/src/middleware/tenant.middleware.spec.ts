@@ -1,6 +1,7 @@
 import { TenantMiddleware } from './tenant.middleware';
 import { Request, Response, NextFunction } from 'express';
 import { TenantRequest } from '../types/tenant-context';
+import { vi } from 'vitest';
 
 describe('TenantMiddleware', () => {
   let middleware: TenantMiddleware;
@@ -9,7 +10,7 @@ describe('TenantMiddleware', () => {
 
   beforeEach(() => {
     middleware = new TenantMiddleware();
-    mockNext = jest.fn();
+    mockNext = vi.fn();
     mockRes = {} as Response;
   });
 

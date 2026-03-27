@@ -6,12 +6,11 @@
   "tags": ["type:e2e"],
   "targets": {
     "e2e": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/{e2eProjectRoot}"],
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/integration/apps/worker-a-e2e"],
       "options": {
-        "jestConfig": "apps/worker-a-e2e/jest.config.cts",
-        "passWithNoTests": true,
-        "runInBand": true
+        "configFile": "apps/worker-a-e2e/vitest.config.ts",
+        "passWithNoTests": true
       }
     }
   }

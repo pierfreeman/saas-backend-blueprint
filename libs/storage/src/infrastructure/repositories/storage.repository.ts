@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { FileStatus, StorageProvider } from '../../domain/enums/storage.enums';
-import { FileMetadata } from '../../storage.types';
+import { FileMetadata } from '../../domain/types';
 
 /**
  * Repository for file metadata persistence.
@@ -96,14 +96,15 @@ export class StorageRepository {
   }
 
   /**
-   * Confirm a file upload.
+   * Confirm a file upload, persisting its actual size.
    */
-  async confirmUpload(fileId: string): Promise<FileMetadata> {
+  async confirmUpload(fileId: string, size: bigint): Promise<FileMetadata> {
     const file = await this.prisma.file.update({
       where: { id: fileId },
       data: {
         status: FileStatus.COMPLETED,
         confirmedAt: new Date(),
+        size,
       },
     });
 

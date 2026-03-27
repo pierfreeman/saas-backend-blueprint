@@ -1,34 +1,40 @@
 import { ExecutionContext } from '@nestjs/common';
 import { TenantContext, TenantRequest } from '../types/tenant-context';
+import { vi } from 'vitest';
 
 /**
  * Capture the extractor callback registered by createParamDecorator.
- * jest.mock is hoisted by Jest before any import/require statements run,
- * so `extractorFn` will be populated when the module is first loaded.
+ * vi.hoisted() ensures the variable is available when the hoisted vi.mock()
+ * factory runs (before module variable declarations are processed in ESM).
  */
-let extractorFn: (
-  field: keyof TenantContext | undefined,
-  ctx: ExecutionContext,
-) => unknown;
+const state = vi.hoisted(
+  () =>
+    ({ extractorFn: undefined }) as {
+      extractorFn:
+        | ((
+            field: keyof TenantContext | undefined,
+            ctx: ExecutionContext,
+          ) => unknown)
+        | undefined;
+    },
+);
 
-jest.mock('@nestjs/common', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const actual = jest.requireActual(
-    '@nestjs/common',
-  ) as typeof import('@nestjs/common');
+vi.mock('@nestjs/common', async (importActual) => {
+  const actual = await importActual<typeof import('@nestjs/common')>();
   return {
     ...actual,
     createParamDecorator: (fn: any) => {
-      extractorFn = fn;
+      state.extractorFn = fn;
       return actual.createParamDecorator(fn);
     },
   };
 });
 
-// Import AFTER the mock factory is declared (hoisting ensures the mock is
-// active before the module code runs).
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-require('./current-tenant.decorator');
+// Load the decorator after the mock is registered so createParamDecorator
+// is intercepted and extractorFn is populated.
+beforeAll(async () => {
+  await import('./current-tenant.decorator');
+});
 
 function makeContext(tenantContext?: TenantContext): ExecutionContext {
   const request: Partial<TenantRequest> = { tenantContext };
@@ -49,30 +55,33 @@ describe('CurrentTenant decorator', () => {
   };
 
   it('captures the extractor callback via createParamDecorator', () => {
-    expect(typeof extractorFn).toBe('function');
+    expect(typeof state.extractorFn).toBe('function');
   });
 
   it('returns the full TenantContext when no field is specified', () => {
     const ctx = makeContext(baseCtx);
-    expect(extractorFn(undefined, ctx)).toBe(baseCtx);
+    expect(state.extractorFn!(undefined, ctx)).toBe(baseCtx);
   });
 
   it('returns a specific field when a field name is provided', () => {
     const ctx = makeContext(baseCtx);
-    expect(extractorFn('tenantId', ctx)).toBe('org-1');
-    expect(extractorFn('userId', ctx)).toBe('user-42');
-    expect(extractorFn('role', ctx)).toBe('ADMIN');
-    expect(extractorFn('permissions', ctx)).toEqual(['org.read', 'org.manage']);
+    expect(state.extractorFn!('tenantId', ctx)).toBe('org-1');
+    expect(state.extractorFn!('userId', ctx)).toBe('user-42');
+    expect(state.extractorFn!('role', ctx)).toBe('ADMIN');
+    expect(state.extractorFn!('permissions', ctx)).toEqual([
+      'org.read',
+      'org.manage',
+    ]);
   });
 
   it('returns undefined when tenantContext is not set and no field specified', () => {
     const ctx = makeContext(undefined);
-    expect(extractorFn(undefined, ctx)).toBeUndefined();
+    expect(state.extractorFn!(undefined, ctx)).toBeUndefined();
   });
 
   it('returns undefined when tenantContext is not set and a field is specified', () => {
     const ctx = makeContext(undefined);
-    expect(extractorFn('tenantId', ctx)).toBeUndefined();
+    expect(state.extractorFn!('tenantId', ctx)).toBeUndefined();
   });
 
   it('returns undefined when the requested field is absent from a partial context', () => {
@@ -81,11 +90,11 @@ describe('CurrentTenant decorator', () => {
       timestamp: new Date(),
     } as TenantContext;
     const ctx = makeContext(partialCtx);
-    expect(extractorFn('userId', ctx)).toBeUndefined();
+    expect(state.extractorFn!('userId', ctx)).toBeUndefined();
   });
 
   it('returns the timestamp object when field is "timestamp"', () => {
     const ctx = makeContext(baseCtx);
-    expect(extractorFn('timestamp', ctx)).toBe(baseCtx.timestamp);
+    expect(state.extractorFn!('timestamp', ctx)).toBe(baseCtx.timestamp);
   });
 });

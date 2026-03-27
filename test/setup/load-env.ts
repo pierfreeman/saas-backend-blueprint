@@ -1,5 +1,5 @@
 /**
- * Jest setupFile — loaded in each Jest worker BEFORE test files are imported.
+ * Vitest setupFile — loaded in each Vitest worker BEFORE test files are imported.
  *
  * Loads .env.test into process.env so that:
  *  1. NestJS ConfigModule picks up test database URLs and auth config.

@@ -8,6 +8,7 @@
 import { JobsGateway } from './jobs.gateway';
 import { PubSubService } from '@libs/redis';
 import { JobStatus } from '@prisma/client';
+import { Mock, Mocked, vi } from 'vitest';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,10 +34,10 @@ function makeSocket(overrides: Record<string, unknown> = {}) {
       query: {},
       headers: {},
     },
-    join: jest.fn(async (room: string) => {
+    join: vi.fn(async (room: string) => {
       rooms.add(room);
     }),
-    disconnect: jest.fn(),
+    disconnect: vi.fn(),
     userId: undefined as string | undefined,
     tenantId: undefined as string | undefined,
     _rooms: rooms,
@@ -47,12 +48,12 @@ function makeSocket(overrides: Record<string, unknown> = {}) {
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockServer = {
-  to: jest.fn().mockReturnThis(),
-  emit: jest.fn(),
+  to: vi.fn().mockReturnThis(),
+  emit: vi.fn(),
 };
 
-const mockPubSub: jest.Mocked<Pick<PubSubService, 'pSubscribe'>> = {
-  pSubscribe: jest.fn(),
+const mockPubSub: Mocked<Pick<PubSubService, 'pSubscribe'>> = {
+  pSubscribe: vi.fn(),
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -61,7 +62,7 @@ describe('JobsGateway', () => {
   let gateway: JobsGateway;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     gateway = new JobsGateway(mockPubSub as unknown as PubSubService);
     // Inject the mock server (normally set by NestJS via @WebSocketServer).
     (gateway as any).server = mockServer;
@@ -226,7 +227,7 @@ describe('JobsGateway', () => {
       await gateway.handleConnection(socket as any);
 
       expect(socket.join).toHaveBeenCalledWith('user:user-4');
-      const joinCalls = (socket.join as jest.Mock).mock.calls.map(
+      const joinCalls = (socket.join as Mock).mock.calls.map(
         ([r]: [string]) => r,
       );
       expect(joinCalls.some((r) => r.startsWith('tenant:'))).toBe(false);
@@ -242,7 +243,7 @@ describe('JobsGateway', () => {
     });
 
     it('logs the correct user id on disconnect', () => {
-      const logSpy = jest
+      const logSpy = vi
         .spyOn((gateway as any).logger, 'log')
         .mockImplementation(() => undefined);
 
@@ -250,6 +251,64 @@ describe('JobsGateway', () => {
       gateway.handleDisconnect(socket as any);
 
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('user-5'));
+    });
+  });
+
+  // ── handleConnection error path (lines 123-124) ──────────────────────────
+
+  describe('handleConnection — unexpected error in catch block', () => {
+    it('disconnects the socket when client.join throws unexpectedly', async () => {
+      const token = makeToken('user-err');
+      const socket = makeSocket({
+        handshake: {
+          auth: { token },
+          query: {},
+          headers: {},
+        },
+      });
+      // Force client.join to throw to trigger the catch block (lines 123-124)
+      (socket.join as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('join failed'),
+      );
+
+      await gateway.handleConnection(socket as any);
+
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── decodeJwt — token with fewer than 2 segments (line 170) ─────────────
+
+  describe('decodeJwt private method — short token branch', () => {
+    it('returns null when the token has fewer than 2 segments', async () => {
+      // A token without a "." has only 1 segment — triggers `if (segments.length < 2) return null`
+      const socket = makeSocket({
+        handshake: {
+          auth: { token: 'nosegments' },
+          query: {},
+          headers: {},
+        },
+      });
+
+      await gateway.handleConnection(socket as any);
+
+      // No valid sub → must disconnect
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns null when the JWT payload is invalid JSON', async () => {
+      // Two segments but the second is not valid base64url JSON
+      const header = Buffer.from('{"alg":"RS256"}').toString('base64url');
+      const badPayload = '!!!not-valid-base64!!!';
+      const token = `${header}.${badPayload}.sig`;
+
+      const socket = makeSocket({
+        handshake: { auth: { token }, query: {}, headers: {} },
+      });
+
+      await gateway.handleConnection(socket as any);
+
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
     });
   });
 });

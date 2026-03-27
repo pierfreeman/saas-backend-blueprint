@@ -15,10 +15,11 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { FeatureFlagsService } from './feature-flags.service';
-import { OrganizationEntitlements } from './interfaces/entitlements.interface';
+import { OrgContextGuard, OrgScoped } from '@libs/rbac';
+import {
+  FeatureFlagsService,
+  OrganizationEntitlements,
+} from '@libs/feature-flags';
 
 @ApiTags('Feature Flags')
 @ApiBearerAuth()
@@ -50,6 +51,7 @@ export class FeatureFlagsController {
         'apiAccess',
         'ssoEnabled',
         'prioritySupport',
+        'maxSeats',
       ],
       properties: {
         organizationId: { type: 'string', format: 'uuid' },
@@ -78,6 +80,7 @@ export class FeatureFlagsController {
         apiAccess: { type: 'boolean', example: true },
         ssoEnabled: { type: 'boolean', example: false },
         prioritySupport: { type: 'boolean', example: false },
+        maxSeats: { type: 'integer', example: 10 },
       },
     },
   })

@@ -226,7 +226,7 @@ describe('Worker-A Job Lifecycle (integration)', () => {
 
     // Spy on doWork to simulate a failure
     const errorMessage = 'Simulated processing failure';
-    jest
+    vi
       .spyOn(
         workerController as unknown as { doWork: () => Promise<unknown> },
         'doWork',

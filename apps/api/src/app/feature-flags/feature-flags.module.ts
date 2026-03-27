@@ -1,10 +1,7 @@
 import { Module } from '@nestjs/common';
-import { PrismaBusinessModule } from '@libs/prisma-business';
-import { RedisModule } from '@libs/redis';
-import { RBACModule } from '../rbac/rbac.module';
-import { FeatureFlagsService } from './feature-flags.service';
+import { FeatureFlagsModule as FeatureFlagsLibModule } from '@libs/feature-flags';
+import { RBACModule } from '@libs/rbac';
 import { FeatureFlagsController } from './feature-flags.controller';
-import { FeatureGuard } from './guards/feature.guard';
 
 /**
  * FeatureFlagsModule
@@ -35,16 +32,14 @@ import { FeatureGuard } from './guards/feature.guard';
  * ```
  *
  * Plan tier resolution is driven by env vars (see FeatureFlagsService):
- *   STRIPE_PRICE_ID_PRO   → ENTERPRISE tier
- *   STRIPE_PRICE_ID_BASIC → PRO tier
+ *   STRIPE_PRICE_ID_PRO   → PRO tier
+ *   STRIPE_PRICE_ID_ENTERPRISE → ENTERPRISE tier
  *   (none / unknown)      → FREE tier
  *
  * Cache TTL: FEATURE_FLAGS_CACHE_TTL (seconds, default 600).
  */
 @Module({
-  imports: [PrismaBusinessModule, RedisModule, RBACModule],
+  imports: [FeatureFlagsLibModule, RBACModule],
   controllers: [FeatureFlagsController],
-  providers: [FeatureFlagsService, FeatureGuard],
-  exports: [FeatureFlagsService, FeatureGuard],
 })
 export class FeatureFlagsModule {}

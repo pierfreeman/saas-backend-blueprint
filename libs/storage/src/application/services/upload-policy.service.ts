@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { StorageConfig } from '@libs/config';
-import { UploadPolicy, StorageQuota, PlanType } from '../../storage.types';
+import { UploadPolicy, StorageQuota, PlanType } from '../../domain/types';
 import { StorageRepository } from '../../infrastructure/repositories/storage.repository';
 
 /**
@@ -86,7 +86,9 @@ export class UploadPolicyService {
     if (orgStorageLimit !== undefined && orgStorageLimit !== null) {
       storageLimitBytes = orgStorageLimit;
     } else if (storageLimitGb !== undefined) {
-      storageLimitBytes = BigInt(storageLimitGb * 1024 * 1024 * 1024);
+      storageLimitBytes = BigInt(
+        Math.round(storageLimitGb * 1024 * 1024 * 1024),
+      );
     }
 
     return {

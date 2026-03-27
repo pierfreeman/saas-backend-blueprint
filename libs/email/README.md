@@ -411,10 +411,14 @@ libs/email/src/lib/
 
 ```typescript
 // Mock SendGrid in your tests
-jest.mock('@sendgrid/mail');
+const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
+vi.mock('@sendgrid/mail', () => ({
+  __esModule: true,
+  default: { send: mockSend, setApiKey: vi.fn() },
+  send: mockSend,
+}));
 
-const mockSend = jest.fn().mockResolvedValue([{ statusCode: 202 }]);
-(SendGridMail.send as jest.Mock) = mockSend;
+mockSend.mockResolvedValue([{ statusCode: 202 }]);
 
 // Verify email was sent
 expect(mockSend).toHaveBeenCalledWith(

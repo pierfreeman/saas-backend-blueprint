@@ -19,13 +19,23 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Membership } from '@prisma/client';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { RequirePermissions } from '../rbac/decorators/require-permissions.decorator';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import {
+  OrgScoped,
+  RequirePermissions,
+  OrgContextGuard,
+  RBACGuard,
+  RBACCacheService,
+  CurrentUserId,
+} from '@libs/rbac';
 import { CreateMembershipDto } from './dto/create-membership.dto';
+import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
-import { MembershipsService } from './memberships.service';
+import { MembershipsService } from '@libs/memberships';
+import {
+  InviteMemberService,
+  InviteMemberResult,
+} from './invite-member.service';
+import { RemoveMemberService } from './remove-member.service';
 
 @ApiTags('Memberships')
 @ApiBearerAuth()
@@ -33,7 +43,12 @@ import { MembershipsService } from './memberships.service';
 @UseGuards(JwtAuthGuard, OrgContextGuard, RBACGuard)
 @Controller('organizations/:orgId/memberships')
 export class MembershipsController {
-  constructor(private readonly membershipsService: MembershipsService) {}
+  constructor(
+    private readonly membershipsService: MembershipsService,
+    private readonly rbacCacheService: RBACCacheService,
+    private readonly inviteMemberService: InviteMemberService,
+    private readonly removeMemberService: RemoveMemberService,
+  ) {}
 
   @Post()
   @RequirePermissions([PERMISSIONS.ORG_MEMBERS_INVITE])
@@ -119,7 +134,12 @@ export class MembershipsController {
     @Param('orgId') orgId: string,
     @Body() dto: CreateMembershipDto,
   ): Promise<Membership> {
-    return this.membershipsService.createMembership(orgId, dto);
+    const membership = await this.membershipsService.createMembership(
+      orgId,
+      dto,
+    );
+    await this.rbacCacheService.invalidate(membership.userId, membership.orgId);
+    return membership;
   }
 
   @Get()
@@ -128,7 +148,7 @@ export class MembershipsController {
     summary: 'List all members of an organization',
     description:
       'Returns all membership records for the given organization, including each ' +
-      "member's role and status. Requires ORG_READ permission.",
+      "member's role, status, and basic user profile. Requires ORG_READ permission.",
   })
   @ApiParam({
     name: 'orgId',
@@ -177,6 +197,18 @@ export class MembershipsController {
             type: 'string',
             format: 'date-time',
             example: '2026-02-26T12:34:56.789Z',
+          },
+          user: {
+            type: 'object',
+            description: 'Basic profile of the member.',
+            properties: {
+              email: {
+                type: 'string',
+                format: 'email',
+                description: 'Email address from the Auth0 token.',
+                example: 'alice@example.com',
+              },
+            },
           },
         },
       },
@@ -279,7 +311,13 @@ export class MembershipsController {
     @Param('id') id: string,
     @Body() dto: UpdateMembershipDto,
   ): Promise<Membership> {
-    return this.membershipsService.updateMembership(id, orgId, dto);
+    const membership = await this.membershipsService.updateMembership(
+      id,
+      orgId,
+      dto,
+    );
+    await this.rbacCacheService.invalidate(membership.userId, membership.orgId);
+    return membership;
   }
 
   @Delete(':id')
@@ -328,8 +366,63 @@ export class MembershipsController {
   async delete(
     @Param('orgId') orgId: string,
     @Param('id') id: string,
+    @CurrentUserId() actorUserId: string,
   ): Promise<{ message: string }> {
-    await this.membershipsService.deleteMembership(id, orgId);
+    await this.removeMemberService.remove(id, orgId, actorUserId);
+    await this.rbacCacheService.invalidateOrg(orgId);
     return { message: 'Membership deleted successfully' };
+  }
+
+  @Post('invite')
+  @RequirePermissions([PERMISSIONS.ORG_MEMBERS_INVITE])
+  @ApiOperation({
+    summary: 'Invite a new or existing user by email',
+    description:
+      'Sends an email invitation to the given address. ' +
+      'If the user does not exist they are created in Auth0 and Prisma, ' +
+      'and a password-change ticket (7-day TTL) is used as the invite link. ' +
+      'If they already have an account the invite link points to the frontend. ' +
+      'Requires ORG_MEMBERS_INVITE permission (OWNER or ADMIN).',
+  })
+  @ApiParam({
+    name: 'orgId',
+    description: 'Organization UUID',
+    example: 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Invitation sent successfully.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Invitation sent successfully.' },
+      },
+      required: ['message'],
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Validation failed — email must be a valid address; role must be a valid MembershipRole.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'The user is already a member of this organization.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Caller lacks ORG_MEMBERS_INVITE permission, or the organization has reached its seat limit.',
+  })
+  async invite(
+    @Param('orgId') orgId: string,
+    @Body() dto: InviteMemberDto,
+    @CurrentUserId() inviterUserId: string,
+  ): Promise<InviteMemberResult> {
+    return this.inviteMemberService.invite(dto, orgId, inviterUserId);
   }
 }

@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Docker: Start infra only",
+      "type": "shell",
+      // Starts all infra services but NOT api/worker-a — so you can run those
+      // locally via nx serve and attach the VSCode debugger.
+      "command": "docker compose up mailpit postgres postgres-legal redis localstack migrate migrate-legal --wait",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "migrate.*exited with code 0|migrate-legal.*exited with code 0"
+        }
+      }
+    }
+  ]
+}

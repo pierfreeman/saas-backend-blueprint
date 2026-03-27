@@ -9,6 +9,7 @@ import { LegalAuditService } from '@libs/legal-audit';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { BillingStatus } from '../../domain/enums/billing-status.enum';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
+import { Mocked, vi } from 'vitest';
 
 const mockOrg = (): SubscriptionEntity => ({
   orgId: 'org-uuid-001',
@@ -16,7 +17,6 @@ const mockOrg = (): SubscriptionEntity => ({
   subscriptionId: null,
   billingStatus: BillingStatus.NONE,
   planId: null,
-  seatCount: 1,
   storageLimit: null,
   subscriptionPeriodStart: null,
   subscriptionPeriodEnd: null,
@@ -25,12 +25,12 @@ const mockOrg = (): SubscriptionEntity => ({
 
 describe('BillingService', () => {
   let service: BillingService;
-  let billingRepository: jest.Mocked<BillingRepository>;
-  let stripeService: jest.Mocked<StripeService>;
-  let activityLog: jest.Mocked<ActivityLogService>;
-  let legalAudit: jest.Mocked<LegalAuditService>;
-  let eventBus: jest.Mocked<EventBusService>;
-  let configService: jest.Mocked<ConfigService>;
+  let billingRepository: Mocked<BillingRepository>;
+  let stripeService: Mocked<StripeService>;
+  let activityLog: Mocked<ActivityLogService>;
+  let legalAudit: Mocked<LegalAuditService>;
+  let eventBus: Mocked<EventBusService>;
+  let configService: Mocked<ConfigService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -39,36 +39,39 @@ describe('BillingService', () => {
         {
           provide: BillingRepository,
           useValue: {
-            findOrgById: jest.fn(),
-            updateOrgBillingData: jest.fn(),
-            createBillingEvent: jest.fn(),
-            findSnapshotsByOrgId: jest.fn(),
+            findOrgById: vi.fn(),
+            updateOrgBillingData: vi.fn(),
+            createBillingEvent: vi.fn(),
+            findBillingEvent: vi.fn(),
+            findSnapshotsByOrgId: vi.fn(),
+            findOrgMeta: vi.fn(),
+            getOrgBillingStatus: vi.fn(),
           },
         },
         {
           provide: StripeService,
           useValue: {
-            createCustomer: jest.fn(),
-            createCheckoutSession: jest.fn(),
-            createPortalSession: jest.fn(),
-            cancelSubscription: jest.fn(),
+            createCustomer: vi.fn(),
+            createCheckoutSession: vi.fn(),
+            createPortalSession: vi.fn(),
+            cancelSubscription: vi.fn(),
           },
         },
         {
           provide: ActivityLogService,
-          useValue: { logActivity: jest.fn() },
+          useValue: { logActivity: vi.fn() },
         },
         {
           provide: LegalAuditService,
-          useValue: { recordEvent: jest.fn() },
+          useValue: { recordEvent: vi.fn() },
         },
         {
           provide: EventBusService,
-          useValue: { publish: jest.fn().mockResolvedValue(undefined) },
+          useValue: { publish: vi.fn().mockResolvedValue(undefined) },
         },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn() },
+          useValue: { get: vi.fn() },
         },
       ],
     }).compile();
@@ -162,19 +165,35 @@ describe('BillingService', () => {
       );
     });
 
-    it('throws BadRequestException when org has no stripeCustomerId', async () => {
-      billingRepository.findOrgById.mockResolvedValue({
-        ...mockOrg(),
-        stripeCustomerId: null,
+    it('auto-provisions a Stripe customer when org has no stripeCustomerId', async () => {
+      const orgWithoutCustomer = { ...mockOrg(), stripeCustomerId: null };
+      const orgWithCustomer = mockOrg();
+      billingRepository.findOrgById
+        .mockResolvedValueOnce(orgWithoutCustomer) // initial fetch in createCheckoutSession
+        .mockResolvedValueOnce(orgWithoutCustomer) // ensureStripeCustomer's own fetch
+        .mockResolvedValueOnce(orgWithCustomer); // re-fetch after provision
+      billingRepository.findOrgMeta.mockResolvedValue({
+        name: 'Test Org',
+        ownerEmail: 'owner@test.com',
       });
+      stripeService.createCustomer.mockResolvedValue({
+        id: 'cus_new_001',
+      } as never);
+      billingRepository.updateOrgBillingData.mockResolvedValue(undefined);
+      stripeService.createCheckoutSession.mockResolvedValue({
+        id: 'cs_001',
+        url: 'https://checkout.stripe.com/pay/cs_001',
+      } as never);
+      configService.get.mockReturnValue(undefined);
 
-      await expect(
-        service.createCheckoutSession(
-          'org-uuid-001',
-          'price_pro',
-          'user-uuid-001',
-        ),
-      ).rejects.toThrow(BadRequestException);
+      const result = await service.createCheckoutSession(
+        'org-uuid-001',
+        'price_pro',
+        'user-uuid-001',
+      );
+
+      expect(stripeService.createCustomer).toHaveBeenCalled();
+      expect(result.url).toContain('checkout.stripe.com');
     });
 
     it('throws BadRequestException when checkout session has no URL', async () => {
@@ -217,15 +236,34 @@ describe('BillingService', () => {
       );
     });
 
-    it('throws BadRequestException when org has no stripeCustomerId', async () => {
-      billingRepository.findOrgById.mockResolvedValue({
-        ...mockOrg(),
-        stripeCustomerId: null,
+    it('auto-provisions a Stripe customer when org has no stripeCustomerId', async () => {
+      const orgWithoutCustomer = { ...mockOrg(), stripeCustomerId: null };
+      const orgWithCustomer = mockOrg();
+      billingRepository.findOrgById
+        .mockResolvedValueOnce(orgWithoutCustomer) // initial fetch in createPortalSession
+        .mockResolvedValueOnce(orgWithoutCustomer) // ensureStripeCustomer's own fetch
+        .mockResolvedValueOnce(orgWithCustomer); // re-fetch after provision
+      billingRepository.findOrgMeta.mockResolvedValue({
+        name: 'Test Org',
+        ownerEmail: 'owner@test.com',
       });
+      stripeService.createCustomer.mockResolvedValue({
+        id: 'cus_new_001',
+      } as never);
+      billingRepository.updateOrgBillingData.mockResolvedValue(undefined);
+      stripeService.createPortalSession.mockResolvedValue({
+        url: 'https://billing.stripe.com/session/xxx',
+      } as never);
+      configService.get.mockReturnValue(undefined);
 
-      await expect(
-        service.createPortalSession('org-uuid-001', undefined, 'user-uuid-001'),
-      ).rejects.toThrow(BadRequestException);
+      const result = await service.createPortalSession(
+        'org-uuid-001',
+        undefined,
+        'user-uuid-001',
+      );
+
+      expect(stripeService.createCustomer).toHaveBeenCalled();
+      expect(result.url).toContain('billing.stripe.com');
     });
   });
 
@@ -331,6 +369,67 @@ describe('BillingService', () => {
       await expect(
         service.getSubscriptionHistory('org-uuid-missing', 10, 0),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── getOrgBillingStatus ─────────────────────────────────────────────────────
+
+  describe('getOrgBillingStatus', () => {
+    it('delegates to billingRepository.getOrgBillingStatus', async () => {
+      const status = {
+        planId: 'price_pro',
+        billingStatus: 'ACTIVE',
+        storageLimit: null,
+      };
+      billingRepository.getOrgBillingStatus.mockResolvedValue(status as any);
+
+      const result = await service.getOrgBillingStatus('org-uuid-001');
+
+      expect(result).toEqual(status);
+      expect(billingRepository.getOrgBillingStatus).toHaveBeenCalledWith(
+        'org-uuid-001',
+      );
+    });
+
+    it('returns null when org has no billing record', async () => {
+      billingRepository.getOrgBillingStatus.mockResolvedValue(null as any);
+
+      const result = await service.getOrgBillingStatus('org-uuid-001');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ─── findBillingEvent ────────────────────────────────────────────────────────
+
+  describe('findBillingEvent', () => {
+    it('delegates to billingRepository.findBillingEvent', async () => {
+      billingRepository.findBillingEvent.mockResolvedValue({
+        id: 'be_001',
+      } as any);
+
+      const result = await service.findBillingEvent('evt_001');
+
+      expect(result).toEqual({ id: 'be_001' });
+      expect(billingRepository.findBillingEvent).toHaveBeenCalledWith(
+        'evt_001',
+      );
+    });
+  });
+
+  // ─── createBillingEvent ──────────────────────────────────────────────────────
+
+  describe('createBillingEvent', () => {
+    it('delegates to billingRepository.createBillingEvent', async () => {
+      billingRepository.createBillingEvent.mockResolvedValue(undefined as any);
+
+      await service.createBillingEvent('evt_001', 'hash_abc', 'org-uuid-001');
+
+      expect(billingRepository.createBillingEvent).toHaveBeenCalledWith(
+        'evt_001',
+        'hash_abc',
+        'org-uuid-001',
+      );
     });
   });
 });

@@ -4,6 +4,7 @@ import { InternalServerErrorException } from '@nestjs/common';
 import Stripe from 'stripe';
 import { StripeService } from './stripe.service';
 import { StripeClient } from './stripe.client';
+import { Mock, vi } from 'vitest';
 
 /**
  * Unit tests for StripeService.
@@ -12,20 +13,20 @@ import { StripeClient } from './stripe.client';
 describe('StripeService', () => {
   let service: StripeService;
   let mockStripeInstance: {
-    customers: { create: jest.Mock };
-    checkout: { sessions: { create: jest.Mock } };
-    billingPortal: { sessions: { create: jest.Mock } };
-    subscriptions: { retrieve: jest.Mock; update: jest.Mock };
-    webhooks: { constructEvent: jest.Mock };
+    customers: { create: Mock; del: Mock };
+    checkout: { sessions: { create: Mock } };
+    billingPortal: { sessions: { create: Mock } };
+    subscriptions: { retrieve: Mock; update: Mock; cancel: Mock };
+    webhooks: { constructEvent: Mock };
   };
 
   beforeEach(async () => {
     mockStripeInstance = {
-      customers: { create: jest.fn() },
-      checkout: { sessions: { create: jest.fn() } },
-      billingPortal: { sessions: { create: jest.fn() } },
-      subscriptions: { retrieve: jest.fn(), update: jest.fn() },
-      webhooks: { constructEvent: jest.fn() },
+      customers: { create: vi.fn(), del: vi.fn() },
+      checkout: { sessions: { create: vi.fn() } },
+      billingPortal: { sessions: { create: vi.fn() } },
+      subscriptions: { retrieve: vi.fn(), update: vi.fn(), cancel: vi.fn() },
+      webhooks: { constructEvent: vi.fn() },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -40,7 +41,7 @@ describe('StripeService', () => {
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((key: string) => {
+            get: vi.fn((key: string) => {
               if (key === 'STRIPE_WEBHOOK_SECRET') return 'whsec_test_secret';
               return undefined;
             }),
@@ -111,7 +112,7 @@ describe('StripeService', () => {
           mode: 'subscription',
           line_items: [{ price: 'price_pro', quantity: 1 }],
         }),
-        expect.objectContaining({}),
+        undefined,
       );
     });
 
@@ -275,7 +276,7 @@ describe('StripeService', () => {
           { provide: StripeClient, useValue: { stripe: mockStripeInstance } },
           {
             provide: ConfigService,
-            useValue: { get: jest.fn().mockReturnValue(undefined) },
+            useValue: { get: vi.fn().mockReturnValue(undefined) },
           },
         ],
       });
@@ -301,11 +302,11 @@ describe('StripeService', () => {
 
     beforeEach(async () => {
       fastMock = {
-        customers: { create: jest.fn() },
-        checkout: { sessions: { create: jest.fn() } },
-        billingPortal: { sessions: { create: jest.fn() } },
-        subscriptions: { retrieve: jest.fn(), update: jest.fn() },
-        webhooks: { constructEvent: jest.fn() },
+        customers: { create: vi.fn() },
+        checkout: { sessions: { create: vi.fn() } },
+        billingPortal: { sessions: { create: vi.fn() } },
+        subscriptions: { retrieve: vi.fn(), update: vi.fn() },
+        webhooks: { constructEvent: vi.fn() },
       };
 
       const module: TestingModule = await Test.createTestingModule({
@@ -438,6 +439,56 @@ describe('StripeService', () => {
       await fastService.cancelSubscription('sub_1');
 
       expect(fastMock.subscriptions.update).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ─── terminateSubscription ───────────────────────────────────────────────────
+
+  describe('terminateSubscription', () => {
+    it('cancels the subscription immediately via stripe.subscriptions.cancel', async () => {
+      mockStripeInstance.subscriptions.cancel.mockResolvedValue({
+        id: 'sub_001',
+        status: 'canceled',
+      });
+
+      await expect(
+        service.terminateSubscription('sub_001'),
+      ).resolves.not.toThrow();
+      expect(mockStripeInstance.subscriptions.cancel).toHaveBeenCalledWith(
+        'sub_001',
+      );
+    });
+
+    it('swallows errors (non-fatal) when cancellation fails', async () => {
+      mockStripeInstance.subscriptions.cancel.mockRejectedValue(
+        new Error('subscription already cancelled'),
+      );
+
+      await expect(
+        service.terminateSubscription('sub_001'),
+      ).resolves.not.toThrow();
+    });
+  });
+
+  // ─── deleteCustomer ──────────────────────────────────────────────────────────
+
+  describe('deleteCustomer', () => {
+    it('deletes the customer via stripe.customers.del', async () => {
+      mockStripeInstance.customers.del.mockResolvedValue({
+        id: 'cus_001',
+        deleted: true,
+      });
+
+      await expect(service.deleteCustomer('cus_001')).resolves.not.toThrow();
+      expect(mockStripeInstance.customers.del).toHaveBeenCalledWith('cus_001');
+    });
+
+    it('swallows errors (non-fatal) when deletion fails', async () => {
+      mockStripeInstance.customers.del.mockRejectedValue(
+        new Error('customer already deleted'),
+      );
+
+      await expect(service.deleteCustomer('cus_001')).resolves.not.toThrow();
     });
   });
 });

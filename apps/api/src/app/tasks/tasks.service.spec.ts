@@ -1,23 +1,22 @@
 import { NotFoundException } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { EventBusService } from '@libs/events';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { JobService } from '@libs/jobs';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { JobStatus } from '@prisma/client';
+import { Mock, vi } from 'vitest';
 
-// ── Mocks ─────────────────────────────────────────────────────────────────────
+// ── Mocks ────────────────────────────────────────────────────────────────────────────
 
 const mockEventBus = {
-  publish: jest.fn(),
+  publish: vi.fn(),
 } as unknown as EventBusService;
 
-const mockPrisma = {
-  job: {
-    create: jest.fn(),
-    delete: jest.fn(),
-    findFirst: jest.fn(),
-  },
-} as unknown as PrismaBusinessService;
+const mockJobService = {
+  create: vi.fn(),
+  delete: vi.fn(),
+  findByIdAndOrg: vi.fn(),
+} as unknown as JobService;
 
 const validDto: CreateTaskDto = { name: 'test-job', data: { key: 'value' } };
 
@@ -38,46 +37,41 @@ const baseJob = {
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
-
 describe('TasksService', () => {
   let service: TasksService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (mockPrisma.job.create as jest.Mock).mockResolvedValue(baseJob);
-    (mockPrisma.job.delete as jest.Mock).mockResolvedValue(baseJob);
-    service = new TasksService(mockEventBus, mockPrisma);
+    vi.clearAllMocks();
+    (mockJobService.create as Mock).mockResolvedValue(undefined);
+    (mockJobService.delete as Mock).mockResolvedValue(undefined);
+    service = new TasksService(mockEventBus, mockJobService);
   });
 
   // ── createHeavyJob ──────────────────────────────────────────────────────────
-
   describe('createHeavyJob', () => {
     it('creates a PENDING job record before publishing the event', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
 
       const result = await service.createHeavyJob('org-1', validDto, 'user-1');
 
-      // Prisma create must be called before eventBus.publish
-      const createOrder = (mockPrisma.job.create as jest.Mock).mock
+      // jobRepo.create must be called before eventBus.publish
+      const createOrder = (mockJobService.create as Mock).mock
         .invocationCallOrder[0];
-      const publishOrder = (mockEventBus.publish as jest.Mock).mock
+      const publishOrder = (mockEventBus.publish as Mock).mock
         .invocationCallOrder[0];
       expect(createOrder).toBeLessThan(publishOrder);
 
-      expect(mockPrisma.job.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          id: result.jobId,
-          orgId: 'org-1',
-          userId: 'user-1',
-          type: 'heavy_job',
-          status: 'PENDING',
-          payload: validDto,
-        }),
-      });
+      expect(mockJobService.create).toHaveBeenCalledWith(
+        result.jobId,
+        'org-1',
+        'heavy_job',
+        validDto,
+        'user-1',
+      );
     });
 
     it('publishes a HEAVY_JOB_CREATED event with the correct shape', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
 
       const result = await service.createHeavyJob('org-1', validDto, 'user-1');
 
@@ -96,7 +90,7 @@ describe('TasksService', () => {
     });
 
     it('returns a UUID jobId', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
       const result = await service.createHeavyJob('org-1', validDto);
       expect(result.jobId).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
@@ -104,14 +98,14 @@ describe('TasksService', () => {
     });
 
     it('includes a valid Date timestamp in the event', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
       await service.createHeavyJob('org-2', { name: 'job-2' });
-      const event = (mockEventBus.publish as jest.Mock).mock.calls[0][0];
+      const event = (mockEventBus.publish as Mock).mock.calls[0][0];
       expect(event.timestamp).toBeInstanceOf(Date);
     });
 
     it('deletes the PENDING job and re-throws when publish fails', async () => {
-      mockEventBus.publish = jest
+      mockEventBus.publish = vi
         .fn()
         .mockRejectedValue(new Error('SQS unavailable'));
 
@@ -119,11 +113,11 @@ describe('TasksService', () => {
         service.createHeavyJob('org-1', { name: 'j' }),
       ).rejects.toThrow('SQS unavailable');
 
-      expect(mockPrisma.job.delete).toHaveBeenCalledTimes(1);
+      expect(mockJobService.delete).toHaveBeenCalledTimes(1);
     });
 
     it('generates a unique UUID jobId per invocation', async () => {
-      mockEventBus.publish = jest.fn().mockResolvedValue('msg-id');
+      mockEventBus.publish = vi.fn().mockResolvedValue('msg-id');
       const r1 = await service.createHeavyJob('org-1', { name: 'j1' });
       const r2 = await service.createHeavyJob('org-1', { name: 'j2' });
       expect(r1.jobId).not.toBe(r2.jobId);
@@ -131,21 +125,23 @@ describe('TasksService', () => {
   });
 
   // ── findJobById ─────────────────────────────────────────────────────────────
-
   describe('findJobById', () => {
     it('returns the job when found for the given tenant', async () => {
-      (mockPrisma.job.findFirst as jest.Mock).mockResolvedValue(baseJob);
+      (mockJobService.findByIdAndOrg as Mock).mockResolvedValue(baseJob);
 
       const job = await service.findJobById('job-uuid-1', 'org-1');
 
       expect(job).toBe(baseJob);
-      expect(mockPrisma.job.findFirst).toHaveBeenCalledWith({
-        where: { id: 'job-uuid-1', orgId: 'org-1' },
-      });
+      expect(mockJobService.findByIdAndOrg).toHaveBeenCalledWith(
+        'job-uuid-1',
+        'org-1',
+      );
     });
 
     it('throws NotFoundException when the job does not exist', async () => {
-      (mockPrisma.job.findFirst as jest.Mock).mockResolvedValue(null);
+      (mockJobService.findByIdAndOrg as Mock).mockRejectedValue(
+        new NotFoundException('Job job-uuid-1 not found'),
+      );
 
       await expect(service.findJobById('unknown-id', 'org-1')).rejects.toThrow(
         NotFoundException,
@@ -153,16 +149,18 @@ describe('TasksService', () => {
     });
 
     it('throws NotFoundException when the job belongs to a different tenant (IDOR prevention)', async () => {
-      (mockPrisma.job.findFirst as jest.Mock).mockResolvedValue(null);
+      (mockJobService.findByIdAndOrg as Mock).mockRejectedValue(
+        new NotFoundException('Job job-uuid-1 not found'),
+      );
 
       await expect(
         service.findJobById('job-uuid-1', 'org-OTHER'),
       ).rejects.toThrow(NotFoundException);
 
-      // Verify the query scopes by orgId
-      expect(mockPrisma.job.findFirst).toHaveBeenCalledWith({
-        where: { id: 'job-uuid-1', orgId: 'org-OTHER' },
-      });
+      expect(mockJobService.findByIdAndOrg).toHaveBeenCalledWith(
+        'job-uuid-1',
+        'org-OTHER',
+      );
     });
   });
 });

@@ -163,7 +163,6 @@ export class SubscriptionService {
 
     const priceItem = subscription.items.data[0];
     const newPlanId = priceItem?.price?.id ?? null;
-    const newSeatCount = priceItem?.quantity ?? 1;
     const newBillingStatus = this.mapStripeBillingStatus(subscription.status);
     const previousBillingStatus =
       org.billingStatus as unknown as PrismaBillingStatus;
@@ -177,7 +176,6 @@ export class SubscriptionService {
       subscriptionId: subscription.id,
       billingStatus: newBillingStatus,
       planId: newPlanId,
-      seatCount: newSeatCount,
       ...(periodStart != null && {
         subscriptionPeriodStart: new Date(periodStart * 1000),
       }),

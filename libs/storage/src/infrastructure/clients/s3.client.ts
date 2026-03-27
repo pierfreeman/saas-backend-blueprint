@@ -19,12 +19,15 @@ export class S3StorageClient {
   private readonly logger = new Logger(S3StorageClient.name);
   private readonly client: S3Client;
   private readonly bucket: string;
+  /** Optional public-facing origin to rewrite in presigned URLs (local dev). */
+  private readonly publicEndpoint?: string;
 
   constructor(private readonly configService: ConfigService) {
     const storageConfig =
       this.configService.get<StorageConfig['s3']>('storage.s3')!;
 
     this.bucket = storageConfig.bucket;
+    this.publicEndpoint = storageConfig.publicEndpoint;
 
     const clientConfig: ConstructorParameters<typeof S3Client>[0] = {
       region: storageConfig.region,
@@ -32,6 +35,11 @@ export class S3StorageClient {
         accessKeyId: storageConfig.accessKeyId,
         secretAccessKey: storageConfig.secretAccessKey,
       },
+      // Only compute / require checksums when the S3 API explicitly requires
+      // them. Without this, SDK v3 injects x-amz-checksum-crc32 into presigned
+      // PUT URLs, which browsers cannot satisfy via a plain fetch() PUT.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     };
 
     // Support S3-compatible providers (MinIO, LocalStack, etc.)
@@ -60,7 +68,8 @@ export class S3StorageClient {
       ContentType: contentType,
     });
 
-    return getSignedUrl(this.client, command, { expiresIn });
+    const url = await getSignedUrl(this.client, command, { expiresIn });
+    return this.rewritePublicEndpoint(url);
   }
 
   /**
@@ -75,7 +84,8 @@ export class S3StorageClient {
       Key: key,
     });
 
-    return getSignedUrl(this.client, command, { expiresIn });
+    const url = await getSignedUrl(this.client, command, { expiresIn });
+    return this.rewritePublicEndpoint(url);
   }
 
   /**
@@ -117,9 +127,62 @@ export class S3StorageClient {
   }
 
   /**
+   * Return the size of an object in bytes via HeadObject.
+   * Assumes the object exists; call objectExists first if unsure.
+   */
+  async getObjectSize(key: string): Promise<bigint> {
+    const command = new HeadObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    const response = await this.client.send(command);
+    return BigInt(response.ContentLength ?? 0);
+  }
+
+  /**
+   * Upload a buffer directly to S3.
+   */
+  async putObject(
+    key: string,
+    body: Buffer,
+    contentType = 'application/octet-stream',
+  ): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    });
+
+    await this.client.send(command);
+    this.logger.debug(`Uploaded object: ${key}`);
+  }
+
+  /**
    * Get the configured bucket name.
    */
   getBucket(): string {
     return this.bucket;
+  }
+
+  /**
+   * Rewrites the origin of a presigned URL to the publicEndpoint when set.
+   * This is needed in local dev where the S3Client endpoint is an internal
+   * Docker hostname (e.g. http://localstack:4566) but browsers must reach
+   * LocalStack via http://localhost:4566.
+   */
+  private rewritePublicEndpoint(url: string): string {
+    if (!this.publicEndpoint || !this.client.config.endpoint) return url;
+    try {
+      const parsed = new URL(url);
+      const pub = new URL(this.publicEndpoint);
+      parsed.protocol = pub.protocol;
+      parsed.hostname = pub.hostname;
+      parsed.port = pub.port;
+      return parsed.toString();
+    } catch {
+      return url;
+    }
   }
 }

@@ -1,16 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { StorageController } from './storage.controller';
-import { StorageService } from '@libs/storage';
+import { StorageService, UploadPolicyService } from '@libs/storage';
+import { FeatureFlagsService } from '@libs/feature-flags';
+import { BillingService } from '@libs/billing';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { ConfirmUploadDto } from './dto/confirm-upload.dto';
+import { Mock, vi } from 'vitest';
 
-// Prevent loading the full @libs/storage module graph (AWS SDK, Prisma, ESM-only deps).
-jest.mock('@libs/storage', () => ({
+// Prevent loading the full module graphs (AWS SDK, Prisma, Stripe, ESM-only deps).
+vi.mock('@libs/storage', () => ({
   StorageService: class MockStorageService {},
+  UploadPolicyService: class MockUploadPolicyService {},
+}));
+vi.mock('@libs/feature-flags', () => ({
+  FeatureFlagsService: class MockFeatureFlagsService {},
+}));
+vi.mock('@libs/billing', () => ({
+  BillingService: class MockBillingService {},
 }));
 
 // ── Decorator test helper ─────────────────────────────────────────────────────
@@ -68,15 +77,27 @@ const baseFile = {
   updatedAt: NOW,
 };
 
-// ── Mock service ──────────────────────────────────────────────────────────────
+// ── Mock services ─────────────────────────────────────────────────────────────
 
 const mockService = {
-  generateUploadUrl: jest.fn(),
-  confirmUpload: jest.fn(),
-  generateDownloadUrl: jest.fn(),
-  getFile: jest.fn(),
-  listFiles: jest.fn(),
-  deleteFile: jest.fn(),
+  generateUploadUrl: vi.fn(),
+  confirmUpload: vi.fn(),
+  generateDownloadUrl: vi.fn(),
+  getFile: vi.fn(),
+  listFiles: vi.fn(),
+  deleteFile: vi.fn(),
+};
+
+const mockUploadPolicyService = {
+  getStorageQuota: vi.fn(),
+};
+
+const mockFeatureFlagsService = {
+  getEntitlements: vi.fn(),
+};
+
+const mockBillingService = {
+  getOrgBillingStatus: vi.fn(),
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -85,11 +106,24 @@ describe('StorageController', () => {
   let controller: StorageController;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
+
+    // Default happy-path mocks for plan resolution
+    mockFeatureFlagsService.getEntitlements.mockResolvedValue({ plan: 'FREE' });
+    mockBillingService.getOrgBillingStatus.mockResolvedValue({
+      planId: null,
+      billingStatus: 'INACTIVE',
+      storageLimit: null,
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [StorageController],
-      providers: [{ provide: StorageService, useValue: mockService }],
+      providers: [
+        { provide: StorageService, useValue: mockService },
+        { provide: UploadPolicyService, useValue: mockUploadPolicyService },
+        { provide: FeatureFlagsService, useValue: mockFeatureFlagsService },
+        { provide: BillingService, useValue: mockBillingService },
+      ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
@@ -105,7 +139,7 @@ describe('StorageController', () => {
   // ── POST /files/upload-url ─────────────────────────────────────────────────
 
   describe('generateUploadUrl', () => {
-    it('returns upload URL and file metadata', async () => {
+    it('returns upload URL and file metadata (free plan by default)', async () => {
       const dto: GenerateUploadUrlDto = {
         filename: 'document.pdf',
         mimeType: 'application/pdf',
@@ -127,13 +161,189 @@ describe('StorageController', () => {
         storageKey: 'org/org-uuid-1/file-uuid-1',
         expiresAt: NOW,
       });
-      expect(mockService.generateUploadUrl).toHaveBeenCalledWith({
-        orgId: ORG_ID,
-        userId: USER_ID,
-        filename: dto.filename,
-        mimeType: dto.mimeType,
-        size: dto.size,
+      // Controller resolves plan and passes it to the service
+      expect(mockService.generateUploadUrl).toHaveBeenCalledWith(
+        {
+          orgId: ORG_ID,
+          userId: USER_ID,
+          filename: dto.filename,
+          mimeType: dto.mimeType,
+          size: dto.size,
+        },
+        'free', // planType resolved from FREE entitlements
+        null, // orgStorageLimit (no per-org override)
+      );
+    });
+
+    it('passes "pro" planType when entitlements.plan is PRO', async () => {
+      mockFeatureFlagsService.getEntitlements.mockResolvedValue({
+        plan: 'PRO',
       });
+      mockBillingService.getOrgBillingStatus.mockResolvedValue({
+        planId: 'price_pro',
+        billingStatus: 'ACTIVE',
+        storageLimit: null,
+      });
+      mockService.generateUploadUrl.mockResolvedValue({
+        fileId: FILE_ID,
+        uploadUrl: 'https://s3.example.com/upload',
+        storageKey: 'org/org-uuid-1/file-uuid-1',
+        expiresAt: NOW,
+      });
+
+      await controller.generateUploadUrl(
+        { filename: 'f.pdf', mimeType: 'application/pdf', size: 1024 },
+        ORG_ID,
+        USER_ID,
+      );
+
+      expect(mockService.generateUploadUrl).toHaveBeenCalledWith(
+        expect.any(Object),
+        'pro',
+        null,
+      );
+    });
+
+    it('passes "enterprise" planType when entitlements.plan is ENTERPRISE', async () => {
+      mockFeatureFlagsService.getEntitlements.mockResolvedValue({
+        plan: 'ENTERPRISE',
+      });
+      mockBillingService.getOrgBillingStatus.mockResolvedValue({
+        planId: 'price_enterprise',
+        billingStatus: 'ACTIVE',
+        storageLimit: null,
+      });
+      mockService.generateUploadUrl.mockResolvedValue({
+        fileId: FILE_ID,
+        uploadUrl: 'https://s3.example.com/upload',
+        storageKey: 'org/org-uuid-1/file-uuid-1',
+        expiresAt: NOW,
+      });
+
+      await controller.generateUploadUrl(
+        { filename: 'f.pdf', mimeType: 'application/pdf', size: 1024 },
+        ORG_ID,
+        USER_ID,
+      );
+
+      expect(mockService.generateUploadUrl).toHaveBeenCalledWith(
+        expect.any(Object),
+        'enterprise',
+        null,
+      );
+    });
+
+    it('forwards orgStorageLimit per-org override to the service', async () => {
+      const customLimit = BigInt(10 * 1024 * 1024 * 1024); // 10 GB custom cap
+      mockFeatureFlagsService.getEntitlements.mockResolvedValue({
+        plan: 'ENTERPRISE',
+      });
+      mockBillingService.getOrgBillingStatus.mockResolvedValue({
+        planId: 'price_enterprise',
+        billingStatus: 'ACTIVE',
+        storageLimit: customLimit,
+      });
+      mockService.generateUploadUrl.mockResolvedValue({
+        fileId: FILE_ID,
+        uploadUrl: 'https://s3.example.com/upload',
+        storageKey: 'org/org-uuid-1/file-uuid-1',
+        expiresAt: NOW,
+      });
+
+      await controller.generateUploadUrl(
+        { filename: 'f.pdf', mimeType: 'application/pdf', size: 1024 },
+        ORG_ID,
+        USER_ID,
+      );
+
+      expect(mockService.generateUploadUrl).toHaveBeenCalledWith(
+        expect.any(Object),
+        'enterprise',
+        customLimit,
+      );
+    });
+  });
+
+  // ── GET /files/quota ──────────────────────────────────────────────────────
+
+  describe('getStorageQuota', () => {
+    const quotaServiceResponse = {
+      storageLimitBytes: BigInt(5 * 1024 * 1024 * 1024), // 5 GB
+      storageUsedBytes: BigInt(1 * 1024 * 1024 * 1024), // 1 GB
+      fileCount: 42,
+      fileCountLimit: 10000,
+      maxFileSizeBytes: BigInt(2 * 1024 * 1024 * 1024), // 2 GB
+    };
+
+    it('returns storage quota as a DTO with BigInt fields serialized as strings', async () => {
+      mockFeatureFlagsService.getEntitlements.mockResolvedValue({
+        plan: 'PRO',
+      });
+      mockBillingService.getOrgBillingStatus.mockResolvedValue({
+        planId: 'price_pro',
+        billingStatus: 'ACTIVE',
+        storageLimit: null,
+      });
+      mockUploadPolicyService.getStorageQuota.mockResolvedValue(
+        quotaServiceResponse,
+      );
+
+      const result = await controller.getStorageQuota(ORG_ID);
+
+      expect(result).toEqual({
+        storageLimitBytes: '5368709120',
+        storageUsedBytes: '1073741824',
+        fileCount: 42,
+        fileCountLimit: 10000,
+        maxFileSizeBytes: '2147483648',
+      });
+      expect(mockUploadPolicyService.getStorageQuota).toHaveBeenCalledWith(
+        ORG_ID,
+        'pro',
+        null,
+      );
+    });
+
+    it('serializes null storageLimitBytes (per-org override present) as null', async () => {
+      mockFeatureFlagsService.getEntitlements.mockResolvedValue({
+        plan: 'ENTERPRISE',
+      });
+      mockBillingService.getOrgBillingStatus.mockResolvedValue({
+        planId: 'price_enterprise',
+        billingStatus: 'ACTIVE',
+        storageLimit: null,
+      });
+      mockUploadPolicyService.getStorageQuota.mockResolvedValue({
+        ...quotaServiceResponse,
+        storageLimitBytes: null,
+      });
+
+      const result = await controller.getStorageQuota(ORG_ID);
+
+      expect(result.storageLimitBytes).toBeNull();
+    });
+
+    it('passes per-org storageLimit override to getStorageQuota', async () => {
+      const customLimit = BigInt(20 * 1024 * 1024 * 1024);
+      mockFeatureFlagsService.getEntitlements.mockResolvedValue({
+        plan: 'ENTERPRISE',
+      });
+      mockBillingService.getOrgBillingStatus.mockResolvedValue({
+        planId: 'price_enterprise',
+        billingStatus: 'ACTIVE',
+        storageLimit: customLimit,
+      });
+      mockUploadPolicyService.getStorageQuota.mockResolvedValue(
+        quotaServiceResponse,
+      );
+
+      await controller.getStorageQuota(ORG_ID);
+
+      expect(mockUploadPolicyService.getStorageQuota).toHaveBeenCalledWith(
+        ORG_ID,
+        'enterprise',
+        customLimit,
+      );
     });
   });
 
@@ -348,14 +558,44 @@ describe('StorageController', () => {
       1, // second parameter: @CurrentOrgId() orgId
     );
 
-    it('returns orgId when request.user is present', () => {
-      const ctx = makeCtx({ orgId: ORG_ID });
+    it('returns orgId when set on the request', () => {
+      const ctx = {
+        switchToHttp: () => ({ getRequest: () => ({ orgId: ORG_ID }) }),
+      };
       expect(factory(undefined, ctx)).toBe(ORG_ID);
     });
 
-    it('returns undefined when request.user is absent', () => {
-      const ctx = makeCtx(undefined);
+    it('returns undefined when orgId is absent from the request', () => {
+      const ctx = { switchToHttp: () => ({ getRequest: () => ({}) }) };
       expect(factory(undefined, ctx)).toBeUndefined();
+    });
+  });
+
+  describe('#resolveOrgPlan — billing is null (line 462 branch)', () => {
+    it('returns orgStorageLimit=null when getOrgBillingStatus resolves to null', async () => {
+      // Covers `billing?.storageLimit ?? null` when billing is null
+      mockFeatureFlagsService.getEntitlements.mockResolvedValue({
+        plan: 'FREE',
+      });
+      mockBillingService.getOrgBillingStatus.mockResolvedValue(null);
+      mockService.generateUploadUrl.mockResolvedValue({
+        fileId: FILE_ID,
+        uploadUrl: 'https://s3.example.com/upload?sig=xxx',
+        storageKey: 'org/org-uuid-1/file-uuid-1',
+        expiresAt: NOW,
+      });
+
+      await controller.generateUploadUrl(
+        { filename: 'f.pdf', mimeType: 'application/pdf', size: 1024 },
+        ORG_ID,
+        USER_ID,
+      );
+
+      expect(mockService.generateUploadUrl).toHaveBeenCalledWith(
+        expect.any(Object),
+        'free',
+        null, // orgStorageLimit is null when billing is null
+      );
     });
   });
 });

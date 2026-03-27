@@ -11,7 +11,6 @@ export interface SubscriptionEntity {
   subscriptionId: string | null;
   billingStatus: BillingStatus;
   planId: string | null;
-  seatCount: number;
   /** Storage quota in bytes. Null means the plan default applies. */
   storageLimit: bigint | null;
   subscriptionPeriodStart: Date | null;

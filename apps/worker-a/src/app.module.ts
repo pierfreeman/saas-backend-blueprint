@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PrismaBusinessModule } from '@libs/prisma-business';
+import { JobsModule } from '@libs/jobs';
 import { RedisModule } from '@libs/redis';
 import { ConfigModule } from '@libs/config';
 import { EventsModule } from '@libs/events';
@@ -18,7 +18,7 @@ import { SqsConsumerService } from './sqs-consumer.service';
   imports: [
     ConfigModule,
     ObservabilityModule,
-    PrismaBusinessModule,
+    JobsModule,
     RedisModule,
     EventsModule,
     OrgDeletionModule,

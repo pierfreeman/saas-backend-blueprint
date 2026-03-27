@@ -10,51 +10,172 @@
     "importHelpers": true,
     "target": "es2015",
     "module": "esnext",
-    "lib": ["es2020", "dom"],
+    "lib": [
+      "es2020",
+      "dom"
+    ],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@libs/prisma-business": ["libs/prisma-business/src/index.ts"],
-      "@libs/prisma-business/*": ["libs/prisma-business/src/*"],
-      "@libs/prisma-legal": ["libs/prisma-legal/src/index.ts"],
-      "@libs/prisma-legal/*": ["libs/prisma-legal/src/*"],
-      "@libs/activity-log": ["libs/activity-log/src/index.ts"],
-      "@libs/activity-log/*": ["libs/activity-log/src/*"],
-      "@libs/legal-audit": ["libs/legal-audit/src/index.ts"],
-      "@libs/legal-audit/*": ["libs/legal-audit/src/*"],
-      "@libs/redis": ["libs/redis/src/index.ts"],
-      "@libs/redis/*": ["libs/redis/src/*"],
-      "@libs/common": ["libs/common/src/index.ts"],
-      "@libs/common/*": ["libs/common/src/*"],
-      "@libs/config": ["libs/config/src/index.ts"],
-      "@libs/config/*": ["libs/config/src/*"],
-      "@libs/events": ["libs/events/src/index.ts"],
-      "@libs/events/*": ["libs/events/src/*"],
-      "@libs/billing": ["libs/billing/src/index.ts"],
-      "@libs/billing/*": ["libs/billing/src/*"],
-      "@libs/notifications": ["libs/notifications/src/index.ts"],
-      "@libs/notifications/*": ["libs/notifications/src/*"],
-      "@libs/security": ["libs/security/src/index.ts"],
-      "@libs/security/*": ["libs/security/src/*"],
-      "@apps/api": ["apps/api/src"],
-      "@apps/api/*": ["apps/api/src/*"],
-      "@libs/observability": ["libs/observability/src/index.ts"],
-      "@libs/observability/*": ["libs/observability/src/*"],
-      "@apps/worker-a": ["apps/worker-a/src"],
-      "@apps/worker-a/*": ["apps/worker-a/src/*"],
-      "@test": ["test"],
-      "@test/*": ["test/*"],
-      "@libs/storage": ["libs/storage/src/index.ts"],
-      "@libs/storage/*": ["libs/storage/src/*"],
-      "@libs/email": ["libs/email/src/index.ts"],
-      "@libs/email/*": ["libs/email/src/*"],
-      "@libs/org-deletion": ["libs/org-deletion/src/index.ts"],
-      "@libs/org-deletion/*": ["libs/org-deletion/src/*"],
-      "@libs/org-export": ["libs/org-export/src/index.ts"],
-      "@libs/org-export/*": ["libs/org-export/src/*"]
+      "@libs/prisma-business": [
+        "libs/prisma-business/src/index.ts"
+      ],
+      "@libs/prisma-business/*": [
+        "libs/prisma-business/src/*"
+      ],
+      "@libs/prisma-legal": [
+        "libs/prisma-legal/src/index.ts"
+      ],
+      "@libs/prisma-legal/*": [
+        "libs/prisma-legal/src/*"
+      ],
+      "@libs/activity-log": [
+        "libs/activity-log/src/index.ts"
+      ],
+      "@libs/activity-log/*": [
+        "libs/activity-log/src/*"
+      ],
+      "@libs/legal-audit": [
+        "libs/legal-audit/src/index.ts"
+      ],
+      "@libs/legal-audit/*": [
+        "libs/legal-audit/src/*"
+      ],
+      "@libs/redis": [
+        "libs/redis/src/index.ts"
+      ],
+      "@libs/redis/*": [
+        "libs/redis/src/*"
+      ],
+      "@libs/common": [
+        "libs/common/src/index.ts"
+      ],
+      "@libs/common/*": [
+        "libs/common/src/*"
+      ],
+      "@libs/config": [
+        "libs/config/src/index.ts"
+      ],
+      "@libs/config/*": [
+        "libs/config/src/*"
+      ],
+      "@libs/events": [
+        "libs/events/src/index.ts"
+      ],
+      "@libs/events/*": [
+        "libs/events/src/*"
+      ],
+      "@libs/billing": [
+        "libs/billing/src/index.ts"
+      ],
+      "@libs/billing/*": [
+        "libs/billing/src/*"
+      ],
+      "@libs/jobs": [
+        "libs/jobs/src/index.ts"
+      ],
+      "@libs/jobs/*": [
+        "libs/jobs/src/*"
+      ],
+      "@libs/notifications": [
+        "libs/notifications/src/index.ts"
+      ],
+      "@libs/notifications/*": [
+        "libs/notifications/src/*"
+      ],
+      "@libs/security": [
+        "libs/security/src/index.ts"
+      ],
+      "@libs/security/*": [
+        "libs/security/src/*"
+      ],
+      "@apps/api": [
+        "apps/api/src"
+      ],
+      "@apps/api/*": [
+        "apps/api/src/*"
+      ],
+      "@libs/observability": [
+        "libs/observability/src/index.ts"
+      ],
+      "@libs/observability/*": [
+        "libs/observability/src/*"
+      ],
+      "@apps/worker-a": [
+        "apps/worker-a/src"
+      ],
+      "@apps/worker-a/*": [
+        "apps/worker-a/src/*"
+      ],
+      "@test": [
+        "test"
+      ],
+      "@test/*": [
+        "test/*"
+      ],
+      "@libs/storage": [
+        "libs/storage/src/index.ts"
+      ],
+      "@libs/storage/*": [
+        "libs/storage/src/*"
+      ],
+      "@libs/email": [
+        "libs/email/src/index.ts"
+      ],
+      "@libs/email/*": [
+        "libs/email/src/*"
+      ],
+      "@libs/org-deletion": [
+        "libs/org-deletion/src/index.ts"
+      ],
+      "@libs/org-deletion/*": [
+        "libs/org-deletion/src/*"
+      ],
+      "@libs/org-export": [
+        "libs/org-export/src/index.ts"
+      ],
+      "@libs/org-export/*": [
+        "libs/org-export/src/*"
+      ],
+      "@libs/organizations": [
+        "libs/organizations/src/index.ts"
+      ],
+      "@libs/organizations/*": [
+        "libs/organizations/src/*"
+      ],
+      "@libs/memberships": [
+        "libs/memberships/src/index.ts"
+      ],
+      "@libs/memberships/*": [
+        "libs/memberships/src/*"
+      ],
+      "@libs/users": [
+        "libs/users/src/index.ts"
+      ],
+      "@libs/users/*": [
+        "libs/users/src/*"
+      ],
+      "@libs/rbac": [
+        "libs/rbac/src/index.ts"
+      ],
+      "@libs/rbac/*": [
+        "libs/rbac/src/*"
+      ],
+      "@libs/feature-flags": [
+        "libs/feature-flags/src/index.ts"
+      ],
+      "@libs/feature-flags/*": [
+        "libs/feature-flags/src/*"
+      ]
     }
   },
-  "include": ["apps/**/*", "libs/**/*"],
-  "exclude": ["node_modules", "tmp"]
+  "include": [
+    "apps/**/*",
+    "libs/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "tmp"
+  ]
 }

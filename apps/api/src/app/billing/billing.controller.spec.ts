@@ -1,7 +1,9 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { BillingController } from './billing.controller';
 import { BillingService } from '@libs/billing';
 import { BillingStatus } from '@libs/billing';
+import { Mocked, vi } from 'vitest';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -14,7 +16,6 @@ const makeSubscriptionEntity = () => ({
   subscriptionId: 'sub_test',
   billingStatus: BillingStatus.ACTIVE,
   planId: 'price_pro',
-  seatCount: 5,
   storageLimit: null,
   subscriptionPeriodStart: new Date('2026-03-01'),
   subscriptionPeriodEnd: new Date('2026-04-01'),
@@ -25,20 +26,20 @@ const makeSubscriptionEntity = () => ({
 
 describe('BillingController', () => {
   let controller: BillingController;
-  let billingService: jest.Mocked<BillingService>;
+  let billingService: Mocked<BillingService>;
 
   beforeEach(() => {
     billingService = {
-      createCheckoutSession: jest.fn(),
-      createPortalSession: jest.fn(),
-      getSubscription: jest.fn(),
-      cancelSubscription: jest.fn(),
-      getSubscriptionHistory: jest.fn(),
-      ensureStripeCustomer: jest.fn(),
-    } as unknown as jest.Mocked<BillingService>;
+      createCheckoutSession: vi.fn(),
+      createPortalSession: vi.fn(),
+      getSubscription: vi.fn(),
+      cancelSubscription: vi.fn(),
+      getSubscriptionHistory: vi.fn(),
+      ensureStripeCustomer: vi.fn(),
+    } as unknown as Mocked<BillingService>;
 
     controller = new BillingController(billingService);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ─── POST /billing/checkout ─────────────────────────────────────────────
@@ -82,14 +83,14 @@ describe('BillingController', () => {
       });
 
       await controller.createCheckoutSession(
-        { orgId: ORG_ID, priceId: 'price_basic' },
+        { orgId: ORG_ID, priceId: 'price_pro' },
         ACTOR_ID,
         undefined,
       );
 
       expect(billingService.createCheckoutSession).toHaveBeenCalledWith(
         ORG_ID,
-        'price_basic',
+        'price_pro',
         ACTOR_ID,
         expect.objectContaining({ idempotencyKey: undefined }),
       );
@@ -347,5 +348,55 @@ describe('BillingController', () => {
         controller.getSubscriptionHistory('unknown-org', '50', '0'),
       ).rejects.toThrow(NotFoundException);
     });
+  });
+});
+
+// ─── CurrentDbUserId param decorator ────────────────────────────────────────
+
+function getDecoratorFactory(
+  target: object,
+  method: string,
+  paramIndex: number,
+): (data: unknown, ctx: unknown) => unknown {
+  const metadata = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    target,
+    method,
+  ) as Record<
+    string,
+    { index: number; factory?: (d: unknown, c: unknown) => unknown }
+  >;
+  const entry = Object.values(metadata ?? {}).find(
+    (e) => e.index === paramIndex,
+  );
+  if (!entry?.factory)
+    throw new Error(`No factory at param ${paramIndex} of ${method}`);
+  return entry.factory;
+}
+
+function makeBillingCtx(user?: Record<string, unknown>) {
+  return { switchToHttp: () => ({ getRequest: () => ({ user }) }) };
+}
+
+describe('CurrentDbUserId param decorator', () => {
+  it('returns dbUserId from request.user when present', () => {
+    // createCheckoutSession: param 0 = @Body, param 1 = @CurrentDbUserId
+    const factory = getDecoratorFactory(
+      BillingController,
+      'createCheckoutSession',
+      1,
+    );
+    expect(
+      factory(undefined, makeBillingCtx({ dbUserId: 'db-user-123' })),
+    ).toBe('db-user-123');
+  });
+
+  it('returns undefined when request.user is absent', () => {
+    const factory = getDecoratorFactory(
+      BillingController,
+      'createCheckoutSession',
+      1,
+    );
+    expect(factory(undefined, makeBillingCtx(undefined))).toBeUndefined();
   });
 });

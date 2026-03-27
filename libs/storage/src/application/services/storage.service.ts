@@ -23,7 +23,7 @@ import {
   GenerateUploadUrlRequest,
   GenerateUploadUrlResponse,
   PlanType,
-} from '../../storage.types';
+} from '../../domain/types';
 import { UploadPolicyService } from './upload-policy.service';
 
 /**
@@ -164,7 +164,7 @@ export class StorageService {
       );
     }
 
-    // Verify file exists in storage
+    // Verify file exists in storage and retrieve its actual size
     const provider = this.getProvider(file.provider);
     const exists = await provider.objectExists(file.storageKey);
     if (!exists) {
@@ -173,8 +173,13 @@ export class StorageService {
       );
     }
 
-    // Mark as confirmed
-    const confirmedFile = await this.storageRepository.confirmUpload(fileId);
+    const actualSize = await provider.getObjectSize(file.storageKey);
+
+    // Mark as confirmed, persisting the real size from storage
+    const confirmedFile = await this.storageRepository.confirmUpload(
+      fileId,
+      actualSize,
+    );
 
     // Log activity
     this.activityLog.logActivity({

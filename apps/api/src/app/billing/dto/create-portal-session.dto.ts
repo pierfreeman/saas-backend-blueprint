@@ -10,6 +10,6 @@ export class CreatePortalSessionDto {
     description: 'URL to return to after leaving the portal',
   })
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   returnUrl?: string;
 }

@@ -1,18 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { S3Provider } from './s3.provider';
 import { S3StorageClient } from '../clients/s3.client';
+import { Mocked, vi } from 'vitest';
 
 describe('S3Provider', () => {
   let provider: S3Provider;
-  let s3Client: jest.Mocked<S3StorageClient>;
+  let s3Client: Mocked<S3StorageClient>;
 
   beforeEach(async () => {
     s3Client = {
-      generatePresignedUploadUrl: jest.fn(),
-      generatePresignedDownloadUrl: jest.fn(),
-      deleteObject: jest.fn(),
-      objectExists: jest.fn(),
-    } as unknown as jest.Mocked<S3StorageClient>;
+      generatePresignedUploadUrl: vi.fn(),
+      generatePresignedDownloadUrl: vi.fn(),
+      deleteObject: vi.fn(),
+      objectExists: vi.fn(),
+      getObjectSize: vi.fn(),
+    } as unknown as Mocked<S3StorageClient>;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [S3Provider, { provide: S3StorageClient, useValue: s3Client }],
@@ -30,7 +32,11 @@ describe('S3Provider', () => {
       const mockUrl = 'https://s3.amazonaws.com/bucket/key?signature=xyz';
       s3Client.generatePresignedUploadUrl.mockResolvedValue(mockUrl);
 
-      const result = await provider.generateUploadUrl('test-key', 'application/pdf', 3600);
+      const result = await provider.generateUploadUrl(
+        'test-key',
+        'application/pdf',
+        3600,
+      );
 
       expect(result).toBe(mockUrl);
       expect(s3Client.generatePresignedUploadUrl).toHaveBeenCalledWith(
@@ -49,7 +55,10 @@ describe('S3Provider', () => {
       const result = await provider.generateDownloadUrl('test-key', 3600);
 
       expect(result).toBe(mockUrl);
-      expect(s3Client.generatePresignedDownloadUrl).toHaveBeenCalledWith('test-key', 3600);
+      expect(s3Client.generatePresignedDownloadUrl).toHaveBeenCalledWith(
+        'test-key',
+        3600,
+      );
     });
   });
 
@@ -79,6 +88,17 @@ describe('S3Provider', () => {
       const result = await provider.objectExists('test-key');
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe('getObjectSize', () => {
+    it('should return the object size from s3Client', async () => {
+      s3Client.getObjectSize.mockResolvedValue(BigInt(12582912));
+
+      const result = await provider.getObjectSize('test-key');
+
+      expect(result).toBe(BigInt(12582912));
+      expect(s3Client.getObjectSize).toHaveBeenCalledWith('test-key');
     });
   });
 });

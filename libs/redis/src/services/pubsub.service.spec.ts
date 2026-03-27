@@ -4,18 +4,18 @@
  * The PubSubService creates two ioredis connections (publisher + subscriber).
  * We capture them by order of construction: first call = publisher, second = subscriber.
  */
-jest.mock('ioredis', () => {
+vi.mock('ioredis', () => {
   const makeInstance = () => ({
-    on: jest.fn(),
-    quit: jest.fn().mockResolvedValue('OK'),
-    publish: jest.fn().mockResolvedValue(1),
-    subscribe: jest.fn().mockResolvedValue(undefined),
-    psubscribe: jest.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
+    quit: vi.fn().mockResolvedValue('OK'),
+    publish: vi.fn().mockResolvedValue(1),
+    subscribe: vi.fn().mockResolvedValue(undefined),
+    psubscribe: vi.fn().mockResolvedValue(undefined),
   });
 
   // Push instances onto Ctor.__instances so that assigning a new [] in beforeEach
   // always gives us a fresh, correctly-referenced array for each test.
-  const Ctor: any = jest.fn(() => {
+  const Ctor: any = vi.fn(function (this: any) {
     const inst = makeInstance();
     Ctor.__instances.push(inst);
     return inst;
@@ -27,14 +27,15 @@ jest.mock('ioredis', () => {
 
 import Redis from 'ioredis';
 import { PubSubService } from './pubsub.service';
+import { Mock, vi } from 'vitest';
 
 /** Shape of each mock ioredis instance created by the factory above. */
 type IoRedisMock = {
-  on: jest.Mock;
-  quit: jest.Mock;
-  publish: jest.Mock;
-  subscribe: jest.Mock;
-  psubscribe: jest.Mock;
+  on: Mock;
+  quit: Mock;
+  publish: Mock;
+  subscribe: Mock;
+  psubscribe: Mock;
 };
 
 // Helper to access the captured instances.
@@ -44,7 +45,7 @@ describe('PubSubService', () => {
   let service: PubSubService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     (Redis as any).__instances = [];
     service = new PubSubService();
   });
@@ -73,7 +74,7 @@ describe('PubSubService', () => {
 
     it('re-throws when the underlying publish fails', async () => {
       const [publisher] = getInstances();
-      (publisher.publish as jest.Mock).mockRejectedValueOnce(
+      (publisher.publish as Mock).mockRejectedValueOnce(
         new Error('Redis unavailable'),
       );
       await expect(service.publish('ch', {})).rejects.toThrow(
@@ -87,23 +88,23 @@ describe('PubSubService', () => {
   describe('subscribe', () => {
     it('calls subscriber.subscribe with the given channel', () => {
       const [, subscriber] = getInstances();
-      service.subscribe('job:update:org-1', jest.fn());
+      service.subscribe('job:update:org-1', vi.fn());
       expect(subscriber.subscribe).toHaveBeenCalledWith('job:update:org-1');
     });
 
     it('does NOT call subscribe on the publisher connection', () => {
       const [publisher] = getInstances();
-      service.subscribe('ch', jest.fn());
+      service.subscribe('ch', vi.fn());
       expect(publisher.subscribe).not.toHaveBeenCalled();
     });
 
     it('invokes the handler when a "message" event fires on the correct channel', () => {
       const [, subscriber] = getInstances();
-      const handler = jest.fn();
+      const handler = vi.fn();
       service.subscribe('job:update:org-1', handler);
 
       // Simulate the ioredis 'message' event
-      const messageListener = (subscriber.on as jest.Mock).mock.calls.find(
+      const messageListener = (subscriber.on as Mock).mock.calls.find(
         ([event]: [string]) => event === 'message',
       )?.[1] as ((ch: string, raw: string) => void) | undefined;
 
@@ -115,10 +116,10 @@ describe('PubSubService', () => {
 
     it('does NOT invoke the handler for a different channel', () => {
       const [, subscriber] = getInstances();
-      const handler = jest.fn();
+      const handler = vi.fn();
       service.subscribe('job:update:org-1', handler);
 
-      const messageListener = (subscriber.on as jest.Mock).mock.calls.find(
+      const messageListener = (subscriber.on as Mock).mock.calls.find(
         ([event]: [string]) => event === 'message',
       )?.[1] as ((ch: string, raw: string) => void) | undefined;
 
@@ -132,16 +133,16 @@ describe('PubSubService', () => {
   describe('pSubscribe', () => {
     it('calls subscriber.psubscribe with the given pattern', () => {
       const [, subscriber] = getInstances();
-      service.pSubscribe('job:update:*', jest.fn());
+      service.pSubscribe('job:update:*', vi.fn());
       expect(subscriber.psubscribe).toHaveBeenCalledWith('job:update:*');
     });
 
     it('invokes the handler with (channel, payload) when a "pmessage" event fires', () => {
       const [, subscriber] = getInstances();
-      const handler = jest.fn();
+      const handler = vi.fn();
       service.pSubscribe('job:update:*', handler);
 
-      const pmsgListener = (subscriber.on as jest.Mock).mock.calls.find(
+      const pmsgListener = (subscriber.on as Mock).mock.calls.find(
         ([event]: [string]) => event === 'pmessage',
       )?.[1] as ((pat: string, ch: string, raw: string) => void) | undefined;
 

@@ -22,18 +22,19 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { MembershipRole } from '@prisma/client';
-import { StorageService } from '@libs/storage';
+import { StorageService, UploadPolicyService } from '@libs/storage';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { RequireRole } from '../rbac/decorators/require-role.decorator';
+import { OrgContextGuard, RBACGuard, OrgScoped, RequireRole } from '@libs/rbac';
+import { FeatureFlagsService } from '@libs/feature-flags';
+import { BillingService } from '@libs/billing';
+import type { PlanType } from '@libs/storage';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { UploadUrlResponseDto } from './dto/upload-url-response.dto';
 import { ConfirmUploadDto } from './dto/confirm-upload.dto';
 import { ConfirmUploadResponseDto } from './dto/confirm-upload-response.dto';
 import { DownloadUrlResponseDto } from './dto/download-url-response.dto';
 import { FileMetadataResponseDto } from './dto/file-metadata-response.dto';
+import { StorageQuotaResponseDto } from './dto/storage-quota-response.dto';
 
 /**
  * Extracts the resolved DB user UUID (set on request.user.dbUserId by OrgContextGuard).
@@ -48,14 +49,12 @@ const CurrentDbUserId = createParamDecorator(
 );
 
 /**
- * Extracts the resolved organization ID (set on request.user.orgId by OrgContextGuard).
+ * Extracts the resolved organization ID (set on request.orgId by OrgContextGuard).
  */
 const CurrentOrgId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string | undefined => {
-    const request = ctx
-      .switchToHttp()
-      .getRequest<{ user?: { orgId?: string } }>();
-    return request.user?.orgId;
+    const request = ctx.switchToHttp().getRequest<{ orgId?: string }>();
+    return request.orgId;
   },
 );
 
@@ -70,6 +69,7 @@ const CurrentOrgId = createParamDecorator(
  *
  * @route POST   /files/upload-url — Generate presigned upload URL
  * @route POST   /files/confirm    — Confirm file upload completion
+ * @route GET    /files/quota      — Get storage quota and usage
  * @route GET    /files/:id/download — Generate presigned download URL
  * @route GET    /files/:id        — Get file metadata
  * @route GET    /files            — List organization files
@@ -81,13 +81,22 @@ const CurrentOrgId = createParamDecorator(
 @OrgScoped()
 @Controller('files')
 export class StorageController {
-  constructor(private readonly storageService: StorageService) {}
+  constructor(
+    private readonly storageService: StorageService,
+    private readonly uploadPolicyService: UploadPolicyService,
+    private readonly featureFlagsService: FeatureFlagsService,
+    private readonly billingService: BillingService,
+  ) {}
 
   // ─── POST /files/upload-url ─────────────────────────────────────────────────
 
   @Post('upload-url')
   @HttpCode(HttpStatus.CREATED)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+  )
   @ApiOperation({
     summary: 'Generate a presigned upload URL',
     description:
@@ -112,13 +121,19 @@ export class StorageController {
     @CurrentOrgId() orgId: string,
     @CurrentDbUserId() userId: string,
   ): Promise<UploadUrlResponseDto> {
-    const result = await this.storageService.generateUploadUrl({
-      orgId,
-      userId,
-      filename: dto.filename,
-      mimeType: dto.mimeType,
-      size: dto.size,
-    });
+    const { planType, orgStorageLimit } = await this.#resolveOrgPlan(orgId);
+
+    const result = await this.storageService.generateUploadUrl(
+      {
+        orgId,
+        userId,
+        filename: dto.filename,
+        mimeType: dto.mimeType,
+        size: dto.size,
+      },
+      planType,
+      orgStorageLimit,
+    );
 
     return {
       fileId: result.fileId,
@@ -132,7 +147,11 @@ export class StorageController {
 
   @Post('confirm')
   @HttpCode(HttpStatus.OK)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+  )
   @ApiOperation({
     summary: 'Confirm file upload completion',
     description:
@@ -170,11 +189,58 @@ export class StorageController {
     };
   }
 
+  // ─── GET /files/quota ───────────────────────────────────────────────────────
+
+  @Get('quota')
+  @HttpCode(HttpStatus.OK)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+    MembershipRole.READ_ONLY,
+  )
+  @ApiOperation({
+    summary: 'Get storage quota and usage',
+    description:
+      'Returns the current storage quota limits and actual usage for the organization. ' +
+      'Limits are derived from the organization subscription plan. ' +
+      'Per-org overrides (for custom enterprise deals) take precedence over plan defaults. ' +
+      'BigInt fields are serialized as strings to preserve precision.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Storage quota retrieved successfully.',
+    type: StorageQuotaResponseDto,
+  })
+  async getStorageQuota(
+    @CurrentOrgId() orgId: string,
+  ): Promise<StorageQuotaResponseDto> {
+    const { planType, orgStorageLimit } = await this.#resolveOrgPlan(orgId);
+    const quota = await this.uploadPolicyService.getStorageQuota(
+      orgId,
+      planType,
+      orgStorageLimit,
+    );
+
+    return {
+      storageLimitBytes: quota.storageLimitBytes?.toString() ?? null,
+      storageUsedBytes: quota.storageUsedBytes.toString(),
+      fileCount: quota.fileCount,
+      fileCountLimit: quota.fileCountLimit,
+      maxFileSizeBytes: quota.maxFileSizeBytes.toString(),
+    };
+  }
+
   // ─── GET /files/:id/download ────────────────────────────────────────────────
 
-  @Get(':id/download')
+  @Get(':fileId/download')
   @HttpCode(HttpStatus.OK)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER, MembershipRole.READ_ONLY)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+    MembershipRole.READ_ONLY,
+  )
   @ApiOperation({
     summary: 'Generate a presigned download URL',
     description:
@@ -182,7 +248,7 @@ export class StorageController {
       'The URL expires after a configured duration (default 1 hour).',
   })
   @ApiParam({
-    name: 'id',
+    name: 'fileId',
     description: 'File identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
@@ -197,10 +263,11 @@ export class StorageController {
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
-    description: 'File is not available for download (not in COMPLETED status).',
+    description:
+      'File is not available for download (not in COMPLETED status).',
   })
   async generateDownloadUrl(
-    @Param('id') fileId: string,
+    @Param('fileId') fileId: string,
     @CurrentOrgId() orgId: string,
     @CurrentDbUserId() userId: string,
   ): Promise<DownloadUrlResponseDto> {
@@ -221,15 +288,20 @@ export class StorageController {
 
   // ─── GET /files/:id ─────────────────────────────────────────────────────────
 
-  @Get(':id')
+  @Get(':fileId')
   @HttpCode(HttpStatus.OK)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER, MembershipRole.READ_ONLY)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+    MembershipRole.READ_ONLY,
+  )
   @ApiOperation({
     summary: 'Get file metadata',
     description: 'Returns metadata for a specific file.',
   })
   @ApiParam({
-    name: 'id',
+    name: 'fileId',
     description: 'File identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
@@ -243,7 +315,7 @@ export class StorageController {
     description: 'File not found.',
   })
   async getFile(
-    @Param('id') fileId: string,
+    @Param('fileId') fileId: string,
     @CurrentOrgId() orgId: string,
   ): Promise<FileMetadataResponseDto> {
     const file = await this.storageService.getFile(fileId, orgId);
@@ -269,7 +341,12 @@ export class StorageController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER, MembershipRole.READ_ONLY)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+    MembershipRole.READ_ONLY,
+  )
   @ApiOperation({
     summary: 'List organization files',
     description: 'Returns a list of files for the current organization.',
@@ -320,9 +397,13 @@ export class StorageController {
 
   // ─── DELETE /files/:id ──────────────────────────────────────────────────────
 
-  @Delete(':id')
+  @Delete(':fileId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.MEMBER)
+  @RequireRole(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.MEMBER,
+  )
   @ApiOperation({
     summary: 'Delete a file',
     description:
@@ -330,7 +411,7 @@ export class StorageController {
       'This operation cannot be undone.',
   })
   @ApiParam({
-    name: 'id',
+    name: 'fileId',
     description: 'File identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
@@ -343,7 +424,7 @@ export class StorageController {
     description: 'File not found.',
   })
   async deleteFile(
-    @Param('id') fileId: string,
+    @Param('fileId') fileId: string,
     @CurrentOrgId() orgId: string,
     @CurrentDbUserId() userId: string,
   ): Promise<void> {
@@ -352,5 +433,41 @@ export class StorageController {
       orgId,
       userId,
     });
+  }
+
+  // ─── Private helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Resolves the plan type and per-org storage override for the given organization.
+   * Both lookups run in parallel to minimize latency.
+   *
+   * The plan tier comes from FeatureFlagsService (Redis-cached) and the
+   * orgStorageLimit comes from the billing record (DB, rarely needed).
+   */
+  async #resolveOrgPlan(
+    orgId: string,
+  ): Promise<{ planType: PlanType; orgStorageLimit: bigint | null }> {
+    const [entitlements, billing] = await Promise.all([
+      this.featureFlagsService.getEntitlements(orgId),
+      this.billingService.getOrgBillingStatus(orgId),
+    ]);
+
+    const planType: PlanType = this.#mapPlanType(entitlements.plan);
+
+    return { planType, orgStorageLimit: billing?.storageLimit ?? null };
+  }
+
+  /**
+   * Maps the entitlement plan string to the corresponding PlanType.
+   */
+  #mapPlanType(plan: string): PlanType {
+    switch (plan) {
+      case 'PRO':
+        return 'pro';
+      case 'ENTERPRISE':
+        return 'enterprise';
+      default:
+        return 'free';
+    }
   }
 }

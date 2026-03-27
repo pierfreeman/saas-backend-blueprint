@@ -1,61 +1,69 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationsGateway } from './notifications.gateway';
-import { NotificationsService } from '../../data-access/notifications.service';
-import { NotificationsPubSubService } from '../../data-access/notifications-pubsub.service';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { NotificationsService } from '../../application/services/notifications.service';
+import { NotificationsPubSubService } from '../../application/services/notifications-pubsub.service';
+import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { ConfigService } from '@nestjs/config';
 import { Server } from 'socket.io';
+import * as jwt from 'jsonwebtoken';
+import { vi } from 'vitest';
 
 // ── Redis adapter mock ────────────────────────────────────────────────────────
 // Everything is defined inside the factory so it is available when the factory
-// is invoked during the module-loading phase (after jest.mock hoisting).
+// is invoked during the module-loading phase (after vi.mock hoisting).
 
-jest.mock('ioredis', () => {
+vi.mock('ioredis', () => {
   const instance = {
-    duplicate: jest.fn().mockReturnThis(),
-    on: jest.fn(),
-    quit: jest.fn().mockResolvedValue('OK'),
+    duplicate: vi.fn().mockReturnThis(),
+    on: vi.fn(),
+    quit: vi.fn().mockResolvedValue('OK'),
   };
-  const Ctor: any = jest.fn(() => instance);
+  const Ctor: any = vi.fn(function (this: any) {
+    return instance;
+  });
   Ctor.__instance = instance;
   return { __esModule: true, default: Ctor };
 });
 
-jest.mock('@socket.io/redis-adapter', () => ({
-  createAdapter: jest.fn().mockReturnValue({}),
+vi.mock('@socket.io/redis-adapter', () => ({
+  createAdapter: vi.fn().mockReturnValue({}),
 }));
 
-// jwks-rsa pulls in jose (ESM-only) which Jest cannot parse without extra
+// jwks-rsa pulls in jose (ESM-only) which Vitest cannot parse without extra
 // transform config. We mock the whole module because verifyToken is already
-// exercised via jest.spyOn in the individual tests below.
-jest.mock('jwks-rsa', () => ({
-  JwksClient: jest.fn().mockImplementation(() => ({
-    getSigningKey: jest.fn(),
-  })),
+// exercised via vi.spyOn in the individual tests below.
+vi.mock('jwks-rsa', () => ({
+  JwksClient: vi.fn(function (this: unknown) {
+    return { getSigningKey: vi.fn() };
+  }),
+}));
+
+vi.mock('jsonwebtoken', () => ({
+  verify: vi.fn(),
 }));
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockPubSub = {
-  subscribeToUserPattern: jest.fn(),
-  subscribeToOrgPattern: jest.fn(),
-  subscribeToGlobal: jest.fn(),
+  subscribeToUserPattern: vi.fn(),
+  subscribeToOrgPattern: vi.fn(),
+  subscribeToGlobal: vi.fn(),
 };
 
 const mockNotificationsService = {
-  getUserNotifications: jest.fn().mockResolvedValue([]),
-  markAsRead: jest.fn().mockResolvedValue({}),
-  markAllAsRead: jest.fn().mockResolvedValue(undefined),
-  getUnreadCount: jest.fn().mockResolvedValue(2),
+  getUserNotifications: vi.fn().mockResolvedValue([]),
+  markAsRead: vi.fn().mockResolvedValue({}),
+  markAllAsRead: vi.fn().mockResolvedValue(undefined),
+  getUnreadCount: vi.fn().mockResolvedValue(2),
 };
 
-const mockPrisma = {
-  user: { findUnique: jest.fn() },
-  membership: { findMany: jest.fn() },
+const mockRepo = {
+  findUserByAuth0Id: vi.fn(),
+  findActiveOrgMemberships: vi.fn(),
 };
 
 const mockConfig = {
-  get: jest.fn().mockImplementation((key: string) => {
+  get: vi.fn().mockImplementation((key: string) => {
     const map: Record<string, string> = {
       'auth.audience': 'https://api.test',
       'auth.issuer': 'https://test.auth0.local/',
@@ -79,9 +87,9 @@ function makeSocket(
       query: {},
       headers: {},
     },
-    join: jest.fn().mockResolvedValue(undefined),
-    disconnect: jest.fn(),
-    emit: jest.fn(),
+    join: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn(),
+    emit: vi.fn(),
   };
 }
 
@@ -91,14 +99,14 @@ describe('NotificationsGateway', () => {
   let gateway: NotificationsGateway;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsGateway,
         { provide: NotificationsPubSubService, useValue: mockPubSub },
         { provide: NotificationsService, useValue: mockNotificationsService },
-        { provide: PrismaBusinessService, useValue: mockPrisma },
+        { provide: NotificationsRepository, useValue: mockRepo },
         { provide: ConfigService, useValue: mockConfig },
       ],
     }).compile();
@@ -110,7 +118,7 @@ describe('NotificationsGateway', () => {
 
   describe('afterInit', () => {
     it('registers all three Redis subscription handlers', () => {
-      const mockServer = { adapter: jest.fn() } as unknown as Server;
+      const mockServer = { adapter: vi.fn() } as unknown as Server;
       gateway.afterInit(mockServer);
 
       expect(mockPubSub.subscribeToUserPattern).toHaveBeenCalledTimes(1);
@@ -119,7 +127,7 @@ describe('NotificationsGateway', () => {
     });
 
     it('attaches the Redis adapter to the server', () => {
-      const mockServer = { adapter: jest.fn() } as unknown as Server;
+      const mockServer = { adapter: vi.fn() } as unknown as Server;
       gateway.afterInit(mockServer);
 
       expect(mockServer.adapter).toHaveBeenCalledTimes(1);
@@ -141,9 +149,9 @@ describe('NotificationsGateway', () => {
 
     it('disconnects when the token cannot be verified', async () => {
       // verifyToken will reject because we stub it with an invalid token.
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockRejectedValue(new Error('invalid signature'));
+      vi.spyOn(gateway as any, 'verifyToken').mockRejectedValue(
+        new Error('invalid signature'),
+      );
 
       const client = makeSocket();
 
@@ -153,11 +161,11 @@ describe('NotificationsGateway', () => {
     });
 
     it('disconnects when the user is not found in the DB', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|unknown' });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|unknown',
+      });
 
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null);
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);
@@ -166,17 +174,17 @@ describe('NotificationsGateway', () => {
     });
 
     it('joins user/org rooms and emits unread count on success', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|user-1' });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
 
-      mockPrisma.user.findUnique.mockResolvedValue({
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
         id: 'user-uuid-1',
         email: 'user@test.com',
         auth0Id: 'auth0|user-1',
       });
 
-      mockPrisma.membership.findMany.mockResolvedValue([
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([
         { orgId: 'org-a' },
         { orgId: 'org-b' },
       ]);
@@ -201,16 +209,16 @@ describe('NotificationsGateway', () => {
   describe('handleDisconnect', () => {
     it('removes the socket from the userSockets map', async () => {
       // Connect first so the map gets an entry.
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|user-1' });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
 
-      mockPrisma.user.findUnique.mockResolvedValue({
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
         id: 'user-uuid-1',
         email: 'user@test.com',
         auth0Id: 'auth0|user-1',
       });
-      mockPrisma.membership.findMany.mockResolvedValue([]);
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([]);
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);
@@ -280,18 +288,18 @@ describe('NotificationsGateway', () => {
       const client = makeSocket({ userId: 'user-uuid-1' });
       await gateway.handleGetAll(client as never, { orgId: 'org-1' });
 
-      expect(mockNotificationsService.getUserNotifications).toHaveBeenCalledWith(
-        'user-uuid-1',
-        'org-1',
-        expect.any(Object),
-      );
+      expect(
+        mockNotificationsService.getUserNotifications,
+      ).toHaveBeenCalledWith('user-uuid-1', 'org-1', expect.any(Object));
       expect(client.emit).toHaveBeenCalledWith('notification:list', notifs);
     });
 
     it('does nothing when userId is missing', async () => {
       const client = makeSocket();
       await gateway.handleGetAll(client as never, { orgId: 'org-1' });
-      expect(mockNotificationsService.getUserNotifications).not.toHaveBeenCalled();
+      expect(
+        mockNotificationsService.getUserNotifications,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -332,11 +340,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToUserPattern and the callback emits to user room', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToUserPattern.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToUserPattern.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: vi.fn(),
+        to: vi.fn().mockReturnThis(),
+        emit: vi.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -352,11 +366,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToOrgPattern and the callback emits to org room', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToOrgPattern.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToOrgPattern.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: vi.fn(),
+        to: vi.fn().mockReturnThis(),
+        emit: vi.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -367,11 +387,17 @@ describe('NotificationsGateway', () => {
 
     it('afterInit invokes subscribeToGlobal and the callback broadcasts', () => {
       let capturedHandler: ((e: any) => void) | null = null;
-      mockPubSub.subscribeToGlobal.mockImplementation((cb: (e: any) => void) => {
-        capturedHandler = cb;
-      });
+      mockPubSub.subscribeToGlobal.mockImplementation(
+        (cb: (e: any) => void) => {
+          capturedHandler = cb;
+        },
+      );
 
-      const mockServer = { adapter: jest.fn(), to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as import('socket.io').Server;
+      const mockServer = {
+        adapter: vi.fn(),
+        to: vi.fn().mockReturnThis(),
+        emit: vi.fn(),
+      } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
@@ -388,26 +414,24 @@ describe('NotificationsGateway', () => {
 
   describe('extractToken (private, accessed via handleConnection)', () => {
     it('extracts token from handshake.query.token', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|user-1' });
-      mockPrisma.user.findUnique.mockResolvedValue(null); // disconnect after verify
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null); // disconnect after verify
 
       const client = makeSocket({
         handshake: { auth: {}, query: { token: 'query-token' }, headers: {} },
       });
       await gateway.handleConnection(client as never);
 
-      expect(
-        (gateway as any).verifyToken,
-      ).toHaveBeenCalledWith('query-token');
+      expect((gateway as any).verifyToken).toHaveBeenCalledWith('query-token');
     });
 
     it('extracts token from handshake.headers.authorization', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: 'auth0|user-1' });
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
+      mockRepo.findUserByAuth0Id.mockResolvedValue(null);
 
       const client = makeSocket({
         handshake: {
@@ -418,15 +442,147 @@ describe('NotificationsGateway', () => {
       });
       await gateway.handleConnection(client as never);
 
-      expect(
-        (gateway as any).verifyToken,
-      ).toHaveBeenCalledWith('header-token');
+      expect((gateway as any).verifyToken).toHaveBeenCalledWith('header-token');
     });
 
     it('disconnects when payload has no sub claim', async () => {
-      jest
-        .spyOn(gateway as any, 'verifyToken')
-        .mockResolvedValue({ sub: undefined });
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: undefined,
+      });
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      expect(client.disconnect).toHaveBeenCalled();
+    });
+
+    it('falls back through all undefined handshake sub-properties (lines 335/338/342)', async () => {
+      // Covers the ?.auth, ?.query, ?.headers optional-chaining null branches.
+      const client = makeSocket({
+        handshake: { auth: undefined, query: undefined, headers: undefined },
+      });
+      await gateway.handleConnection(client as never);
+      expect(client.disconnect).toHaveBeenCalled();
+    });
+  });
+
+  // ── verifyToken internals (lines 358-378) ─────────────────────────────────
+
+  describe('verifyToken internals (without spy)', () => {
+    beforeEach(() => {
+      // Restore gateway.verifyToken spy set by extractToken tests so the real
+      // implementation runs; jwt.verify stays as the vi.mock vi.fn().
+      vi.restoreAllMocks();
+    });
+
+    it('rejects when getSigningKey returns an error', async () => {
+      const jwksError = new Error('JWKS fetch failed');
+      (gateway as any).jwksClient.getSigningKey.mockImplementation(
+        (_kid: string, cb: (err: Error | null, key?: unknown) => void) => {
+          cb(jwksError);
+        },
+      );
+
+      vi.mocked(jwt.verify).mockImplementation(
+        (_t: string, getKey: any, _opts: any, callback: any) => {
+          // Simulate jsonwebtoken calling getKey, then callback with the error
+          getKey({ kid: 'kid-1' }, (err: Error | null) => {
+            callback(err);
+          });
+          return undefined as any;
+        },
+      );
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      // verifyToken rejects → catch block → disconnect
+      expect(client.disconnect).toHaveBeenCalled();
+    });
+
+    it('resolves and completes connection when getSigningKey and jwt.verify both succeed', async () => {
+      const mockKey = { getPublicKey: () => 'mock-public-key' };
+      (gateway as any).jwksClient.getSigningKey.mockImplementation(
+        (_kid: string, cb: (err: null, key: typeof mockKey) => void) => {
+          cb(null, mockKey);
+        },
+      );
+
+      vi.mocked(jwt.verify).mockImplementation(
+        (_t: string, getKey: any, _opts: any, callback: any) => {
+          getKey({ kid: 'kid-1' }, (_err: null, _pubKey: string) => {
+            callback(null, { sub: 'auth0|user-1' });
+          });
+          return undefined as any;
+        },
+      );
+
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
+        id: 'user-uuid-1',
+        email: 'user@test.com',
+      });
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([]);
+      mockNotificationsService.getUnreadCount.mockResolvedValue(0);
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      expect(client.disconnect).not.toHaveBeenCalled();
+      expect(client.emit).toHaveBeenCalledWith(
+        'notification:unread-count',
+        expect.any(Object),
+      );
+    });
+
+    it('resolves when getSigningKey key is undefined (covers key?.getPublicKey() — line 364)', async () => {
+      (gateway as any).jwksClient.getSigningKey.mockImplementation(
+        (_kid: string, cb: (err: null, key?: undefined) => void) => {
+          cb(null, undefined);
+        },
+      );
+
+      vi.mocked(jwt.verify).mockImplementation(
+        (_t: string, getKey: any, _opts: any, callback: any) => {
+          getKey({ kid: 'kid-1' }, (err: Error | null, _pubKey: unknown) => {
+            if (err) callback(err);
+            else callback(null, { sub: 'auth0|user-1' });
+          });
+          return undefined as any;
+        },
+      );
+
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
+        id: 'user-uuid-1',
+        email: 'user@test.com',
+      });
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([]);
+      mockNotificationsService.getUnreadCount.mockResolvedValue(0);
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      expect(client.emit).toHaveBeenCalledWith(
+        'notification:unread-count',
+        expect.any(Object),
+      );
+    });
+
+    it('rejects when jwt.verify callback receives an error', async () => {
+      const mockKey = { getPublicKey: () => 'mock-public-key' };
+      (gateway as any).jwksClient.getSigningKey.mockImplementation(
+        (_kid: string, cb: (err: null, key: typeof mockKey) => void) => {
+          cb(null, mockKey);
+        },
+      );
+
+      vi.mocked(jwt.verify).mockImplementation(
+        (_t: string, getKey: any, _opts: any, callback: any) => {
+          getKey({ kid: 'kid-1' }, (_err: null, _pubKey: string) => {
+            callback(new Error('token expired'));
+          });
+          return undefined as any;
+        },
+      );
 
       const client = makeSocket();
       await gateway.handleConnection(client as never);

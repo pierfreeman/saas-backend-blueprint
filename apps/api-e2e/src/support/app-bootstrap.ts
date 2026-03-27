@@ -6,7 +6,7 @@
  *  2. Returns the app instance so tests can access DI providers directly
  *     (e.g. `app.get(PrismaBusinessService)`).
  *
- * Environment: load-env.ts (loaded via Jest setupFiles) has already set the
+ * Environment: load-env.ts (loaded via Vitest setupFiles) has already set the
  * test environment variables before this function is called.
  *
  * Usage (in beforeAll):

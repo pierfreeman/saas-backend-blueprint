@@ -19,6 +19,14 @@ export const envValidationSchema = Joi.object({
   // Auth0
   AUTH0_DOMAIN: Joi.string().required(),
   AUTH0_AUDIENCE: Joi.string().required(),
+  /** M2M credentials — required only for email-based invite flow. */
+  AUTH0_M2M_CLIENT_ID: Joi.string().optional().allow(''),
+  AUTH0_M2M_CLIENT_SECRET: Joi.string().optional().allow(''),
+  /** Base URL of the frontend app — used as landing page in invite emails. */
+  FRONTEND_BASE_URL: Joi.string()
+    .uri()
+    .optional()
+    .default('http://localhost:4200'),
 
   // Event Bus
   EVENT_BUS_TRANSPORT: Joi.string().valid('local', 'sqs').default('local'),
@@ -80,8 +88,8 @@ export const envValidationSchema = Joi.object({
   // Stripe (optional — billing module checks at runtime)
   STRIPE_SECRET_KEY: Joi.string().optional(),
   STRIPE_WEBHOOK_SECRET: Joi.string().optional(),
-  STRIPE_PRICE_ID_BASIC: Joi.string().optional(),
   STRIPE_PRICE_ID_PRO: Joi.string().optional(),
+  STRIPE_PRICE_ID_ENTERPRISE: Joi.string().optional(),
   STRIPE_MAX_RETRIES: Joi.number().integer().min(0).max(10).default(3),
   STRIPE_RETRY_BASE_DELAY_MS: Joi.number().integer().min(0).default(500),
 

@@ -3,11 +3,11 @@ import { ActivityLogController } from './activity-log.controller';
 import { ActivityLogService } from '@libs/activity-log';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { RBACGuard } from '../rbac/guards/rbac.guard';
+import { OrgContextGuard, RBACGuard } from '@libs/rbac';
+import { vi } from 'vitest';
 
 const mockActivityLogService = {
-  findByOrg: jest.fn(),
+  findByOrg: vi.fn(),
 };
 
 const allowAllGuard = { canActivate: () => true };
@@ -31,7 +31,7 @@ describe('ActivityLogController', () => {
       .compile();
 
     controller = module.get<ActivityLogController>(ActivityLogController);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('list', () => {

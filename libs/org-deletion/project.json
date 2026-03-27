@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/org-deletion/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:org-deletion"],
+  "tags": [
+    "type:lib",
+    "scope:org-deletion"
+  ],
   "// targets": "to see all targets run: nx show project org-deletion --web",
   "targets": {
     "build": {
@@ -12,10 +15,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/org-deletion"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/org-deletion"
+      ],
       "options": {
-        "jestConfig": "libs/org-deletion/jest.config.cts"
+        "configFile": "libs/org-deletion/vitest.config.ts"
       }
     },
     "typecheck": {

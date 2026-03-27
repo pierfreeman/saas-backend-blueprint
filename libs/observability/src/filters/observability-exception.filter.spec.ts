@@ -1,0 +1,140 @@
+import { HttpException, HttpStatus } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ObservabilityExceptionFilter } from './observability-exception.filter';
+import { ObservabilityLoggerService } from '../logger/logger.service';
+import { Mock, Mocked, vi } from 'vitest';
+
+function makeHost(
+  overrides: {
+    method?: string;
+    url?: string;
+    tenantContext?: { tenantId?: string; userId?: string; role?: string };
+  } = {},
+) {
+  const json = vi.fn();
+  const status = vi.fn().mockReturnValue({ json });
+  return {
+    switchToHttp: () => ({
+      getResponse: () => ({ status }),
+      getRequest: () => ({
+        method: overrides.method ?? 'GET',
+        url: overrides.url ?? '/api/test',
+        tenantContext: overrides.tenantContext,
+      }),
+    }),
+    status,
+    json,
+  };
+}
+
+describe('ObservabilityExceptionFilter', () => {
+  let filter: ObservabilityExceptionFilter;
+  let logger: Mocked<ObservabilityLoggerService>;
+
+  beforeEach(async () => {
+    const mockLogger: Mocked<Partial<ObservabilityLoggerService>> = {
+      logCtx: vi.fn(),
+      errorCtx: vi.fn(),
+      warnCtx: vi.fn(),
+      debugCtx: vi.fn(),
+      log: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ObservabilityExceptionFilter,
+        { provide: ObservabilityLoggerService, useValue: mockLogger },
+      ],
+    }).compile();
+
+    filter = module.get<ObservabilityExceptionFilter>(
+      ObservabilityExceptionFilter,
+    );
+    logger = module.get(ObservabilityLoggerService);
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('returns 500 for unknown errors', () => {
+    const host = makeHost({
+      tenantContext: { tenantId: 'tid-1', role: 'ADMIN' },
+    });
+    filter.catch(new Error('Unexpected'), host as any);
+
+    const [statusCode] = (host.status as Mock).mock.calls[0];
+    expect(statusCode).toBe(500);
+  });
+
+  it('logs errorCtx for 5xx with the original Error instance', () => {
+    const host = makeHost({
+      tenantContext: { tenantId: 'tid-1', userId: 'user-1', role: 'OWNER' },
+    });
+    const err = new Error('Internal crash');
+    filter.catch(err, host as any);
+
+    expect(logger.errorCtx).toHaveBeenCalledTimes(1);
+    const [, capturedErr, meta] = logger.errorCtx.mock.calls[0];
+    expect(capturedErr).toBe(err);
+    expect((meta as Record<string, string>)['tenantId']).toBe('tid-1');
+    expect((meta as Record<string, string>)['actorRole']).toBe('OWNER');
+  });
+
+  it('returns correct status code for 400 HttpException', () => {
+    const host = makeHost();
+    filter.catch(
+      new HttpException('Bad request', HttpStatus.BAD_REQUEST),
+      host as any,
+    );
+
+    const [statusCode] = (host.status as Mock).mock.calls[0];
+    expect(statusCode).toBe(400);
+  });
+
+  it('warns (not errors) for 4xx and does NOT invoke logger.errorCtx', () => {
+    const host = makeHost({ url: '/api/missing' });
+    filter.catch(
+      new HttpException('Not found', HttpStatus.NOT_FOUND),
+      host as any,
+    );
+
+    expect(logger.warnCtx).toHaveBeenCalledTimes(1);
+    expect(logger.errorCtx).not.toHaveBeenCalled();
+  });
+
+  it('silently suppresses /favicon.ico (no logs)', () => {
+    const host = makeHost({ url: '/favicon.ico' });
+    filter.catch(new HttpException('Not found', 404), host as any);
+
+    expect(logger.warnCtx).not.toHaveBeenCalled();
+    expect(logger.errorCtx).not.toHaveBeenCalled();
+  });
+
+  it('returns consistent JSON error shape', () => {
+    const host = makeHost({ method: 'POST', url: '/api/resource' });
+    filter.catch(
+      new HttpException('Conflict', HttpStatus.CONFLICT),
+      host as any,
+    );
+
+    const jsonArg = (host.json as Mock).mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(jsonArg['statusCode']).toBe(409);
+    expect(jsonArg['path']).toBe('/api/resource');
+    expect(jsonArg['method']).toBe('POST');
+    expect(typeof jsonArg['timestamp']).toBe('string');
+    expect(jsonArg['message']).toBe('Conflict');
+  });
+
+  it('does NOT log tenantId without a tenantContext', () => {
+    const host = makeHost(); // no tenantContext
+    filter.catch(new HttpException('Forbidden', 403), host as any);
+
+    const [, meta] = logger.warnCtx.mock.calls[0];
+    expect((meta as Record<string, unknown>)['tenantId']).toBeUndefined();
+  });
+});

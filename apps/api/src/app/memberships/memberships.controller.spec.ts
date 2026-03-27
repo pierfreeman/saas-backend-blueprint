@@ -1,13 +1,31 @@
 import { MembershipsController } from './memberships.controller';
-import { MembershipsService } from './memberships.service';
+import { MembershipsService } from '@libs/memberships';
+import { RBACCacheService } from '@libs/rbac';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { InviteMemberService } from './invite-member.service';
+import { RemoveMemberService } from './remove-member.service';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { vi } from 'vitest';
 
 const mockMembershipsService = {
-  createMembership: jest.fn(),
-  findByOrg: jest.fn(),
-  updateMembership: jest.fn(),
-  deleteMembership: jest.fn(),
+  createMembership: vi.fn(),
+  findByOrg: vi.fn(),
+  updateMembership: vi.fn(),
+  deleteMembership: vi.fn(),
 } as unknown as MembershipsService;
+
+const mockRBACCacheService = {
+  invalidate: vi.fn().mockResolvedValue(undefined),
+  invalidateOrg: vi.fn().mockResolvedValue(undefined),
+} as unknown as RBACCacheService;
+
+const mockInviteMemberService = {
+  invite: vi.fn(),
+} as unknown as InviteMemberService;
+
+const mockRemoveMemberService = {
+  remove: vi.fn(),
+} as unknown as RemoveMemberService;
 
 const baseMembership = {
   id: 'm-1',
@@ -23,13 +41,18 @@ describe('MembershipsController', () => {
   let controller: MembershipsController;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    controller = new MembershipsController(mockMembershipsService);
+    vi.clearAllMocks();
+    controller = new MembershipsController(
+      mockMembershipsService,
+      mockRBACCacheService,
+      mockInviteMemberService,
+      mockRemoveMemberService,
+    );
   });
 
   describe('create()', () => {
     it('creates a membership and returns the result', async () => {
-      mockMembershipsService.createMembership = jest
+      mockMembershipsService.createMembership = vi
         .fn()
         .mockResolvedValue(baseMembership);
 
@@ -46,7 +69,7 @@ describe('MembershipsController', () => {
     });
 
     it('propagates errors from the service', async () => {
-      mockMembershipsService.createMembership = jest
+      mockMembershipsService.createMembership = vi
         .fn()
         .mockRejectedValue(new Error('Duplicate membership'));
 
@@ -62,7 +85,7 @@ describe('MembershipsController', () => {
   describe('findByOrg()', () => {
     it('returns the list of memberships for an org', async () => {
       const list = [baseMembership, { ...baseMembership, id: 'm-2' }];
-      mockMembershipsService.findByOrg = jest.fn().mockResolvedValue(list);
+      mockMembershipsService.findByOrg = vi.fn().mockResolvedValue(list);
 
       const result = await controller.findByOrg('org-1');
       expect(result).toBe(list);
@@ -70,7 +93,7 @@ describe('MembershipsController', () => {
     });
 
     it('returns an empty array when the org has no members', async () => {
-      mockMembershipsService.findByOrg = jest.fn().mockResolvedValue([]);
+      mockMembershipsService.findByOrg = vi.fn().mockResolvedValue([]);
       expect(await controller.findByOrg('org-empty')).toEqual([]);
     });
   });
@@ -78,7 +101,7 @@ describe('MembershipsController', () => {
   describe('update()', () => {
     it('updates a membership role and returns the updated entity', async () => {
       const updated = { ...baseMembership, role: 'ADMIN' as MembershipRole };
-      mockMembershipsService.updateMembership = jest
+      mockMembershipsService.updateMembership = vi
         .fn()
         .mockResolvedValue(updated);
 
@@ -95,8 +118,7 @@ describe('MembershipsController', () => {
     });
 
     it('propagates NotFoundException from service', async () => {
-      const { NotFoundException } = jest.requireActual('@nestjs/common');
-      mockMembershipsService.updateMembership = jest
+      mockMembershipsService.updateMembership = vi
         .fn()
         .mockRejectedValue(new NotFoundException('Membership not found'));
 
@@ -107,28 +129,64 @@ describe('MembershipsController', () => {
   });
 
   describe('delete()', () => {
-    it('deletes a membership and returns a success message', async () => {
-      mockMembershipsService.deleteMembership = jest
-        .fn()
-        .mockResolvedValue(undefined);
+    it('delegates to RemoveMemberService and returns success message', async () => {
+      mockRemoveMemberService.remove = vi.fn().mockResolvedValue(undefined);
 
-      const result = await controller.delete('org-1', 'm-1');
+      const result = await controller.delete('org-1', 'm-1', 'actor-id');
+
       expect(result).toEqual({ message: 'Membership deleted successfully' });
-      expect(mockMembershipsService.deleteMembership).toHaveBeenCalledWith(
+      expect(mockRemoveMemberService.remove).toHaveBeenCalledWith(
         'm-1',
         'org-1',
+        'actor-id',
       );
+      expect(mockRBACCacheService.invalidateOrg).toHaveBeenCalledWith('org-1');
     });
 
-    it('propagates NotFoundException from service', async () => {
-      const { NotFoundException } = jest.requireActual('@nestjs/common');
-      mockMembershipsService.deleteMembership = jest
+    it('propagates NotFoundException from RemoveMemberService', async () => {
+      mockRemoveMemberService.remove = vi
         .fn()
         .mockRejectedValue(new NotFoundException('Membership not found'));
 
-      await expect(controller.delete('org-1', 'm-x')).rejects.toThrow(
-        NotFoundException,
+      await expect(
+        controller.delete('org-1', 'm-x', 'actor-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('invite()', () => {
+    const inviteDto = {
+      email: 'alice@example.com',
+      role: 'MEMBER' as MembershipRole,
+    };
+    const inviterUserId = 'inviter-db-id';
+
+    it('delegates to InviteMemberService and returns the result', async () => {
+      const expected = { message: 'Invitation sent successfully.' };
+      mockInviteMemberService.invite = vi.fn().mockResolvedValue(expected);
+
+      const result = await controller.invite('org-1', inviteDto, inviterUserId);
+
+      expect(result).toBe(expected);
+      expect(mockInviteMemberService.invite).toHaveBeenCalledWith(
+        inviteDto,
+        'org-1',
+        inviterUserId,
       );
+    });
+
+    it('propagates ConflictException when user is already a member', async () => {
+      mockInviteMemberService.invite = vi
+        .fn()
+        .mockRejectedValue(
+          new ConflictException(
+            'alice@example.com is already a member of this organization.',
+          ),
+        );
+
+      await expect(
+        controller.invite('org-1', inviteDto, inviterUserId),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

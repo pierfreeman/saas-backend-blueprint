@@ -1,32 +1,33 @@
 import { StripeClient } from './stripe.client';
 import { ConfigService } from '@nestjs/config';
+import { vi } from 'vitest';
 
 const mockConfigService = {
-  get: jest.fn(),
+  get: vi.fn(),
 } as unknown as ConfigService;
 
 describe('StripeClient', () => {
   let client: StripeClient;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     client = new StripeClient(mockConfigService);
   });
 
   it('initializes without throwing when STRIPE_SECRET_KEY is set', () => {
-    mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc123');
+    mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc123');
 
     expect(() => client.onModuleInit()).not.toThrow();
   });
 
   it('initializes with placeholder key when STRIPE_SECRET_KEY is not set', () => {
-    mockConfigService.get = jest.fn().mockReturnValue(undefined);
+    mockConfigService.get = vi.fn().mockReturnValue(undefined);
 
     expect(() => client.onModuleInit()).not.toThrow();
   });
 
   it('exposes the Stripe instance via the stripe getter after init', () => {
-    mockConfigService.get = jest.fn().mockReturnValue('sk_test_abc123');
+    mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc123');
 
     client.onModuleInit();
 
@@ -35,7 +36,7 @@ describe('StripeClient', () => {
   });
 
   it('uses placeholder key when STRIPE_SECRET_KEY is absent', () => {
-    mockConfigService.get = jest.fn().mockReturnValue(undefined);
+    mockConfigService.get = vi.fn().mockReturnValue(undefined);
 
     client.onModuleInit();
 

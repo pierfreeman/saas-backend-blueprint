@@ -12,7 +12,7 @@
  *   await controller.handleHeavyJobCreated(event);
  *   await ctx.close();
  *
- * Environment: load-env.ts (loaded via Jest setupFiles) provides .env.test values.
+ * Environment: load-env.ts (loaded via Vitest setupFiles) provides .env.test values.
  */
 import { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';

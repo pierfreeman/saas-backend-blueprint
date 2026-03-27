@@ -1,12 +1,13 @@
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { Mock, vi } from 'vitest';
 
 function makeHost(
   method = 'GET',
   url = '/test',
-): { host: ArgumentsHost; json: jest.Mock; status: jest.Mock } {
-  const json = jest.fn();
-  const statusFn = jest.fn().mockReturnValue({ json });
+): { host: ArgumentsHost; json: Mock; status: Mock } {
+  const json = vi.fn();
+  const statusFn = vi.fn().mockReturnValue({ json });
   const host = {
     switchToHttp: () => ({
       getResponse: () => ({ status: statusFn }),
@@ -72,7 +73,7 @@ describe('AllExceptionsFilter', () => {
 
   it('does not log WARN for silent browser paths (favicon)', () => {
     const { host } = makeHost('GET', '/favicon.ico');
-    const warnSpy = jest
+    const warnSpy = vi
       .spyOn(filter['logger'], 'warn')
       .mockImplementation(() => undefined);
     filter.catch(new HttpException('Not Found', HttpStatus.NOT_FOUND), host);
@@ -81,7 +82,7 @@ describe('AllExceptionsFilter', () => {
 
   it('logs ERROR with stack for 5xx exceptions', () => {
     const { host } = makeHost('GET', '/crash');
-    const errorSpy = jest
+    const errorSpy = vi
       .spyOn(filter['logger'], 'error')
       .mockImplementation(() => undefined);
     filter.catch(new Error('boom'), host);

@@ -69,6 +69,7 @@ The **org-export** library provides a complete solution for exporting organizati
 Orchestrates export requests from the API layer.
 
 **Key Methods:**
+
 - `requestExport(orgId, userId)` — Create export + job, emit event
 - `getExport(exportId, orgId)` — Retrieve export status
 - `listExports(orgId, limit, offset)` — List all exports for org
@@ -80,6 +81,7 @@ Orchestrates export requests from the API layer.
 Executes the actual data export in the background worker.
 
 **Workflow:**
+
 1. Load & Validate
 2. Update Status (PROCESSING)
 3. Aggregate Data
@@ -100,12 +102,15 @@ Manages export lifecycle with scheduled tasks (daily at 3 AM).
 ## API Endpoints
 
 ### Request Export
+
 `POST /organizations/:id/export` (OWNER/ADMIN only)
 
 ### Get Export Status
+
 `GET /organizations/:id/exports/:exportId`
 
 ### List Exports
+
 `GET /organizations/:id/exports`
 
 ---
@@ -121,9 +126,9 @@ Manages export lifecycle with scheduled tasks (daily at 3 AM).
 
 ## Configuration
 
-| Variable                       | Default | Description                        |
-|--------------------------------|---------|------------------------------------|
-| `EXPORT_URL_EXPIRATION_HOURS`  | 24      | Signed URL lifetime                |
+| Variable                      | Default | Description         |
+| ----------------------------- | ------- | ------------------- |
+| `EXPORT_URL_EXPIRATION_HOURS` | 24      | Signed URL lifetime |
 
 ---
 

@@ -126,15 +126,21 @@ enum MembershipStatus {
 
 model User {
   /// Internal UUID – used as the primary key across all relations.
-  id        String   @id @default(uuid()) @db.Uuid
+  id         String   @id @default(uuid()) @db.Uuid
   /// Auth0 subject identifier ("sub" JWT claim). Immutable after creation.
-  auth0Id   String   @unique @map("auth0_id")
+  auth0Id    String   @unique @map("auth0_id")
   /// Email address sourced from the Auth0 token. Re-synced on every login.
-  email     String   @unique
+  email      String   @unique
+  /// Given name (first name). Synced from Auth0 on first social login; editable by the user.
+  firstName  String?  @map("first_name")
+  /// Family name (last name). Synced from Auth0 on first social login; editable by the user.
+  lastName   String?  @map("last_name")
+  /// Profile picture URL. Synced from Auth0 on first social login; editable by the user.
+  pictureUrl String?  @map("picture_url")
   /// Timestamp of first login (record creation).
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt  DateTime @default(now()) @map("created_at")
   /// Timestamp of the last profile sync.
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   // ── Relations ──────────────────────────────────────────────────────────────
   memberships   Membership[]
@@ -169,8 +175,6 @@ model Organization {
   billingStatus             BillingStatus  @default(NONE) @map("billing_status")
   /// Stripe Price ID of the active plan (e.g. price_xxx). Null if no subscription.
   planId                    String?        @map("plan_id")
-  /// Number of billable seats in the current subscription.
-  seatCount                 Int            @default(1) @map("seat_count")
   /// Storage quota in bytes. Null means plan default applies.
   storageLimit              BigInt?        @map("storage_limit")
   /// Start of the current billing period (from Stripe).

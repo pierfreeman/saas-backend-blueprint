@@ -36,4 +36,11 @@ export interface IStorageProvider {
    * @returns True if the object exists
    */
   objectExists(key: string): Promise<boolean>;
+
+  /**
+   * Return the size in bytes of an object that is known to exist.
+   * @param key - Storage key (path) for the file
+   * @returns Size in bytes
+   */
+  getObjectSize(key: string): Promise<bigint>;
 }

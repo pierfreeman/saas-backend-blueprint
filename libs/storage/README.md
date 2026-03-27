@@ -36,6 +36,7 @@ The Storage Module provides a **provider-agnostic file storage system** with pre
 ```
 
 **Why this architecture?**
+
 - Scalability: API server never handles file streams
 - Performance: Direct S3 uploads leverage AWS edge network
 - Cost: No egress costs for API server
@@ -64,11 +65,13 @@ org/{orgId}/{fileId}
 ```
 
 **Example:**
+
 ```
 org/abc-123-def-456/file-789-xyz
 ```
 
 This ensures:
+
 - **Tenant isolation**: Files cannot be accessed across organizations
 - **Predictable structure**: Easy to audit and debug
 - **Cleanup**: When an org is deleted, all files cascade-delete via foreign key
@@ -120,6 +123,7 @@ enum FileStatus {
 Generate a presigned upload URL.
 
 **Request:**
+
 ```json
 {
   "filename": "document.pdf",
@@ -129,6 +133,7 @@ Generate a presigned upload URL.
 ```
 
 **Response:**
+
 ```json
 {
   "fileId": "550e8400-e29b-41d4-a716-446655440000",
@@ -139,6 +144,7 @@ Generate a presigned upload URL.
 ```
 
 **Validations:**
+
 - File size within plan limits
 - Storage quota not exceeded
 - File count limit not reached
@@ -151,6 +157,7 @@ Generate a presigned upload URL.
 Confirm that a file has been uploaded.
 
 **Request:**
+
 ```json
 {
   "fileId": "550e8400-e29b-41d4-a716-446655440000"
@@ -158,6 +165,7 @@ Confirm that a file has been uploaded.
 ```
 
 **Response:**
+
 ```json
 {
   "fileId": "550e8400-e29b-41d4-a716-446655440000",
@@ -167,6 +175,7 @@ Confirm that a file has been uploaded.
 ```
 
 **Validations:**
+
 - File exists in database
 - File belongs to user's organization
 - File status is PENDING
@@ -180,6 +189,7 @@ Confirm that a file has been uploaded.
 Generate a presigned download URL.
 
 **Response:**
+
 ```json
 {
   "downloadUrl": "https://s3.amazonaws.com/bucket/org/org-id/file-id?X-Amz-Signature=...",
@@ -191,6 +201,7 @@ Generate a presigned download URL.
 ```
 
 **Validations:**
+
 - File exists and belongs to user's organization
 - File status is COMPLETED
 - User has READ_ONLY role or higher
@@ -202,6 +213,7 @@ Generate a presigned download URL.
 Get file metadata.
 
 **Response:**
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -227,10 +239,12 @@ Get file metadata.
 List files for the organization.
 
 **Query Parameters:**
+
 - `limit` (optional): Max results (default: 20)
 - `offset` (optional): Pagination offset (default: 0)
 
 **Response:**
+
 ```json
 [
   {
@@ -244,6 +258,30 @@ List files for the organization.
 
 ---
 
+### GET /files/quota
+
+Get storage quota and usage for the current organization.
+
+**Response:**
+
+```json
+{
+  "storageLimitBytes": "107374182",
+  "storageUsedBytes": "52428800",
+  "fileCount": 12,
+  "fileCountLimit": 100,
+  "maxFileSizeBytes": "53687091.2"
+}
+```
+
+All BigInt fields are serialized as strings to preserve precision. A `null`
+`storageLimitBytes` value indicates a per-org custom storage cap is not set
+(should not occur with the current plan defaults).
+
+**Roles:** `OWNER | ADMIN | MEMBER | READ_ONLY`
+
+---
+
 ### DELETE /files/:id
 
 Delete a file.
@@ -251,10 +289,12 @@ Delete a file.
 **Response:** `204 No Content`
 
 **Validations:**
+
 - File exists and belongs to user's organization
 - User has MEMBER role or higher
 
 **Side Effects:**
+
 - File deleted from S3
 - Metadata deleted from database
 - Activity logged
@@ -264,29 +304,73 @@ Delete a file.
 
 ## Storage Quotas
 
-Quotas are configured per plan type via environment variables:
+Quota enforcement is tied to the organization's subscription plan, resolved via
+`FeatureFlagsService`. A per-org `storageLimit` field on the `Organization` DB
+record can override plan defaults (used for custom enterprise deals).
 
-### Free Plan
+### Plan Limits
+
+| Plan       | Total Storage | Max Files | Max File Size |
+| ---------- | ------------- | --------- | ------------- |
+| Free       | 100 MB        | 100       | 50 MB         |
+| Pro        | 5 GB          | 10,000    | 2 GB          |
+| Enterprise | 50 GB         | Unlimited | 10 GB         |
+
+### Quota Enforcement Pipeline
+
+```
+POST /files/upload-url
+  ↓
+StorageController#generateUploadUrl
+  ↓
+#resolveOrgPlan(orgId)  ← parallel:
+  ├─ FeatureFlagsService.getEntitlements()  (Redis-cached, TTL 10 min)
+  └─ BillingService.getOrgBillingStatus()   (DB, for per-org override)
+  ↓
+StorageService.generateUploadUrl(request, planType, orgStorageLimit)
+  ↓
+UploadPolicyService.validateUploadRequest()
+  ├─ BadRequestException if file > maxFileSizeBytes for plan
+  ├─ ForbiddenException  if file count ≥ fileCountLimit
+  └─ ForbiddenException  if (usedBytes + newFileBytes) > storageLimitBytes
+```
+
+### Per-Org Override
+
+To grant a custom storage limit to an org (e.g. a negotiated enterprise deal):
+
+```sql
+UPDATE organizations SET storage_limit = 107374182400 WHERE id = 'org-id';
+-- sets a 100 GB custom limit, overriding the plan default
+```
+
+### Configuring Plan Defaults
+
+Defaults are set in `libs/config/src/storage.config.ts` and can be overridden
+via environment variables:
+
 ```env
-FREE_PLAN_STORAGE_LIMIT_GB=1
+# Free Plan (defaults: 100 MB storage, 100 files, 50 MB per file)
+FREE_PLAN_STORAGE_LIMIT_GB=0.1
 FREE_PLAN_FILE_COUNT_LIMIT=100
-FREE_PLAN_MAX_FILE_SIZE_GB=0.1  # 100MB
-```
+FREE_PLAN_MAX_FILE_SIZE_GB=0.05
 
-### Pro Plan
-```env
-PRO_PLAN_STORAGE_LIMIT_GB=50
+# Pro Plan (defaults: 5 GB storage, 10,000 files, 2 GB per file)
+PRO_PLAN_STORAGE_LIMIT_GB=5
 PRO_PLAN_FILE_COUNT_LIMIT=10000
-PRO_PLAN_MAX_FILE_SIZE_GB=20
+PRO_PLAN_MAX_FILE_SIZE_GB=2
+
+# Enterprise Plan (defaults: 50 GB storage, unlimited files, 10 GB per file)
+ENTERPRISE_PLAN_STORAGE_LIMIT_GB=50
+# Leave file count blank for unlimited
+ENTERPRISE_PLAN_FILE_COUNT_LIMIT=
+ENTERPRISE_PLAN_MAX_FILE_SIZE_GB=10
 ```
 
-### Enterprise Plan
-```env
-# Leave empty for unlimited
-ENTERPRISE_PLAN_STORAGE_LIMIT_GB=
-ENTERPRISE_PLAN_FILE_COUNT_LIMIT=
-ENTERPRISE_PLAN_MAX_FILE_SIZE_GB=100
-```
+> **Note:** The `storageLimitBytes` field in `OrganizationEntitlements` (from
+> `FeatureFlagsService`) is the canonical quota value for frontend display. The
+> `storage.config.ts` plan defaults govern server-side enforcement. Keep both
+> in sync when changing plan limits.
 
 Organizations can also have custom `storageLimit` values in the database, which override plan defaults.
 
@@ -297,6 +381,7 @@ Organizations can also have custom `storageLimit` values in the database, which 
 ### Tenant Isolation
 
 Every operation validates `orgId`:
+
 ```typescript
 // Service layer
 const file = await this.storageRepository.findByIdAndOrg(fileId, orgId);
@@ -306,13 +391,14 @@ if (!file) {
 
 // Repository layer
 await this.prisma.file.findFirst({
-  where: { id: fileId, orgId: orgId }
+  where: { id: fileId, orgId: orgId },
 });
 ```
 
 ### RBAC Enforcement
 
 API endpoints use guards:
+
 ```typescript
 @UseGuards(JwtAuthGuard, OrgContextGuard, RBACGuard)
 @RequireRole(MembershipRole.MEMBER)
@@ -321,6 +407,7 @@ API endpoints use guards:
 ### Presigned URL Expiration
 
 Upload and download URLs expire after 1 hour (configurable):
+
 ```env
 PRESIGNED_URL_EXPIRATION_SECONDS=3600
 ```
@@ -328,6 +415,7 @@ PRESIGNED_URL_EXPIRATION_SECONDS=3600
 ### No File Streaming Through API
 
 Files never pass through the API server. This prevents:
+
 - DoS attacks via large file uploads
 - Server resource exhaustion
 - API timeouts on slow connections
@@ -339,7 +427,9 @@ Files never pass through the API server. This prevents:
 Every storage operation generates **two audit events**:
 
 ### Activity Log (Business-Level)
+
 Visible to organization admins:
+
 ```typescript
 this.activityLog.logActivity({
   orgId,
@@ -352,7 +442,9 @@ this.activityLog.logActivity({
 ```
 
 ### Legal Audit (Compliance)
+
 Append-only, immutable:
+
 ```typescript
 this.legalAudit.recordEvent({
   eventType: 'file.upload.confirmed',
@@ -367,6 +459,7 @@ this.legalAudit.recordEvent({
 ## Environment Variables
 
 ### AWS S3 Configuration
+
 ```env
 DEFAULT_STORAGE_PROVIDER=S3
 AWS_REGION=us-east-1
@@ -378,6 +471,7 @@ AWS_S3_ENDPOINT=http://localhost:4566
 ```
 
 ### Upload Session
+
 ```env
 UPLOAD_SESSION_EXPIRATION_HOURS=24
 UPLOAD_SESSION_RETENTION_DAYS=7
@@ -385,6 +479,7 @@ PRESIGNED_URL_EXPIRATION_SECONDS=3600
 ```
 
 ### Cleanup Jobs
+
 ```env
 STORAGE_CLEANUP_ENABLED=true
 # Cron schedules (optional)
@@ -402,23 +497,27 @@ STORAGE_CLEANUP_EXPIRED_UPLOADS_CRON=0 */6 * * *
 LocalStack provides S3-compatible storage for local development.
 
 #### 1. Start Services
+
 ```bash
 docker compose up -d
 ```
 
 This starts:
+
 - PostgreSQL (business DB)
 - PostgreSQL (legal audit DB)
 - Redis
 - LocalStack (S3 + SQS)
 
 #### 2. Verify S3 Bucket
+
 ```bash
 docker compose exec localstack awslocal s3 ls
 # Should show: saas-backend-storage
 ```
 
 #### 3. Configure Environment
+
 ```env
 AWS_S3_ENDPOINT=http://localhost:4566
 AWS_S3_BUCKET=saas-backend-storage
@@ -428,11 +527,13 @@ AWS_SECRET_ACCESS_KEY=test
 ```
 
 #### 4. Run Migrations
+
 ```bash
 npm run prisma:migrate:dev
 ```
 
 #### 5. Start API
+
 ```bash
 npm run start:api
 ```
@@ -444,11 +545,13 @@ npm run start:api
 ### Unit Tests
 
 Run all storage unit tests:
+
 ```bash
 nx test storage
 ```
 
 Run specific test file:
+
 ```bash
 nx test storage --testFile=s3.provider.spec.ts
 ```
@@ -472,6 +575,7 @@ npm run test:infra:down
 ```
 
 **Test scenarios covered:**
+
 - Presigned upload URL generation
 - File upload confirmation
 - Download URL generation
@@ -486,15 +590,21 @@ npm run test:infra:down
 ### Azure Blob Storage Support
 
 Implement `AzureProvider`:
+
 ```typescript
 export class AzureProvider implements IStorageProvider {
-  async generateUploadUrl(key: string, contentType: string, expiresIn: number): Promise<string> {
+  async generateUploadUrl(
+    key: string,
+    contentType: string,
+    expiresIn: number,
+  ): Promise<string> {
     // Use @azure/storage-blob
   }
 }
 ```
 
 Register in `StorageService`:
+
 ```typescript
 private getProvider(providerType: StorageProvider): IStorageProvider {
   switch (providerType) {
@@ -509,6 +619,7 @@ private getProvider(providerType: StorageProvider): IStorageProvider {
 ### Cleanup Jobs
 
 Implement scheduled jobs to:
+
 - Mark expired pending uploads as `EXPIRED`
 - Delete old upload sessions
 - Remove orphaned files from S3
@@ -516,6 +627,7 @@ Implement scheduled jobs to:
 ### Multipart Upload Support
 
 For very large files (>5GB), implement multipart uploads:
+
 - Generate initiate multipart upload URL
 - Client uploads parts
 - Client completes multipart upload
@@ -524,6 +636,7 @@ For very large files (>5GB), implement multipart uploads:
 ### File Thumbnails/Previews
 
 Generate thumbnails for images:
+
 - On upload confirmation, enqueue thumbnail generation job
 - Worker processes image and stores thumbnail
 - API serves thumbnail via presigned URL
@@ -537,6 +650,7 @@ Generate thumbnails for images:
 **Symptom:** Upload fails with 403 Forbidden
 
 **Solutions:**
+
 1. Check AWS credentials are correct
 2. Verify bucket exists and is in correct region
 3. Check bucket CORS configuration allows PUT from your domain
@@ -547,6 +661,7 @@ Generate thumbnails for images:
 **Symptom:** File uploaded but confirm fails with "File not uploaded to storage"
 
 **Solutions:**
+
 1. Ensure client uploads to exact URL returned (no modifications)
 2. Check client uses PUT request, not POST
 3. Verify `Content-Type` header matches `mimeType` from upload URL request
@@ -557,6 +672,7 @@ Generate thumbnails for images:
 **Symptom:** Upload fails with "Storage quota exceeded"
 
 **Solutions:**
+
 1. Check organization's current storage usage
 2. Verify plan limits in environment variables
 3. Check for custom `storageLimit` on Organization model
@@ -575,7 +691,11 @@ import { StorageService } from '@libs/storage';
 export class DocumentService {
   constructor(private readonly storageService: StorageService) {}
 
-  async createDocument(orgId: string, userId: string, file: Express.Multer.File) {
+  async createDocument(
+    orgId: string,
+    userId: string,
+    file: Express.Multer.File,
+  ) {
     // Generate upload URL
     const upload = await this.storageService.generateUploadUrl({
       orgId,

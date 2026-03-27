@@ -40,6 +40,21 @@ echo "[localstack-init] Creating S3 buckets..."
 # S3 bucket for file storage
 awslocal s3 mb s3://saas-backend-storage
 
+# CORS policy so browsers can PUT files directly via presigned URLs
+awslocal s3api put-bucket-cors \
+  --bucket saas-backend-storage \
+  --cors-configuration '{
+    "CORSRules": [
+      {
+        "AllowedOrigins": ["*"],
+        "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+        "AllowedHeaders": ["*"],
+        "ExposeHeaders": ["ETag"],
+        "MaxAgeSeconds": 3000
+      }
+    ]
+  }'
+
 echo "[localstack-init] S3 buckets created successfully."
 echo "[localstack-init] Storage  : s3://saas-backend-storage"
 

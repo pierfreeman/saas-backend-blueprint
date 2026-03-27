@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/notifications/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:notifications"],
+  "tags": [
+    "type:lib",
+    "scope:notifications"
+  ],
   "targets": {
     "build": {
       "executor": "nx:noop",
@@ -11,10 +14,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/unit/libs/notifications"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/unit/libs/notifications"
+      ],
       "options": {
-        "jestConfig": "libs/notifications/jest.config.cts"
+        "configFile": "libs/notifications/vitest.config.ts"
       }
     },
     "typecheck": {

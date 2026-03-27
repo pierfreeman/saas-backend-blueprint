@@ -1,16 +1,17 @@
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
+import { vi } from 'vitest';
 
 const mockHealthService = {
-  checkHealth: jest.fn(),
-  checkReadiness: jest.fn(),
+  checkHealth: vi.fn(),
+  checkReadiness: vi.fn(),
 } as unknown as HealthService;
 
 describe('HealthController', () => {
   let controller: HealthController;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     controller = new HealthController(mockHealthService);
   });
 
@@ -24,7 +25,7 @@ describe('HealthController', () => {
           redis: { status: 'ok', responseTime: 2 },
         },
       };
-      mockHealthService.checkHealth = jest.fn().mockResolvedValue(report);
+      mockHealthService.checkHealth = vi.fn().mockResolvedValue(report);
 
       const result = await controller.check();
       expect(result).toBe(report);
@@ -32,7 +33,7 @@ describe('HealthController', () => {
     });
 
     it('propagates errors from HealthService', async () => {
-      mockHealthService.checkHealth = jest
+      mockHealthService.checkHealth = vi
         .fn()
         .mockRejectedValue(new Error('Health check failed'));
 
@@ -51,7 +52,7 @@ describe('HealthController', () => {
 
   describe('readiness()', () => {
     it('returns { status: "ok", ready: true } when all services are ready', async () => {
-      mockHealthService.checkReadiness = jest.fn().mockResolvedValue(true);
+      mockHealthService.checkReadiness = vi.fn().mockResolvedValue(true);
 
       const result = await controller.readiness();
       expect(result).toEqual({ status: 'ok', ready: true });
@@ -59,14 +60,14 @@ describe('HealthController', () => {
     });
 
     it('returns { status: "not ready", ready: false } when a service is down', async () => {
-      mockHealthService.checkReadiness = jest.fn().mockResolvedValue(false);
+      mockHealthService.checkReadiness = vi.fn().mockResolvedValue(false);
 
       const result = await controller.readiness();
       expect(result).toEqual({ status: 'not ready', ready: false });
     });
 
     it('propagates unexpected errors from checkReadiness', async () => {
-      mockHealthService.checkReadiness = jest
+      mockHealthService.checkReadiness = vi
         .fn()
         .mockRejectedValue(new Error('Redis unavailable'));
 

@@ -3,7 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/org-export/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:org-export"],
+  "tags": [
+    "type:lib",
+    "scope:org-export"
+  ],
   "// targets": "to see all targets run: nx show project org-export --web",
   "targets": {
     "build": {
@@ -12,10 +15,12 @@
       "dependsOn": []
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/org-export"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/org-export"
+      ],
       "options": {
-        "jestConfig": "libs/org-export/jest.config.cts"
+        "configFile": "libs/org-export/vitest.config.ts"
       }
     },
     "typecheck": {

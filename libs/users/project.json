@@ -1,0 +1,32 @@
+{
+  "name": "users",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/users/src",
+  "projectType": "library",
+  "tags": [
+    "type:lib",
+    "scope:users"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/users"
+      ],
+      "options": {
+        "configFile": "libs/users/vitest.config.ts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/users/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

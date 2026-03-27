@@ -7,9 +7,10 @@ import { WebhookController } from './webhook.controller';
 import {
   StripeService,
   WebhookDispatcherService,
-  BillingRepository,
+  BillingService,
 } from '@libs/billing';
 import { LegalAuditService } from '@libs/legal-audit';
+import { Mocked, vi } from 'vitest';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -47,43 +48,43 @@ const makeRequest = (rawBody?: Buffer): RawBodyRequest<Request> =>
 
 describe('WebhookController', () => {
   let controller: WebhookController;
-  let stripeService: jest.Mocked<StripeService>;
-  let dispatcher: jest.Mocked<WebhookDispatcherService>;
-  let legalAudit: jest.Mocked<LegalAuditService>;
-  let billingRepository: jest.Mocked<BillingRepository>;
+  let stripeService: Mocked<StripeService>;
+  let dispatcher: Mocked<WebhookDispatcherService>;
+  let legalAudit: Mocked<LegalAuditService>;
+  let billingService: Mocked<BillingService>;
 
   beforeEach(() => {
     stripeService = {
-      constructWebhookEvent: jest.fn(),
-    } as unknown as jest.Mocked<StripeService>;
+      constructWebhookEvent: vi.fn(),
+    } as unknown as Mocked<StripeService>;
 
     dispatcher = {
-      dispatch: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<WebhookDispatcherService>;
+      dispatch: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Mocked<WebhookDispatcherService>;
 
     legalAudit = {
-      recordEvent: jest.fn(),
-    } as unknown as jest.Mocked<LegalAuditService>;
+      recordEvent: vi.fn(),
+    } as unknown as Mocked<LegalAuditService>;
 
-    billingRepository = {
-      findBillingEvent: jest.fn(),
-      createBillingEvent: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<BillingRepository>;
+    billingService = {
+      findBillingEvent: vi.fn(),
+      createBillingEvent: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Mocked<BillingService>;
 
     controller = new WebhookController(
       stripeService,
       dispatcher,
       legalAudit,
-      billingRepository,
+      billingService,
     );
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ─── Input validation ───────────────────────────────────────────────────
 
   describe('input validation', () => {
     it('throws BadRequestException when raw body is missing', async () => {
-      legalAudit.recordEvent = jest.fn();
+      legalAudit.recordEvent = vi.fn();
 
       await expect(
         controller.handleWebhook(makeRequest(undefined), SIGNATURE),
@@ -97,7 +98,7 @@ describe('WebhookController', () => {
     });
 
     it('throws BadRequestException when stripe-signature header is missing', async () => {
-      legalAudit.recordEvent = jest.fn();
+      legalAudit.recordEvent = vi.fn();
 
       await expect(
         controller.handleWebhook(makeRequest(RAW_BODY), ''),
@@ -112,7 +113,7 @@ describe('WebhookController', () => {
       stripeService.constructWebhookEvent.mockImplementation(() => {
         throw new Error('No signatures found matching the expected signature');
       });
-      legalAudit.recordEvent = jest.fn();
+      legalAudit.recordEvent = vi.fn();
 
       await expect(
         controller.handleWebhook(makeRequest(RAW_BODY), 'bad-sig'),
@@ -129,8 +130,8 @@ describe('WebhookController', () => {
     it('records a verified audit entry after successful signature check', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
-      legalAudit.recordEvent = jest.fn();
+      billingService.findBillingEvent.mockResolvedValue(null);
+      legalAudit.recordEvent = vi.fn();
 
       await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
 
@@ -149,7 +150,7 @@ describe('WebhookController', () => {
     it('returns { received: true } and skips dispatch for duplicate events', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue({
+      billingService.findBillingEvent.mockResolvedValue({
         id: 'billing-evt-001',
       });
 
@@ -160,7 +161,7 @@ describe('WebhookController', () => {
 
       expect(result).toEqual({ received: true });
       expect(dispatcher.dispatch).not.toHaveBeenCalled();
-      expect(billingRepository.createBillingEvent).not.toHaveBeenCalled();
+      expect(billingService.createBillingEvent).not.toHaveBeenCalled();
     });
   });
 
@@ -170,7 +171,7 @@ describe('WebhookController', () => {
     it('dispatches the event and returns { received: true }', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
 
       const result = await controller.handleWebhook(
         makeRequest(RAW_BODY),
@@ -184,12 +185,12 @@ describe('WebhookController', () => {
     it('stores a BillingEvent record with sha256 payload hash after processing', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
 
       await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
 
       const expectedHash = createHash('sha256').update(RAW_BODY).digest('hex');
-      expect(billingRepository.createBillingEvent).toHaveBeenCalledWith(
+      expect(billingService.createBillingEvent).toHaveBeenCalledWith(
         'evt_001',
         expectedHash,
         'org-001',
@@ -201,11 +202,11 @@ describe('WebhookController', () => {
       (event.data.object as unknown as Record<string, unknown>)['metadata'] =
         {};
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
 
       await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
 
-      expect(billingRepository.createBillingEvent).toHaveBeenCalledWith(
+      expect(billingService.createBillingEvent).toHaveBeenCalledWith(
         'evt_001',
         expect.any(String),
         undefined,
@@ -215,15 +216,50 @@ describe('WebhookController', () => {
     it('records stripe.webhook.received audit entry before any other step', async () => {
       const event = makeStripeEvent();
       stripeService.constructWebhookEvent.mockReturnValue(event);
-      billingRepository.findBillingEvent.mockResolvedValue(null);
+      billingService.findBillingEvent.mockResolvedValue(null);
       const recordEvents: string[] = [];
-      legalAudit.recordEvent = jest.fn().mockImplementation((e) => {
+      legalAudit.recordEvent = vi.fn().mockImplementation((e) => {
         recordEvents.push(e.eventType);
       });
 
       await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
 
       expect(recordEvents[0]).toBe('stripe.webhook.received');
+    });
+
+    it('uses "Unknown error" when constructWebhookEvent throws a non-Error value', async () => {
+      // Covers line 113: `err instanceof Error ? err.message : 'Unknown error'`
+      stripeService.constructWebhookEvent.mockImplementation(() => {
+        throw 'plain-string-error';
+      });
+      legalAudit.recordEvent = vi.fn();
+
+      await expect(
+        controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ error: 'Unknown error' }),
+        }),
+      );
+    });
+
+    it('passes undefined orgId when event.data.object has no metadata property at all', async () => {
+      // Covers line 145: ?.metadata?.['orgId'] when metadata is entirely absent
+      const event = makeStripeEvent();
+      (event.data.object as unknown as Record<string, unknown>)['metadata'] =
+        undefined;
+      stripeService.constructWebhookEvent.mockReturnValue(event);
+      billingService.findBillingEvent.mockResolvedValue(null);
+
+      await controller.handleWebhook(makeRequest(RAW_BODY), SIGNATURE);
+
+      expect(billingService.createBillingEvent).toHaveBeenCalledWith(
+        'evt_001',
+        expect.any(String),
+        undefined,
+      );
     });
   });
 });

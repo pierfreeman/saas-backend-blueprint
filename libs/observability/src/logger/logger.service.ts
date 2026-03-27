@@ -1,4 +1,5 @@
 import { Injectable, LoggerService } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
 import { LogContext } from './logger.interfaces';
 
 type LogLevel = 'verbose' | 'debug' | 'log' | 'warn' | 'error' | 'fatal';
@@ -176,6 +177,43 @@ export class ObservabilityLoggerService implements LoggerService {
       this.writeJson(level, message, meta, error, label, timestamp);
     } else {
       this.writePretty(level, message, meta, error, label, timestamp);
+    }
+
+    this.writeSentry(level, message, meta, error, label);
+  }
+
+  private writeSentry(
+    level: LogLevel,
+    message: string,
+    meta: LogContext,
+    error: Error | undefined,
+    label: string | undefined,
+  ): void {
+    const attributes: Record<string, string | number | boolean> = {};
+    if (label) attributes['context'] = label;
+    for (const [k, v] of Object.entries(meta)) {
+      if (v !== undefined && v !== null) {
+        attributes[k] = v as string | number | boolean;
+      }
+    }
+
+    switch (level) {
+      case 'verbose':
+        Sentry.logger.trace(message, attributes);
+        break;
+      case 'debug':
+        Sentry.logger.debug(message, attributes);
+        break;
+      case 'log':
+        Sentry.logger.info(message, attributes);
+        break;
+      case 'warn':
+        Sentry.logger.warn(message, attributes);
+        break;
+      case 'error':
+      case 'fatal':
+        Sentry.logger.error(message, attributes);
+        break;
     }
   }
 

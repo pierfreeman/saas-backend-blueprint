@@ -1,5 +1,5 @@
 # ─── Stage 1: Builder ─────────────────────────────────────────────────────────
-FROM node:20.20.1-alpine3.22 AS builder
+FROM node:25.8.0-alpine3.22 AS builder
 
 WORKDIR /workspace
 
@@ -9,7 +9,7 @@ COPY prisma.config.ts prisma.config.legal.ts ./
 
 RUN npm ci --ignore-scripts --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 
-COPY tsconfig.base.json nx.json jest.preset.js ./
+COPY tsconfig.base.json nx.json ./
 COPY apps ./apps
 COPY libs ./libs
 
@@ -18,7 +18,7 @@ RUN npx prisma generate && \
     npx nx run api:build --configuration=production --skip-nx-cache
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
-FROM node:20.20.1-alpine3.22 AS production
+FROM node:25.8.0-alpine3.22 AS production
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

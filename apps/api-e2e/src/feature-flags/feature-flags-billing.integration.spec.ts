@@ -14,7 +14,7 @@
  * This test verifies the handshake between libs/billing and apps/api feature-flags.
  *
  * Prerequisites:
- *   - .env.test:  STRIPE_PRICE_ID_PRO=price_test_pro, STRIPE_PRICE_ID_BASIC=price_test_basic
+ *   - .env.test:  STRIPE_PRICE_ID_PRO=price_test_pro, STRIPE_PRICE_ID_ENTERPRISE=price_test_enterprise
  *   - STRIPE_WEBHOOK_SECRET=whsec_test_integration_secret_32chars_min
  */
 import { INestApplication } from '@nestjs/common';
@@ -36,12 +36,12 @@ const TEST_WEBHOOK_SECRET =
   'whsec_test_integration_secret_32chars_min';
 
 const PRO_PRICE_ID = process.env['STRIPE_PRICE_ID_PRO'] ?? 'price_test_pro';
-const BASIC_PRICE_ID =
-  process.env['STRIPE_PRICE_ID_BASIC'] ?? 'price_test_basic';
+const ENTERPRISE_PRICE_ID =
+  process.env['STRIPE_PRICE_ID_ENTERPRISE'] ?? 'price_test_enterprise';
 
 /** Stripe SDK instance used only for local test utilities — no real network calls. */
 const stripeUtil = new Stripe('sk_test_placeholder_for_integration_tests', {
-  apiVersion: '2026-02-25.clover',
+  apiVersion: '2026-03-25.dahlia',
 });
 
 function buildStripeSignatureHeader(payload: string): string {
@@ -87,7 +87,7 @@ function buildSubscriptionUpdatedWebhook(opts: {
     id: opts.eventId,
     object: 'event',
     type: 'customer.subscription.updated',
-    api_version: '2026-02-25.clover',
+    api_version: '2026-03-25.dahlia',
     created: now,
     livemode: false,
     pending_webhooks: 1,
@@ -141,7 +141,7 @@ describe('Feature Flags × Billing (integration)', () => {
         where: { id: ctx.org.id },
         data: {
           billingStatus: BillingStatus.ACTIVE,
-          planId: PRO_PRICE_ID,
+          planId: ENTERPRISE_PRICE_ID,
           stripeCustomerId: STRIPE_CUSTOMER_ID,
           subscriptionId: SUBSCRIPTION_ID,
         },
@@ -207,13 +207,13 @@ describe('Feature Flags × Billing (integration)', () => {
       const STRIPE_CUSTOMER_ID = `cus_ff_upgrade_${Date.now()}`;
       const SUBSCRIPTION_ID = `sub_ff_upgrade_${Date.now()}`;
 
-      // 1. Seed org with BASIC plan (PRO tier)
+      // 1. Seed org with PRO plan (PRO tier)
       const ctx = await seedFullOrg(prisma, { orgName: 'Upgrade Test Org' });
       await prisma.organization.update({
         where: { id: ctx.org.id },
         data: {
           billingStatus: BillingStatus.ACTIVE,
-          planId: BASIC_PRICE_ID,
+          planId: PRO_PRICE_ID,
           stripeCustomerId: STRIPE_CUSTOMER_ID,
           subscriptionId: SUBSCRIPTION_ID,
         },
@@ -232,12 +232,12 @@ describe('Feature Flags × Billing (integration)', () => {
       expect(warmRes.body.plan).toBe('PRO');
       expect(await cache.get(orgCacheKey)).not.toBeNull();
 
-      // 3. Send plan upgrade webhook — status active, priceId = PRO_PRICE_ID
+      // 3. Send plan upgrade webhook — status active, priceId = ENTERPRISE_PRICE_ID
       const { payload, signature } = buildSubscriptionUpdatedWebhook({
         customerId: STRIPE_CUSTOMER_ID,
         subscriptionId: SUBSCRIPTION_ID,
         status: 'active',
-        priceId: PRO_PRICE_ID,
+        priceId: ENTERPRISE_PRICE_ID,
         eventId: `evt_ff_upgrade_${Date.now()}`,
       });
 
@@ -249,11 +249,11 @@ describe('Feature Flags × Billing (integration)', () => {
 
       expect(webhookRes.status).toBe(200);
 
-      // 4. Verify DB updated to PRO_PRICE_ID
+      // 4. Verify DB updated to ENTERPRISE_PRICE_ID
       const updatedOrg = await prisma.organization.findUnique({
         where: { id: ctx.org.id },
       });
-      expect(updatedOrg?.planId).toBe(PRO_PRICE_ID);
+      expect(updatedOrg?.planId).toBe(ENTERPRISE_PRICE_ID);
 
       // 5. Allow async handlers to settle
       await waitForEventHandlers();
@@ -279,13 +279,13 @@ describe('Feature Flags × Billing (integration)', () => {
       const STRIPE_CUSTOMER_ID = `cus_ff_downgrade_${Date.now()}`;
       const SUBSCRIPTION_ID = `sub_ff_downgrade_${Date.now()}`;
 
-      // 1. Seed org with PRO plan (ENTERPRISE tier)
+      // 1. Seed org with ENTERPRISE plan (ENTERPRISE tier)
       const ctx = await seedFullOrg(prisma, { orgName: 'Downgrade Test Org' });
       await prisma.organization.update({
         where: { id: ctx.org.id },
         data: {
           billingStatus: BillingStatus.ACTIVE,
-          planId: PRO_PRICE_ID,
+          planId: ENTERPRISE_PRICE_ID,
           stripeCustomerId: STRIPE_CUSTOMER_ID,
           subscriptionId: SUBSCRIPTION_ID,
         },
@@ -303,12 +303,12 @@ describe('Feature Flags × Billing (integration)', () => {
       expect(warmRes.status).toBe(200);
       expect(warmRes.body.plan).toBe('ENTERPRISE');
 
-      // 3. Send downgrade webhook — status active, priceId = BASIC_PRICE_ID
+      // 3. Send downgrade webhook — status active, priceId = PRO_PRICE_ID
       const { payload, signature } = buildSubscriptionUpdatedWebhook({
         customerId: STRIPE_CUSTOMER_ID,
         subscriptionId: SUBSCRIPTION_ID,
         status: 'active',
-        priceId: BASIC_PRICE_ID,
+        priceId: PRO_PRICE_ID,
         eventId: `evt_ff_downgrade_${Date.now()}`,
       });
 

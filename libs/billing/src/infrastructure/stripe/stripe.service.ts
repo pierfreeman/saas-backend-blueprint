@@ -147,15 +147,14 @@ export class StripeService {
     idempotencyKey?: string;
   }): Promise<Stripe.Checkout.Session> {
     try {
-      const requestOptions: Stripe.RequestOptions = {};
-      if (params.idempotencyKey) {
-        requestOptions.idempotencyKey = params.idempotencyKey;
-      }
+      const requestOptions: Stripe.RequestOptions | undefined =
+        params.idempotencyKey
+          ? { idempotencyKey: params.idempotencyKey }
+          : undefined;
       const session = await this.withRetry('createCheckoutSession', () =>
         this.stripe.checkout.sessions.create(
           {
             customer: params.customerId,
-            payment_method_types: ['card'],
             line_items: [{ price: params.priceId, quantity: 1 }],
             mode: 'subscription',
             success_url: params.successUrl,
@@ -171,7 +170,11 @@ export class StripeService {
       this.logger.debug(`Stripe checkout session created: ${session.id}`);
       return session;
     } catch (err) {
-      this.logger.error('Failed to create Stripe checkout session', err);
+      const stripeMsg = (err as { message?: string })?.message ?? String(err);
+      this.logger.error(
+        `Failed to create Stripe checkout session: ${stripeMsg}`,
+        err,
+      );
       throw new InternalServerErrorException(
         'Failed to create checkout session',
       );
@@ -243,6 +246,44 @@ export class StripeService {
     } catch (err) {
       this.logger.error(`Failed to cancel subscription ${subscriptionId}`, err);
       throw new InternalServerErrorException('Failed to cancel subscription');
+    }
+  }
+
+  /**
+   * Immediately terminates a Stripe subscription (no grace period).
+   * Used during hard org deletion where billing must cease at once.
+   */
+  async terminateSubscription(subscriptionId: string): Promise<void> {
+    try {
+      await this.withRetry('terminateSubscription', () =>
+        this.stripe.subscriptions.cancel(subscriptionId),
+      );
+      this.logger.debug(
+        `Stripe subscription terminated immediately: ${subscriptionId}`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to terminate subscription ${subscriptionId} — may already be cancelled: ${(err as Error).message}`,
+      );
+      // Non-fatal: subscription may already be cancelled
+    }
+  }
+
+  /**
+   * Permanently deletes a Stripe customer and all associated data.
+   * Used during hard org deletion cleanup.
+   */
+  async deleteCustomer(customerId: string): Promise<void> {
+    try {
+      await this.withRetry('deleteCustomer', () =>
+        this.stripe.customers.del(customerId),
+      );
+      this.logger.debug(`Stripe customer deleted: ${customerId}`);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to delete Stripe customer ${customerId} — may already be deleted: ${(err as Error).message}`,
+      );
+      // Non-fatal: customer may already be deleted
     }
   }
 

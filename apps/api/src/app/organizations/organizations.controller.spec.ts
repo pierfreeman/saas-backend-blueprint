@@ -1,29 +1,32 @@
 import { RequestUser } from '@libs/common';
 import { DeletionTrigger, OrgDeletionService } from '@libs/org-deletion';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { OrganizationsController } from './organizations.controller';
-import { OrganizationsService } from './organizations.service';
+import { OrganizationsService } from '@libs/organizations';
 import { OrgExportService } from '@libs/org-export';
+import { Mock, vi } from 'vitest';
 
 const mockOrganizationsService = {
-  createOrganization: jest.fn(),
-  findByUserId: jest.fn(),
-  findById: jest.fn(),
-  updateOrganization: jest.fn(),
+  createOrganization: vi.fn(),
+  findByUserId: vi.fn(),
+  findById: vi.fn(),
+  updateOrganization: vi.fn(),
 } as unknown as OrganizationsService;
 
 const mockAuthService = {
-  findUserByAuth0Id: jest.fn(),
+  findUserByAuth0Id: vi.fn(),
 } as unknown as AuthService;
 
 const mockOrgDeletionService = {
-  scheduleOrgDeletion: jest.fn(),
-  requestDeletion: jest.fn(),
+  scheduleOrgDeletion: vi.fn(),
+  requestDeletion: vi.fn(),
 } as unknown as OrgDeletionService;
 
 const mockOrgExportService = {
-  requestExport: jest.fn(),
+  requestExport: vi.fn(),
+  getExport: vi.fn(),
+  listExports: vi.fn(),
 } as unknown as OrgExportService;
 
 const jwtUser: RequestUser = { sub: 'auth0|u1', email: 'user@example.com' };
@@ -39,7 +42,7 @@ describe('OrganizationsController', () => {
   let controller: OrganizationsController;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     controller = new OrganizationsController(
       mockOrganizationsService,
       mockAuthService,
@@ -50,14 +53,14 @@ describe('OrganizationsController', () => {
 
   // ---------- Helper ---------------------------------------------------------
   function setupDbUser(user = dbUser) {
-    mockAuthService.findUserByAuth0Id = jest.fn().mockResolvedValue(user);
+    mockAuthService.findUserByAuth0Id = vi.fn().mockResolvedValue(user);
   }
 
   // ---------- create ---------------------------------------------------------
   describe('create()', () => {
     it('creates an organization for the current user', async () => {
       setupDbUser();
-      mockOrganizationsService.createOrganization = jest
+      mockOrganizationsService.createOrganization = vi
         .fn()
         .mockResolvedValue(baseOrg);
 
@@ -74,7 +77,7 @@ describe('OrganizationsController', () => {
     });
 
     it('throws NotFoundException when user is not found in DB', async () => {
-      mockAuthService.findUserByAuth0Id = jest.fn().mockResolvedValue(null);
+      mockAuthService.findUserByAuth0Id = vi.fn().mockResolvedValue(null);
 
       await expect(
         controller.create(jwtUser, { name: 'Acme' }),
@@ -83,8 +86,7 @@ describe('OrganizationsController', () => {
 
     it('propagates BadRequestException from service (e.g. tx failure)', async () => {
       setupDbUser();
-      const { BadRequestException } = jest.requireActual('@nestjs/common');
-      mockOrganizationsService.createOrganization = jest
+      mockOrganizationsService.createOrganization = vi
         .fn()
         .mockRejectedValue(
           new BadRequestException('Failed to create organization'),
@@ -101,7 +103,7 @@ describe('OrganizationsController', () => {
     it('returns all orgs belonging to the current user', async () => {
       setupDbUser();
       const orgs = [baseOrg, { ...baseOrg, id: 'org-2' }];
-      mockOrganizationsService.findByUserId = jest.fn().mockResolvedValue(orgs);
+      mockOrganizationsService.findByUserId = vi.fn().mockResolvedValue(orgs);
 
       const result = await controller.findMine(jwtUser);
       expect(result).toBe(orgs);
@@ -112,13 +114,13 @@ describe('OrganizationsController', () => {
 
     it('returns an empty array when user has no orgs', async () => {
       setupDbUser();
-      mockOrganizationsService.findByUserId = jest.fn().mockResolvedValue([]);
+      mockOrganizationsService.findByUserId = vi.fn().mockResolvedValue([]);
 
       expect(await controller.findMine(jwtUser)).toEqual([]);
     });
 
     it('throws NotFoundException when user is not found in DB', async () => {
-      mockAuthService.findUserByAuth0Id = jest.fn().mockResolvedValue(null);
+      mockAuthService.findUserByAuth0Id = vi.fn().mockResolvedValue(null);
       await expect(controller.findMine(jwtUser)).rejects.toThrow(
         NotFoundException,
       );
@@ -128,13 +130,13 @@ describe('OrganizationsController', () => {
   // ---------- findOne --------------------------------------------------------
   describe('findOne()', () => {
     it('returns the org by id', async () => {
-      mockOrganizationsService.findById = jest.fn().mockResolvedValue(baseOrg);
+      mockOrganizationsService.findById = vi.fn().mockResolvedValue(baseOrg);
 
       expect(await controller.findOne('org-1')).toBe(baseOrg);
     });
 
     it('propagates NotFoundException when org not found', async () => {
-      mockOrganizationsService.findById = jest
+      mockOrganizationsService.findById = vi
         .fn()
         .mockRejectedValue(
           new NotFoundException('Organization org-x not found'),
@@ -151,7 +153,7 @@ describe('OrganizationsController', () => {
     it('updates an organization and returns the updated entity', async () => {
       setupDbUser();
       const updated = { ...baseOrg, name: 'New Name' };
-      mockOrganizationsService.updateOrganization = jest
+      mockOrganizationsService.updateOrganization = vi
         .fn()
         .mockResolvedValue(updated);
 
@@ -168,7 +170,7 @@ describe('OrganizationsController', () => {
 
     it('propagates NotFoundException from service', async () => {
       setupDbUser();
-      mockOrganizationsService.updateOrganization = jest
+      mockOrganizationsService.updateOrganization = vi
         .fn()
         .mockRejectedValue(
           new NotFoundException('Organization bad-id not found'),
@@ -186,10 +188,10 @@ describe('OrganizationsController', () => {
       setupDbUser();
       const scheduledAt = new Date('2026-04-17T00:00:00.000Z');
       const orgWithDeletion = { ...baseOrg, deletionScheduledAt: scheduledAt };
-      (mockOrgDeletionService.requestDeletion as jest.Mock).mockResolvedValue(
+      (mockOrgDeletionService.requestDeletion as Mock).mockResolvedValue(
         undefined,
       );
-      mockOrganizationsService.findById = jest
+      mockOrganizationsService.findById = vi
         .fn()
         .mockResolvedValue(orgWithDeletion);
 
@@ -207,11 +209,122 @@ describe('OrganizationsController', () => {
     });
 
     it('throws NotFoundException when user is not found in DB', async () => {
-      mockAuthService.findUserByAuth0Id = jest.fn().mockResolvedValue(null);
+      mockAuthService.findUserByAuth0Id = vi.fn().mockResolvedValue(null);
 
       await expect(
         controller.requestDeletion(jwtUser, 'org-1'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ---------- requestExport -------------------------------------------------
+  describe('requestExport()', () => {
+    it('calls orgExportService.requestExport and returns exportId and message', async () => {
+      setupDbUser();
+      (mockOrgExportService.requestExport as Mock).mockResolvedValue(
+        'export-uuid-1',
+      );
+
+      const result = await controller.requestExport(jwtUser, 'org-1');
+
+      expect(result).toEqual({
+        exportId: 'export-uuid-1',
+        message: 'Export request accepted',
+      });
+      expect(mockOrgExportService.requestExport).toHaveBeenCalledWith(
+        'org-1',
+        'db-u-1',
+      );
+    });
+
+    it('throws NotFoundException when user is not found in DB', async () => {
+      mockAuthService.findUserByAuth0Id = vi.fn().mockResolvedValue(null);
+
+      await expect(controller.requestExport(jwtUser, 'org-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('propagates errors from orgExportService.requestExport', async () => {
+      setupDbUser();
+      (mockOrgExportService.requestExport as Mock).mockRejectedValue(
+        new Error('export failed'),
+      );
+
+      await expect(controller.requestExport(jwtUser, 'org-1')).rejects.toThrow(
+        'export failed',
+      );
+    });
+  });
+
+  // ---------- getExport -----------------------------------------------------
+  describe('getExport()', () => {
+    it('returns the export details from orgExportService', async () => {
+      const exportDetail = {
+        id: 'export-uuid-1',
+        status: 'COMPLETED',
+        downloadUrl: 'https://s3/file',
+      };
+      (mockOrgExportService.getExport as Mock).mockResolvedValue(exportDetail);
+
+      const result = await controller.getExport('org-1', 'export-uuid-1');
+
+      expect(result).toBe(exportDetail);
+      expect(mockOrgExportService.getExport).toHaveBeenCalledWith(
+        'export-uuid-1',
+        'org-1',
+      );
+    });
+
+    it('propagates NotFoundException when export is not found', async () => {
+      (mockOrgExportService.getExport as Mock).mockRejectedValue(
+        new NotFoundException('Export not found'),
+      );
+
+      await expect(
+        controller.getExport('org-1', 'missing-export'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ---------- listExports ---------------------------------------------------
+  describe('listExports()', () => {
+    it('lists exports without pagination params', async () => {
+      const exports = [{ id: 'export-uuid-1', status: 'COMPLETED' }];
+      (mockOrgExportService.listExports as Mock).mockResolvedValue(exports);
+
+      const result = await controller.listExports('org-1');
+
+      expect(result).toBe(exports);
+      expect(mockOrgExportService.listExports).toHaveBeenCalledWith(
+        'org-1',
+        undefined,
+        undefined,
+      );
+    });
+
+    it('parses limit and offset query params as integers', async () => {
+      (mockOrgExportService.listExports as Mock).mockResolvedValue([]);
+
+      await controller.listExports('org-1', '10', '20');
+
+      expect(mockOrgExportService.listExports).toHaveBeenCalledWith(
+        'org-1',
+        10,
+        20,
+      );
+    });
+
+    it('passes undefined for limit when not provided, but parses offset', async () => {
+      (mockOrgExportService.listExports as Mock).mockResolvedValue([]);
+
+      await controller.listExports('org-1', undefined, '5');
+
+      expect(mockOrgExportService.listExports).toHaveBeenCalledWith(
+        'org-1',
+        undefined,
+        5,
+      );
     });
   });
 });

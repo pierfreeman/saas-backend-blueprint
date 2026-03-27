@@ -1,7 +1,10 @@
 import { FeatureFlagsController } from './feature-flags.controller';
-import { FeatureFlagsService } from './feature-flags.service';
+import {
+  FeatureFlagsService,
+  OrganizationEntitlements,
+} from '@libs/feature-flags';
 import { BillingStatus } from '@prisma/client';
-import { OrganizationEntitlements } from './interfaces/entitlements.interface';
+import { Mocked, vi } from 'vitest';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -18,6 +21,8 @@ const makeEntitlements = (
   apiAccess: false,
   ssoEnabled: false,
   prioritySupport: false,
+  maxSeats: 3,
+  storageLimitBytes: 100 * 1024 * 1024, // 100 MiB (FREE plan default)
   ...overrides,
 });
 
@@ -25,16 +30,16 @@ const makeEntitlements = (
 
 describe('FeatureFlagsController', () => {
   let controller: FeatureFlagsController;
-  let service: jest.Mocked<FeatureFlagsService>;
+  let service: Mocked<FeatureFlagsService>;
 
   beforeEach(() => {
     service = {
-      getEntitlements: jest.fn(),
-      invalidateEntitlements: jest.fn(),
-    } as unknown as jest.Mocked<FeatureFlagsService>;
+      getEntitlements: vi.fn(),
+      invalidateEntitlements: vi.fn(),
+    } as unknown as Mocked<FeatureFlagsService>;
 
     controller = new FeatureFlagsController(service);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ─── GET /organizations/:orgId/entitlements ───────────────────────────────

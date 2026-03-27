@@ -1,5 +1,5 @@
 import { WorkerController, HeavyJobPayload } from './worker.controller';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { JobService } from '@libs/jobs';
 import { PubSubService } from '@libs/redis';
 import {
   OrgDeletionWorkerService,
@@ -8,7 +8,11 @@ import {
 } from '@libs/org-deletion';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@prisma/client';
-import { OrgExportWorkerService } from '@libs/org-export';
+import {
+  OrgExportWorkerService,
+  OrgExportRequestedEventPayload,
+} from '@libs/org-export';
+import { Mock, vi } from 'vitest';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -26,24 +30,24 @@ const makeEvent = (
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockPrisma = {
-  job: {
-    update: jest.fn(),
-  },
-} as unknown as PrismaBusinessService;
+const mockJobRepo = {
+  markProcessing: vi.fn(),
+  markDone: vi.fn(),
+  markFailed: vi.fn(),
+} as unknown as JobService;
 
 const mockPubSub = {
-  publish: jest.fn(),
+  publish: vi.fn(),
 } as unknown as PubSubService;
 
 const mockOrgDeletionWorker = {
-  scheduleDeletion: jest.fn(),
-  executeDeletion: jest.fn(),
+  scheduleDeletion: vi.fn(),
+  executeDeletion: vi.fn(),
 } as unknown as OrgDeletionWorkerService;
 
 const mockOrgExportWorker = {
-  scheduleExport: jest.fn(),
-  executeExport: jest.fn(),
+  scheduleExport: vi.fn(),
+  executeExport: vi.fn(),
 } as unknown as OrgExportWorkerService;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -52,11 +56,13 @@ describe('WorkerController', () => {
   let controller: WorkerController;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (mockPrisma.job.update as jest.Mock).mockResolvedValue({});
-    (mockPubSub.publish as jest.Mock).mockResolvedValue(undefined);
+    vi.clearAllMocks();
+    (mockJobRepo.markProcessing as Mock).mockResolvedValue(undefined);
+    (mockJobRepo.markDone as Mock).mockResolvedValue(undefined);
+    (mockJobRepo.markFailed as Mock).mockResolvedValue(undefined);
+    (mockPubSub.publish as Mock).mockResolvedValue(undefined);
     controller = new WorkerController(
-      mockPrisma,
+      mockJobRepo,
       mockPubSub,
       mockOrgDeletionWorker,
       mockOrgExportWorker,
@@ -68,26 +74,16 @@ describe('WorkerController', () => {
       const event = makeEvent();
       await controller.handleHeavyJobCreated(event);
 
-      const calls = (mockPrisma.job.update as jest.Mock).mock.calls;
-      expect(calls).toHaveLength(2);
-
-      // First update: PROCESSING
-      expect(calls[0][0]).toMatchObject({
-        where: { id: 'job_001' },
-        data: expect.objectContaining({ status: JobStatus.PROCESSING }),
-      });
-
-      // Second update: DONE
-      expect(calls[1][0]).toMatchObject({
-        where: { id: 'job_001' },
-        data: expect.objectContaining({ status: JobStatus.DONE }),
-      });
+      expect(mockJobRepo.markProcessing).toHaveBeenCalledWith('job_001');
+      expect(mockJobRepo.markDone).toHaveBeenCalledWith(
+        'job_001',
+        expect.objectContaining({ processed: true, jobId: 'job_001' }),
+      );
     });
-
     it('publishes a PROCESSING message to Redis before work starts', async () => {
       await controller.handleHeavyJobCreated(makeEvent());
 
-      const firstPublish = (mockPubSub.publish as jest.Mock).mock.calls[0];
+      const firstPublish = (mockPubSub.publish as Mock).mock.calls[0];
       expect(firstPublish[0]).toBe('job:update:org-1');
       expect(firstPublish[1]).toMatchObject({
         jobId: 'job_001',
@@ -100,7 +96,7 @@ describe('WorkerController', () => {
     it('publishes a DONE message to Redis on successful completion', async () => {
       await controller.handleHeavyJobCreated(makeEvent());
 
-      const publishCalls = (mockPubSub.publish as jest.Mock).mock.calls;
+      const publishCalls = (mockPubSub.publish as Mock).mock.calls;
       expect(publishCalls).toHaveLength(2);
 
       const donePublish = publishCalls[1];
@@ -114,25 +110,20 @@ describe('WorkerController', () => {
     });
 
     it('transitions the job PROCESSING → FAILED and publishes on doWork error', async () => {
-      jest
-        .spyOn(controller as any, 'doWork')
-        .mockRejectedValueOnce(new Error('computation failed'));
+      vi.spyOn(controller as any, 'doWork').mockRejectedValueOnce(
+        new Error('computation failed'),
+      );
 
       await expect(
         controller.handleHeavyJobCreated(makeEvent()),
       ).rejects.toThrow('computation failed');
 
-      const calls = (mockPrisma.job.update as jest.Mock).mock.calls;
-      expect(calls).toHaveLength(2);
-      expect(calls[1][0]).toMatchObject({
-        where: { id: 'job_001' },
-        data: expect.objectContaining({
-          status: JobStatus.FAILED,
-          error: 'computation failed',
-        }),
-      });
+      expect(mockJobRepo.markFailed).toHaveBeenCalledWith(
+        'job_001',
+        'computation failed',
+      );
 
-      const publishCalls = (mockPubSub.publish as jest.Mock).mock.calls;
+      const publishCalls = (mockPubSub.publish as Mock).mock.calls;
       expect(publishCalls[1][1]).toMatchObject({
         status: JobStatus.FAILED,
         error: 'computation failed',
@@ -141,10 +132,7 @@ describe('WorkerController', () => {
 
     it('increments the attempts counter on PROCESSING transition', async () => {
       await controller.handleHeavyJobCreated(makeEvent());
-
-      const processingUpdate = (mockPrisma.job.update as jest.Mock).mock
-        .calls[0][0];
-      expect(processingUpdate.data.attempts).toEqual({ increment: 1 });
+      expect(mockJobRepo.markProcessing).toHaveBeenCalledWith('job_001');
     });
 
     it('includes userId=undefined in publish when payload has no userId', async () => {
@@ -153,7 +141,7 @@ describe('WorkerController', () => {
       });
       await controller.handleHeavyJobCreated(event);
 
-      const firstPublish = (mockPubSub.publish as jest.Mock).mock.calls[0];
+      const firstPublish = (mockPubSub.publish as Mock).mock.calls[0];
       expect(firstPublish[1].userId).toBeUndefined();
     });
 
@@ -164,26 +152,27 @@ describe('WorkerController', () => {
       });
       await controller.handleHeavyJobCreated(event);
 
-      const allChannels = (mockPubSub.publish as jest.Mock).mock.calls.map(
+      const allChannels = (mockPubSub.publish as Mock).mock.calls.map(
         ([ch]) => ch,
       );
       expect(allChannels).toEqual(['job:update:org-xyz', 'job:update:org-xyz']);
     });
 
     it('extracts error message from non-Error thrown values', async () => {
-      jest
-        .spyOn(controller as any, 'doWork')
-        .mockRejectedValueOnce('plain string error');
+      vi.spyOn(controller as any, 'doWork').mockRejectedValueOnce(
+        'plain string error',
+      );
 
       await expect(controller.handleHeavyJobCreated(makeEvent())).rejects.toBe(
         'plain string error',
       );
 
-      const failedUpdate = (mockPrisma.job.update as jest.Mock).mock
-        .calls[1][0];
-      expect(failedUpdate.data.error).toBe('Unknown error');
+      expect(mockJobRepo.markFailed).toHaveBeenCalledWith(
+        'job_001',
+        'Unknown error',
+      );
 
-      const failedPublish = (mockPubSub.publish as jest.Mock).mock.calls[1][1];
+      const failedPublish = (mockPubSub.publish as Mock).mock.calls[1][1];
       expect(failedPublish.error).toBe('Unknown error');
     });
   });
@@ -207,7 +196,7 @@ describe('WorkerController', () => {
     });
 
     beforeEach(() => {
-      (mockOrgDeletionWorker.executeDeletion as jest.Mock).mockResolvedValue(
+      (mockOrgDeletionWorker.executeDeletion as Mock).mockResolvedValue(
         undefined,
       );
     });
@@ -226,9 +215,9 @@ describe('WorkerController', () => {
     });
 
     it('propagates errors thrown by OrgDeletionWorkerService', async () => {
-      (
-        mockOrgDeletionWorker.executeDeletion as jest.Mock
-      ).mockRejectedValueOnce(new Error('deletion failed'));
+      (mockOrgDeletionWorker.executeDeletion as Mock).mockRejectedValueOnce(
+        new Error('deletion failed'),
+      );
 
       await expect(
         controller.handleOrgDeletionRequested(makeOrgEvent()),
@@ -254,6 +243,55 @@ describe('WorkerController', () => {
         'Expired Corp',
         event.payload.requestedAt,
       );
+    });
+  });
+
+  describe('handleOrgExportRequested', () => {
+    const makeExportEvent = (
+      override: Partial<DomainEvent<OrgExportRequestedEventPayload>> = {},
+    ): DomainEvent<OrgExportRequestedEventPayload> => ({
+      eventType: 'org.export.requested',
+      timestamp: new Date(),
+      tenantId: 'org-exp-1',
+      eventId: 'evt-exp-1',
+      payload: {
+        orgId: 'org-exp-1',
+        exportId: 'exp-001',
+        jobId: 'job-exp-1',
+        orgName: 'Export Corp',
+        requestedByUserId: 'user-exp-1',
+        requestedAt: new Date('2026-03-01T00:00:00Z'),
+      },
+      ...override,
+    });
+
+    beforeEach(() => {
+      (mockOrgExportWorker.executeExport as Mock).mockResolvedValue(undefined);
+    });
+
+    it('delegates to OrgExportWorkerService with correct arguments', async () => {
+      const event = makeExportEvent();
+      await controller.handleOrgExportRequested(event);
+
+      expect(mockOrgExportWorker.executeExport).toHaveBeenCalledTimes(1);
+      expect(mockOrgExportWorker.executeExport).toHaveBeenCalledWith(
+        'org-exp-1',
+        'exp-001',
+        'job-exp-1',
+        'Export Corp',
+        'user-exp-1',
+        event.payload.requestedAt,
+      );
+    });
+
+    it('propagates errors thrown by OrgExportWorkerService', async () => {
+      (mockOrgExportWorker.executeExport as Mock).mockRejectedValueOnce(
+        new Error('export failed'),
+      );
+
+      await expect(
+        controller.handleOrgExportRequested(makeExportEvent()),
+      ).rejects.toThrow('export failed');
     });
   });
 });

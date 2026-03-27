@@ -1,4 +1,5 @@
 import { StripeClient } from '@libs/billing';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- health checks probe the DB connection directly via $queryRaw; this is infrastructure, not domain logic
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { Injectable, Logger } from '@nestjs/common';

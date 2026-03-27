@@ -3,25 +3,40 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/events/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:events"],
+  "tags": [
+    "type:lib",
+    "scope:events"
+  ],
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "options": {
         "outputPath": "dist/libs/events",
         "tsConfig": "libs/events/tsconfig.lib.json",
         "packageJson": "libs/events/package.json",
         "main": "libs/events/src/index.ts",
-        "assets": ["libs/events/*.md"]
+        "assets": [
+          "libs/events/*.md"
+        ]
       }
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/libs/events"],
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/events"
+      ],
       "options": {
-        "jestConfig": "libs/events/jest.config.cts",
+        "configFile": "libs/events/vitest.config.ts",
         "passWithNoTests": true
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/events/tsconfig.lib.json --noEmit"
       }
     }
   }

@@ -208,7 +208,6 @@ model Organization {
   subscriptionId          String?       @unique  @map("subscription_id")
   billingStatus           BillingStatus @default(NONE) @map("billing_status")
   planId                  String?       @map("plan_id")
-  seatCount               Int           @default(1) @map("seat_count")
   storageLimit            BigInt?       @map("storage_limit")
   subscriptionPeriodStart DateTime?     @map("subscription_period_start")
   subscriptionPeriodEnd   DateTime?     @map("subscription_period_end")
@@ -256,15 +255,65 @@ npx prisma generate --schema=prisma/schema.prisma
 
 ## Environment variables
 
-| Variable                | Required    | Description                                                                           |
-| ----------------------- | ----------- | ------------------------------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`     | Yes         | `sk_live_…` / `sk_test_…` Stripe secret key                                           |
-| `STRIPE_WEBHOOK_SECRET` | Yes         | `whsec_…` from Stripe Dashboard → Webhooks                                            |
-| `STRIPE_PRICE_ID_BASIC` | Recommended | Stripe Price ID for the Basic plan                                                    |
-| `STRIPE_PRICE_ID_PRO`   | Recommended | Stripe Price ID for the Pro plan                                                      |
-| `BILLING_SUCCESS_URL`   | No          | Redirect after successful checkout (default: `http://localhost:3000/billing/success`) |
-| `BILLING_CANCEL_URL`    | No          | Redirect after cancelled checkout (default: `http://localhost:3000/billing/cancel`)   |
-| `BILLING_RETURN_URL`    | No          | Return URL for the customer portal (default: `http://localhost:3000/billing`)         |
+| Variable                     | Required    | Description                                                                           |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`          | Yes         | `sk_live_…` / `sk_test_…` Stripe secret key                                           |
+| `STRIPE_WEBHOOK_SECRET`      | Yes         | `whsec_…` from Stripe Dashboard → Webhooks                                            |
+| `STRIPE_PRICE_ID_PRO`        | Recommended | Stripe Price ID for the Pro plan                                                      |
+| `STRIPE_PRICE_ID_ENTERPRISE` | Recommended | Stripe Price ID for the Enterprise plan                                               |
+| `BILLING_SUCCESS_URL`        | No          | Redirect after successful checkout (default: `http://localhost:3000/billing/success`) |
+| `BILLING_CANCEL_URL`         | No          | Redirect after cancelled checkout (default: `http://localhost:3000/billing/cancel`)   |
+
+---
+
+## Storage quota integration
+
+The `storageLimit` field on `Organization` enables per-org custom storage caps
+that override the plan-default limits enforced by `libs/storage`.
+
+### How it works
+
+`BillingService.getOrgBillingStatus()` now returns:
+
+```typescript
+{
+  planId: string | null;
+  billingStatus: BillingStatus;
+  storageLimit: bigint | null; // ← custom cap, if set
+}
+```
+
+`StorageController` calls this alongside `FeatureFlagsService.getEntitlements()`
+in parallel. The `storageLimit` value, when non-null, overrides the plan default:
+
+```
+#resolveOrgPlan(orgId) → Promise.all([
+  featureFlagsService.getEntitlements(orgId),  // plan tier (Redis-cached)
+  billingService.getOrgBillingStatus(orgId),    // storageLimit override (DB)
+])
+```
+
+### Setting a custom storage cap
+
+```sql
+-- Grant 200 GB to a specific org (negotiated enterprise deal)
+UPDATE organizations SET storage_limit = 214748364800 WHERE id = '<org-id>';
+```
+
+The entitlements cache is invalidated automatically on billing webhook events
+(`SUBSCRIPTION_PLAN_CHANGED`, `BILLING_SUBSCRIPTION_CANCELLED`, etc.), so plan
+limit changes take effect immediately without restarting the server.
+
+### Relationship with plan entitlements
+
+`FeatureFlagsService` also exposes `storageLimitBytes` in `OrganizationEntitlements`
+for **display purposes** on the frontend. This value is derived from the plan tier
+constants (`PLAN_ENTITLEMENTS` in `feature-flags.service.ts`) — it does not reflect
+the per-org `storageLimit` override. For quota enforcement the controller uses the
+`BillingService` result directly.
+
+See [libs/storage/README.md](../storage/README.md) for the full quota enforcement pipeline.
+| `BILLING_RETURN_URL` | No | Return URL for the customer portal (default: `http://localhost:3000/billing`) |
 
 All Stripe variables are declared as `Joi.string().optional()` in `libs/config/src/env.validation.ts`. The module will start without them but Stripe calls will fail at the point of use.
 

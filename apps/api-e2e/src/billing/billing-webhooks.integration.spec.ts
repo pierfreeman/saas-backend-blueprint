@@ -35,7 +35,7 @@ const TEST_WEBHOOK_SECRET =
 
 // Stripe instance used only for utilities — no network calls in tests.
 const stripeUtil = new Stripe('sk_test_placeholder_for_integration_tests', {
-  apiVersion: '2026-02-25.clover',
+  apiVersion: '2026-03-25.dahlia',
 });
 
 /**
@@ -114,7 +114,7 @@ function buildWebhookEvent(
     id: eventId ?? `evt_int_${Date.now()}`,
     object: 'event',
     type: eventType,
-    api_version: '2026-02-25.clover',
+    api_version: '2026-03-25.dahlia',
     created: Math.floor(Date.now() / 1000),
     livemode: false,
     pending_webhooks: 1,
@@ -214,7 +214,6 @@ describe('Billing Webhooks (integration)', () => {
       expect(org?.billingStatus).toBe(BillingStatus.ACTIVE);
       expect(org?.subscriptionId).toBe('sub_new_001');
       expect(org?.planId).toBe('price_test_pro');
-      expect(org?.seatCount).toBe(3);
 
       // Verify BillingEvent idempotency record
       const billingEvent = await prisma.billingEvent.findUnique({

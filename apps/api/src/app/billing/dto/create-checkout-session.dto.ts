@@ -17,13 +17,13 @@ export class CreateCheckoutSessionDto {
     description: 'URL to redirect to after successful payment',
   })
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   successUrl?: string;
 
   @ApiPropertyOptional({
     description: 'URL to redirect to if the checkout is canceled',
   })
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   cancelUrl?: string;
 }

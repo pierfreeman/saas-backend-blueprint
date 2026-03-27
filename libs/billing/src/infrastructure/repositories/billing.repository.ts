@@ -1,6 +1,10 @@
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { BillingStatus } from '@prisma/client';
+import {
+  BillingStatus,
+  MembershipRole,
+  MembershipStatus,
+} from '@prisma/client';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 import { BillingStatus as DomainBillingStatus } from '../../domain/enums/billing-status.enum';
 
@@ -32,7 +36,6 @@ export interface UpdateBillingDataInput {
   subscriptionId?: string | null;
   billingStatus?: BillingStatus;
   planId?: string | null;
-  seatCount?: number;
   storageLimit?: bigint | null;
   subscriptionPeriodStart?: Date | null;
   subscriptionPeriodEnd?: Date | null;
@@ -65,7 +68,6 @@ export class BillingRepository {
         subscriptionId: true,
         billingStatus: true,
         planId: true,
-        seatCount: true,
         storageLimit: true,
         subscriptionPeriodStart: true,
         subscriptionPeriodEnd: true,
@@ -83,12 +85,42 @@ export class BillingRepository {
       subscriptionId: org.subscriptionId,
       billingStatus: org.billingStatus as unknown as DomainBillingStatus,
       planId: org.planId,
-      seatCount: org.seatCount,
       storageLimit: org.storageLimit,
       subscriptionPeriodStart: org.subscriptionPeriodStart,
       subscriptionPeriodEnd: org.subscriptionPeriodEnd,
       cancelAtPeriodEnd: org.cancelAtPeriodEnd,
     };
+  }
+
+  /**
+   * Returns the display name and OWNER email for an organization.
+   * Used to lazily provision a Stripe customer on first billing action.
+   * Falls back to `null` for ownerEmail if no OWNER membership is found.
+   */
+  async findOrgMeta(
+    orgId: string,
+  ): Promise<{ name: string; ownerEmail: string | null }> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: {
+        name: true,
+        memberships: {
+          where: {
+            role: MembershipRole.OWNER,
+            status: MembershipStatus.ACTIVE,
+          },
+          take: 1,
+          select: { user: { select: { email: true } } },
+        },
+      },
+    });
+
+    if (!org) {
+      throw new NotFoundException(`Organization ${orgId} not found`);
+    }
+
+    const ownerEmail = org.memberships[0]?.user?.email ?? null;
+    return { name: org.name, ownerEmail };
   }
 
   /**
@@ -106,7 +138,6 @@ export class BillingRepository {
         subscriptionId: true,
         billingStatus: true,
         planId: true,
-        seatCount: true,
         storageLimit: true,
         subscriptionPeriodStart: true,
         subscriptionPeriodEnd: true,
@@ -124,7 +155,6 @@ export class BillingRepository {
       subscriptionId: org.subscriptionId,
       billingStatus: org.billingStatus as unknown as DomainBillingStatus,
       planId: org.planId,
-      seatCount: org.seatCount,
       storageLimit: org.storageLimit,
       subscriptionPeriodStart: org.subscriptionPeriodStart,
       subscriptionPeriodEnd: org.subscriptionPeriodEnd,
@@ -152,7 +182,6 @@ export class BillingRepository {
           billingStatus: data.billingStatus,
         }),
         ...(data.planId !== undefined && { planId: data.planId }),
-        ...(data.seatCount !== undefined && { seatCount: data.seatCount }),
         ...(data.storageLimit !== undefined && {
           storageLimit: data.storageLimit,
         }),
@@ -216,9 +245,6 @@ export class BillingRepository {
             billingStatus: billing.billingStatus,
           }),
           ...(billing.planId !== undefined && { planId: billing.planId }),
-          ...(billing.seatCount !== undefined && {
-            seatCount: billing.seatCount,
-          }),
           ...(billing.storageLimit !== undefined && {
             storageLimit: billing.storageLimit,
           }),
@@ -327,5 +353,30 @@ export class BillingRepository {
       }
       throw err;
     }
+  }
+
+  /**
+   * Returns the minimal billing snapshot needed for entitlement checks.
+   * Returns null if the organisation does not exist.
+   */
+  async getOrgBillingStatus(
+    orgId: string,
+  ): Promise<{
+    planId: string | null;
+    billingStatus: BillingStatus;
+    storageLimit: bigint | null;
+  } | null> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { planId: true, billingStatus: true, storageLimit: true },
+    });
+    if (!org) {
+      return null;
+    }
+    return {
+      planId: org.planId,
+      billingStatus: org.billingStatus,
+      storageLimit: org.storageLimit,
+    };
   }
 }

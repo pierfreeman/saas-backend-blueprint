@@ -1,0 +1,32 @@
+{
+  "name": "organizations",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/organizations/src",
+  "projectType": "library",
+  "tags": [
+    "type:lib",
+    "scope:organizations"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/organizations"
+      ],
+      "options": {
+        "configFile": "libs/organizations/vitest.config.ts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/organizations/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

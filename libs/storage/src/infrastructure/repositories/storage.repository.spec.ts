@@ -2,16 +2,17 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { StorageRepository } from './storage.repository';
 import { FileStatus, StorageProvider } from '../../domain/enums/storage.enums';
+import { vi } from 'vitest';
 
 const mockPrisma = {
   file: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    aggregate: jest.fn(),
+    create: vi.fn(),
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    aggregate: vi.fn(),
   },
 } as unknown as PrismaBusinessService;
 
@@ -36,7 +37,7 @@ describe('StorageRepository', () => {
   };
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -50,7 +51,7 @@ describe('StorageRepository', () => {
 
   describe('createFile', () => {
     it('should create a new file metadata record', async () => {
-      mockPrisma.file.create = jest.fn().mockResolvedValue(mockFile);
+      mockPrisma.file.create = vi.fn().mockResolvedValue(mockFile);
 
       const result = await repository.createFile({
         id: 'file-123',
@@ -97,7 +98,7 @@ describe('StorageRepository', () => {
 
   describe('findById', () => {
     it('should find a file by ID', async () => {
-      mockPrisma.file.findUnique = jest.fn().mockResolvedValue(mockFile);
+      mockPrisma.file.findUnique = vi.fn().mockResolvedValue(mockFile);
 
       const result = await repository.findById('file-123');
 
@@ -123,7 +124,7 @@ describe('StorageRepository', () => {
     });
 
     it('should return null when file not found', async () => {
-      mockPrisma.file.findUnique = jest.fn().mockResolvedValue(null);
+      mockPrisma.file.findUnique = vi.fn().mockResolvedValue(null);
 
       const result = await repository.findById('non-existent');
 
@@ -133,7 +134,7 @@ describe('StorageRepository', () => {
 
   describe('findByIdAndOrg', () => {
     it('should find a file by ID and organization', async () => {
-      mockPrisma.file.findFirst = jest.fn().mockResolvedValue(mockFile);
+      mockPrisma.file.findFirst = vi.fn().mockResolvedValue(mockFile);
 
       const result = await repository.findByIdAndOrg('file-123', 'org-123');
 
@@ -162,7 +163,7 @@ describe('StorageRepository', () => {
     });
 
     it('should return null when file not found for organization', async () => {
-      mockPrisma.file.findFirst = jest.fn().mockResolvedValue(null);
+      mockPrisma.file.findFirst = vi.fn().mockResolvedValue(null);
 
       const result = await repository.findByIdAndOrg('file-123', 'wrong-org');
 
@@ -172,7 +173,7 @@ describe('StorageRepository', () => {
 
   describe('findByOrg', () => {
     it('should find files by organization', async () => {
-      mockPrisma.file.findMany = jest.fn().mockResolvedValue([mockFile]);
+      mockPrisma.file.findMany = vi.fn().mockResolvedValue([mockFile]);
 
       const result = await repository.findByOrg('org-123');
 
@@ -191,7 +192,7 @@ describe('StorageRepository', () => {
 
     it('should find files by organization with status filter', async () => {
       const completedFile = { ...mockFile, status: FileStatus.COMPLETED };
-      mockPrisma.file.findMany = jest.fn().mockResolvedValue([completedFile]);
+      mockPrisma.file.findMany = vi.fn().mockResolvedValue([completedFile]);
 
       const result = await repository.findByOrg('org-123', {
         status: FileStatus.COMPLETED,
@@ -212,7 +213,7 @@ describe('StorageRepository', () => {
     });
 
     it('should find files by organization with pagination', async () => {
-      mockPrisma.file.findMany = jest.fn().mockResolvedValue([mockFile]);
+      mockPrisma.file.findMany = vi.fn().mockResolvedValue([mockFile]);
 
       const result = await repository.findByOrg('org-123', {
         limit: 10,
@@ -232,7 +233,7 @@ describe('StorageRepository', () => {
     });
 
     it('should return empty array when no files found', async () => {
-      mockPrisma.file.findMany = jest.fn().mockResolvedValue([]);
+      mockPrisma.file.findMany = vi.fn().mockResolvedValue([]);
 
       const result = await repository.findByOrg('org-123');
 
@@ -241,24 +242,28 @@ describe('StorageRepository', () => {
   });
 
   describe('confirmUpload', () => {
-    it('should confirm a file upload', async () => {
+    it('should confirm a file upload and persist its size', async () => {
+      const size = BigInt(12582912);
       const confirmedFile = {
         ...mockFile,
         status: FileStatus.COMPLETED,
         confirmedAt: mockDate,
+        size,
       };
-      mockPrisma.file.update = jest.fn().mockResolvedValue(confirmedFile);
+      mockPrisma.file.update = vi.fn().mockResolvedValue(confirmedFile);
 
-      const result = await repository.confirmUpload('file-123');
+      const result = await repository.confirmUpload('file-123', size);
 
       expect(result.status).toBe(FileStatus.COMPLETED);
       expect(result.confirmedAt).toEqual(mockDate);
+      expect(result.size).toEqual(size);
 
       expect(mockPrisma.file.update).toHaveBeenCalledWith({
         where: { id: 'file-123' },
         data: {
           status: FileStatus.COMPLETED,
           confirmedAt: expect.any(Date),
+          size,
         },
       });
     });
@@ -267,7 +272,7 @@ describe('StorageRepository', () => {
   describe('markExpired', () => {
     it('should mark a file as expired', async () => {
       const expiredFile = { ...mockFile, status: FileStatus.EXPIRED };
-      mockPrisma.file.update = jest.fn().mockResolvedValue(expiredFile);
+      mockPrisma.file.update = vi.fn().mockResolvedValue(expiredFile);
 
       const result = await repository.markExpired('file-123');
 
@@ -285,7 +290,7 @@ describe('StorageRepository', () => {
   describe('markAborted', () => {
     it('should mark a file as aborted', async () => {
       const abortedFile = { ...mockFile, status: FileStatus.ABORTED };
-      mockPrisma.file.update = jest.fn().mockResolvedValue(abortedFile);
+      mockPrisma.file.update = vi.fn().mockResolvedValue(abortedFile);
 
       const result = await repository.markAborted('file-123');
 
@@ -302,7 +307,7 @@ describe('StorageRepository', () => {
 
   describe('deleteFile', () => {
     it('should delete a file metadata record', async () => {
-      mockPrisma.file.delete = jest.fn().mockResolvedValue(mockFile);
+      mockPrisma.file.delete = vi.fn().mockResolvedValue(mockFile);
 
       await repository.deleteFile('file-123');
 
@@ -314,7 +319,7 @@ describe('StorageRepository', () => {
 
   describe('getStorageUsage', () => {
     it('should get storage usage for an organization', async () => {
-      mockPrisma.file.aggregate = jest.fn().mockResolvedValue({
+      mockPrisma.file.aggregate = vi.fn().mockResolvedValue({
         _sum: { size: BigInt(5120) },
         _count: 5,
       });
@@ -339,7 +344,7 @@ describe('StorageRepository', () => {
     });
 
     it('should return zero usage when no files exist', async () => {
-      mockPrisma.file.aggregate = jest.fn().mockResolvedValue({
+      mockPrisma.file.aggregate = vi.fn().mockResolvedValue({
         _sum: { size: null },
         _count: 0,
       });
@@ -356,7 +361,7 @@ describe('StorageRepository', () => {
   describe('findExpiredPending', () => {
     it('should find expired pending files', async () => {
       const cutoffDate = new Date('2024-01-02T00:00:00.000Z');
-      mockPrisma.file.findMany = jest.fn().mockResolvedValue([mockFile]);
+      mockPrisma.file.findMany = vi.fn().mockResolvedValue([mockFile]);
 
       const result = await repository.findExpiredPending(cutoffDate);
 
@@ -375,7 +380,7 @@ describe('StorageRepository', () => {
 
     it('should return empty array when no expired pending files found', async () => {
       const cutoffDate = new Date('2024-01-02T00:00:00.000Z');
-      mockPrisma.file.findMany = jest.fn().mockResolvedValue([]);
+      mockPrisma.file.findMany = vi.fn().mockResolvedValue([]);
 
       const result = await repository.findExpiredPending(cutoffDate);
 
@@ -386,7 +391,7 @@ describe('StorageRepository', () => {
   describe('findByPrefix', () => {
     it('should return files whose storageKey starts with the given prefix', async () => {
       const prefixedFile = { ...mockFile, storageKey: 'org/org-123/file-A' };
-      mockPrisma.file.findMany = jest.fn().mockResolvedValue([prefixedFile]);
+      mockPrisma.file.findMany = vi.fn().mockResolvedValue([prefixedFile]);
 
       const result = await repository.findByPrefix('org/org-123');
 
@@ -398,7 +403,7 @@ describe('StorageRepository', () => {
     });
 
     it('should return an empty array when no files match the prefix', async () => {
-      mockPrisma.file.findMany = jest.fn().mockResolvedValue([]);
+      mockPrisma.file.findMany = vi.fn().mockResolvedValue([]);
 
       const result = await repository.findByPrefix('org/no-such-org');
 

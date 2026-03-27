@@ -1,8 +1,8 @@
-# feature-flags
+# feature-flags (app layer)
 
-Plan-based entitlement system for the API.
+Thin Pattern F module that wires the `@libs/feature-flags` library into the API.
 
-Derives a set of boolean feature flags and numeric resource limits from an organization's current billing tier. No dedicated database table is required — all entitlements are computed from `Organization.billingStatus` and `Organization.planId` (Stripe Price ID) with a Redis cache layer.
+All business logic (service, guard, interfaces) lives in [`@libs/feature-flags`](../../../../../libs/feature-flags/README.md). This app module only hosts the HTTP controller and re-exports the lib module so NestJS can inject `FeatureFlagsService` and `FeatureGuard` throughout the app.
 
 ---
 
@@ -10,49 +10,11 @@ Derives a set of boolean feature flags and numeric resource limits from an organ
 
 ```
 feature-flags/
-├── interfaces/
-│   └── entitlements.interface.ts   PlanEntitlements + OrganizationEntitlements
-├── guards/
-│   ├── feature.guard.ts            RequireFeature decorator + FeatureGuard
-│   └── feature.guard.spec.ts
-├── feature-flags.module.ts
+├── feature-flags.module.ts         Thin module: imports FeatureFlagsLibModule + registers controller
 ├── feature-flags.module.spec.ts
-├── feature-flags.service.ts
-├── feature-flags.service.spec.ts
-├── feature-flags.controller.ts
+├── feature-flags.controller.ts     HTTP endpoints – delegates directly to FeatureFlagsService
 └── feature-flags.controller.spec.ts
 ```
-
----
-
-## Plan tiers
-
-| Feature             | FREE  | PRO   | ENTERPRISE |
-| ------------------- | ----- | ----- | ---------- |
-| `advancedAnalytics` | false | true  | true       |
-| `customReports`     | false | true  | true       |
-| `apiAccess`         | false | true  | true       |
-| `ssoEnabled`        | false | false | true       |
-| `prioritySupport`   | false | false | true       |
-| `maxTeams`          | 2     | 10    | 999 999    |
-| `maxPlayers`        | 20    | 200   | 999 999    |
-| `maxCoaches`        | 2     | 10    | 999 999    |
-
-**Downgrade rule**: if `billingStatus !== ACTIVE` (e.g. `PAST_DUE`, `CANCELED`, `UNPAID`) the tier is silently set to `FREE`, regardless of the recorded plan.
-
-**No subscription**: if the organization has no billing record at all, it is treated as `FREE/NONE`.
-
----
-
-## Plan tier resolution
-
-Tier is derived from `Organization.planId` (a Stripe Price ID) via environment variables:
-
-| Env var                 | Maps to    |
-| ----------------------- | ---------- |
-| `STRIPE_PRICE_ID_PRO`   | ENTERPRISE |
-| `STRIPE_PRICE_ID_BASIC` | PRO        |
-| anything else / null    | FREE       |
 
 ---
 
@@ -72,11 +34,7 @@ Both endpoints are guarded by `JwtAuthGuard` + `OrgContextGuard`.
 ### 1. Route-level feature gate
 
 ```typescript
-import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { OrgContextGuard } from '../rbac/guards/org-context.guard';
-import { OrgScoped } from '../rbac/decorators/org-scoped.decorator';
-import { FeatureGuard, RequireFeature } from '../feature-flags/guards/feature.guard';
+import { FeatureGuard, RequireFeature } from '@libs/feature-flags';
 
 @OrgScoped()
 @UseGuards(JwtAuthGuard, OrgContextGuard, FeatureGuard)
@@ -93,6 +51,8 @@ Guard pipeline order matters: `JwtAuthGuard` sets `req.user`, `OrgContextGuard` 
 ### 2. Resource limit check inside a service
 
 ```typescript
+import { FeatureFlagsService } from '@libs/feature-flags';
+
 constructor(private readonly featureFlags: FeatureFlagsService) {}
 
 async createPlayer(orgId: string, dto: CreatePlayerDto) {
@@ -104,17 +64,33 @@ async createPlayer(orgId: string, dto: CreatePlayerDto) {
       `Player limit reached. Your plan allows ${check.limit}, you currently have ${check.current}.`,
     );
   }
-  // ...
 }
 ```
 
-### 3. Importing the module
+### 3. Seat limit provider (memberships)
+
+`MembershipsModule` fulfils the `SEAT_LIMIT_PROVIDER` port by wiring `FeatureFlagsService`:
 
 ```typescript
-// In any module that needs feature gates or limit checks:
+import { FeatureFlagsModule, FeatureFlagsService } from '@libs/feature-flags';
+import { SEAT_LIMIT_PROVIDER } from '@libs/memberships';
+
+@Module({
+  imports: [MembershipsLibModule, FeatureFlagsModule, ...],
+  providers: [
+    { provide: SEAT_LIMIT_PROVIDER, useExisting: FeatureFlagsService },
+  ],
+})
+export class MembershipsModule {}
+```
+
+### 4. Importing the module
+
+```typescript
+import { FeatureFlagsModule } from '@libs/feature-flags';
+
 @Module({
   imports: [FeatureFlagsModule, ...],
-  // FeatureFlagsService and FeatureGuard are re-exported and available for injection.
 })
 export class PlayersModule {}
 ```
@@ -123,83 +99,17 @@ export class PlayersModule {}
 
 ---
 
-## Cache
-
-- **Redis key**: `entitlements:<orgId>`
-- **TTL**: `FEATURE_FLAGS_CACHE_TTL` env var (seconds, default `600`)
-- **Auto-invalidation** (local mode only): the service listens to `subscription.plan.changed`, `billing.subscription.cancelled`, `subscription.activated`, and `subscription.expired` events via `LocalTransport.on()`.
-- **Manual invalidation**: `POST /organizations/:orgId/entitlements/invalidate` or `FeatureFlagsService.invalidateEntitlements(orgId)`.
-
-In SQS mode the auto-invalidation listeners are registered but will never fire (LocalTransport is used only in local/test mode). Rely on TTL expiry or the HTTP endpoint.
-
----
-
-## Environment variables
-
-| Variable                  | Default | Description                                  |
-| ------------------------- | ------- | -------------------------------------------- |
-| `FEATURE_FLAGS_CACHE_TTL` | `600`   | Redis TTL for entitlements (seconds)         |
-| `STRIPE_PRICE_ID_PRO`     | —       | Stripe Price ID that maps to ENTERPRISE tier |
-| `STRIPE_PRICE_ID_BASIC`   | —       | Stripe Price ID that maps to PRO tier        |
-
----
-
 ## Tests
 
 ```bash
-# Run all feature-flags tests
+# Run app-layer controller + module tests
 npx nx test api --testPathPattern=feature-flags
 
-# With coverage
-npx nx test api --testPathPattern=feature-flags --coverage
+# Run library service + guard tests
+npx nx test feature-flags
 ```
 
-| File                               | What is tested                                                  |
-| ---------------------------------- | --------------------------------------------------------------- |
-| `feature-flags.service.spec.ts`    | Cache hit/miss, plan tier resolution, downgrade rule, limits    |
-| `feature-flags.controller.spec.ts` | Delegation to service, error propagation                        |
-| `guards/feature.guard.spec.ts`     | Metadata reading, ForbiddenException on missing feature / orgId |
-| `feature-flags.module.spec.ts`     | NestJS metadata: providers, exports, controllers                |
-
----
-
-## Future iterations
-
-### Per-org admin overrides (backoffice panel)
-
-The current implementation is **tier-based**: every org on the same plan gets identical entitlements. If you need to toggle individual flags per org from a backoffice admin UI at runtime (without a code deploy), the following changes are required:
-
-**1. New Prisma model**
-
-```prisma
-model FeatureFlagOverride {
-  id           String       @id @default(cuid())
-  orgId        String
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  featureKey   String       // matches a key of PlanEntitlements, e.g. "ssoEnabled"
-  enabled      Boolean
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  @@unique([orgId, featureKey])
-  @@schema("public")
-}
-```
-
-**2. Service change** in `getEntitlements()` (see the `TODO` comment there):
-
-```typescript
-// After resolving tier entitlements:
-const overrides = await this.prisma.featureFlagOverride.findMany({
-  where: { orgId },
-});
-const overrideMap = Object.fromEntries(
-  overrides.map((o) => [o.featureKey, o.enabled]),
-);
-const entitlements = { ...PLAN_ENTITLEMENTS[tier], ...overrideMap };
-```
-
-**3. New admin endpoint**
+See [`@libs/feature-flags`](../../../../../libs/feature-flags/README.md) for full documentation on plan tiers, cache strategy, environment variables, and future iterations.
 
 ```
 PATCH /admin/organizations/:orgId/feature-flags

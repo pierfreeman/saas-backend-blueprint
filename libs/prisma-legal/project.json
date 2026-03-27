@@ -3,17 +3,40 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/prisma-legal/src",
   "projectType": "library",
-  "tags": ["type:lib", "scope:prisma-legal"],
+  "tags": [
+    "type:lib",
+    "scope:prisma-legal"
+  ],
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "options": {
         "outputPath": "dist/libs/prisma-legal",
         "tsConfig": "libs/prisma-legal/tsconfig.lib.json",
         "packageJson": "libs/prisma-legal/package.json",
         "main": "libs/prisma-legal/src/index.ts",
-        "assets": ["libs/prisma-legal/*.md"]
+        "assets": [
+          "libs/prisma-legal/*.md"
+        ]
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/prisma-legal/tsconfig.lib.json --noEmit"
+      }
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/unit/libs/prisma-legal"
+      ],
+      "options": {
+        "configFile": "libs/prisma-legal/vitest.config.ts",
+        "passWithNoTests": true
       }
     }
   }
