@@ -132,6 +132,22 @@ describe('PlanningController', () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('throws BadRequestException when from or to is not a valid ISO 8601 date', async () => {
+      await expect(
+        controller.list(ORG_ID, {
+          from: 'not-a-date',
+          to: '2026-04-30T23:59:59Z',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        controller.list(ORG_ID, {
+          from: '2026-04-01T00:00:00Z',
+          to: 'not-a-date',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   // ── GET /:id — findOne ──────────────────────────────────────────────────────
