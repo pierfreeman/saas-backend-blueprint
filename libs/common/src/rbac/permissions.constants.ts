@@ -19,6 +19,9 @@ export const PERMISSIONS = {
   // Analytics
   ANALYTICS_VIEW: 'analytics.view',
   ANALYTICS_EXPORT: 'analytics.export',
+
+  // Planning / Calendar
+  PLANNING_MANAGE: 'planning.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

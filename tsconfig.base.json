@@ -167,6 +167,12 @@
       ],
       "@libs/feature-flags/*": [
         "libs/feature-flags/src/*"
+      ],
+      "@libs/planning": [
+        "libs/planning/src/index.ts"
+      ],
+      "@libs/planning/*": [
+        "libs/planning/src/*"
       ]
     }
   },
