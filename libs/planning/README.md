@@ -23,39 +23,49 @@ Base path: `/organizations/:orgId/planning/events`
 
 All endpoints require a **Bearer JWT** (`Authorization: Bearer <token>`).
 
-| Method   | Path              | Permission        | Description                                        |
-|----------|-------------------|-------------------|----------------------------------------------------|
-| `POST`   | `/`               | `PLANNING_MANAGE` | Create an event (recurring or single)              |
-| `GET`    | `/`               | `ORG_READ`        | List occurrences in a date range (RRULE expanded)  |
-| `GET`    | `/:id`            | `ORG_READ`        | Get full event detail with attendees & exceptions  |
-| `PATCH`  | `/:id`            | `PLANNING_MANAGE` | Update an event (optimistic lock via `version`)    |
-| `DELETE` | `/:id`            | `PLANNING_MANAGE` | Soft-delete an event                               |
-| `POST`   | `/:id/rsvp`       | `ORG_READ`        | Upsert RSVP for the authenticated user             |
-| `POST`   | `/:id/exceptions` | `PLANNING_MANAGE` | Create or update a single-occurrence exception     |
+| Method   | Path              | Permission        | Description                                                      |
+| -------- | ----------------- | ----------------- | ---------------------------------------------------------------- |
+| `POST`   | `/`               | `PLANNING_MANAGE` | Create an event (recurring or single)                            |
+| `GET`    | `/`               | `ORG_READ`        | List occurrences in a date range (RRULE expanded)                |
+| `GET`    | `/conflicts`      | `ORG_READ`        | List occurrences that overlap a range for the authenticated user |
+| `GET`    | `/:id`            | `ORG_READ`        | Get full event detail with attendees & exceptions                |
+| `PATCH`  | `/:id`            | `PLANNING_MANAGE` | Update an event (optimistic lock via `version`)                  |
+| `DELETE` | `/:id`            | `PLANNING_MANAGE` | Soft-delete an event                                             |
+| `POST`   | `/:id/rsvp`       | `ORG_READ`        | Upsert RSVP for the authenticated user                           |
+| `POST`   | `/:id/exceptions` | `PLANNING_MANAGE` | Create or update a single-occurrence exception                   |
 
 ### Query Parameters — `GET /organizations/:orgId/planning/events`
 
-| Param    | Type       | Required | Description                                               |
-|----------|------------|----------|-----------------------------------------------------------|
-| `from`   | `ISO 8601` | ✓        | Range start (inclusive). Must be before `to`.             |
-| `to`     | `ISO 8601` | ✓        | Range end (exclusive). Max 365 days after `from`.         |
+| Param  | Type       | Required | Description                                       |
+| ------ | ---------- | -------- | ------------------------------------------------- |
+| `from` | `ISO 8601` | ✓        | Range start (inclusive). Must be before `to`.     |
+| `to`   | `ISO 8601` | ✓        | Range end (exclusive). Max 365 days after `from`. |
 
 The response is a flat array of `EventOccurrence` objects sorted by `startUtc`. Recurring events are expanded in-memory by `RecurrenceService` up to a hard limit of 500 occurrences per query. Exception overrides and cancellations are merged before the array is returned.
 
+### Query Parameters — `GET /organizations/:orgId/planning/events/conflicts`
+
+| Param   | Type       | Required | Description                                        |
+| ------- | ---------- | -------- | -------------------------------------------------- |
+| `start` | `ISO 8601` | ✓        | Range start (inclusive). Must be before `end`.     |
+| `end`   | `ISO 8601` | ✓        | Range end (exclusive). Max 365 days after `start`. |
+
+Returns all `EventOccurrence` objects where the authenticated user is **creator or attendee** and the occurrence truly overlaps the half-open interval `[start, end)`. Back-to-back events are **not** considered conflicts. Results are sorted by `startUtc`.
+
 ## Create / Update Event — Request Body
 
-| Field          | Type       | Required | Description                                          |
-|----------------|------------|----------|------------------------------------------------------|
-| `title`        | `string`   | ✓        | Event title (max 255 chars)                          |
-| `description`  | `string`   | –        | Optional free-text description                       |
-| `location`     | `string`   | –        | Optional location string                             |
-| `startUtc`     | `ISO 8601` | ✓        | Start date-time in UTC                               |
-| `endUtc`       | `ISO 8601` | ✓        | End date-time in UTC. Must be after `startUtc`.      |
-| `isAllDay`     | `boolean`  | –        | Defaults to `false`                                  |
-| `eventTimezone`| `string`   | –        | IANA timezone (e.g. `Europe/Rome`). Defaults to UTC. |
-| `rrule`        | `string`   | –        | RFC 5545 RRULE string (omit for one-off events)      |
-| `rruleUntilUtc`| `ISO 8601` | –        | Convenience alias for `UNTIL=` inside the RRULE      |
-| `metadata`     | `object`   | –        | Arbitrary JSON metadata attached to the event        |
+| Field           | Type       | Required | Description                                          |
+| --------------- | ---------- | -------- | ---------------------------------------------------- |
+| `title`         | `string`   | ✓        | Event title (max 255 chars)                          |
+| `description`   | `string`   | –        | Optional free-text description                       |
+| `location`      | `string`   | –        | Optional location string                             |
+| `startUtc`      | `ISO 8601` | ✓        | Start date-time in UTC                               |
+| `endUtc`        | `ISO 8601` | ✓        | End date-time in UTC. Must be after `startUtc`.      |
+| `isAllDay`      | `boolean`  | –        | Defaults to `false`                                  |
+| `eventTimezone` | `string`   | –        | IANA timezone (e.g. `Europe/Rome`). Defaults to UTC. |
+| `rrule`         | `string`   | –        | RFC 5545 RRULE string (omit for one-off events)      |
+| `rruleUntilUtc` | `ISO 8601` | –        | Convenience alias for `UNTIL=` inside the RRULE      |
+| `metadata`      | `object`   | –        | Arbitrary JSON metadata attached to the event        |
 
 ## Recurrence (RRULE)
 
@@ -71,30 +81,30 @@ Example RRULE for every Tuesday and Thursday: `FREQ=WEEKLY;BYDAY=TU,TH`
 
 `POST /:id/exceptions` allows override or cancellation of a single occurrence of a recurring event without modifying the base RRULE:
 
-| Field            | Type       | Required | Description                                      |
-|------------------|------------|----------|--------------------------------------------------|
-| `originalStartUtc` | `ISO 8601` | ✓      | Identifies which occurrence to override          |
-| `isCancelled`    | `boolean`  | –        | `true` = hide this occurrence from the calendar  |
-| `startUtc`       | `ISO 8601` | –        | Rescheduled start for this occurrence            |
-| `endUtc`         | `ISO 8601` | –        | Rescheduled end for this occurrence              |
-| `title`          | `string`   | –        | Override title for this occurrence               |
-| `description`    | `string`   | –        | Override description for this occurrence         |
-| `location`       | `string`   | –        | Override location for this occurrence            |
+| Field              | Type       | Required | Description                                     |
+| ------------------ | ---------- | -------- | ----------------------------------------------- |
+| `originalStartUtc` | `ISO 8601` | ✓        | Identifies which occurrence to override         |
+| `isCancelled`      | `boolean`  | –        | `true` = hide this occurrence from the calendar |
+| `startUtc`         | `ISO 8601` | –        | Rescheduled start for this occurrence           |
+| `endUtc`           | `ISO 8601` | –        | Rescheduled end for this occurrence             |
+| `title`            | `string`   | –        | Override title for this occurrence              |
+| `description`      | `string`   | –        | Override description for this occurrence        |
+| `location`         | `string`   | –        | Override location for this occurrence           |
 
 ## RSVP
 
 `POST /:id/rsvp` upserts the authenticated user's attendance status for a specific event occurrence (or the base event for single events).
 
-| Field    | Type        | Description                   |
-|----------|-------------|-------------------------------|
-| `status` | `RSVPStatus`| One of: `ACCEPTED`, `DECLINED`, `TENTATIVE` |
+| Field    | Type         | Description                                 |
+| -------- | ------------ | ------------------------------------------- |
+| `status` | `RSVPStatus` | One of: `ACCEPTED`, `DECLINED`, `TENTATIVE` |
 
 ## RBAC
 
-| Permission        | Minimum role  | Operations                                                |
-|-------------------|---------------|-----------------------------------------------------------|
-| `PLANNING_MANAGE` | `MEMBER`      | Create, update, delete events; manage exceptions          |
-| `ORG_READ`        | `READ_ONLY`   | List occurrences, get event detail, submit RSVP           |
+| Permission        | Minimum role | Operations                                       |
+| ----------------- | ------------ | ------------------------------------------------ |
+| `PLANNING_MANAGE` | `MEMBER`     | Create, update, delete events; manage exceptions |
+| `ORG_READ`        | `READ_ONLY`  | List occurrences, get event detail, submit RSVP  |
 
 Only the event creator (or an `ADMIN`/`OWNER`) can delete an event (`DELETE /:id`).
 

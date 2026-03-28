@@ -113,6 +113,47 @@ export class PlanningRepository {
     });
   }
 
+  /**
+   * Fetches events that could conflict with [start, end) for a specific user.
+   * User is considered involved when they are the creator or an attendee.
+   */
+  async findConflictCandidates(
+    orgId: string,
+    userId: string,
+    start: Date,
+    end: Date,
+  ): Promise<EventWithRelations[]> {
+    return this.prisma.event.findMany({
+      where: {
+        orgId,
+        deletedAt: null,
+        OR: [{ createdByUserId: userId }, { attendees: { some: { userId } } }],
+        AND: [
+          {
+            OR: [
+              // Single events that overlap [start, end)
+              {
+                rrule: null,
+                startUtc: { lt: end },
+                endUtc: { gt: start },
+              },
+              // Recurring masters that may yield occurrences in [start, end)
+              {
+                rrule: { not: null },
+                startUtc: { lt: end },
+                OR: [{ rruleUntilUtc: null }, { rruleUntilUtc: { gt: start } }],
+              },
+            ],
+          },
+        ],
+      },
+      include: {
+        attendees: true,
+        exceptions: true,
+      },
+    });
+  }
+
   async findEventById(
     id: string,
     orgId: string,

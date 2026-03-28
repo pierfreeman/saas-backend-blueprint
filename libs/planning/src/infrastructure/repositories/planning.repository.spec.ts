@@ -18,6 +18,7 @@ const mockPrisma = {
     upsert: vi.fn(),
     findUnique: vi.fn(),
     findMany: vi.fn(),
+    deleteMany: vi.fn(),
   },
   eventException: {
     upsert: vi.fn(),
@@ -188,6 +189,37 @@ describe('PlanningRepository', () => {
       );
 
       expect(result).toEqual([]);
+    });
+  });
+
+  // ── findConflictCandidates ────────────────────────────────────────────────
+
+  describe('findConflictCandidates', () => {
+    it('queries user-involved events that may overlap the requested range', async () => {
+      mockPrisma.event.findMany = vi
+        .fn()
+        .mockResolvedValue([baseEventWithRelations]);
+
+      const start = new Date('2026-01-05T10:00:00Z');
+      const end = new Date('2026-01-05T11:00:00Z');
+
+      const result = await repo.findConflictCandidates(
+        'org-1',
+        'user-1',
+        start,
+        end,
+      );
+
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.event.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            orgId: 'org-1',
+            deletedAt: null,
+          }),
+          include: { attendees: true, exceptions: true },
+        }),
+      );
     });
   });
 

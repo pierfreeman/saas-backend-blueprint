@@ -14,6 +14,7 @@ vi.mock('@libs/planning', () => ({
 const mockService = {
   createEvent: vi.fn(),
   listEvents: vi.fn(),
+  getConflicts: vi.fn(),
   getEvent: vi.fn(),
   updateEvent: vi.fn(),
   deleteEvent: vi.fn(),
@@ -145,6 +146,46 @@ describe('PlanningController', () => {
         controller.list(ORG_ID, {
           from: '2026-04-01T00:00:00Z',
           to: 'not-a-date',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── GET /conflicts ────────────────────────────────────────────────────────
+
+  describe('conflicts()', () => {
+    it('returns overlapping occurrences for current user', async () => {
+      const conflicts = [{ eventId: EVENT_ID, startUtc: new Date() }];
+      mockService.getConflicts = vi.fn().mockResolvedValue(conflicts);
+
+      const result = await controller.conflicts(ORG_ID, USER_ID, {
+        start: '2026-04-01T09:00:00Z',
+        end: '2026-04-01T10:00:00Z',
+      });
+
+      expect(result).toBe(conflicts);
+      expect(mockService.getConflicts).toHaveBeenCalledWith(
+        ORG_ID,
+        USER_ID,
+        new Date('2026-04-01T09:00:00Z'),
+        new Date('2026-04-01T10:00:00Z'),
+      );
+    });
+
+    it('throws BadRequestException when end <= start', async () => {
+      await expect(
+        controller.conflicts(ORG_ID, USER_ID, {
+          start: '2026-04-01T10:00:00Z',
+          end: '2026-04-01T10:00:00Z',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException for invalid dates', async () => {
+      await expect(
+        controller.conflicts(ORG_ID, USER_ID, {
+          start: 'not-a-date',
+          end: '2026-04-01T10:00:00Z',
         }),
       ).rejects.toThrow(BadRequestException);
     });

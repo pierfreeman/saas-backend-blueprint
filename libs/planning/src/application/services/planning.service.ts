@@ -182,6 +182,30 @@ export class PlanningService {
     return occurrences;
   }
 
+  async getConflicts(
+    orgId: string,
+    userId: string,
+    start: Date,
+    end: Date,
+  ): Promise<EventOccurrence[]> {
+    const events = await this.repo.findConflictCandidates(
+      orgId,
+      userId,
+      start,
+      end,
+    );
+
+    const occurrences: EventOccurrence[] = [];
+    for (const event of events) {
+      occurrences.push(...this.recurrenceService.expand(event, start, end));
+    }
+
+    // True overlap for [start, end): excludes back-to-back events.
+    return occurrences
+      .filter((occ) => occ.startUtc < end && occ.endUtc > start)
+      .sort((a, b) => a.startUtc.getTime() - b.startUtc.getTime());
+  }
+
   async getEvent(orgId: string, id: string): Promise<EventDetail> {
     const event = await this.repo.findEventById(id, orgId);
     if (!event) {
@@ -277,8 +301,9 @@ export class PlanningService {
       }
 
       // Re-fetch so the returned attendees list is accurate
-      updated = await this.repo.findEventById(id, orgId);
-      if (!updated) throw new NotFoundException(`Event ${id} not found`);
+      const refreshed = await this.repo.findEventById(id, orgId);
+      if (!refreshed) throw new NotFoundException(`Event ${id} not found`);
+      updated = refreshed;
     }
 
     if (dto.notifyAttendees) {

@@ -41,6 +41,7 @@ describe('PlanningService', () => {
   let repo: {
     createEvent: ReturnType<typeof vi.fn>;
     findEventsByRange: ReturnType<typeof vi.fn>;
+    findConflictCandidates: ReturnType<typeof vi.fn>;
     findEventById: ReturnType<typeof vi.fn>;
     updateEvent: ReturnType<typeof vi.fn>;
     softDeleteEvent: ReturnType<typeof vi.fn>;
@@ -61,6 +62,7 @@ describe('PlanningService', () => {
     repo = {
       createEvent: vi.fn(),
       findEventsByRange: vi.fn(),
+      findConflictCandidates: vi.fn(),
       findEventById: vi.fn(),
       updateEvent: vi.fn(),
       softDeleteEvent: vi.fn(),
@@ -443,6 +445,52 @@ describe('PlanningService', () => {
       expect(result).toHaveLength(2);
       expect(result[0].startUtc).toEqual(new Date('2026-01-05T10:00:00Z'));
       expect(result[1].startUtc).toEqual(new Date('2026-01-10T10:00:00Z'));
+    });
+  });
+
+  describe('getConflicts', () => {
+    it('returns only true overlaps sorted by start time', async () => {
+      const event = makeEvent({ id: 'e1' });
+      repo.findConflictCandidates.mockResolvedValue([event]);
+
+      const inOverlap = {
+        eventId: 'e1',
+        startUtc: new Date('2026-01-05T10:15:00Z'),
+        endUtc: new Date('2026-01-05T10:45:00Z'),
+      };
+      const noOverlap = {
+        eventId: 'e1',
+        startUtc: new Date('2026-01-05T11:00:00Z'),
+        endUtc: new Date('2026-01-05T11:30:00Z'),
+      };
+      const earlyOverlap = {
+        eventId: 'e1',
+        startUtc: new Date('2026-01-05T10:00:00Z'),
+        endUtc: new Date('2026-01-05T10:20:00Z'),
+      };
+
+      recurrenceService.expand.mockReturnValue([
+        inOverlap,
+        noOverlap,
+        earlyOverlap,
+      ]);
+
+      const result = await service.getConflicts(
+        'org-1',
+        'user-1',
+        new Date('2026-01-05T10:10:00Z'),
+        new Date('2026-01-05T11:00:00Z'),
+      );
+
+      expect(repo.findConflictCandidates).toHaveBeenCalledWith(
+        'org-1',
+        'user-1',
+        new Date('2026-01-05T10:10:00Z'),
+        new Date('2026-01-05T11:00:00Z'),
+      );
+      expect(result).toHaveLength(2);
+      expect(result[0].startUtc).toEqual(new Date('2026-01-05T10:00:00Z'));
+      expect(result[1].startUtc).toEqual(new Date('2026-01-05T10:15:00Z'));
     });
   });
 

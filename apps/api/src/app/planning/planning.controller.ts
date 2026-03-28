@@ -35,6 +35,7 @@ import { PlanningService } from '@libs/planning';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { QueryEventsDto, MAX_RANGE_DAYS } from './dto/query-events.dto';
+import { QueryConflictsDto } from './dto/query-conflicts.dto';
 import { RsvpEventDto } from './dto/rsvp-event.dto';
 import { CreateExceptionDto } from './dto/create-exception.dto';
 import { EventDetailResponseDto } from './dto/event-detail-response.dto';
@@ -147,6 +148,54 @@ export class PlanningController {
     }
 
     return this.planningService.listEvents(orgId, from, to);
+  }
+
+  // ── Conflicts (overlap query for current user) ───────────────────────────
+
+  @Get('conflicts')
+  @RequirePermissions([PERMISSIONS.ORG_READ])
+  @ApiOperation({
+    summary: 'List conflicts for the authenticated user',
+    description:
+      'Returns event occurrences that overlap the requested [start, end) range ' +
+      'where the authenticated user is creator or attendee.',
+  })
+  @ApiParam({ name: 'orgId', description: 'Organisation UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Array of conflicting occurrences sorted by startUtc.',
+    type: EventOccurrenceResponseDto,
+    isArray: true,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid date range or range exceeds 365 days.',
+  })
+  async conflicts(
+    @Param('orgId') orgId: string,
+    @CurrentUserId() userId: string,
+    @Query() query: QueryConflictsDto,
+  ) {
+    const start = new Date(query.start);
+    const end = new Date(query.end);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new BadRequestException(
+        'start and end must be valid ISO 8601 dates',
+      );
+    }
+    if (end <= start) {
+      throw new BadRequestException('end must be after start');
+    }
+
+    const rangeDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+    if (rangeDays > MAX_RANGE_DAYS) {
+      throw new BadRequestException(
+        `Date range must not exceed ${MAX_RANGE_DAYS} days`,
+      );
+    }
+
+    return this.planningService.getConflicts(orgId, userId, start, end);
   }
 
   // ── Get detail ─────────────────────────────────────────────────────────────

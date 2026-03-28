@@ -9,6 +9,7 @@
  *   DELETE /organizations/:orgId/planning/events/:id            (delete)
  *   POST   /organizations/:orgId/planning/events/:id/rsvp       (rsvp)
  *   POST   /organizations/:orgId/planning/events/:id/exceptions (create exception)
+ *   GET    /organizations/:orgId/planning/events/conflicts      (user overlap query)
  *
  * Verifies:
  *   - Authentication guard rejects unauthenticated and expired-token requests.
@@ -101,6 +102,14 @@ describe('Planning Events (integration)', () => {
       const res = await agent
         .post(`${BASE(fakeOrgId)}/${fakeEventId}/exceptions`)
         .send({});
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /events/conflicts returns 401 without a token', async () => {
+      const res = await agent.get(`${BASE(fakeOrgId)}/conflicts`).query({
+        start: '2026-04-01T09:00:00Z',
+        end: '2026-04-01T10:00:00Z',
+      });
       expect(res.status).toBe(401);
     });
 
@@ -248,6 +257,18 @@ describe('Planning Events (integration)', () => {
         .send({ isCancelled: true });
       expect(res.status).toBe(400);
     });
+
+    it('GET /events/conflicts returns 400 when end <= start', async () => {
+      const res = await agent
+        .get(`${BASE(orgId)}/conflicts`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .query({
+          start: '2026-04-01T10:00:00Z',
+          end: '2026-04-01T09:00:00Z',
+        });
+      expect(res.status).toBe(400);
+    });
   });
 
   // ── RBAC (403) ─────────────────────────────────────────────────────────────
@@ -343,6 +364,75 @@ describe('Planning Events (integration)', () => {
         .set('x-org-id', orgId)
         .send({ status: 'YES' });
       expect(res.status).toBe(201);
+    });
+
+    it('READ_ONLY can query conflicts (ORG_READ permission)', async () => {
+      const res = await agent
+        .get(`${BASE(orgId)}/conflicts`)
+        .set('Authorization', `Bearer ${readOnlyToken}`)
+        .set('x-org-id', orgId)
+        .query({
+          start: '2026-04-01T08:00:00Z',
+          end: '2026-04-01T12:00:00Z',
+        });
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+  });
+
+  // ── Conflicts ─────────────────────────────────────────────────────────────
+
+  describe('Conflicts', () => {
+    it('returns overlapping occurrences where current user is creator or attendee', async () => {
+      const ctx = await seedFullOrg(prisma, { withMember: true });
+      if (!ctx.member) throw new Error('Expected member in seeded org');
+      const orgId = ctx.org.id;
+      const ownerToken = generateTestToken({ sub: ctx.owner.auth0Id });
+      const memberToken = generateTestToken({ sub: ctx.member.auth0Id });
+
+      // Event A: member is attendee and overlaps [09:30, 09:45)
+      const eventA = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Conflict A',
+          start: '2026-05-01T09:00:00Z',
+          end: '2026-05-01T10:00:00Z',
+          eventTimezone: 'UTC',
+          attendeeIds: [ctx.member.user.id],
+        });
+      expect(eventA.status).toBe(201);
+
+      // Event B: member is attendee but does NOT overlap [09:30, 09:45)
+      const eventB = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'No Conflict B',
+          start: '2026-05-01T10:00:00Z',
+          end: '2026-05-01T10:30:00Z',
+          eventTimezone: 'UTC',
+          attendeeIds: [ctx.member.user.id],
+        });
+      expect(eventB.status).toBe(201);
+
+      const res = await agent
+        .get(`${BASE(orgId)}/conflicts`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .set('x-org-id', orgId)
+        .query({
+          start: '2026-05-01T09:30:00Z',
+          end: '2026-05-01T09:45:00Z',
+        });
+
+      expect(res.status).toBe(200);
+      const eventIds = (res.body as Array<{ eventId: string }>).map(
+        (o) => o.eventId,
+      );
+      expect(eventIds).toContain(eventA.body.id as string);
+      expect(eventIds).not.toContain(eventB.body.id as string);
     });
   });
 
@@ -780,7 +870,8 @@ describe('Planning Events (integration)', () => {
       });
       const member = ctx.member;
       const admin = ctx.admin;
-      if (!member || !admin) throw new Error('Expected member and admin in test org');
+      if (!member || !admin)
+        throw new Error('Expected member and admin in test org');
       const memberToken = generateTestToken({ sub: member.auth0Id });
       const adminToken = generateTestToken({ sub: admin.auth0Id });
       const orgId = ctx.org.id;
