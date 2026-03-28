@@ -395,7 +395,11 @@ export class PlanningService {
           type: 'event.rsvp',
           title: 'RSVP updated',
           body: `A member responded "${status}" to "${event.title}"`,
-          metadata: { eventId, userId: actorUserId, status },
+          metadata: {
+            entityRef: { type: 'event', id: eventId },
+            userId: actorUserId,
+            status,
+          },
         })
         .catch((err: unknown) => {
           this.logger.error(
@@ -493,7 +497,7 @@ export class PlanningService {
           type: 'event.invite',
           title: 'You have been invited to an event',
           body: `You have been invited to "${eventTitle}"`,
-          metadata: { eventId },
+          metadata: { entityRef: { type: 'event', id: eventId } },
         }),
       ),
     );
@@ -511,7 +515,7 @@ export class PlanningService {
           type: 'event.updated',
           title: 'An event has been updated',
           body: `"${eventTitle}" has been updated`,
-          metadata: { eventId },
+          metadata: { entityRef: { type: 'event', id: eventId } },
         }),
       ),
     );
@@ -529,7 +533,7 @@ export class PlanningService {
           type: 'event.cancelled',
           title: 'An event has been cancelled',
           body: `"${eventTitle}" has been cancelled`,
-          metadata: { eventId },
+          metadata: { entityRef: { type: 'event', id: eventId } },
         }),
       ),
     );
