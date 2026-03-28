@@ -17,6 +17,7 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ActivityLogAppModule } from './activity-log/activity-log-app.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -35,6 +36,7 @@ import { PlanningAppModule } from './planning/planning-app.module';
 @Module({
   imports: [
     ConfigModule,
+    ScheduleModule.forRoot(),
     ObservabilityModule,
     PrismaBusinessModule,
     RedisModule,

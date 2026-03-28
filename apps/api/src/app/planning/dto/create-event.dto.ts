@@ -1,11 +1,14 @@
 import {
   IsArray,
   IsBoolean,
+  IsInt,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -95,4 +98,16 @@ export class CreateEventDto {
   @IsArray()
   @IsUUID('4', { each: true })
   attendeeIds?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Minutes before event start to send a reminder notification. ' +
+      'Supported values: 5, 10, 15, 30, 60, 120, 1440 (1 day). Null / omit for no reminder.',
+    example: 15,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  reminderMinutes?: number;
 }

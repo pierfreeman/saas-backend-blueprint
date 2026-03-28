@@ -25,6 +25,7 @@ export interface CreateEventData {
   rrule?: string | null;
   rruleUntilUtc?: Date | null;
   metadata?: Prisma.InputJsonValue | null;
+  reminderMinutes?: number | null;
 }
 
 export interface UpdateEventData {
@@ -38,6 +39,7 @@ export interface UpdateEventData {
   rrule?: string | null;
   rruleUntilUtc?: Date | null;
   metadata?: Prisma.InputJsonValue | null;
+  reminderMinutes?: number | null;
 }
 
 export interface UpsertExceptionData {
@@ -75,7 +77,36 @@ export class PlanningRepository {
         rrule: data.rrule,
         rruleUntilUtc: data.rruleUntilUtc,
         metadata: data.metadata ?? Prisma.JsonNull,
+        reminderMinutes: data.reminderMinutes ?? null,
       },
+    });
+  }
+
+  /**
+   * Returns all non-soft-deleted events that have a reminder configured.
+   * Used by the cron sweep to find due reminders.
+   */
+  async findEventsWithReminders(): Promise<EventWithRelations[]> {
+    return this.prisma.event.findMany({
+      where: {
+        reminderMinutes: { not: null },
+        deletedAt: null,
+      },
+      include: { attendees: true, exceptions: true },
+    });
+  }
+
+  /**
+   * Records the UTC start of the most-recently-reminded occurrence.
+   * The cron sweep uses this to skip occurrences that have already been notified.
+   */
+  async updateLastReminderSent(
+    eventId: string,
+    occurrenceUtc: Date,
+  ): Promise<void> {
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { lastReminderOccurrenceUtc: occurrenceUtc },
     });
   }
 

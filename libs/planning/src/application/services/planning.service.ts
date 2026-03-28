@@ -35,6 +35,7 @@ export interface CreateEventInput {
   rruleUntilUtc?: string | null;
   attendeeIds?: string[];
   metadata?: Prisma.InputJsonValue | null;
+  reminderMinutes?: number | null;
 }
 
 export interface UpdateEventInput {
@@ -52,6 +53,7 @@ export interface UpdateEventInput {
   notifyAttendees?: boolean;
   /** When provided, replaces the full invited-attendee list (creator is always kept). */
   attendeeIds?: string[];
+  reminderMinutes?: number | null;
 }
 
 export interface CreateExceptionInput {
@@ -112,6 +114,7 @@ export class PlanningService {
       rrule: dto.rrule,
       rruleUntilUtc: dto.rruleUntilUtc ? new Date(dto.rruleUntilUtc) : null,
       metadata: dto.metadata,
+      reminderMinutes: dto.reminderMinutes ?? null,
     });
 
     // Creator is always YES
@@ -252,6 +255,7 @@ export class PlanningService {
         ? new Date(dto.rruleUntilUtc)
         : undefined,
       metadata: dto.metadata,
+      reminderMinutes: dto.reminderMinutes,
     };
 
     // Strip undefined keys to avoid overwriting unchanged fields

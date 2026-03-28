@@ -668,6 +668,13 @@ model Event {
   /// Optimistic-concurrency version counter. Incremented on every update.
   version         Int       @default(1)
 
+  /// Minutes before event start to send a reminder notification.
+  /// Null means no reminder. Supported values: 5, 10, 15, 30, 60, 120, 1440.
+  reminderMinutes         Int?      @map("reminder_minutes")
+  /// UTC timestamp of the last occurrence for which a reminder was sent.
+  /// Used by the cron sweep to avoid re-sending reminders for already-notified occurrences.
+  lastReminderOccurrenceUtc DateTime? @map("last_reminder_occurrence_utc")
+
   /// Soft-delete timestamp. Null means the event is active.
   deletedAt       DateTime? @map("deleted_at")
 
@@ -689,6 +696,8 @@ model Event {
   @@index([orgId, deletedAt])
   /// Recurring event boundary query (find series that overlap a date range).
   @@index([orgId, startUtc, rruleUntilUtc])
+  /// Reminder sweep query (find events with a configured reminder that are not soft-deleted).
+  @@index([reminderMinutes, deletedAt])
   @@map("events")
   @@schema("public")
 }

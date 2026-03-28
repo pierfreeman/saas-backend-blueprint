@@ -114,8 +114,7 @@ export class EventDetailResponseDto {
   updatedAt!: Date;
 
   @ApiProperty({
-    description:
-      'All attendees of this event (including their RSVP statuses).',
+    description: 'All attendees of this event (including their RSVP statuses).',
     type: () => EventAttendeeResponseDto,
     isArray: true,
   })
@@ -128,4 +127,13 @@ export class EventDetailResponseDto {
     isArray: true,
   })
   exceptions!: EventExceptionResponseDto[];
+
+  @ApiPropertyOptional({
+    description:
+      'Minutes before event start at which a reminder notification is sent to all attendees. ' +
+      'Null means no reminder is configured.',
+    example: 15,
+    nullable: true,
+  })
+  reminderMinutes!: number | null;
 }

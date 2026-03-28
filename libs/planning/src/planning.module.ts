@@ -6,6 +6,7 @@ import { NotificationsModule } from '@libs/notifications';
 import { PlanningRepository } from './infrastructure/repositories/planning.repository';
 import { RecurrenceService } from './application/services/recurrence.service';
 import { PlanningService } from './application/services/planning.service';
+import { PlanningReminderSchedulerService } from './application/services/planning-reminder-scheduler.service';
 
 @Module({
   imports: [
@@ -14,7 +15,12 @@ import { PlanningService } from './application/services/planning.service';
     LegalAuditModule,
     NotificationsModule,
   ],
-  providers: [PlanningRepository, RecurrenceService, PlanningService],
+  providers: [
+    PlanningRepository,
+    RecurrenceService,
+    PlanningService,
+    PlanningReminderSchedulerService,
+  ],
   exports: [PlanningService],
 })
 export class PlanningModule {}

@@ -100,6 +100,7 @@ export class PlanningController {
       rrule: dto.rrule,
       rruleUntilUtc: dto.rruleUntilUtc,
       attendeeIds: dto.attendeeIds,
+      reminderMinutes: dto.reminderMinutes,
     });
   }
 

@@ -54,18 +54,40 @@ Returns all `EventOccurrence` objects where the authenticated user is **creator 
 
 ## Create / Update Event — Request Body
 
-| Field           | Type       | Required | Description                                          |
-| --------------- | ---------- | -------- | ---------------------------------------------------- |
-| `title`         | `string`   | ✓        | Event title (max 255 chars)                          |
-| `description`   | `string`   | –        | Optional free-text description                       |
-| `location`      | `string`   | –        | Optional location string                             |
-| `startUtc`      | `ISO 8601` | ✓        | Start date-time in UTC                               |
-| `endUtc`        | `ISO 8601` | ✓        | End date-time in UTC. Must be after `startUtc`.      |
-| `isAllDay`      | `boolean`  | –        | Defaults to `false`                                  |
-| `eventTimezone` | `string`   | –        | IANA timezone (e.g. `Europe/Rome`). Defaults to UTC. |
-| `rrule`         | `string`   | –        | RFC 5545 RRULE string (omit for one-off events)      |
-| `rruleUntilUtc` | `ISO 8601` | –        | Convenience alias for `UNTIL=` inside the RRULE      |
-| `metadata`      | `object`   | –        | Arbitrary JSON metadata attached to the event        |
+| Field             | Type       | Required | Description                                                                                                                                   |
+| ----------------- | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`           | `string`   | ✓        | Event title (max 255 chars)                                                                                                                   |
+| `description`     | `string`   | –        | Optional free-text description                                                                                                                |
+| `location`        | `string`   | –        | Optional location string                                                                                                                      |
+| `startUtc`        | `ISO 8601` | ✓        | Start date-time in UTC                                                                                                                        |
+| `endUtc`          | `ISO 8601` | ✓        | End date-time in UTC. Must be after `startUtc`.                                                                                               |
+| `isAllDay`        | `boolean`  | –        | Defaults to `false`                                                                                                                           |
+| `eventTimezone`   | `string`   | –        | IANA timezone (e.g. `Europe/Rome`). Defaults to UTC.                                                                                          |
+| `rrule`           | `string`   | –        | RFC 5545 RRULE string (omit for one-off events)                                                                                               |
+| `rruleUntilUtc`   | `ISO 8601` | –        | Convenience alias for `UNTIL=` inside the RRULE                                                                                               |
+| `reminderMinutes` | `integer`  | –        | Minutes before event start to send a reminder notification. Must be between 1 and 1440. Pass `null` on update to remove an existing reminder. |
+| `metadata`        | `object`   | –        | Arbitrary JSON metadata attached to the event                                                                                                 |
+
+## Reminder Notifications
+
+`PlanningReminderSchedulerService` runs a `@Cron(EVERY_5_MINUTES)` sweep inside the API process. It checks all events whose `reminderMinutes` is set and fires an in-app notification through `NotificationsService.notifyManyUsers()` at the right moment.
+
+**Non-recurring events:** a single notification is sent once `now >= startUtc - reminderMinutes` and no reminder has been sent yet (`lastReminderOccurrenceUtc IS NULL`).
+
+**Recurring events:** per-occurrence semantics. The sweep expands occurrences in the window `[lastReminderOccurrenceUtc ?? startUtc, now + 1440 min]`, fires for every due occurrence in chronological order, and advances `lastReminderOccurrenceUtc` as a high-water mark so no occurrence is notified twice.
+
+Notification payload:
+
+```json
+{
+  "type": "event.reminder",
+  "title": "Event reminder",
+  "body": "\"My event\" starts in 15 minutes",
+  "metadata": { "entityRef": { "type": "event", "id": "<eventId>" } }
+}
+```
+
+> **TODO (deferred):** after a bulk RRULE update the `lastReminderOccurrenceUtc` high-water mark may point past occurrences that no longer exist in the new RRULE; a background job to reset the mark would prevent missed or double reminders.
 
 ## Recurrence (RRULE)
 
@@ -136,6 +158,8 @@ model Event {
   eventTimezone   String    @default("UTC") @map("event_timezone")
   rrule           String?   @db.Text
   rruleUntilUtc   DateTime? @map("rrule_until_utc")
+  reminderMinutes         Int?      @map("reminder_minutes")
+  lastReminderOccurrenceUtc DateTime? @map("last_reminder_occurrence_utc")
   version         Int       @default(0)
   metadata        Json?
   deletedAt       DateTime? @map("deleted_at")
@@ -145,6 +169,7 @@ model Event {
   attendees  EventAttendee[]
   exceptions EventException[]
 
+  @@index([reminderMinutes, deletedAt])
   @@map("events")
   @@schema("public")
 }
@@ -193,3 +218,14 @@ npx nx run planning:test
 # Integration tests (requires running infra via docker-compose.test.yml)
 npx nx run api-e2e:e2e --testPathPattern=planning
 ```
+
+---
+
+## Deferred / Known Limitations
+
+| Item                                            | Notes                                                                                                                                                            |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "This and Following" recurrence modification    | Requires splitting the series (set `rruleUntilUtc` on the original row, create a new `Event` for the tail). Not implemented — single-occurrence exceptions only. |
+| RDATE support                                   | `RecurrenceService` does not parse `RDATE` (explicit additional dates). Use `RRuleSet` if needed.                                                                |
+| Reminder high-water mark reset after RRULE edit | After a bulk RRULE update, `lastReminderOccurrenceUtc` may reference a now-nonexistent occurrence and should be cleared (async job).                             |
+| Paginated attendee listing                      | Attendees are returned inline on `GET /:id`. Future: `GET /:id/attendees?page=&limit=`.                                                                          |
