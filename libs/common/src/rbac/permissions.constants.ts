@@ -22,6 +22,8 @@ export const PERMISSIONS = {
 
   // Planning / Calendar
   PLANNING_MANAGE: 'planning.manage',
+  /** Can edit/delete ANY event (not just own). ADMIN and OWNER only. */
+  PLANNING_MANAGE_ANY: 'planning.manage_any',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

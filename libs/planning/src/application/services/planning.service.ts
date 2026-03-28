@@ -338,6 +338,21 @@ export class PlanningService {
 
     await this.repo.softDeleteEvent(id, orgId);
 
+    // Notify all attendees (except the actor) that the event was cancelled
+    const attendeeIds = event.attendees
+      .map((a) => a.userId)
+      .filter((uid) => uid !== actorUserId);
+
+    if (attendeeIds.length > 0) {
+      this.sendCancelNotifications(attendeeIds, orgId, id, event.title).catch(
+        (err: unknown) => {
+          this.logger.error(
+            `Failed to send cancel notifications for event ${id}: ${err instanceof Error ? err.message : 'unknown error'}`,
+          );
+        },
+      );
+    }
+
     this.activityLog.logActivity({
       orgId,
       actorId: actorUserId,
@@ -496,6 +511,24 @@ export class PlanningService {
           type: 'event.updated',
           title: 'An event has been updated',
           body: `"${eventTitle}" has been updated`,
+          metadata: { eventId },
+        }),
+      ),
+    );
+  }
+
+  private async sendCancelNotifications(
+    userIds: string[],
+    orgId: string,
+    eventId: string,
+    eventTitle: string,
+  ): Promise<void> {
+    await Promise.allSettled(
+      userIds.map((userId) =>
+        this.notificationsService.notifyUser(userId, orgId, {
+          type: 'event.cancelled',
+          title: 'An event has been cancelled',
+          body: `"${eventTitle}" has been cancelled`,
           metadata: { eventId },
         }),
       ),
