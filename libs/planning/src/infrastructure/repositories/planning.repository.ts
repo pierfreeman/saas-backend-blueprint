@@ -199,6 +199,22 @@ export class PlanningRepository {
     return this.prisma.eventAttendee.findMany({ where: { eventId } });
   }
 
+  /**
+   * Removes all attendee records for the event whose userId is NOT in keepUserIds.
+   * Used to sync the attendee list during an update (set semantics).
+   */
+  async deleteAttendeesExcluding(
+    eventId: string,
+    keepUserIds: string[],
+  ): Promise<void> {
+    await this.prisma.eventAttendee.deleteMany({
+      where: {
+        eventId,
+        userId: { notIn: keepUserIds },
+      },
+    });
+  }
+
   async upsertException(data: UpsertExceptionData): Promise<EventException> {
     return this.prisma.eventException.upsert({
       where: {

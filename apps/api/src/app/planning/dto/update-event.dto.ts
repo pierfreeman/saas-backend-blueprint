@@ -1,10 +1,12 @@
 import {
+  IsArray,
   IsBoolean,
   IsISO8601,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -75,4 +77,17 @@ export class UpdateEventDto {
   @IsOptional()
   @IsBoolean()
   notifyAttendees?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Replaces the full invited-attendee list (set semantics). ' +
+      'New invitees receive PENDING status and an invite notification. ' +
+      'The event creator is always kept regardless of this list.',
+    type: [String],
+    example: ['a1b2c3d4-e5f6-7890-ab12-cd34ef567890'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  attendeeIds?: string[];
 }

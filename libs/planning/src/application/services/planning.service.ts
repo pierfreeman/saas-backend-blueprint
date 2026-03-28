@@ -50,6 +50,8 @@ export interface UpdateEventInput {
   metadata?: Prisma.InputJsonValue | null;
   version: number;
   notifyAttendees?: boolean;
+  /** When provided, replaces the full invited-attendee list (creator is always kept). */
+  attendeeIds?: string[];
 }
 
 export interface CreateExceptionInput {
@@ -235,12 +237,49 @@ export class PlanningService {
       }
     }
 
-    const updated = await this.repo.updateEvent(
+    let updated = await this.repo.updateEvent(
       id,
       orgId,
       dto.version,
       updateData,
     );
+
+    // Sync attendee list when attendeeIds is explicitly provided
+    if (dto.attendeeIds !== undefined) {
+      const newInvitedIds = dto.attendeeIds.filter(
+        (uid) => uid !== actorUserId && uid !== event.createdByUserId,
+      );
+      // Remove attendees no longer in the list (keep creator and actor)
+      const keepUserIds = [
+        ...new Set([event.createdByUserId, actorUserId, ...newInvitedIds]),
+      ];
+      await this.repo.deleteAttendeesExcluding(id, keepUserIds);
+
+      // Upsert newly invited attendees
+      const existingIds = new Set(updated.attendees.map((a) => a.userId));
+      const brandNewIds = newInvitedIds.filter((uid) => !existingIds.has(uid));
+      for (const userId of brandNewIds) {
+        await this.repo.upsertAttendee(id, userId, RSVPStatus.PENDING);
+      }
+
+      // Send invite notifications to newly added attendees (fire-and-forget)
+      if (brandNewIds.length > 0) {
+        this.sendInviteNotifications(
+          brandNewIds,
+          orgId,
+          id,
+          updated.title,
+        ).catch((err: unknown) => {
+          this.logger.error(
+            `Failed to send invite notifications for event ${id}: ${err instanceof Error ? err.message : 'unknown error'}`,
+          );
+        });
+      }
+
+      // Re-fetch so the returned attendees list is accurate
+      updated = await this.repo.findEventById(id, orgId);
+      if (!updated) throw new NotFoundException(`Event ${id} not found`);
+    }
 
     if (dto.notifyAttendees) {
       const attendeeIds = updated.attendees
