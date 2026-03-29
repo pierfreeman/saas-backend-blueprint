@@ -1,5 +1,5 @@
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@libs/prisma-business';
 import { Mock, vi } from 'vitest';
 import { OrganizationsRepository } from './organizations.repository';
 

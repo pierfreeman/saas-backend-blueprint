@@ -18,7 +18,7 @@ import { generateTestToken } from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '@libs/prisma-business';
 
 describe('Multi-Tenant Isolation (integration)', () => {
   let app: INestApplication;

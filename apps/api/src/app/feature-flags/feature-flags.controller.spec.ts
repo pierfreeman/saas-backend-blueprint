@@ -3,7 +3,7 @@ import {
   FeatureFlagsService,
   OrganizationEntitlements,
 } from '@libs/feature-flags';
-import { BillingStatus } from '@prisma/client';
+import { BillingStatus } from '@libs/prisma-business';
 import { Mocked, vi } from 'vitest';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

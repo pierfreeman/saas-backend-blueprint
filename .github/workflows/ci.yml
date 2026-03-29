@@ -108,9 +108,12 @@ jobs:
 
       # ── Generate Prisma clients ─────────────────────────────────────────
       - name: Generate Prisma clients
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost/dummy
+          LEGAL_AUDIT_DATABASE_URL: postgresql://dummy:dummy@localhost/dummy
         run: |
-          npx prisma generate --schema=prisma/schema.prisma
-          npx prisma generate --schema=prisma/schema.legal.prisma
+          npx prisma generate
+          npx prisma generate --config prisma.config.legal.ts
 
       # ── Run migrations ──────────────────────────────────────────────────
       - name: Run database migrations
@@ -118,8 +121,8 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
           LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
         run: |
-          npx prisma migrate deploy --schema=prisma/schema.prisma
-          npx prisma migrate deploy --schema=prisma/schema.legal.prisma
+          npx prisma migrate deploy
+          npx prisma migrate deploy --config prisma.config.legal.ts
 
       # ── E2E suites ──────────────────────────────────────────────────────
       - name: E2E — api-e2e

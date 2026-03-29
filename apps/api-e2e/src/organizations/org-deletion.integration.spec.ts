@@ -23,7 +23,7 @@ import {
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PrismaLegalService } from '@libs/prisma-legal';
 import { OrgDeletionWorkerService, DeletionTrigger } from '@libs/org-deletion';
-import { JobStatus, MembershipRole } from '@prisma/client';
+import { JobStatus, MembershipRole } from '@libs/prisma-business';
 
 /** Fire-and-forget logging is async — wait briefly before asserting on log tables. */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

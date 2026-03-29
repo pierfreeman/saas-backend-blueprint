@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { BillingStatus } from '@prisma/client';
+import { BillingStatus } from '@libs/prisma-business';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { Mock, vi } from 'vitest';
 import {

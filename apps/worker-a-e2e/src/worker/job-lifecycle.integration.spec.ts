@@ -27,7 +27,7 @@ import {
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '@libs/prisma-business';
 import * as dotenv from 'dotenv';
 import * as path from 'node:path';
 

@@ -1,6 +1,6 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { Prisma, RSVPStatus } from '@prisma/client';
+import { Prisma, RSVPStatus } from '@libs/prisma-business';
 import { vi } from 'vitest';
 import { PlanningRepository } from './planning.repository';
 

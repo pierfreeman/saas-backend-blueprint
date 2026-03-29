@@ -1,6 +1,18 @@
 # @libs/prisma-business
 
-`PrismaBusinessService` — the single injectable gateway to the business PostgreSQL database. Extends `PrismaClient` so all generated model accessors (`this.user`, `this.organization`, `this.activityLog`, etc.) are available directly on the service instance.
+`PrismaBusinessService` — the single injectable gateway to the business PostgreSQL database. Extends the generated `PrismaClient` (Prisma 7, ESM) so all model accessors (`this.user`, `this.organization`, `this.activityLog`, etc.) are available directly on the service instance. The client uses `@prisma/adapter-pg` (the official Node.js PostgreSQL driver adapter) instead of the legacy embedded Rust engine.
+
+---
+
+## Generated client
+
+The Prisma client is generated into `libs/prisma-business/src/generated/prisma/` (gitignored). Run after every schema change or fresh clone:
+
+```sh
+npx prisma generate
+```
+
+Config is auto-detected from `prisma.config.ts` at the repo root.
 
 ---
 
@@ -52,6 +64,7 @@ Reads `database.url` from `ConfigService` (falls back to `DATABASE_URL` env var)
 
 ## Notes
 
-- This is the **only** service that should access the business database. Do not instantiate `PrismaClient` from `@prisma/client` directly.
+- This is the **only** service that should access the business database. Do not instantiate `PrismaClient` from `@prisma/client` directly — import from `@libs/prisma-business` instead.
 - For the legal audit database use [`@libs/prisma-legal`](../prisma-legal/README.md).
 - The service logs slow queries and errors via NestJS `Logger` in development. Query logging is event-driven and does not affect production throughput.
+- The client is pure JavaScript/TypeScript (no Rust binary) and is bundled by webpack into the app bundle — no `prisma generate` step is needed in the production Docker image.

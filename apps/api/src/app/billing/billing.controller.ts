@@ -19,7 +19,7 @@ import {
   ApiQuery,
   ApiHeader,
 } from '@nestjs/swagger';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@libs/prisma-business';
 import { BillingService } from '@libs/billing';
 import { JwtAuthGuard } from '@libs/common';
 import { OrgContextGuard, RBACGuard, OrgScoped, RequireRole } from '@libs/rbac';

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/legal-client';
+import { Prisma } from '@libs/prisma-legal';
 import { PrismaLegalService } from '@libs/prisma-legal';
 import type { LegalAuditEvent } from './legal-audit.types';
 

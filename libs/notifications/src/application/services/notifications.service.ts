@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { CacheService } from '@libs/redis';
 import { NotificationsPubSubService } from './notifications-pubsub.service';
-import { Notification } from '@prisma/client';
+import { Notification } from '@libs/prisma-business';
 import {
   NotificationMessage,
   UNREAD_CACHE_KEY,

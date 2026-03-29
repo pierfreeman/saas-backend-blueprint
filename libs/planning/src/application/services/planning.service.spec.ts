@@ -6,7 +6,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import { MembershipRole, RSVPStatus } from '@prisma/client';
+import { MembershipRole, RSVPStatus } from '@libs/prisma-business';
 import { PlanningService } from './planning.service';
 import { PlanningRepository } from '../../infrastructure/repositories/planning.repository';
 import { RecurrenceService } from './recurrence.service';

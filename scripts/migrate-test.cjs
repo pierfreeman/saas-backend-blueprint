@@ -15,7 +15,7 @@ require('dotenv').config({
 });
 
 console.log('[migrate-test] Running business DB migrations...');
-execSync('npx prisma migrate deploy --schema=prisma/schema.prisma', {
+execSync('npx prisma migrate deploy', {
   cwd: path.join(__dirname, '..'),
   env: { ...process.env },
   stdio: 'inherit',

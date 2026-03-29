@@ -3,7 +3,7 @@ import { waitForPortOpen } from '@nx/node/utils';
 // eslint-disable-next-line no-var, @typescript-eslint/no-unused-vars
 var __TEARDOWN_MESSAGE__: string;
 
-module.exports = async function globalSetup() {
+export default async function globalSetup() {
   // Start services that that the app needs to run (e.g. database, docker-compose, etc.).
   console.log('\nSetting up...\n');
 
@@ -13,4 +13,4 @@ module.exports = async function globalSetup() {
 
   // Hint: Use `globalThis` to pass variables to global teardown.
   globalThis.__TEARDOWN_MESSAGE__ = '\nTearing down...\n';
-};
+}

@@ -11,7 +11,7 @@
 // ⚠️  Append-only database — do NOT issue UPDATE or DELETE statements.
 // ─────────────────────────────────────────────────────────────────────────────
 import 'dotenv/config';
-import { defineConfig } from 'prisma/config';
+import { defineConfig, env } from 'prisma/config';
 
 export default defineConfig({
   schema: 'prisma/schema.legal.prisma',
@@ -19,6 +19,6 @@ export default defineConfig({
     path: 'prisma/migrations-legal',
   },
   datasource: {
-    url: process.env['LEGAL_AUDIT_DATABASE_URL'],
+    url: env('LEGAL_AUDIT_DATABASE_URL'),
   },
 });

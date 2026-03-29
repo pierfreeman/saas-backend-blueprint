@@ -1,5 +1,5 @@
 import { UserRepository } from './user.repository';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { vi } from 'vitest';
 

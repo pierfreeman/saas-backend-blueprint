@@ -3,7 +3,7 @@ import { MembershipsRepository } from '../../infrastructure/repositories/members
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { IMembershipCacheNotifier } from '../../membership-cache-notifier.token';
 import { ISeatLimitProvider } from '../../seat-limit-provider.token';
 import { Mock, vi } from 'vitest';

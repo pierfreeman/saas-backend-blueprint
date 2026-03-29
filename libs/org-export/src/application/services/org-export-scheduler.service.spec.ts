@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrgExportSchedulerService } from './org-export-scheduler.service';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
-import { ExportStatus } from '@prisma/client';
+import { ExportStatus } from '@libs/prisma-business';
 import { Mock, vi } from 'vitest';
 
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';

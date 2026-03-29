@@ -17,7 +17,7 @@ import {
   MembershipRole,
   Prisma,
   RSVPStatus,
-} from '@prisma/client';
+} from '@libs/prisma-business';
 import {
   PlanningRepository,
   SplitSeriesParams,

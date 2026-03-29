@@ -26,7 +26,7 @@ import {
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PrismaLegalService } from '@libs/prisma-legal';
-import { ExportStatus, JobStatus, MembershipRole } from '@prisma/client';
+import { ExportStatus, JobStatus, MembershipRole } from '@libs/prisma-business';
 
 /** Fire-and-forget logging is async — wait briefly before asserting on log tables. */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

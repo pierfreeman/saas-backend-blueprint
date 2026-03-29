@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RRule } from 'rrule';
-import { Event, EventAttendee, EventException } from '@prisma/client';
+import { Event, EventAttendee, EventException } from '@libs/prisma-business';
 import { EventOccurrence } from '../../planning.types';
 
 /** Maximum number of occurrences returned per range query, as a safety cap. */

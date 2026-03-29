@@ -4,7 +4,7 @@ import {
   MarkPendingDeletionInput,
 } from './org-deletion.repository';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { OrganizationStatus } from '@prisma/client';
+import { OrganizationStatus } from '@libs/prisma-business';
 
 // ─── Prisma mock ─────────────────────────────────────────────────────────────
 

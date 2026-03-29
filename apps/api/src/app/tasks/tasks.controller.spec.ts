@@ -4,7 +4,7 @@ import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 import { JwtAuthGuard } from '@libs/common';
 import { CreateTaskDto } from './dto/create-task.dto';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '@libs/prisma-business';
 import { Request } from 'express';
 import { Mocked, vi } from 'vitest';
 

@@ -479,7 +479,11 @@ libs/{name}/src/infrastructure/repositories/{name}.repository.spec.ts
 If your library introduces a new Prisma model in `prisma/schema.prisma`:
 
 ```bash
-npx prisma migrate dev --name add_{name}_model --schema prisma/schema.prisma
+# Re-generate the client after editing the schema
+npx prisma generate
+
+# Create the migration
+npx prisma migrate dev --name add_{name}_model
 ```
 
 ---
@@ -676,18 +680,22 @@ Expected baseline: 0 errors. The 110 pre-existing `@typescript-eslint/no-non-nul
 
 ## 8. Running the project locally
 
-**Prerequisites:** Docker, Node.js 20+, `pnpm` (or `npm`).
+**Prerequisites:** Docker, Node.js ≥ 20.19.0, `pnpm` (or `npm`).
 
 ```bash
 # Start infrastructure (Postgres, Redis, LocalStack/SQS)
-docker-compose up -d
+docker compose up -d postgres postgres-legal redis
 
 # Install dependencies
 npm install
 
+# Generate Prisma clients (required on first clone and after schema changes)
+npx prisma generate
+npx prisma generate --config prisma.config.legal.ts
+
 # Run database migrations
-npx prisma migrate dev --schema prisma/schema.prisma
-npx prisma migrate dev --schema prisma/schema.legal.prisma
+npx prisma migrate dev
+npx prisma migrate dev --config prisma.config.legal.ts
 
 # Start the API in development mode
 npx nx serve api
@@ -699,7 +707,7 @@ npx nx serve worker-a
 **Integration / e2e tests:**
 
 ```bash
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml up -d
 npx nx test api-e2e
 npx nx test worker-a-e2e
 ```
