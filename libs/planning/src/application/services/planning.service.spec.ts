@@ -12,6 +12,7 @@ import { RecurrenceService } from './recurrence.service';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { NotificationsService } from '@libs/notifications';
+import { UsersService } from '@libs/users';
 
 const makeEvent = (overrides = {}) => ({
   id: 'event-1',
@@ -53,6 +54,7 @@ describe('PlanningService', () => {
   let activityLog: { logActivity: ReturnType<typeof vi.fn> };
   let legalAudit: { recordEvent: ReturnType<typeof vi.fn> };
   let notificationsService: { notifyUser: ReturnType<typeof vi.fn> };
+  let usersService: { findById: ReturnType<typeof vi.fn> };
   let recurrenceService: {
     expand: ReturnType<typeof vi.fn>;
     isValidRrule: ReturnType<typeof vi.fn>;
@@ -74,6 +76,7 @@ describe('PlanningService', () => {
     activityLog = { logActivity: vi.fn() };
     legalAudit = { recordEvent: vi.fn() };
     notificationsService = { notifyUser: vi.fn().mockResolvedValue({}) };
+    usersService = { findById: vi.fn() };
     recurrenceService = {
       expand: vi.fn().mockReturnValue([]),
       isValidRrule: vi.fn().mockReturnValue(true),
@@ -87,6 +90,7 @@ describe('PlanningService', () => {
         { provide: ActivityLogService, useValue: activityLog },
         { provide: LegalAuditService, useValue: legalAudit },
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -257,6 +261,11 @@ describe('PlanningService', () => {
         makeEvent({ createdByUserId: 'creator' }),
       );
       repo.upsertAttendee.mockResolvedValue({});
+      usersService.findById.mockResolvedValue({
+        firstName: 'Alex',
+        lastName: 'Rossi',
+        email: 'alex@example.com',
+      });
 
       await service.rsvp('org-1', 'event-1', 'other-user', RSVPStatus.NO);
 
@@ -265,7 +274,10 @@ describe('PlanningService', () => {
       expect(notificationsService.notifyUser).toHaveBeenCalledWith(
         'creator',
         'org-1',
-        expect.objectContaining({ type: 'event.rsvp' }),
+        expect.objectContaining({
+          type: 'event.rsvp',
+          body: 'Alex Rossi responded "NO" to "Test Event"',
+        }),
       );
     });
 

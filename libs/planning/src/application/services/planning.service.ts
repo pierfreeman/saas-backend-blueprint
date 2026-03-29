@@ -8,6 +8,7 @@ import {
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { NotificationsService } from '@libs/notifications';
+import { UsersService } from '@libs/users';
 import {
   Event,
   EventAttendee,
@@ -81,6 +82,7 @@ export class PlanningService {
     private readonly activityLog: ActivityLogService,
     private readonly legalAudit: LegalAuditService,
     private readonly notificationsService: NotificationsService,
+    private readonly usersService: UsersService,
   ) {}
 
   async createEvent(
@@ -419,11 +421,13 @@ export class PlanningService {
 
     // Notify creator of the RSVP (only if actor is not the creator)
     if (event.createdByUserId !== actorUserId) {
+      const actorDisplayName = await this.getUserDisplayName(actorUserId);
+
       this.notificationsService
         .notifyUser(event.createdByUserId, orgId, {
           type: 'event.rsvp',
           title: 'RSVP updated',
-          body: `A member responded "${status}" to "${event.title}"`,
+          body: `${actorDisplayName} responded "${status}" to "${event.title}"`,
           metadata: {
             entityRef: { type: 'event', id: eventId },
             userId: actorUserId,
@@ -438,6 +442,27 @@ export class PlanningService {
     }
 
     return attendee;
+  }
+
+  private async getUserDisplayName(userId: string): Promise<string> {
+    try {
+      const user = await this.usersService.findById(userId);
+      if (!user) {
+        return userId;
+      }
+
+      const fullName = [user.firstName, user.lastName]
+        .filter((value): value is string => Boolean(value))
+        .join(' ')
+        .trim();
+
+      return fullName || user.email || userId;
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to resolve display name for user ${userId}: ${err instanceof Error ? err.message : 'unknown error'}`,
+      );
+      return userId;
+    }
   }
 
   async createException(
