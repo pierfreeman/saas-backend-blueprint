@@ -175,6 +175,42 @@ describe('RecurrenceService', () => {
 
       expect(service.expand(event, from, to)).toHaveLength(0);
     });
+
+    it('caps occurrences at rruleUntilUtc even when the RRULE string has no UNTIL', () => {
+      // Simulates "This and Following" cancellation via updateEvent({ rruleUntilUtc })
+      // where only the DB field is set but the rrule string was not truncated.
+      const splitPoint = new Date('2026-01-12T10:00:00Z');
+      const untilUtc = new Date(splitPoint.getTime() - 1); // 1 ms before split
+
+      const event = makeEvent({
+        rrule: 'FREQ=WEEKLY;BYDAY=MO', // open-ended — no UNTIL
+        rruleUntilUtc: untilUtc,
+      });
+      const from = new Date('2026-01-01T00:00:00Z');
+      const to = new Date('2026-01-31T23:59:59Z');
+
+      const results = service.expand(event, from, to);
+
+      // Only the 5 Jan occurrence should appear; 12 Jan and later must be excluded.
+      expect(results.every((o) => o.originalStartUtc < splitPoint)).toBe(true);
+      expect(
+        results.some(
+          (o) => o.originalStartUtc.getTime() >= splitPoint.getTime(),
+        ),
+      ).toBe(false);
+    });
+
+    it('does not restrict occurrences when rruleUntilUtc is null', () => {
+      const event = makeEvent({
+        rrule: 'FREQ=WEEKLY;BYDAY=MO',
+        rruleUntilUtc: null,
+      });
+      const from = new Date('2026-01-01T00:00:00Z');
+      const to = new Date('2026-01-31T23:59:59Z');
+
+      // Jan has 4 Mondays: 5, 12, 19, 26
+      expect(service.expand(event, from, to)).toHaveLength(4);
+    });
   });
 
   describe('isValidRrule', () => {
@@ -184,6 +220,104 @@ describe('RecurrenceService', () => {
 
     it('returns false for an invalid RRULE', () => {
       expect(service.isValidRrule('INVALID')).toBe(false);
+    });
+  });
+
+  // ── truncateRrule ──────────────────────────────────────────────────────────
+
+  describe('truncateRrule', () => {
+    it('adds UNTIL to a rule that has no UNTIL or COUNT', () => {
+      const beforeUtc = new Date('2026-04-06T10:00:00Z');
+      const result = service.truncateRrule('FREQ=DAILY', beforeUtc);
+
+      // Must contain UNTIL and must not have the split occurrence.
+      expect(result).toContain('FREQ=DAILY');
+      expect(result).toContain('UNTIL=');
+      expect(result).not.toContain('COUNT=');
+
+      // The RRULE lib serialises UNTIL in iCalendar UTC format (YYYYMMDDTHHmmssZ).
+      // Parse it manually so we can compare timestamps.
+      const untilMatch = result.match(/UNTIL=(\d{8}T\d{6}Z)/);
+      expect(untilMatch).not.toBeNull();
+      const raw = untilMatch![1];
+      const isoUntil = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}T${raw.slice(9, 11)}:${raw.slice(11, 13)}:${raw.slice(13, 15)}Z`;
+      expect(new Date(isoUntil).getTime()).toBeLessThan(beforeUtc.getTime());
+    });
+
+    it('replaces an existing UNTIL with the new truncation point', () => {
+      const beforeUtc = new Date('2026-04-06T10:00:00Z');
+      // Original rule already has UNTIL far in the future.
+      const result = service.truncateRrule(
+        'FREQ=WEEKLY;BYDAY=MO;UNTIL=20271231T235959Z',
+        beforeUtc,
+      );
+
+      expect(result).toContain('FREQ=WEEKLY');
+      // There should be exactly one UNTIL clause.
+      const matches = result.match(/UNTIL=/g);
+      expect(matches).toHaveLength(1);
+
+      const untilMatch = result.match(/UNTIL=(\d{8}T\d{6}Z)/);
+      expect(untilMatch).not.toBeNull();
+      const raw = untilMatch![1];
+      const isoUntil = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}T${raw.slice(9, 11)}:${raw.slice(11, 13)}:${raw.slice(13, 15)}Z`;
+      expect(new Date(isoUntil).getTime()).toBeLessThan(beforeUtc.getTime());
+    });
+
+    it('removes COUNT and adds UNTIL instead', () => {
+      const beforeUtc = new Date('2026-04-06T10:00:00Z');
+      const result = service.truncateRrule('FREQ=DAILY;COUNT=10', beforeUtc);
+
+      expect(result).not.toContain('COUNT=');
+      expect(result).toContain('UNTIL=');
+    });
+
+    it('removes both COUNT and UNTIL when both are present, then sets the new UNTIL', () => {
+      const beforeUtc = new Date('2026-04-06T10:00:00Z');
+      const result = service.truncateRrule(
+        'FREQ=DAILY;COUNT=10;UNTIL=20271231T235959Z',
+        beforeUtc,
+      );
+
+      expect(result).not.toContain('COUNT=');
+      const untilMatch = result.match(/UNTIL=/g);
+      expect(untilMatch).toHaveLength(1);
+    });
+  });
+
+  // ── stripCountAndUntil ────────────────────────────────────────────────────
+
+  describe('stripCountAndUntil', () => {
+    it('removes COUNT from the rule', () => {
+      const result = service.stripCountAndUntil('FREQ=DAILY;COUNT=10');
+      expect(result).toContain('FREQ=DAILY');
+      expect(result).not.toContain('COUNT=');
+      expect(result).not.toContain('UNTIL=');
+    });
+
+    it('removes UNTIL from the rule', () => {
+      const result = service.stripCountAndUntil(
+        'FREQ=WEEKLY;BYDAY=MO;UNTIL=20271231T235959Z',
+      );
+      expect(result).toContain('FREQ=WEEKLY');
+      expect(result).not.toContain('UNTIL=');
+      expect(result).not.toContain('COUNT=');
+    });
+
+    it('removes both COUNT and UNTIL', () => {
+      const result = service.stripCountAndUntil(
+        'FREQ=MONTHLY;COUNT=6;UNTIL=20271231T235959Z',
+      );
+      expect(result).toContain('FREQ=MONTHLY');
+      expect(result).not.toContain('COUNT=');
+      expect(result).not.toContain('UNTIL=');
+    });
+
+    it('leaves a rule with neither COUNT nor UNTIL unchanged in substance', () => {
+      const result = service.stripCountAndUntil('FREQ=YEARLY;BYYEARDAY=1');
+      expect(result).toContain('FREQ=YEARLY');
+      expect(result).not.toContain('COUNT=');
+      expect(result).not.toContain('UNTIL=');
     });
   });
 });

@@ -33,6 +33,7 @@ All endpoints require a **Bearer JWT** (`Authorization: Bearer <token>`).
 | `DELETE` | `/:id`            | `PLANNING_MANAGE` | Soft-delete an event                                             |
 | `POST`   | `/:id/rsvp`       | `ORG_READ`        | Upsert RSVP for the authenticated user                           |
 | `POST`   | `/:id/exceptions` | `PLANNING_MANAGE` | Create or update a single-occurrence exception                   |
+| `POST`   | `/:id/split`      | `PLANNING_MANAGE` | Split a recurring series at an occurrence ("This and Following") |
 
 ### Query Parameters — `GET /organizations/:orgId/planning/events`
 
@@ -112,6 +113,34 @@ Example RRULE for every Tuesday and Thursday: `FREQ=WEEKLY;BYDAY=TU,TH`
 | `title`            | `string`   | –        | Override title for this occurrence              |
 | `description`      | `string`   | –        | Override description for this occurrence        |
 | `location`         | `string`   | –        | Override location for this occurrence           |
+
+## Split Series ("This and Following")
+
+`POST /:id/split` permanently splits a recurring event into two independent series at the specified occurrence:
+
+| Field              | Type       | Required | Description                                                       |
+| ------------------ | ---------- | -------- | ----------------------------------------------------------------- |
+| `originalStartUtc` | `ISO 8601` | ✓        | RRULE-generated start of the occurrence at which to split         |
+| `version`          | `integer`  | ✓        | Current optimistic-lock version of the original event             |
+| `title`            | `string`   | –        | Override title for the tail series (inherits original if omitted) |
+| `description`      | `string`   | –        | Override description for the tail series                          |
+| `location`         | `string`   | –        | Override location for the tail series                             |
+| `startUtc`         | `ISO 8601` | –        | Rescheduled start for the first occurrence of the tail series     |
+| `endUtc`           | `ISO 8601` | –        | Rescheduled end for the first occurrence of the tail series       |
+
+**What happens on split:**
+
+1. The original event's RRULE is truncated so it ends strictly before `originalStartUtc` (both the RRULE `UNTIL` clause and the `rruleUntilUtc` DB field are updated via `RecurrenceService.truncateRrule()`).
+2. A new tail event is created with an open-ended copy of the RRULE starting at `originalStartUtc` (or a rescheduled time if `startUtc` is provided).
+3. All attendees are copied to the new event with their existing RSVP statuses.
+4. `EventException` records at or after the split point are migrated to the new event.
+5. All attendees (except the actor) receive an in-app invite notification for the new event.
+6. Returns the newly created tail `EventDetailResponseDto` with **201 Created**.
+
+**Cancellation via `rruleUntilUtc`:**
+
+When the UI wants to end a series at the split point without creating a tail (i.e. "cancel this and all following"), it calls `PATCH /:id` with `{ rruleUntilUtc }` set 1 ms before the split occurrence.
+`RecurrenceService.expand()` enforces this cap even when the RRULE string itself has no `UNTIL` clause, so occurrences are correctly hidden on the next range query.
 
 ## RSVP
 
@@ -223,9 +252,8 @@ npx nx run api-e2e:e2e --testPathPattern=planning
 
 ## Deferred / Known Limitations
 
-| Item                                            | Notes                                                                                                                                                            |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "This and Following" recurrence modification    | Requires splitting the series (set `rruleUntilUtc` on the original row, create a new `Event` for the tail). Not implemented — single-occurrence exceptions only. |
-| RDATE support                                   | `RecurrenceService` does not parse `RDATE` (explicit additional dates). Use `RRuleSet` if needed.                                                                |
-| Reminder high-water mark reset after RRULE edit | After a bulk RRULE update, `lastReminderOccurrenceUtc` may reference a now-nonexistent occurrence and should be cleared (async job).                             |
-| Paginated attendee listing                      | Attendees are returned inline on `GET /:id`. Future: `GET /:id/attendees?page=&limit=`.                                                                          |
+| Item                                            | Notes                                                                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| RDATE support                                   | `RecurrenceService` does not parse `RDATE` (explicit additional dates). Use `RRuleSet` if needed.                                    |
+| Reminder high-water mark reset after RRULE edit | After a bulk RRULE update, `lastReminderOccurrenceUtc` may reference a now-nonexistent occurrence and should be cleared (async job). |
+| Paginated attendee listing                      | Attendees are returned inline on `GET /:id`. Future: `GET /:id/attendees?page=&limit=`.                                              |

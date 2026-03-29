@@ -1016,5 +1016,331 @@ describe('Planning Events (integration)', () => {
         .send({ originalStartUtc: '2026-04-01T09:00:00Z' });
       expect(res.status).toBe(404);
     });
+
+    it('POST /events/:id/split returns 404 for a non-existent event', async () => {
+      const res = await agent
+        .post(`${BASE(orgId)}/${nonExistentId}/split`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({ originalStartUtc: '2026-04-06T10:00:00Z', version: 1 });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // ── Split Series ("This and Following") ─────────────────────────────────────
+
+  describe('POST /events/:id/split', () => {
+    let orgId: string;
+    let token: string;
+    let adminToken: string;
+    let memberToken: string;
+    let readOnlyToken: string;
+
+    beforeEach(async () => {
+      await resetBusinessDb(prisma);
+      const { org, owner, admin, member, readOnly } = await seedFullOrg(prisma);
+      orgId = org.id;
+      token = generateTestToken({ sub: owner.authId, orgId: org.id });
+      adminToken = generateTestToken({ sub: admin.authId, orgId: org.id });
+      memberToken = generateTestToken({ sub: member.authId, orgId: org.id });
+      readOnlyToken = generateTestToken({
+        sub: readOnly.authId,
+        orgId: org.id,
+      });
+    });
+
+    it('splits a FREQ=DAILY;COUNT=5 series at occurrence #3 (happy path)', async () => {
+      // Create a recurring daily event with 5 occurrences starting on 2026-04-06.
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Daily Stand-up',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T09:30:00Z',
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=5',
+        });
+      expect(createRes.status).toBe(201);
+      const parentId = createRes.body.id as string;
+      const parentVersion = createRes.body.version as number;
+
+      // The 3rd occurrence is 2026-04-08T09:00:00Z.
+      const splitPoint = '2026-04-08T09:00:00Z';
+
+      const splitRes = await agent
+        .post(`${BASE(orgId)}/${parentId}/split`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          originalStartUtc: splitPoint,
+          version: parentVersion,
+          title: 'Rescheduled Stand-up',
+        });
+      expect(splitRes.status).toBe(201);
+
+      const newEventId = splitRes.body.id as string;
+      expect(newEventId).not.toBe(parentId);
+      expect(splitRes.body.title).toBe('Rescheduled Stand-up');
+      expect(splitRes.body.rrule).toBeTruthy();
+
+      // Original series should now only contain occurrences 1-2 (Apr 6 and 7).
+      const originalRange = await agent
+        .get(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .query({ from: '2026-04-06T00:00:00Z', to: '2026-04-12T23:59:59Z' });
+      expect(originalRange.status).toBe(200);
+
+      const originalOccs = (originalRange.body as { eventId: string }[]).filter(
+        (o) => o.eventId === parentId,
+      );
+      expect(originalOccs).toHaveLength(2); // Apr 6, Apr 7 only
+
+      // Tail series should contain occurrences 3-5 (Apr 8, 9, 10).
+      const tailOccs = (originalRange.body as { eventId: string }[]).filter(
+        (o) => o.eventId === newEventId,
+      );
+      expect(tailOccs).toHaveLength(3); // Apr 8, 9, 10
+    });
+
+    it('returns 400 for a non-recurring event', async () => {
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Single Event',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T10:00:00Z',
+          eventTimezone: 'UTC',
+        });
+      expect(createRes.status).toBe(201);
+
+      const res = await agent
+        .post(`${BASE(orgId)}/${createRes.body.id}/split`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({ originalStartUtc: '2026-04-06T09:00:00Z', version: 1 });
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when originalStartUtc is not a valid occurrence', async () => {
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Daily Event',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T10:00:00Z',
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=5',
+        });
+      expect(createRes.status).toBe(201);
+
+      // A time that does not correspond to any RRULE-generated occurrence.
+      const res = await agent
+        .post(`${BASE(orgId)}/${createRes.body.id}/split`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          originalStartUtc: '2026-04-06T12:00:00Z', // wrong hour
+          version: createRes.body.version,
+        });
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 409 on version mismatch', async () => {
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Daily Event',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T10:00:00Z',
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=5',
+        });
+      expect(createRes.status).toBe(201);
+
+      const res = await agent
+        .post(`${BASE(orgId)}/${createRes.body.id}/split`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          originalStartUtc: '2026-04-08T09:00:00Z',
+          version: 99, // stale
+        });
+      expect(res.status).toBe(409);
+    });
+
+    it('returns 403 for READ_ONLY role', async () => {
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Daily Event',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T10:00:00Z',
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=5',
+        });
+      expect(createRes.status).toBe(201);
+
+      // readOnly token should be blocked by RBAC.
+      const res = await agent
+        .post(`${BASE(orgId)}/${createRes.body.id}/split`)
+        .set('Authorization', `Bearer ${readOnlyToken}`)
+        .set('x-org-id', orgId)
+        .send({
+          originalStartUtc: '2026-04-08T09:00:00Z',
+          version: createRes.body.version,
+        });
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 403 when a MEMBER splits an event they did not create', async () => {
+      // Owner creates the event.
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Daily Event',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T10:00:00Z',
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=5',
+        });
+      expect(createRes.status).toBe(201);
+
+      // Member (different user) attempts to split it.
+      const res = await agent
+        .post(`${BASE(orgId)}/${createRes.body.id}/split`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .set('x-org-id', orgId)
+        .send({
+          originalStartUtc: '2026-04-08T09:00:00Z',
+          version: createRes.body.version,
+        });
+      expect(res.status).toBe(403);
+    });
+
+    it('allows ADMIN to split an event they did not create', async () => {
+      // Owner creates the event.
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Daily Event',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T10:00:00Z',
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=5',
+        });
+      expect(createRes.status).toBe(201);
+
+      const res = await agent
+        .post(`${BASE(orgId)}/${createRes.body.id}/split`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('x-org-id', orgId)
+        .send({
+          originalStartUtc: '2026-04-08T09:00:00Z',
+          version: createRes.body.version,
+        });
+      expect(res.status).toBe(201);
+    });
+
+    it('migrates exceptions at/after split point to the new event', async () => {
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Daily Event',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T10:00:00Z',
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=5',
+        });
+      expect(createRes.status).toBe(201);
+      const parentId = createRes.body.id as string;
+
+      // Create an exception on occurrence #4 (2026-04-09).
+      const excRes = await agent
+        .post(`${BASE(orgId)}/${parentId}/exceptions`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          originalStartUtc: '2026-04-09T09:00:00Z',
+          isCancelled: true,
+        });
+      expect(excRes.status).toBe(201);
+
+      // Split at occurrence #3 (2026-04-08).
+      const splitRes = await agent
+        .post(`${BASE(orgId)}/${parentId}/split`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          originalStartUtc: '2026-04-08T09:00:00Z',
+          version: createRes.body.version,
+        });
+      expect(splitRes.status).toBe(201);
+      const newEventId = splitRes.body.id as string;
+
+      // Fetch the new tail event detail — it should carry the migrated exception.
+      const detailRes = await agent
+        .get(`${BASE(orgId)}/${newEventId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId);
+      expect(detailRes.status).toBe(200);
+      expect(detailRes.body.exceptions).toHaveLength(1);
+      expect(detailRes.body.exceptions[0].isCancelled).toBe(true);
+
+      // Original event should have no exceptions left.
+      const originalDetailRes = await agent
+        .get(`${BASE(orgId)}/${parentId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId);
+      expect(originalDetailRes.status).toBe(200);
+      expect(originalDetailRes.body.exceptions).toHaveLength(0);
+    });
+
+    it('enforces multi-tenancy: cannot split an event from another org', async () => {
+      // Seed a second org.
+      const { org: org2, owner: owner2 } = await seedFullOrg(prisma);
+      const token2 = generateTestToken({ sub: owner2.authId, orgId: org2.id });
+
+      // Create event in org1.
+      const createRes = await agent
+        .post(BASE(orgId))
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-org-id', orgId)
+        .send({
+          title: 'Daily Event',
+          start: '2026-04-06T09:00:00Z',
+          end: '2026-04-06T10:00:00Z',
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=5',
+        });
+      expect(createRes.status).toBe(201);
+
+      // Try to split from org2 context.
+      const res = await agent
+        .post(`${BASE(org2.id)}/${createRes.body.id}/split`)
+        .set('Authorization', `Bearer ${token2}`)
+        .set('x-org-id', org2.id)
+        .send({
+          originalStartUtc: '2026-04-08T09:00:00Z',
+          version: createRes.body.version,
+        });
+      expect(res.status).toBe(404);
+    });
   });
 });

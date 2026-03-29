@@ -7,6 +7,7 @@ import { PlanningRepository } from './planning.repository';
 // ── Prisma mock ───────────────────────────────────────────────────────────────
 
 const mockPrisma = {
+  $transaction: vi.fn(),
   event: {
     create: vi.fn(),
     findMany: vi.fn(),
@@ -20,9 +21,12 @@ const mockPrisma = {
     findUnique: vi.fn(),
     findMany: vi.fn(),
     deleteMany: vi.fn(),
+    createMany: vi.fn(),
   },
   eventException: {
     upsert: vi.fn(),
+    deleteMany: vi.fn(),
+    createMany: vi.fn(),
   },
 } as unknown as PrismaBusinessService;
 
@@ -97,19 +101,53 @@ describe('PlanningRepository', () => {
         .fn()
         .mockResolvedValue([eventWithReminder]);
 
-      const result = await repo.findEventsWithReminders();
+      const cutoff = new Date('2026-01-04T10:00:00Z');
+      const result = await repo.findEventsWithReminders(cutoff);
 
       expect(result).toHaveLength(1);
       expect(mockPrisma.event.findMany).toHaveBeenCalledWith({
-        where: { reminderMinutes: { not: null }, deletedAt: null },
+        where: {
+          reminderMinutes: { not: null },
+          deletedAt: null,
+          OR: [
+            {
+              rrule: null,
+              lastReminderOccurrenceUtc: null,
+              startUtc: { gte: cutoff },
+            },
+            {
+              rrule: { not: null },
+              OR: [{ rruleUntilUtc: null }, { rruleUntilUtc: { gte: cutoff } }],
+            },
+          ],
+        },
         include: { attendees: true, exceptions: true },
+      });
+    });
+
+    it('excludes non-recurring events in the past (start before cutoff)', async () => {
+      mockPrisma.event.findMany = vi.fn().mockResolvedValue([]);
+
+      const cutoff = new Date('2026-01-05T10:00:00Z');
+      await repo.findEventsWithReminders(cutoff);
+
+      // The WHERE clause must include the cutoff-based OR filter.
+      const where = (mockPrisma.event.findMany as ReturnType<typeof vi.fn>).mock
+        .calls[0][0].where;
+      expect(where.OR[0]).toMatchObject({
+        rrule: null,
+        lastReminderOccurrenceUtc: null,
+        startUtc: { gte: cutoff },
+      });
+      expect(where.OR[1]).toMatchObject({
+        rrule: { not: null },
       });
     });
 
     it('returns empty array when no events have reminders', async () => {
       mockPrisma.event.findMany = vi.fn().mockResolvedValue([]);
 
-      const result = await repo.findEventsWithReminders();
+      const result = await repo.findEventsWithReminders(new Date());
 
       expect(result).toEqual([]);
     });
@@ -532,6 +570,265 @@ describe('PlanningRepository', () => {
       ).mock.calls[0][0];
       expect(callArg.create.isCancelled).toBe(false);
       expect(callArg.update.isCancelled).toBe(false);
+    });
+  });
+
+  // ── splitSeries ─────────────────────────────────────────────────────────────
+
+  describe('splitSeries', () => {
+    const splitPoint = new Date('2026-01-08T10:00:00Z');
+
+    // A fresh tx mock is recreated per test inside beforeEach.
+    let mockTx: {
+      event: {
+        update: ReturnType<typeof vi.fn>;
+        create: ReturnType<typeof vi.fn>;
+      };
+      eventAttendee: { createMany: ReturnType<typeof vi.fn> };
+      eventException: {
+        deleteMany: ReturnType<typeof vi.fn>;
+        createMany: ReturnType<typeof vi.fn>;
+      };
+    };
+
+    const tailEvent = {
+      ...baseEvent,
+      id: 'event-tail',
+      startUtc: splitPoint,
+      endUtc: new Date('2026-01-08T11:00:00Z'),
+      rrule: 'FREQ=DAILY',
+    };
+
+    const originalWithRelationsAfter = {
+      ...baseEventWithRelations,
+      rrule: 'FREQ=DAILY;UNTIL=20260107T235959Z',
+    };
+    const tailWithRelations = { ...tailEvent, attendees: [], exceptions: [] };
+
+    function makeParams(
+      overrides: Partial<Parameters<typeof repo.splitSeries>[0]> = {},
+    ) {
+      return {
+        original: baseEventWithRelations,
+        splitPointUtc: splitPoint,
+        truncatedRrule: 'FREQ=DAILY;UNTIL=20260107T235959Z',
+        tailRrule: 'FREQ=DAILY',
+        tailRruleUntilUtc: null,
+        tailStartUtc: splitPoint,
+        tailEndUtc: new Date('2026-01-08T11:00:00Z'),
+        overrides: {},
+        ...overrides,
+      };
+    }
+
+    beforeEach(() => {
+      mockTx = {
+        event: {
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn().mockResolvedValue(tailEvent),
+        },
+        eventAttendee: { createMany: vi.fn().mockResolvedValue({}) },
+        eventException: {
+          deleteMany: vi.fn().mockResolvedValue({}),
+          createMany: vi.fn().mockResolvedValue({}),
+        },
+      };
+      (
+        mockPrisma as unknown as { $transaction: ReturnType<typeof vi.fn> }
+      ).$transaction = vi
+        .fn()
+        .mockImplementation(
+          async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx),
+        );
+
+      // findUniqueOrThrow is called twice after the transaction (original + tail).
+      mockPrisma.event.findUniqueOrThrow = vi
+        .fn()
+        .mockResolvedValueOnce(originalWithRelationsAfter)
+        .mockResolvedValueOnce(tailWithRelations);
+    });
+
+    it('returns updatedOriginal and newEvent after a successful transaction', async () => {
+      const { updatedOriginal, newEvent } =
+        await repo.splitSeries(makeParams());
+
+      expect(updatedOriginal).toEqual(originalWithRelationsAfter);
+      expect(newEvent).toEqual(tailWithRelations);
+    });
+
+    it('truncates the original event inside the transaction', async () => {
+      await repo.splitSeries(makeParams());
+
+      expect(mockTx.event.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'event-1' },
+          data: expect.objectContaining({
+            rrule: 'FREQ=DAILY;UNTIL=20260107T235959Z',
+            rruleUntilUtc: new Date(splitPoint.getTime() - 1),
+          }),
+        }),
+      );
+    });
+
+    it('creates the tail event with tail RRULE and overrides applied', async () => {
+      await repo.splitSeries(
+        makeParams({
+          overrides: {
+            title: 'Overridden title',
+            description: null,
+            location: null,
+          },
+        }),
+      );
+
+      expect(mockTx.event.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            rrule: 'FREQ=DAILY',
+            title: 'Overridden title',
+            description: null,
+            location: null,
+            lastReminderOccurrenceUtc: null,
+          }),
+        }),
+      );
+    });
+
+    it('uses original title and fields when no overrides are provided', async () => {
+      await repo.splitSeries(makeParams({ overrides: {} }));
+
+      expect(mockTx.event.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ title: baseEvent.title }),
+        }),
+      );
+    });
+
+    it('stores Prisma.JsonNull when original.metadata is null', async () => {
+      await repo.splitSeries(makeParams());
+
+      expect(mockTx.event.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ metadata: Prisma.JsonNull }),
+        }),
+      );
+    });
+
+    it('copies attendees when original has attendees', async () => {
+      const original = {
+        ...baseEventWithRelations,
+        attendees: [
+          { ...baseAttendee, userId: 'user-1', status: RSVPStatus.YES },
+          {
+            ...baseAttendee,
+            id: 'att-2',
+            userId: 'user-2',
+            status: RSVPStatus.PENDING,
+          },
+        ],
+      };
+
+      await repo.splitSeries(makeParams({ original }));
+
+      expect(mockTx.eventAttendee.createMany).toHaveBeenCalledWith({
+        data: [
+          { eventId: tailEvent.id, userId: 'user-1', status: RSVPStatus.YES },
+          {
+            eventId: tailEvent.id,
+            userId: 'user-2',
+            status: RSVPStatus.PENDING,
+          },
+        ],
+        skipDuplicates: true,
+      });
+    });
+
+    it('skips eventAttendee.createMany when original has no attendees', async () => {
+      await repo.splitSeries(makeParams({ original: baseEventWithRelations }));
+
+      expect(mockTx.eventAttendee.createMany).not.toHaveBeenCalled();
+    });
+
+    it('migrates exceptions at or after the split point', async () => {
+      const futureException = {
+        ...baseException,
+        originalStartUtc: splitPoint,
+      };
+      const pastException = {
+        ...baseException,
+        id: 'ex-past',
+        originalStartUtc: new Date('2026-01-06T10:00:00Z'),
+      };
+      const original = {
+        ...baseEventWithRelations,
+        exceptions: [pastException, futureException],
+      };
+
+      await repo.splitSeries(makeParams({ original }));
+
+      expect(mockTx.eventException.deleteMany).toHaveBeenCalledWith({
+        where: { eventId: 'event-1', originalStartUtc: { gte: splitPoint } },
+      });
+      expect(mockTx.eventException.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [
+            expect.objectContaining({
+              eventId: tailEvent.id,
+              originalStartUtc: splitPoint,
+            }),
+          ],
+          skipDuplicates: true,
+        }),
+      );
+    });
+
+    it('skips exception migration when no exceptions are at or after split point', async () => {
+      const original = {
+        ...baseEventWithRelations,
+        exceptions: [
+          {
+            ...baseException,
+            originalStartUtc: new Date('2026-01-06T10:00:00Z'),
+          },
+        ],
+      };
+
+      await repo.splitSeries(makeParams({ original }));
+
+      expect(mockTx.eventException.deleteMany).not.toHaveBeenCalled();
+      expect(mockTx.eventException.createMany).not.toHaveBeenCalled();
+    });
+
+    it('skips exception migration when original has no exceptions at all', async () => {
+      await repo.splitSeries(makeParams({ original: baseEventWithRelations }));
+
+      expect(mockTx.eventException.deleteMany).not.toHaveBeenCalled();
+      expect(mockTx.eventException.createMany).not.toHaveBeenCalled();
+    });
+
+    it('re-fetches both events with relations after the transaction', async () => {
+      await repo.splitSeries(makeParams());
+
+      expect(mockPrisma.event.findUniqueOrThrow).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.event.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: 'event-1' },
+        include: { attendees: true, exceptions: true },
+      });
+      expect(mockPrisma.event.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: tailEvent.id },
+        include: { attendees: true, exceptions: true },
+      });
+    });
+
+    it('preserves tailRruleUntilUtc on the new event', async () => {
+      const until = new Date('2026-06-30T23:59:59Z');
+      await repo.splitSeries(makeParams({ tailRruleUntilUtc: until }));
+
+      expect(mockTx.event.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ rruleUntilUtc: until }),
+        }),
+      );
     });
   });
 });

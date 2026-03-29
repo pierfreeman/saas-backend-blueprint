@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { MembershipRole, RSVPStatus } from '@prisma/client';
 import { PlanningService } from './planning.service';
@@ -51,6 +52,7 @@ describe('PlanningService', () => {
     findAttendees: ReturnType<typeof vi.fn>;
     upsertException: ReturnType<typeof vi.fn>;
     deleteAttendeesExcluding: ReturnType<typeof vi.fn>;
+    splitSeries: ReturnType<typeof vi.fn>;
   };
   let activityLog: { logActivity: ReturnType<typeof vi.fn> };
   let legalAudit: { recordEvent: ReturnType<typeof vi.fn> };
@@ -59,6 +61,8 @@ describe('PlanningService', () => {
   let recurrenceService: {
     expand: ReturnType<typeof vi.fn>;
     isValidRrule: ReturnType<typeof vi.fn>;
+    truncateRrule: ReturnType<typeof vi.fn>;
+    stripCountAndUntil: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -74,6 +78,7 @@ describe('PlanningService', () => {
       findAttendees: vi.fn(),
       upsertException: vi.fn(),
       deleteAttendeesExcluding: vi.fn(),
+      splitSeries: vi.fn(),
     };
     activityLog = { logActivity: vi.fn() };
     legalAudit = { recordEvent: vi.fn() };
@@ -82,6 +87,10 @@ describe('PlanningService', () => {
     recurrenceService = {
       expand: vi.fn().mockReturnValue([]),
       isValidRrule: vi.fn().mockReturnValue(true),
+      truncateRrule: vi
+        .fn()
+        .mockReturnValue('FREQ=DAILY;UNTIL=20260405T235959Z'),
+      stripCountAndUntil: vi.fn().mockReturnValue('FREQ=DAILY'),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -984,6 +993,312 @@ describe('PlanningService', () => {
       await expect(
         service.rsvp('org-1', 'missing', 'user-1', RSVPStatus.YES),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── splitSeries ───────────────────────────────────────────────────────────
+
+  describe('splitSeries', () => {
+    const SPLIT_POINT = '2026-01-07T10:00:00Z';
+    const ATTENDEE_A = {
+      id: 'att-1',
+      eventId: 'event-1',
+      userId: 'user-a',
+      status: RSVPStatus.YES,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const ATTENDEE_B = {
+      id: 'att-2',
+      eventId: 'event-1',
+      userId: 'user-b',
+      status: RSVPStatus.PENDING,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const recurringEvent = makeEvent({
+      rrule: 'FREQ=DAILY;COUNT=10',
+      rruleUntilUtc: null,
+      attendees: [ATTENDEE_A, ATTENDEE_B],
+    });
+
+    const newTailEvent = makeEvent({
+      id: 'event-tail',
+      rrule: 'FREQ=DAILY',
+      startUtc: new Date(SPLIT_POINT),
+      endUtc: new Date('2026-01-07T11:00:00Z'),
+      attendees: [
+        { ...ATTENDEE_A, eventId: 'event-tail' },
+        { ...ATTENDEE_B, eventId: 'event-tail' },
+      ],
+      exceptions: [],
+    });
+
+    beforeEach(() => {
+      repo.findEventById.mockResolvedValue(recurringEvent);
+      recurrenceService.expand.mockReturnValue([
+        {
+          eventId: 'event-1',
+          originalStartUtc: new Date(SPLIT_POINT),
+          startUtc: new Date(SPLIT_POINT),
+          endUtc: new Date('2026-01-07T11:00:00Z'),
+          title: 'Test Event',
+          description: null,
+          location: null,
+          isAllDay: false,
+          eventTimezone: 'UTC',
+          rrule: 'FREQ=DAILY;COUNT=10',
+          isRecurring: true,
+          isException: false,
+          isCancelled: false,
+          createdByUserId: 'user-creator',
+          orgId: 'org-1',
+          version: 1,
+          attendees: [],
+        },
+      ]);
+      repo.splitSeries.mockResolvedValue({
+        updatedOriginal: recurringEvent,
+        newEvent: newTailEvent,
+      });
+    });
+
+    it('returns the new tail event on success', async () => {
+      const result = await service.splitSeries(
+        'org-1',
+        'event-1',
+        { originalStartUtc: SPLIT_POINT, version: 1 },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      expect(result.id).toBe('event-tail');
+      expect(repo.splitSeries).toHaveBeenCalledOnce();
+    });
+
+    it('throws NotFoundException when event does not exist', async () => {
+      repo.findEventById.mockResolvedValue(null);
+
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'missing',
+          { originalStartUtc: SPLIT_POINT, version: 1 },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException for a non-recurring event', async () => {
+      repo.findEventById.mockResolvedValue(makeEvent({ rrule: null }));
+
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'event-1',
+          { originalStartUtc: SPLIT_POINT, version: 1 },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when originalStartUtc is not a valid occurrence', async () => {
+      // expand returns empty → occurrence does not exist.
+      recurrenceService.expand.mockReturnValue([]);
+
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'event-1',
+          { originalStartUtc: SPLIT_POINT, version: 1 },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException for a malformed originalStartUtc', async () => {
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'event-1',
+          { originalStartUtc: 'not-a-date', version: 1 },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws ConflictException on version mismatch', async () => {
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'event-1',
+          { originalStartUtc: SPLIT_POINT, version: 99 },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("throws ForbiddenException when MEMBER tries to split another user's event", async () => {
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'event-1',
+          { originalStartUtc: SPLIT_POINT, version: 1 },
+          'user-other',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows ADMIN to split an event they did not create', async () => {
+      const result = await service.splitSeries(
+        'org-1',
+        'event-1',
+        { originalStartUtc: SPLIT_POINT, version: 1 },
+        'user-admin',
+        MembershipRole.ADMIN,
+      );
+
+      expect(result.id).toBe('event-tail');
+    });
+
+    it('passes title override to repo.splitSeries', async () => {
+      await service.splitSeries(
+        'org-1',
+        'event-1',
+        { originalStartUtc: SPLIT_POINT, version: 1, title: 'New title' },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      expect(repo.splitSeries).toHaveBeenCalledWith(
+        expect.objectContaining({
+          overrides: expect.objectContaining({ title: 'New title' }),
+        }),
+      );
+    });
+
+    it('sends invite notifications to attendees (excluding actor)', async () => {
+      await service.splitSeries(
+        'org-1',
+        'event-1',
+        { originalStartUtc: SPLIT_POINT, version: 1 },
+        'user-creator', // actor is the event creator (also an attendee via ATTENDEE_A? use user-b perspective)
+        MembershipRole.MEMBER,
+      );
+
+      // user-b (non-actor attendee) should receive a notification.
+      await new Promise((r) => setTimeout(r, 0)); // flush micro-task queue
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-b',
+        'org-1',
+        expect.objectContaining({ type: 'event.invite' }),
+      );
+      // actor (user-creator) should NOT receive a duplicate notification.
+      expect(notificationsService.notifyUser).not.toHaveBeenCalledWith(
+        'user-creator',
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('records activityLog and legalAudit', async () => {
+      await service.splitSeries(
+        'org-1',
+        'event-1',
+        { originalStartUtc: SPLIT_POINT, version: 1 },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      expect(activityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'planning.event.series.split' }),
+      );
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'planning.event.series.split' }),
+      );
+    });
+
+    it('throws BadRequestException when tail end is before or equal to tail start', async () => {
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'event-1',
+          {
+            originalStartUtc: SPLIT_POINT,
+            version: 1,
+            startUtc: '2026-01-07T12:00:00Z',
+            endUtc: '2026-01-07T11:00:00Z', // end before start
+          },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('logs error (Error instance) and does not throw when invite notifications reject', async () => {
+      const notifyError = new Error('network timeout');
+      notificationsService.notifyUser.mockRejectedValue(notifyError);
+
+      // Fire-and-forget — must not propagate.
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'event-1',
+          { originalStartUtc: SPLIT_POINT, version: 1 },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).resolves.not.toThrow();
+
+      // Allow the promise chain to settle so the .catch() executes.
+      await new Promise((r) => setImmediate(r));
+    });
+
+    it('logs "unknown error" and does not throw when notifications reject with a non-Error value', async () => {
+      // Covers the `err instanceof Error ? err.message : 'unknown error'` else-branch.
+      notificationsService.notifyUser.mockRejectedValue('plain string error');
+
+      await expect(
+        service.splitSeries(
+          'org-1',
+          'event-1',
+          { originalStartUtc: SPLIT_POINT, version: 1 },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).resolves.not.toThrow();
+
+      await new Promise((r) => setImmediate(r));
+    });
+
+    it('does not send notifications when all attendees are the actor', async () => {
+      // Set up: both attendees ARE the actor — filter removes all.
+      repo.splitSeries.mockResolvedValue({
+        updatedOriginal: recurringEvent,
+        newEvent: makeEvent({
+          id: 'event-tail',
+          attendees: [{ ...ATTENDEE_A, userId: 'user-creator' }],
+          exceptions: [],
+        }),
+      });
+
+      await service.splitSeries(
+        'org-1',
+        'event-1',
+        { originalStartUtc: SPLIT_POINT, version: 1 },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).not.toHaveBeenCalled();
     });
   });
 });

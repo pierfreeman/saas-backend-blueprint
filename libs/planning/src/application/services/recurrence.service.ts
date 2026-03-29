@@ -55,8 +55,16 @@ export class RecurrenceService {
       return [];
     }
 
+    // Apply rruleUntilUtc as an additional cap on generated dates.
+    // The RRULE string UNTIL clause and the rruleUntilUtc DB field are kept in
+    // sync by splitSeries, but when updateEvent is called with only rruleUntilUtc
+    // (e.g. "This and Following" cancellation) the RRULE string is not modified,
+    // so we must enforce the cap here as well.
+    const untilCap = event.rruleUntilUtc?.getTime() ?? Infinity;
+
     const dates = rule
       .between(from, to, true)
+      .filter((d) => d.getTime() <= untilCap)
       .slice(0, MAX_OCCURRENCES_PER_QUERY);
 
     // Build a lookup map: originalStartUtc (epoch ms) → exception record.
@@ -102,6 +110,45 @@ export class RecurrenceService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Truncates a recurring series by replacing (or adding) an UNTIL clause so
+   * that the rule ends strictly before `beforeUtc`.
+   *
+   * For a "This and Following" series split:
+   *   - The original series must stop right before the split occurrence.
+   *   - We therefore set UNTIL = splitPointUtc - 1 ms.
+   *
+   * Any existing UNTIL or COUNT is removed before setting the new UNTIL, because
+   * mixing COUNT with UNTIL is ambiguous and COUNT-based rules cannot be
+   * meaningfully truncated without re-counting remaining occurrences.
+   *
+   * The returned value is a valid RRULE string ready to be stored in the DB.
+   */
+  truncateRrule(rruleStr: string, beforeUtc: Date): string {
+    const opts = RRule.parseString(rruleStr);
+    // Remove COUNT and any existing UNTIL.
+    delete opts.count;
+    delete opts.until;
+    // UNTIL must be 1 ms before the split point to exclude the split occurrence.
+    opts.until = new Date(beforeUtc.getTime() - 1);
+    return new RRule(opts).toString().replace(/^RRULE:/, '');
+  }
+
+  /**
+   * Strips COUNT and UNTIL from an RRULE string, producing an open-ended rule.
+   *
+   * Used when creating the tail series for a "This and Following" split:
+   * the effective end of the tail series is governed by `rruleUntilUtc` on the
+   * new Event row (copied from the original), not by the RRULE string itself.
+   * Keeping a stale COUNT or UNTIL in the RRULE would cause incorrect expansion.
+   */
+  stripCountAndUntil(rruleStr: string): string {
+    const opts = RRule.parseString(rruleStr);
+    delete opts.count;
+    delete opts.until;
+    return new RRule(opts).toString().replace(/^RRULE:/, '');
   }
 
   private buildOccurrence(

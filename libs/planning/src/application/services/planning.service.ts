@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -19,6 +20,7 @@ import {
 } from '@prisma/client';
 import {
   PlanningRepository,
+  SplitSeriesParams,
   UpdateEventData,
 } from '../../infrastructure/repositories/planning.repository';
 import { RecurrenceService } from './recurrence.service';
@@ -65,6 +67,23 @@ export interface CreateExceptionInput {
   title?: string | null;
   description?: string | null;
   location?: string | null;
+}
+
+export interface SplitSeriesInput {
+  /** The RRULE-generated UTC start of the occurrence at which to split (ISO 8601). */
+  originalStartUtc: string;
+  /** Optimistic-concurrency version of the original event. */
+  version: number;
+  /** Optional new title for the tail series. */
+  title?: string;
+  /** Optional new description for the tail series. */
+  description?: string | null;
+  /** Optional new location for the tail series. */
+  location?: string | null;
+  /** Optional rescheduled start for the first occurrence of the tail series (ISO 8601). */
+  startUtc?: string;
+  /** Optional rescheduled end for the first occurrence of the tail series (ISO 8601). */
+  endUtc?: string;
 }
 
 export type EventDetail = Event & {
@@ -518,6 +537,149 @@ export class PlanningService {
     });
 
     return exception;
+  }
+
+  /**
+   * Splits a recurring series at a given occurrence, creating a new tail event.
+   *
+   * This implements the "This and Following" recurrence modification mode:
+   * - The original event's RRULE is truncated so it ends before `originalStartUtc`.
+   * - A new Event is created for the tail of the series, starting at `originalStartUtc`
+   *   (or a rescheduled time if `dto.startUtc` is provided).
+   * - Attendees are duplicated to the new event (RSVP statuses preserved).
+   * - EventException rows at/after the split point are migrated to the new event.
+   * - Invited attendees receive an invite notification for the new event (fire-and-forget).
+   *
+   * Returns the new tail event detail.
+   */
+  async splitSeries(
+    orgId: string,
+    eventId: string,
+    dto: SplitSeriesInput,
+    actorUserId: string,
+    actorRole: MembershipRole,
+  ): Promise<EventDetail> {
+    const event = await this.repo.findEventById(eventId, orgId);
+    if (!event) {
+      throw new NotFoundException(`Event ${eventId} not found`);
+    }
+    if (!event.rrule) {
+      throw new BadRequestException(
+        'Cannot split a non-recurring event. Only recurring events can be split.',
+      );
+    }
+
+    this.assertCanModify(event, actorUserId, actorRole);
+
+    // Validate that originalStartUtc is actually a valid occurrence of this event.
+    const splitPointUtc = new Date(dto.originalStartUtc);
+    if (isNaN(splitPointUtc.getTime())) {
+      throw new BadRequestException(
+        `originalStartUtc is not a valid ISO 8601 date: "${dto.originalStartUtc}"`,
+      );
+    }
+
+    // Expand a small window around the split point to verify the occurrence exists.
+    const windowStart = new Date(splitPointUtc.getTime() - 1000);
+    const windowEnd = new Date(splitPointUtc.getTime() + 1000);
+    const candidates = this.recurrenceService.expand(
+      event,
+      windowStart,
+      windowEnd,
+    );
+    const occurrenceExists = candidates.some(
+      (occ) => occ.originalStartUtc.getTime() === splitPointUtc.getTime(),
+    );
+    if (!occurrenceExists) {
+      throw new BadRequestException(
+        `No occurrence found at originalStartUtc "${dto.originalStartUtc}" for event ${eventId}.`,
+      );
+    }
+
+    // Verify version for optimistic locking.
+    if (event.version !== dto.version) {
+      throw new ConflictException(
+        `Event ${eventId} was modified by another request (expected version ${dto.version}, current is ${event.version}). Refresh and retry.`,
+      );
+    }
+
+    // Compute tail start/end from occurrence (fall through to dto overrides).
+    const durationMs = event.endUtc.getTime() - event.startUtc.getTime();
+    const tailStartUtc = dto.startUtc ? new Date(dto.startUtc) : splitPointUtc;
+    const tailEndUtc = dto.endUtc
+      ? new Date(dto.endUtc)
+      : new Date(tailStartUtc.getTime() + durationMs);
+
+    if (tailEndUtc <= tailStartUtc) {
+      throw new BadRequestException('end must be after start');
+    }
+
+    const truncatedRrule = this.recurrenceService.truncateRrule(
+      event.rrule,
+      splitPointUtc,
+    );
+    const tailRrule = this.recurrenceService.stripCountAndUntil(event.rrule);
+
+    const params: SplitSeriesParams = {
+      original: event,
+      splitPointUtc,
+      truncatedRrule,
+      tailRrule,
+      tailRruleUntilUtc: event.rruleUntilUtc,
+      tailStartUtc,
+      tailEndUtc,
+      overrides: {
+        title: dto.title,
+        description: dto.description,
+        location: dto.location,
+      },
+    };
+
+    const { newEvent } = await this.repo.splitSeries(params);
+
+    // Notify all attendees of the new series (fire-and-forget).
+    const attendeeIdsToNotify = newEvent.attendees
+      .map((a) => a.userId)
+      .filter((uid) => uid !== actorUserId);
+
+    if (attendeeIdsToNotify.length > 0) {
+      this.sendInviteNotifications(
+        attendeeIdsToNotify,
+        orgId,
+        newEvent.id,
+        newEvent.title,
+      ).catch((err: unknown) => {
+        this.logger.error(
+          `Failed to send invite notifications for split series event ${newEvent.id}: ${err instanceof Error ? err.message : 'unknown error'}`,
+        );
+      });
+    }
+
+    this.activityLog.logActivity({
+      orgId,
+      actorId: actorUserId,
+      action: 'planning.event.series.split',
+      entityType: 'event',
+      entityId: eventId,
+      metadata: {
+        splitPointUtc: splitPointUtc.toISOString(),
+        newEventId: newEvent.id,
+      },
+    });
+
+    this.legalAudit.recordEvent({
+      eventType: 'planning.event.series.split',
+      orgId,
+      userId: actorUserId,
+      triggerType: 'user',
+      metadata: {
+        originalEventId: eventId,
+        newEventId: newEvent.id,
+        splitPointUtc: splitPointUtc.toISOString(),
+      },
+    });
+
+    return newEvent;
   }
 
   /**

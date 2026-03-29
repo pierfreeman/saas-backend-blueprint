@@ -20,6 +20,7 @@ const mockService = {
   deleteEvent: vi.fn(),
   rsvp: vi.fn(),
   createException: vi.fn(),
+  splitSeries: vi.fn(),
 } as unknown as PlanningService;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -395,6 +396,64 @@ describe('PlanningController', () => {
         withOverrides,
         USER_ID,
         MembershipRole.MEMBER,
+      );
+    });
+  });
+
+  // ── POST /:id/split ─────────────────────────────────────────────────────────
+
+  describe('splitSeries()', () => {
+    const splitDto = {
+      originalStartUtc: '2026-04-06T10:00:00Z',
+      version: 1,
+    };
+
+    it('delegates to planningService.splitSeries with role from membership', async () => {
+      const tailEvent = { id: 'tail-1', orgId: ORG_ID };
+      mockService.splitSeries = vi.fn().mockResolvedValue(tailEvent);
+
+      const result = await controller.splitSeries(
+        ORG_ID,
+        EVENT_ID,
+        splitDto as any,
+        USER_ID,
+        makeReq(MembershipRole.ADMIN),
+      );
+
+      expect(result).toBe(tailEvent);
+      expect(mockService.splitSeries).toHaveBeenCalledWith(
+        ORG_ID,
+        EVENT_ID,
+        splitDto,
+        USER_ID,
+        MembershipRole.ADMIN,
+      );
+    });
+
+    it('forwards optional rescheduling fields to the service', async () => {
+      mockService.splitSeries = vi.fn().mockResolvedValue({});
+      const withOverrides = {
+        originalStartUtc: '2026-04-06T10:00:00Z',
+        version: 2,
+        title: 'New Series',
+        startUtc: '2026-04-06T14:00:00Z',
+        endUtc: '2026-04-06T15:00:00Z',
+      };
+
+      await controller.splitSeries(
+        ORG_ID,
+        EVENT_ID,
+        withOverrides as any,
+        USER_ID,
+        makeReq(MembershipRole.OWNER),
+      );
+
+      expect(mockService.splitSeries).toHaveBeenCalledWith(
+        ORG_ID,
+        EVENT_ID,
+        withOverrides,
+        USER_ID,
+        MembershipRole.OWNER,
       );
     });
   });

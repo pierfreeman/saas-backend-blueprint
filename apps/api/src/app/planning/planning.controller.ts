@@ -38,6 +38,7 @@ import { QueryEventsDto, MAX_RANGE_DAYS } from './dto/query-events.dto';
 import { QueryConflictsDto } from './dto/query-conflicts.dto';
 import { RsvpEventDto } from './dto/rsvp-event.dto';
 import { CreateExceptionDto } from './dto/create-exception.dto';
+import { SplitSeriesDto } from './dto/split-series.dto';
 import { EventDetailResponseDto } from './dto/event-detail-response.dto';
 import { EventOccurrenceResponseDto } from './dto/event-occurrence-response.dto';
 import { EventAttendeeResponseDto } from './dto/event-attendee-response.dto';
@@ -387,6 +388,62 @@ export class PlanningController {
     @Req() req: OrgRequest,
   ) {
     return this.planningService.createException(
+      orgId,
+      id,
+      dto,
+      actorUserId,
+      req.membership.role,
+    );
+  }
+
+  // ── Split series ("This and Following") ─────────────────────────────────────
+
+  @Post(':id/split')
+  @RequirePermissions([PERMISSIONS.PLANNING_MANAGE])
+  @ApiOperation({
+    summary: 'Split a recurring series ("This and Following")',
+    description:
+      'Splits a recurring event series at the specified occurrence. ' +
+      'The original event is truncated so it ends before `originalStartUtc`. ' +
+      'A new event is created for the tail of the series, starting at `originalStartUtc` ' +
+      '(or a rescheduled time if `startUtc` is provided). ' +
+      'Attendees are copied to the new event with their existing RSVP statuses. ' +
+      'Exception records at/after the split point are migrated to the new event. ' +
+      'All invited attendees receive an in-app notification for the new event. ' +
+      'Returns the newly created tail event detail.',
+  })
+  @ApiParam({ name: 'orgId', description: 'Organisation UUID' })
+  @ApiParam({ name: 'id', description: 'Recurring event UUID to split' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Tail event created. Returns the new tail event detail.',
+    type: EventDetailResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Event is not recurring, or `originalStartUtc` is not a valid occurrence.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Stale version — event was modified by another request.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Actor is not the creator and lacks ADMIN role.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Event not found.',
+  })
+  async splitSeries(
+    @Param('orgId') orgId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SplitSeriesDto,
+    @CurrentUserId() actorUserId: string,
+    @Req() req: OrgRequest,
+  ) {
+    return this.planningService.splitSeries(
       orgId,
       id,
       dto,

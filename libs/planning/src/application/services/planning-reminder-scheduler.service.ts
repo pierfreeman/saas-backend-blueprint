@@ -33,21 +33,22 @@ export class PlanningReminderSchedulerService {
   async sweep(): Promise<void> {
     this.logger.debug('Planning reminder sweep started');
 
+    const now = new Date();
+    const maxLookaheadMs =
+      PlanningReminderSchedulerService.MAX_REMINDER_MINUTES * 60_000;
+    const cutoff = new Date(now.getTime() - maxLookaheadMs);
+
     let candidates: Awaited<
       ReturnType<typeof this.repo.findEventsWithReminders>
     >;
     try {
-      candidates = await this.repo.findEventsWithReminders();
+      candidates = await this.repo.findEventsWithReminders(cutoff);
     } catch (err) {
       this.logger.error('Failed to query reminder candidates', err);
       return;
     }
 
     if (candidates.length === 0) return;
-
-    const now = new Date();
-    const maxLookaheadMs =
-      PlanningReminderSchedulerService.MAX_REMINDER_MINUTES * 60_000;
 
     for (const event of candidates) {
       try {

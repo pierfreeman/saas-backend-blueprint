@@ -83,14 +83,36 @@ export class PlanningRepository {
   }
 
   /**
-   * Returns all non-soft-deleted events that have a reminder configured.
-   * Used by the cron sweep to find due reminders.
+   * Returns non-soft-deleted events that have a reminder configured and are
+   * still within the relevant window for sending reminders.
+   *
+   * `cutoff` is typically `now - MAX_REMINDER_MINUTES` calculated by the caller.
+   * Events/series that ended before `cutoff` cannot produce any outstanding
+   * reminder and are excluded at the DB level to avoid full-table scans.
+   *
+   * - Non-recurring: only fetched when not yet notified (`lastReminderOccurrenceUtc`
+   *   is null) and the event start is at or after `cutoff`.
+   * - Recurring: fetched unless the series definitively ended before `cutoff`
+   *   (`rruleUntilUtc` is not null and before `cutoff`).
    */
-  async findEventsWithReminders(): Promise<EventWithRelations[]> {
+  async findEventsWithReminders(cutoff: Date): Promise<EventWithRelations[]> {
     return this.prisma.event.findMany({
       where: {
         reminderMinutes: { not: null },
         deletedAt: null,
+        OR: [
+          // Non-recurring: reminder not yet sent and start is within the window.
+          {
+            rrule: null,
+            lastReminderOccurrenceUtc: null,
+            startUtc: { gte: cutoff },
+          },
+          // Recurring: series has not definitively ended before the cutoff.
+          {
+            rrule: { not: null },
+            OR: [{ rruleUntilUtc: null }, { rruleUntilUtc: { gte: cutoff } }],
+          },
+        ],
       },
       include: { attendees: true, exceptions: true },
     });
@@ -315,4 +337,157 @@ export class PlanningRepository {
       },
     });
   }
+
+  /**
+   * Atomically splits a recurring series at `splitPointUtc`.
+   *
+   * Within a single Prisma transaction:
+   * 1. Truncates the original event's RRULE by setting its `rrule` to
+   *    `truncatedRrule` and `rruleUntilUtc` to `splitPointUtc - 1ms`.
+   * 2. Creates a new Event (the tail series) with `tailStartUtc` as its start,
+   *    applying `overrides` on top of the original event's fields.
+   * 3. Copies all attendees from the original event to the new event, preserving
+   *    their RSVP statuses.
+   * 4. Migrates EventException rows with `originalStartUtc >= splitPointUtc`
+   *    from the original event to the new event.
+   *
+   * Returns both the updated original and the newly created tail event.
+   */
+  async splitSeries(params: SplitSeriesParams): Promise<{
+    updatedOriginal: EventWithRelations;
+    newEvent: EventWithRelations;
+  }> {
+    const {
+      original,
+      splitPointUtc,
+      truncatedRrule,
+      tailRrule,
+      tailRruleUntilUtc,
+      tailStartUtc,
+      tailEndUtc,
+      overrides,
+    } = params;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Truncate the original series.
+      await tx.event.update({
+        where: { id: original.id },
+        data: {
+          rrule: truncatedRrule,
+          rruleUntilUtc: new Date(splitPointUtc.getTime() - 1),
+          version: { increment: 1 },
+        },
+      });
+
+      // 2. Create the new tail event.
+      const newEvent = await tx.event.create({
+        data: {
+          orgId: original.orgId,
+          createdByUserId: original.createdByUserId,
+          title: overrides.title ?? original.title,
+          description:
+            overrides.description !== undefined
+              ? overrides.description
+              : original.description,
+          location:
+            overrides.location !== undefined
+              ? overrides.location
+              : original.location,
+          startUtc: tailStartUtc,
+          endUtc: tailEndUtc,
+          isAllDay: original.isAllDay,
+          eventTimezone: original.eventTimezone,
+          rrule: tailRrule,
+          rruleUntilUtc: tailRruleUntilUtc,
+          metadata: original.metadata ?? Prisma.JsonNull,
+          reminderMinutes: original.reminderMinutes,
+          // Reset high-water mark so the cron sweep re-evaluates reminders for the tail series.
+          lastReminderOccurrenceUtc: null,
+        },
+      });
+
+      // 3. Copy attendees from original to new event.
+      if (original.attendees.length > 0) {
+        await tx.eventAttendee.createMany({
+          data: original.attendees.map((a) => ({
+            eventId: newEvent.id,
+            userId: a.userId,
+            status: a.status,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      // 4. Migrate exceptions at or after the split point.
+      const futureExceptions = original.exceptions.filter(
+        (ex) => ex.originalStartUtc >= splitPointUtc,
+      );
+
+      if (futureExceptions.length > 0) {
+        // Remove from original.
+        await tx.eventException.deleteMany({
+          where: {
+            eventId: original.id,
+            originalStartUtc: { gte: splitPointUtc },
+          },
+        });
+
+        // Create on new event.
+        await tx.eventException.createMany({
+          data: futureExceptions.map((ex) => ({
+            eventId: newEvent.id,
+            originalStartUtc: ex.originalStartUtc,
+            startUtc: ex.startUtc,
+            endUtc: ex.endUtc,
+            isCancelled: ex.isCancelled,
+            title: ex.title,
+            description: ex.description,
+            location: ex.location,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return newEvent;
+    });
+
+    // Re-fetch both events with their relations for the caller.
+    const [updatedOriginal, newEventWithRelations] = await Promise.all([
+      this.prisma.event.findUniqueOrThrow({
+        where: { id: original.id },
+        include: { attendees: true, exceptions: true },
+      }),
+      this.prisma.event.findUniqueOrThrow({
+        where: { id: result.id },
+        include: { attendees: true, exceptions: true },
+      }),
+    ]);
+
+    return { updatedOriginal, newEvent: newEventWithRelations };
+  }
+}
+
+// ── Supporting types ─────────────────────────────────────────────────────────
+
+export interface SplitSeriesParams {
+  /** The original recurring event (with attendees and exceptions pre-loaded). */
+  original: EventWithRelations;
+  /** UTC timestamp of the first occurrence that belongs to the new tail series. */
+  splitPointUtc: Date;
+  /** Truncated RRULE string for the original event (ends before the split point). */
+  truncatedRrule: string;
+  /** RRULE string for the tail event (no COUNT/UNTIL — governed by `tailRruleUntilUtc`). */
+  tailRrule: string;
+  /** Effective UNTIL boundary for the tail, copied from original.rruleUntilUtc (or null). */
+  tailRruleUntilUtc: Date | null;
+  /** Computed UTC start for the first occurrence of the tail event. */
+  tailStartUtc: Date;
+  /** Computed UTC end for the first occurrence of the tail event. */
+  tailEndUtc: Date;
+  /** Optional field overrides to apply to the new tail event. */
+  overrides: {
+    title?: string;
+    description?: string | null;
+    location?: string | null;
+  };
 }
