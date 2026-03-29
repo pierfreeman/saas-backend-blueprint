@@ -22,6 +22,7 @@ export default defineWorkspace([
   'libs/legal-audit/vitest.config.ts',
   'libs/memberships/vitest.config.ts',
   'libs/notifications/vitest.config.ts',
+  'libs/planning/vitest.config.ts',
   'libs/observability/vitest.config.ts',
   'libs/org-deletion/vitest.config.ts',
   'libs/org-export/vitest.config.ts',

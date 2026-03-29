@@ -17,6 +17,7 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ActivityLogAppModule } from './activity-log/activity-log-app.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -30,10 +31,12 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { RBACModule } from '@libs/rbac';
 import { StorageAppModule } from './storage/storage-app.module';
 import { TasksModule } from './tasks/tasks.module';
+import { PlanningAppModule } from './planning/planning-app.module';
 
 @Module({
   imports: [
     ConfigModule,
+    ScheduleModule.forRoot(),
     ObservabilityModule,
     PrismaBusinessModule,
     RedisModule,
@@ -52,6 +55,7 @@ import { TasksModule } from './tasks/tasks.module';
     FeatureFlagsModule,
     NotificationsAppModule,
     StorageAppModule,
+    PlanningAppModule,
   ],
   controllers: [AppController],
   providers: [AppService],

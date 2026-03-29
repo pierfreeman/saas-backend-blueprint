@@ -217,6 +217,7 @@ const config = new DocumentBuilder()
   .addTag('Notifications', 'In-app notification management endpoints')
   .addTag('Storage', 'File upload and management endpoints')
   .addTag('Tasks', 'Task management and job status endpoints')
+  .addTag('Planning', 'Event and calendar management endpoints')
   .build();
 
 const document = SwaggerModule.createDocument(app, config);

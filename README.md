@@ -86,6 +86,7 @@ libs/
   org-export      — GDPR-compliant organization export with presigned URL
   notifications   — Real-time in-app notifications (Socket.IO + REST + Redis pub/sub)
   observability   — Structured logging, Sentry, Prometheus/Datadog stubs
+  planning        — RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), event reminder scheduler
   prisma-business — PrismaBusinessService → business DB
   prisma-legal    — PrismaLegalService → legal audit DB
   redis           — CacheService (DB 1) and PubSubService (DB 0)
@@ -119,21 +120,22 @@ prisma/
 
 ### Business
 
-| Feature       | Library                                               | Description                                                                                                 |
-| ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                |
-| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning  |
-| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                   |
-| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                               |
-| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                              |
-| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                 |
-| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                               |
-| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; SendGrid/SMTP providers; Handlebars templates; fire-and-forget with audit |
-| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                          |
-| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                 |
-| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation         |
-| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration        |
-| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                       |
+| Feature       | Library                                               | Description                                                                                                                                                                      |
+| ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                                                                                     |
+| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning                                                                       |
+| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                                                                                        |
+| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                                                                                                    |
+| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                                                                                                   |
+| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                      |
+| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                    |
+| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; SendGrid/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                      |
+| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                               |
+| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                      |
+| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                              |
+| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration                                                                             |
+| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                                                                                            |
+| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), calendar range queries, event reminder notifications (cron sweep every 5 min) |
 
 ### Architectural
 
