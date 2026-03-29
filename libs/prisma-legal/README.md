@@ -1,6 +1,6 @@
 # @libs/prisma-legal
 
-`PrismaLegalService` — the single injectable gateway to the legal audit PostgreSQL database. Extends the generated `PrismaClient` (Prisma 7, ESM), using `@prisma/adapter-pg` for a pure-JS driver with complete isolation from the business database. The client is generated from `prisma/schema.legal.prisma` into `libs/prisma-legal/src/generated/prisma/` (gitignored).
+`PrismaLegalService` — the single injectable gateway to the legal audit PostgreSQL database. Extends the generated `PrismaClient` (Prisma 7, ESM), using `@prisma/adapter-pg` for a pure-JS driver with complete isolation from the business database. The client is generated from `prisma-legal/schema.prisma` into `libs/prisma-legal/src/generated/prisma/` (gitignored).
 
 ---
 
@@ -16,7 +16,7 @@ Run after every schema change or fresh clone.
 
 ## Models
 
-Defined in `prisma/schema.legal.prisma`:
+Defined in `prisma-legal/schema.prisma`:
 
 | Model        | Description                                              |
 | ------------ | -------------------------------------------------------- |

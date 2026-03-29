@@ -97,11 +97,21 @@ libs/
   security        — Rate limiting, brute-force protection, CORS, Helmet, CSRF
   storage         — S3 file storage (presigned URLs, multi-tenant isolation, quota)
 
-prisma/
-  schema.prisma        — Business DB: User, Organization, Membership, ActivityLog, Job
-  schema.legal.prisma  — Legal audit DB: AuditEvent (append-only)
+prisma/                  — Business DB (multi-file schema, Prisma v7)
+  schema.prisma          — generator + datasource block only
+  user.prisma            — User
+  organization.prisma    — Organization, OrganizationStatus, BillingStatus
+  membership.prisma      — Membership, MembershipRole, MembershipStatus
+  activity-log.prisma    — ActivityLog (app_audit schema)
+  billing.prisma         — BillingEvent, SubscriptionSnapshot
+  notification.prisma    — Notification
+  file.prisma            — File, FileStatus
+  job.prisma             — Job, OrgExport, JobStatus, ExportStatus
+  planning.prisma        — Event, EventAttendee, EventException, RSVPStatus
   migrations/
-  migrations-legal/
+prisma-legal/
+  schema.prisma          — Legal audit DB: AuditEvent (append-only)
+  (migrations at prisma/migrations-legal/)
 ```
 
 ### Infrastructure
@@ -411,7 +421,7 @@ npx prisma studio --config prisma.config.legal.ts   # legal audit DB
 
 ### Schema changes
 
-When you modify `prisma/schema.prisma` or `prisma/schema.legal.prisma`:
+When you modify any `.prisma` file under `prisma/` or `prisma-legal/schema.prisma`:
 
 ```sh
 # Re-generate the affected client

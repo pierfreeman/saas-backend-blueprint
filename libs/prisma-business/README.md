@@ -18,7 +18,7 @@ Config is auto-detected from `prisma.config.ts` at the repo root.
 
 ## Models
 
-Defined in `prisma/schema.prisma`:
+Defined across `prisma/*.prisma` (multi-file schema):
 
 | Model          | Description                                     |
 | -------------- | ----------------------------------------------- |

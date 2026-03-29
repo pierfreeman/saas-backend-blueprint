@@ -31,8 +31,18 @@ saas-backend-blueprint/
 │   └── worker-a-e2e/
 ├── libs/              ← All shared domain and infrastructure libraries
 ├── prisma/
-│   ├── schema.prisma        ← Business DB (PostgreSQL via Prisma)
-│   └── schema.legal.prisma  ← Legal audit DB (separate connection)
+│   ├── schema.prisma        ← Business DB: generator + datasource only
+│   ├── user.prisma          ← User model
+│   ├── organization.prisma  ← Organization, enums
+│   ├── membership.prisma    ← Membership, enums
+│   ├── activity-log.prisma  ← ActivityLog
+│   ├── billing.prisma       ← BillingEvent, SubscriptionSnapshot
+│   ├── notification.prisma  ← Notification
+│   ├── file.prisma          ← File, enums
+│   ├── job.prisma           ← Job, OrgExport, enums
+│   └── planning.prisma      ← Event, EventAttendee, EventException, enums
+├── prisma-legal/
+│   └── schema.prisma        ← Legal audit DB (separate connection)
 └── scripts/           ← LocalStack + migration helpers
 ```
 
@@ -476,7 +486,7 @@ libs/{name}/src/infrastructure/repositories/{name}.repository.spec.ts
 
 ### Step 10 — Add a Prisma migration (if you added a new model)
 
-If your library introduces a new Prisma model in `prisma/schema.prisma`:
+If your library introduces a new Prisma model, add a new `.prisma` file under `prisma/` (e.g. `prisma/my-model.prisma`) or extend an existing one:
 
 ```bash
 # Re-generate the client after editing the schema
