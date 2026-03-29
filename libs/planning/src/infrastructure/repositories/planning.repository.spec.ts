@@ -13,6 +13,7 @@ const mockPrisma = {
     findFirst: vi.fn(),
     findUniqueOrThrow: vi.fn(),
     updateMany: vi.fn(),
+    update: vi.fn(),
   },
   eventAttendee: {
     upsert: vi.fn(),
@@ -82,6 +83,52 @@ describe('PlanningRepository', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     repo = new PlanningRepository(mockPrisma);
+  });
+
+  // ── findEventsWithReminders ────────────────────────────────────────────────
+
+  describe('findEventsWithReminders', () => {
+    it('returns events that have a reminder configured', async () => {
+      const eventWithReminder = {
+        ...baseEventWithRelations,
+        reminderMinutes: 30,
+      };
+      mockPrisma.event.findMany = vi
+        .fn()
+        .mockResolvedValue([eventWithReminder]);
+
+      const result = await repo.findEventsWithReminders();
+
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.event.findMany).toHaveBeenCalledWith({
+        where: { reminderMinutes: { not: null }, deletedAt: null },
+        include: { attendees: true, exceptions: true },
+      });
+    });
+
+    it('returns empty array when no events have reminders', async () => {
+      mockPrisma.event.findMany = vi.fn().mockResolvedValue([]);
+
+      const result = await repo.findEventsWithReminders();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ── updateLastReminderSent ────────────────────────────────────────────────
+
+  describe('updateLastReminderSent', () => {
+    it('calls prisma.event.update with the correct occurrence UTC', async () => {
+      mockPrisma.event.update = vi.fn().mockResolvedValue(baseEvent);
+
+      const occurrenceUtc = new Date('2026-01-05T10:00:00Z');
+      await repo.updateLastReminderSent('event-1', occurrenceUtc);
+
+      expect(mockPrisma.event.update).toHaveBeenCalledWith({
+        where: { id: 'event-1' },
+        data: { lastReminderOccurrenceUtc: occurrenceUtc },
+      });
+    });
   });
 
   // ── createEvent ─────────────────────────────────────────────────────────────
@@ -399,6 +446,40 @@ describe('PlanningRepository', () => {
       expect(result).toHaveLength(1);
       expect(mockPrisma.eventAttendee.findMany).toHaveBeenCalledWith({
         where: { eventId: 'event-1' },
+      });
+    });
+  });
+
+  // ── deleteAttendeesExcluding ───────────────────────────────────────────────
+
+  describe('deleteAttendeesExcluding', () => {
+    it('deletes attendees whose userId is not in the keep list', async () => {
+      mockPrisma.eventAttendee.deleteMany = vi
+        .fn()
+        .mockResolvedValue({ count: 1 });
+
+      await repo.deleteAttendeesExcluding('event-1', ['user-1', 'user-2']);
+
+      expect(mockPrisma.eventAttendee.deleteMany).toHaveBeenCalledWith({
+        where: {
+          eventId: 'event-1',
+          userId: { notIn: ['user-1', 'user-2'] },
+        },
+      });
+    });
+
+    it('deletes all attendees when keep list is empty', async () => {
+      mockPrisma.eventAttendee.deleteMany = vi
+        .fn()
+        .mockResolvedValue({ count: 2 });
+
+      await repo.deleteAttendeesExcluding('event-1', []);
+
+      expect(mockPrisma.eventAttendee.deleteMany).toHaveBeenCalledWith({
+        where: {
+          eventId: 'event-1',
+          userId: { notIn: [] },
+        },
       });
     });
   });

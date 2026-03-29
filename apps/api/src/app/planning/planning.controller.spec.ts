@@ -189,6 +189,15 @@ describe('PlanningController', () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('throws BadRequestException when range exceeds MAX_RANGE_DAYS', async () => {
+      await expect(
+        controller.conflicts(ORG_ID, USER_ID, {
+          start: '2026-01-01T00:00:00Z',
+          end: '2027-01-02T00:00:00Z', // 366 days > MAX_RANGE_DAYS (365)
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   // ── GET /:id — findOne ──────────────────────────────────────────────────────

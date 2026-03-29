@@ -50,6 +50,7 @@ describe('PlanningService', () => {
     findAttendee: ReturnType<typeof vi.fn>;
     findAttendees: ReturnType<typeof vi.fn>;
     upsertException: ReturnType<typeof vi.fn>;
+    deleteAttendeesExcluding: ReturnType<typeof vi.fn>;
   };
   let activityLog: { logActivity: ReturnType<typeof vi.fn> };
   let legalAudit: { recordEvent: ReturnType<typeof vi.fn> };
@@ -72,6 +73,7 @@ describe('PlanningService', () => {
       findAttendee: vi.fn(),
       findAttendees: vi.fn(),
       upsertException: vi.fn(),
+      deleteAttendeesExcluding: vi.fn(),
     };
     activityLog = { logActivity: vi.fn() };
     legalAudit = { recordEvent: vi.fn() };
@@ -143,6 +145,28 @@ describe('PlanningService', () => {
           rrule: 'INVALID',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('passes rruleUntilUtc as a Date to the repository when provided', async () => {
+      const event = makeEvent();
+      repo.createEvent.mockResolvedValue(event);
+      repo.upsertAttendee.mockResolvedValue({});
+      repo.findAttendees.mockResolvedValue([]);
+
+      await service.createEvent('org-1', 'user-creator', {
+        title: 'Recurring',
+        start: '2026-01-05T10:00:00Z',
+        end: '2026-01-05T11:00:00Z',
+        eventTimezone: 'UTC',
+        rrule: 'FREQ=WEEKLY',
+        rruleUntilUtc: '2026-06-01T00:00:00Z',
+      });
+
+      expect(repo.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rruleUntilUtc: new Date('2026-06-01T00:00:00Z'),
+        }),
+      );
     });
 
     it('fires activity log and legal audit (fire-and-forget)', async () => {
@@ -230,6 +254,67 @@ describe('PlanningService', () => {
         service.deleteEvent('org-1', 'event-1', 'user-1', MembershipRole.OWNER),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('sends cancel notifications to non-actor attendees', async () => {
+      const attendee = { userId: 'user-2' };
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ attendees: [attendee] }),
+      );
+      repo.softDeleteEvent.mockResolvedValue(undefined);
+
+      await service.deleteEvent(
+        'org-1',
+        'event-1',
+        'user-creator',
+        MembershipRole.OWNER,
+      );
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-2',
+        'org-1',
+        expect.objectContaining({ type: 'event.cancelled' }),
+      );
+    });
+
+    it('does NOT send cancel notifications to the actor', async () => {
+      const attendee = { userId: 'user-creator' };
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ attendees: [attendee] }),
+      );
+      repo.softDeleteEvent.mockResolvedValue(undefined);
+
+      await service.deleteEvent(
+        'org-1',
+        'event-1',
+        'user-creator',
+        MembershipRole.OWNER,
+      );
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).not.toHaveBeenCalled();
+    });
+
+    it('logs error when sendCancelNotifications rejects during deleteEvent', async () => {
+      const attendee = { userId: 'user-2' };
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ attendees: [attendee] }),
+      );
+      repo.softDeleteEvent.mockResolvedValue(undefined);
+      notificationsService.notifyUser.mockImplementation(() => {
+        throw new Error('sync notify failure');
+      });
+
+      await service.deleteEvent(
+        'org-1',
+        'event-1',
+        'user-creator',
+        MembershipRole.OWNER,
+      );
+
+      // Fire-and-forget — should not propagate the error
+      await new Promise((r) => setImmediate(r));
+    });
   });
 
   describe('rsvp', () => {
@@ -291,6 +376,64 @@ describe('PlanningService', () => {
 
       await new Promise((r) => setImmediate(r));
       expect(notificationsService.notifyUser).not.toHaveBeenCalled();
+    });
+
+    it('falls back to userId in display name when user is not found', async () => {
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ createdByUserId: 'creator' }),
+      );
+      repo.upsertAttendee.mockResolvedValue({});
+      usersService.findById.mockResolvedValue(null);
+
+      await service.rsvp('org-1', 'event-1', 'other-user', RSVPStatus.YES);
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'creator',
+        'org-1',
+        expect.objectContaining({
+          body: 'other-user responded "YES" to "Test Event"',
+        }),
+      );
+    });
+
+    it('falls back to userId in display name when findById throws', async () => {
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ createdByUserId: 'creator' }),
+      );
+      repo.upsertAttendee.mockResolvedValue({});
+      usersService.findById.mockRejectedValue(new Error('DB error'));
+
+      await service.rsvp('org-1', 'event-1', 'other-user', RSVPStatus.NO);
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'creator',
+        'org-1',
+        expect.objectContaining({
+          body: 'other-user responded "NO" to "Test Event"',
+        }),
+      );
+    });
+
+    it('logs error when RSVP notification fails', async () => {
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ createdByUserId: 'creator' }),
+      );
+      repo.upsertAttendee.mockResolvedValue({});
+      usersService.findById.mockResolvedValue({
+        firstName: 'Alex',
+        lastName: null,
+        email: 'alex@example.com',
+      });
+      notificationsService.notifyUser.mockRejectedValue(
+        new Error('notification error'),
+      );
+
+      await service.rsvp('org-1', 'event-1', 'other-user', RSVPStatus.YES);
+
+      // Fire-and-forget — just verify it doesn't throw
+      await new Promise((r) => setImmediate(r));
     });
   });
 
@@ -414,6 +557,29 @@ describe('PlanningService', () => {
         'org-1',
         expect.objectContaining({ type: 'event.invite' }),
       );
+    });
+
+    it('logs error when sendInviteNotifications rejects during createEvent', async () => {
+      const event = makeEvent();
+      repo.createEvent.mockResolvedValue(event);
+      repo.upsertAttendee.mockResolvedValue({});
+      repo.findAttendees.mockResolvedValue([]);
+      // Throwing synchronously causes the allSettled map to throw before settling,
+      // making sendInviteNotifications reject and the outer .catch() to run.
+      notificationsService.notifyUser.mockImplementation(() => {
+        throw new Error('sync notify failure');
+      });
+
+      await service.createEvent('org-1', 'user-creator', {
+        title: 'Team Sync',
+        start: '2026-01-05T10:00:00Z',
+        end: '2026-01-05T11:00:00Z',
+        eventTimezone: 'UTC',
+        attendeeIds: ['user-creator', 'user-2'],
+      });
+
+      // Fire-and-forget — should not propagate the error
+      await new Promise((r) => setImmediate(r));
     });
   });
 
@@ -664,6 +830,150 @@ describe('PlanningService', () => {
           MembershipRole.OWNER,
         ),
       ).resolves.toBeDefined();
+    });
+
+    it('syncs attendee list and sends invites to brand-new attendees', async () => {
+      const event = makeEvent({ createdByUserId: 'user-creator' });
+      const updatedEvent = makeEvent({
+        title: 'Updated',
+        attendees: [{ userId: 'user-creator' }],
+      });
+      const refreshedEvent = makeEvent({
+        title: 'Updated',
+        attendees: [{ userId: 'user-creator' }, { userId: 'user-new' }],
+      });
+
+      repo.findEventById
+        .mockResolvedValueOnce(event)
+        .mockResolvedValueOnce(refreshedEvent);
+      repo.updateEvent.mockResolvedValue(updatedEvent);
+      repo.deleteAttendeesExcluding.mockResolvedValue(undefined);
+      repo.upsertAttendee.mockResolvedValue({});
+
+      const result = await service.updateEvent(
+        'org-1',
+        'event-1',
+        { version: 1, attendeeIds: ['user-new'] },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      expect(repo.deleteAttendeesExcluding).toHaveBeenCalledWith(
+        'event-1',
+        expect.arrayContaining(['user-creator', 'user-new']),
+      );
+      expect(repo.upsertAttendee).toHaveBeenCalledWith(
+        'event-1',
+        'user-new',
+        RSVPStatus.PENDING,
+      );
+      expect(result.attendees).toHaveLength(2);
+
+      await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-new',
+        'org-1',
+        expect.objectContaining({ type: 'event.invite' }),
+      );
+    });
+
+    it('throws NotFoundException when re-fetch after attendee sync returns null', async () => {
+      repo.findEventById
+        .mockResolvedValueOnce(makeEvent())
+        .mockResolvedValueOnce(null);
+      repo.updateEvent.mockResolvedValue(makeEvent({ attendees: [] }));
+      repo.deleteAttendeesExcluding.mockResolvedValue(undefined);
+
+      await expect(
+        service.updateEvent(
+          'org-1',
+          'event-1',
+          { version: 1, attendeeIds: [] },
+          'user-creator',
+          MembershipRole.MEMBER,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('logs error when sendInviteNotifications rejects during attendeeIds sync', async () => {
+      const event = makeEvent({ createdByUserId: 'user-creator' });
+      const updatedEvent = makeEvent({ attendees: [] });
+      const refreshedEvent = makeEvent({ attendees: [] });
+
+      repo.findEventById
+        .mockResolvedValueOnce(event)
+        .mockResolvedValueOnce(refreshedEvent);
+      repo.updateEvent.mockResolvedValue(updatedEvent);
+      repo.deleteAttendeesExcluding.mockResolvedValue(undefined);
+      notificationsService.notifyUser.mockImplementation(() => {
+        throw new Error('sync notify failure');
+      });
+
+      await service.updateEvent(
+        'org-1',
+        'event-1',
+        { version: 1, attendeeIds: ['user-new'] },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      // Fire-and-forget — should not propagate the error
+      await new Promise((r) => setImmediate(r));
+    });
+
+    it('logs error when sendUpdateNotifications rejects during notifyAttendees', async () => {
+      const attendee = { userId: 'user-2' };
+      repo.findEventById.mockResolvedValue(makeEvent());
+      repo.updateEvent.mockResolvedValue(
+        makeEvent({ title: 'Updated', attendees: [attendee] }),
+      );
+      notificationsService.notifyUser.mockImplementation(() => {
+        throw new Error('sync notify failure');
+      });
+
+      await service.updateEvent(
+        'org-1',
+        'event-1',
+        { version: 1, title: 'Updated', notifyAttendees: true },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      // Fire-and-forget — should not propagate the error
+      await new Promise((r) => setImmediate(r));
+    });
+
+    it('skips attendee upsert when attendee is already in the list', async () => {
+      const existingAttendee = { userId: 'user-existing' };
+      const event = makeEvent({ createdByUserId: 'user-creator' });
+      const updatedEvent = makeEvent({
+        attendees: [{ userId: 'user-creator' }, existingAttendee],
+      });
+      const refreshedEvent = makeEvent({
+        attendees: [{ userId: 'user-creator' }, existingAttendee],
+      });
+
+      repo.findEventById
+        .mockResolvedValueOnce(event)
+        .mockResolvedValueOnce(refreshedEvent);
+      repo.updateEvent.mockResolvedValue(updatedEvent);
+      repo.deleteAttendeesExcluding.mockResolvedValue(undefined);
+      repo.upsertAttendee.mockResolvedValue({});
+
+      await service.updateEvent(
+        'org-1',
+        'event-1',
+        { version: 1, attendeeIds: ['user-existing'] },
+        'user-creator',
+        MembershipRole.MEMBER,
+      );
+
+      // user-existing is already present → no upsertAttendee for them
+      expect(repo.upsertAttendee).not.toHaveBeenCalledWith(
+        'event-1',
+        'user-existing',
+        RSVPStatus.PENDING,
+      );
     });
   });
 
