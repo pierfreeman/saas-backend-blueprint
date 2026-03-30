@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { InviteMemberService } from './invite-member.service';
 import { PENDING_AUTH0_ID_PREFIX } from '../auth/auth.service';
 import { vi } from 'vitest';

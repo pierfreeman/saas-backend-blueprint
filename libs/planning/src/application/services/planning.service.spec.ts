@@ -6,7 +6,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import { MembershipRole, RSVPStatus } from '@prisma/client';
+import { MembershipRole, RSVPStatus } from '@libs/prisma-business';
 import { PlanningService } from './planning.service';
 import { PlanningRepository } from '../../infrastructure/repositories/planning.repository';
 import { RecurrenceService } from './recurrence.service';
@@ -63,6 +63,7 @@ describe('PlanningService', () => {
     isValidRrule: ReturnType<typeof vi.fn>;
     truncateRrule: ReturnType<typeof vi.fn>;
     stripCountAndUntil: ReturnType<typeof vi.fn>;
+    getLastOccurrenceDate: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -91,6 +92,9 @@ describe('PlanningService', () => {
         .fn()
         .mockReturnValue('FREQ=DAILY;UNTIL=20260405T235959Z'),
       stripCountAndUntil: vi.fn().mockReturnValue('FREQ=DAILY'),
+      getLastOccurrenceDate: vi
+        .fn()
+        .mockReturnValue(new Date('2026-04-10T09:00:00Z')),
     };
 
     const module: TestingModule = await Test.createTestingModule({

@@ -14,11 +14,11 @@ import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
 
 export default defineConfig({
-  schema: 'prisma/schema.legal.prisma',
+  schema: 'prisma-legal/schema.prisma',
   migrations: {
     path: 'prisma/migrations-legal',
   },
   datasource: {
-    url: process.env['LEGAL_AUDIT_DATABASE_URL'],
+    url: process.env['LEGAL_AUDIT_DATABASE_URL'] ?? '',
   },
 });

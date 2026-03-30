@@ -7,7 +7,7 @@ import {
   DeletionTrigger,
 } from '@libs/org-deletion';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '@libs/prisma-business';
 import {
   OrgExportWorkerService,
   OrgExportRequestedEventPayload,

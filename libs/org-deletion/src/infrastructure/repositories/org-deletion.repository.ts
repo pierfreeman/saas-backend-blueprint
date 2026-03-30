@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { Organization, OrganizationStatus } from '@prisma/client';
+import { Organization, OrganizationStatus } from '@libs/prisma-business';
 
 export interface OrgDeletionRecord {
   id: string;

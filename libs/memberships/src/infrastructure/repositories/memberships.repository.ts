@@ -6,7 +6,7 @@ import {
   MembershipStatus,
   Organization,
   User,
-} from '@prisma/client';
+} from '@libs/prisma-business';
 
 @Injectable()
 export class MembershipsRepository {

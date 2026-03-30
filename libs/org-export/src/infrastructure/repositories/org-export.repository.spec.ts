@@ -6,7 +6,7 @@ import {
   FailExportInput,
 } from './org-export.repository';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { ExportStatus, JobStatus } from '@prisma/client';
+import { ExportStatus, JobStatus } from '@libs/prisma-business';
 
 // ─── Prisma mock ─────────────────────────────────────────────────────────────
 

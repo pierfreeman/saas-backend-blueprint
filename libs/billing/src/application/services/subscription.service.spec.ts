@@ -4,7 +4,7 @@ import { BillingRepository } from '../../infrastructure/repositories/billing.rep
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
-import { BillingStatus as PrismaBillingStatus } from '@prisma/client';
+import { BillingStatus as PrismaBillingStatus } from '@libs/prisma-business';
 import Stripe from 'stripe';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 import { BillingStatus } from '../../domain/enums/billing-status.enum';

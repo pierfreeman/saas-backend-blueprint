@@ -1038,13 +1038,20 @@ describe('Planning Events (integration)', () => {
 
     beforeEach(async () => {
       await resetBusinessDb(prisma);
-      const { org, owner, admin, member, readOnly } = await seedFullOrg(prisma);
+      const { org, owner, admin, member, readOnly } = await seedFullOrg(
+        prisma,
+        {
+          withAdmin: true,
+          withMember: true,
+          withReadOnly: true,
+        },
+      );
       orgId = org.id;
-      token = generateTestToken({ sub: owner.authId, orgId: org.id });
-      adminToken = generateTestToken({ sub: admin.authId, orgId: org.id });
-      memberToken = generateTestToken({ sub: member.authId, orgId: org.id });
+      token = generateTestToken({ sub: owner.auth0Id, orgId: org.id });
+      adminToken = generateTestToken({ sub: admin.auth0Id, orgId: org.id });
+      memberToken = generateTestToken({ sub: member.auth0Id, orgId: org.id });
       readOnlyToken = generateTestToken({
-        sub: readOnly.authId,
+        sub: readOnly.auth0Id,
         orgId: org.id,
       });
     });
@@ -1315,7 +1322,7 @@ describe('Planning Events (integration)', () => {
     it('enforces multi-tenancy: cannot split an event from another org', async () => {
       // Seed a second org.
       const { org: org2, owner: owner2 } = await seedFullOrg(prisma);
-      const token2 = generateTestToken({ sub: owner2.authId, orgId: org2.id });
+      const token2 = generateTestToken({ sub: owner2.auth0Id, orgId: org2.id });
 
       // Create event in org1.
       const createRes = await agent

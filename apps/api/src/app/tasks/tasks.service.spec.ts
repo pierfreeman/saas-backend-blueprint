@@ -3,7 +3,7 @@ import { TasksService } from './tasks.service';
 import { EventBusService } from '@libs/events';
 import { JobService } from '@libs/jobs';
 import { CreateTaskDto } from './dto/create-task.dto';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '@libs/prisma-business';
 import { Mock, vi } from 'vitest';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────────────

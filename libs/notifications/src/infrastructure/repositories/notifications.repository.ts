@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { Notification } from '@prisma/client';
+import { Notification } from '@libs/prisma-business';
 
 export interface CreateNotificationData {
   orgId: string;

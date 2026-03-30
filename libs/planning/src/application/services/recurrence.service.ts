@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RRule } from 'rrule';
-import { Event, EventAttendee, EventException } from '@prisma/client';
+import { Event, EventAttendee, EventException } from '@libs/prisma-business';
 import { EventOccurrence } from '../../planning.types';
 
 /** Maximum number of occurrences returned per range query, as a safety cap. */
@@ -149,6 +149,24 @@ export class RecurrenceService {
     delete opts.count;
     delete opts.until;
     return new RRule(opts).toString().replace(/^RRULE:/, '');
+  }
+
+  /**
+   * Returns the last occurrence date produced by an RRULE, or null if the rule
+   * is open-ended (no COUNT and no UNTIL clause).
+   *
+   * Used when splitting a COUNT-based series to compute the `rruleUntilUtc` for
+   * the tail event, since COUNT rules don't store an explicit `rruleUntilUtc`.
+   */
+  getLastOccurrenceDate(rruleStr: string, dtstart: Date): Date | null {
+    const opts = RRule.parseString(rruleStr);
+    if (!opts.count && !opts.until) {
+      return null; // open-ended rule
+    }
+    const rule = new RRule({ ...opts, dtstart });
+    const all = rule.all();
+    const last = all[all.length - 1];
+    return last ?? null;
   }
 
   private buildOccurrence(

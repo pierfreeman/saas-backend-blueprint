@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@libs/prisma-business';
 import { RBACService } from './rbac.service';
 import { RBACCacheService } from './rbac-cache.service';
 import { PermissionKey } from '@libs/common';

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { RSVPStatus } from '@prisma/client';
+import { RSVPStatus } from '@libs/prisma-business';
 
 export class EventAttendeeResponseDto {
   @ApiProperty({ description: 'Attendee record UUID.', format: 'uuid' })

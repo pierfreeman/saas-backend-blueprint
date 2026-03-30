@@ -1,4 +1,5 @@
-import { MembershipRole } from '@prisma/client';
+// Matches Prisma $Enums.MembershipRole — keep in sync with prisma/schema.prisma
+type MembershipRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'READ_ONLY';
 import { PermissionKey, PERMISSIONS } from './permissions.constants';
 
 export const ROLES = {

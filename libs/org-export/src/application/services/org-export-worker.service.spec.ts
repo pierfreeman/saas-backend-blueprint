@@ -6,7 +6,7 @@ import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { StorageService, S3StorageClient } from '@libs/storage';
 import { EmailService } from '@libs/email';
-import { ExportStatus } from '@prisma/client';
+import { ExportStatus } from '@libs/prisma-business';
 import { Mock, Mocked, vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────

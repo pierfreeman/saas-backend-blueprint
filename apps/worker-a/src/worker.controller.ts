@@ -10,7 +10,7 @@ import {
   OrgExportWorkerService,
   OrgExportRequestedEventPayload,
 } from '@libs/org-export';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '@libs/prisma-business';
 
 /**
  * Job payload carried inside DomainEvent.payload for HEAVY_JOB_CREATED events.

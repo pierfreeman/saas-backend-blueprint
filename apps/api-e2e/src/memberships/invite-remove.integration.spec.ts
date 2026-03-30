@@ -35,7 +35,7 @@ import {
   createTestMembership,
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@libs/prisma-business';
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import { Auth0ManagementService } from '@apps/api/app/auth/auth0-management.service';
 

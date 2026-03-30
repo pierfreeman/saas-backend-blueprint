@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import { Membership, MembershipRole, Organization, User } from '@prisma/client';
+import { Membership, MembershipRole, Organization, User } from '@libs/prisma-business';
 import { MembershipsRepository } from '../../infrastructure/repositories/memberships.repository';
 import {
   IMembershipCacheNotifier,

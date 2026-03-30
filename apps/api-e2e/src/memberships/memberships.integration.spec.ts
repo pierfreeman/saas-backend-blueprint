@@ -25,7 +25,7 @@ import {
   createTestMembership,
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 
 describe('Memberships (integration)', () => {
   let app: INestApplication;

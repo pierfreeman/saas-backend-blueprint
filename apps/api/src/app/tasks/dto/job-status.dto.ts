@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '@libs/prisma-business';
 
 /**
  * JobStatusDto

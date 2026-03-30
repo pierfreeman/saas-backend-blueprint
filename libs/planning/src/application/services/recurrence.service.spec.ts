@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RecurrenceService } from './recurrence.service';
-import { Event, EventAttendee, EventException } from '@prisma/client';
+import { Event, EventAttendee, EventException } from '@libs/prisma-business';
 
 function makeEvent(
   overrides: Partial<Event> = {},

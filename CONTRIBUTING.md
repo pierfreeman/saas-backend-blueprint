@@ -31,8 +31,18 @@ saas-backend-blueprint/
 │   └── worker-a-e2e/
 ├── libs/              ← All shared domain and infrastructure libraries
 ├── prisma/
-│   ├── schema.prisma        ← Business DB (PostgreSQL via Prisma)
-│   └── schema.legal.prisma  ← Legal audit DB (separate connection)
+│   ├── schema.prisma        ← Business DB: generator + datasource only
+│   ├── user.prisma          ← User model
+│   ├── organization.prisma  ← Organization, enums
+│   ├── membership.prisma    ← Membership, enums
+│   ├── activity-log.prisma  ← ActivityLog
+│   ├── billing.prisma       ← BillingEvent, SubscriptionSnapshot
+│   ├── notification.prisma  ← Notification
+│   ├── file.prisma          ← File, enums
+│   ├── job.prisma           ← Job, OrgExport, enums
+│   └── planning.prisma      ← Event, EventAttendee, EventException, enums
+├── prisma-legal/
+│   └── schema.prisma        ← Legal audit DB (separate connection)
 └── scripts/           ← LocalStack + migration helpers
 ```
 
@@ -476,10 +486,14 @@ libs/{name}/src/infrastructure/repositories/{name}.repository.spec.ts
 
 ### Step 10 — Add a Prisma migration (if you added a new model)
 
-If your library introduces a new Prisma model in `prisma/schema.prisma`:
+If your library introduces a new Prisma model, add a new `.prisma` file under `prisma/` (e.g. `prisma/my-model.prisma`) or extend an existing one:
 
 ```bash
-npx prisma migrate dev --name add_{name}_model --schema prisma/schema.prisma
+# Re-generate the client after editing the schema
+npx prisma generate
+
+# Create the migration
+npx prisma migrate dev --name add_{name}_model
 ```
 
 ---
@@ -676,18 +690,22 @@ Expected baseline: 0 errors. The 110 pre-existing `@typescript-eslint/no-non-nul
 
 ## 8. Running the project locally
 
-**Prerequisites:** Docker, Node.js 20+, `pnpm` (or `npm`).
+**Prerequisites:** Docker, Node.js ≥ 20.19.0, `pnpm` (or `npm`).
 
 ```bash
 # Start infrastructure (Postgres, Redis, LocalStack/SQS)
-docker-compose up -d
+docker compose up -d postgres postgres-legal redis
 
 # Install dependencies
 npm install
 
+# Generate Prisma clients (required on first clone and after schema changes)
+npx prisma generate
+npx prisma generate --config prisma.config.legal.ts
+
 # Run database migrations
-npx prisma migrate dev --schema prisma/schema.prisma
-npx prisma migrate dev --schema prisma/schema.legal.prisma
+npx prisma migrate dev
+npx prisma migrate dev --config prisma.config.legal.ts
 
 # Start the API in development mode
 npx nx serve api
@@ -699,7 +717,7 @@ npx nx serve worker-a
 **Integration / e2e tests:**
 
 ```bash
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml up -d
 npx nx test api-e2e
 npx nx test worker-a-e2e
 ```

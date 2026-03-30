@@ -8,7 +8,7 @@ import { StorageService } from '@libs/storage';
 import { StripeService } from '@libs/billing';
 import { EmailService } from '@libs/email';
 import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
-import { OrganizationStatus } from '@prisma/client';
+import { OrganizationStatus } from '@libs/prisma-business';
 import { Mock, vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────

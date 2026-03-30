@@ -1,4 +1,4 @@
-import { EventAttendee } from '@prisma/client';
+import { EventAttendee } from '@libs/prisma-business';
 
 /**
  * A single expanded occurrence of an event.

@@ -244,11 +244,11 @@ model SubscriptionSnapshot {
 }
 ```
 
-After modifying `prisma/schema.prisma` run:
+After modifying any `prisma/*.prisma` file run:
 
 ```bash
-npx prisma migrate dev --name <description> --schema=prisma/schema.prisma
-npx prisma generate --schema=prisma/schema.prisma
+npx prisma migrate dev --name <description>
+npx prisma generate
 ```
 
 ---

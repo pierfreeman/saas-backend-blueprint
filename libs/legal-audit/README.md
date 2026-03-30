@@ -55,7 +55,7 @@ this.legalAuditService.recordEvent({
 
 ## Database
 
-`LegalAuditModule` uses `PrismaLegalService` (from [`@libs/prisma-legal`](../prisma-legal/README.md)), which connects to `LEGAL_AUDIT_DATABASE_URL`. Schema: `prisma/schema.legal.prisma`.
+`LegalAuditModule` uses `PrismaLegalService` (from [`@libs/prisma-legal`](../prisma-legal/README.md)), which connects to `LEGAL_AUDIT_DATABASE_URL`. Schema: `prisma-legal/schema.prisma`.
 
 Migrations:
 

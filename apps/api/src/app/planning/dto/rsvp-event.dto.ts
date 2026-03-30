@@ -1,6 +1,6 @@
 import { IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { RSVPStatus } from '@prisma/client';
+import { RSVPStatus } from '@libs/prisma-business';
 
 export class RsvpEventDto {
   @ApiProperty({

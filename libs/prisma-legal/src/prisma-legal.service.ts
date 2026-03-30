@@ -5,7 +5,8 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/legal-client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from './generated/prisma/client.js';
 
 /**
  * PrismaLegalService
@@ -20,7 +21,7 @@ import { PrismaClient } from '@prisma/legal-client';
  *  - Records must survive organisation deletion.
  *  - No cleanDatabase() method — the legal DB is never wiped.
  *
- * Extends PrismaClient from @prisma/legal-client (a separate generated client).
+ * Extends PrismaClient from the generated legal client.
  * This ensures no accidental cross-contamination with the business Prisma client.
  */
 @Injectable()
@@ -31,14 +32,13 @@ export class PrismaLegalService
   private readonly logger = new Logger(PrismaLegalService.name);
 
   constructor(private readonly config: ConfigService) {
+    const connectionString =
+      config.get<string>('database.legalAuditUrl') ??
+      process.env['LEGAL_AUDIT_DATABASE_URL'] ??
+      '';
+    const adapter = new PrismaPg({ connectionString });
     super({
-      datasources: {
-        db: {
-          url:
-            config.get<string>('database.legalAuditUrl') ??
-            process.env['LEGAL_AUDIT_DATABASE_URL'],
-        },
-      },
+      adapter,
       log: [
         { emit: 'event', level: 'error' },
         { emit: 'event', level: 'warn' },

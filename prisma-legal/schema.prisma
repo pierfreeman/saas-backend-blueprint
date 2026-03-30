@@ -19,13 +19,12 @@
 //     --name <migration_name>
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../node_modules/@prisma/legal-client"
+  provider = "prisma-client"
+  output   = "../libs/prisma-legal/src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("LEGAL_AUDIT_DATABASE_URL")
 }
 
 // ============================================================================
