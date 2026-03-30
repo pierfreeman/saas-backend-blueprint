@@ -81,6 +81,7 @@ export class TemplateRendererService {
       );
       throw new Error(
         `Template rendering failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error },
       );
     }
   }

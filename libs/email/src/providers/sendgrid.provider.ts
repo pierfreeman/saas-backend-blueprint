@@ -67,6 +67,7 @@ export class SendGridProvider implements EmailProvider {
       );
       throw new Error(
         `Email delivery failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error },
       );
     }
   }
