@@ -10,7 +10,7 @@ import {
 import { UsersService } from '@libs/users';
 import { MembershipsService } from '@libs/memberships';
 import { OrganizationsService } from '@libs/organizations';
-import { MembershipStatus } from '@prisma/client';
+import { MembershipStatus } from '@libs/prisma-business';
 
 // ─── Mock Setup ──────────────────────────────────────────────────────────────
 
@@ -35,7 +35,9 @@ const USER_ID = 'user-uuid-1';
 const ORG_ID = 'org-uuid-1';
 const AUTH0_ID = 'auth0|123456';
 
-function makeRequest(overrides: Partial<RequestWithOrgContext> = {}): Partial<RequestWithOrgContext> {
+function makeRequest(
+  overrides: Partial<RequestWithOrgContext> = {},
+): Partial<RequestWithOrgContext> {
   return {
     user: { sub: AUTH0_ID, email: 'test@example.com' },
     params: {},
@@ -46,7 +48,9 @@ function makeRequest(overrides: Partial<RequestWithOrgContext> = {}): Partial<Re
   };
 }
 
-function makeContext(request: Partial<RequestWithOrgContext>): ExecutionContext {
+function makeContext(
+  request: Partial<RequestWithOrgContext>,
+): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => request,
@@ -82,7 +86,11 @@ describe('OrgContextGuard', () => {
     it('attaches orgId and membership to request when org is found in params.orgId', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -94,7 +102,9 @@ describe('OrgContextGuard', () => {
       };
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({ params: { orgId: ORG_ID } });
       const ctx = makeContext(request);
@@ -117,7 +127,11 @@ describe('OrgContextGuard', () => {
     it('reads orgId from params.id when params.orgId is not present', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -129,7 +143,9 @@ describe('OrgContextGuard', () => {
       };
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({ params: { id: ORG_ID } });
       const ctx = makeContext(request);
@@ -147,7 +163,11 @@ describe('OrgContextGuard', () => {
     it('reads orgId from query param when route param is absent', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -159,7 +179,9 @@ describe('OrgContextGuard', () => {
       };
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({ query: { orgId: ORG_ID } });
       const ctx = makeContext(request);
@@ -173,7 +195,11 @@ describe('OrgContextGuard', () => {
     it('reads orgId from body when route and query params are absent', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -185,7 +211,9 @@ describe('OrgContextGuard', () => {
       };
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({ body: { orgId: ORG_ID } });
       const ctx = makeContext(request);
@@ -199,7 +227,11 @@ describe('OrgContextGuard', () => {
     it('reads orgId from x-org-id header when other sources are absent', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -211,7 +243,9 @@ describe('OrgContextGuard', () => {
       };
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({ headers: { 'x-org-id': ORG_ID } });
       const ctx = makeContext(request);
@@ -253,7 +287,11 @@ describe('OrgContextGuard', () => {
     it('throws ForbiddenException when membership is not found but org exists', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
       mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(null);
       mockOrgsService.findById = vi.fn().mockResolvedValue({ id: ORG_ID });
@@ -270,10 +308,16 @@ describe('OrgContextGuard', () => {
     it('throws NotFoundException when org does not exist', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
       mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(null);
-      mockOrgsService.findById = vi.fn().mockRejectedValue(new NotFoundException());
+      mockOrgsService.findById = vi
+        .fn()
+        .mockRejectedValue(new NotFoundException());
 
       const request = makeRequest({ params: { orgId: ORG_ID } });
       const ctx = makeContext(request);
@@ -288,7 +332,11 @@ describe('OrgContextGuard', () => {
     it('auto-creates DB user when not found', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const newUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const newUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -301,7 +349,9 @@ describe('OrgContextGuard', () => {
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(null);
       mockUsersService.createUser = vi.fn().mockResolvedValue(newUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({ params: { orgId: ORG_ID } });
       const ctx = makeContext(request);
@@ -319,7 +369,11 @@ describe('OrgContextGuard', () => {
     it('uses fallback email when user.email is not present', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const newUser = { id: USER_ID, email: `${AUTH0_ID}@unknown.local`, auth0Id: AUTH0_ID };
+      const newUser = {
+        id: USER_ID,
+        email: `${AUTH0_ID}@unknown.local`,
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -332,7 +386,9 @@ describe('OrgContextGuard', () => {
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(null);
       mockUsersService.createUser = vi.fn().mockResolvedValue(newUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({
         params: { orgId: ORG_ID },
@@ -355,7 +411,11 @@ describe('OrgContextGuard', () => {
     it('throws ForbiddenException when membership is INACTIVE', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -367,19 +427,27 @@ describe('OrgContextGuard', () => {
       };
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({ params: { orgId: ORG_ID } });
       const ctx = makeContext(request);
 
       await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
-      await expect(guard.canActivate(ctx)).rejects.toThrow('Membership is inactive');
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        'Membership is inactive',
+      );
     });
 
     it('allows access when membership is ACTIVE', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -391,7 +459,9 @@ describe('OrgContextGuard', () => {
       };
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({ params: { orgId: ORG_ID } });
       const ctx = makeContext(request);
@@ -412,7 +482,9 @@ describe('OrgContextGuard', () => {
       const ctx = makeContext(request);
 
       await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
-      await expect(guard.canActivate(ctx)).rejects.toThrow('User not authenticated');
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        'User not authenticated',
+      );
     });
   });
 
@@ -422,7 +494,11 @@ describe('OrgContextGuard', () => {
     it('preserves existing tenantContext permissions and timestamp when present', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       const membership = {
         id: 'membership-1',
         userId: USER_ID,
@@ -437,7 +513,9 @@ describe('OrgContextGuard', () => {
       const existingPermissions = ['existing.permission'];
 
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const request = makeRequest({
         params: { orgId: ORG_ID },

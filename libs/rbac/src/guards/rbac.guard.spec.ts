@@ -3,7 +3,7 @@ import { RBACGuard } from './rbac.guard';
 import { PermissionResolverService } from '../services/permission-resolver.service';
 import { Reflector } from '@nestjs/core';
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { PERMISSIONS } from '@libs/common';
 import { RequestWithOrgContext } from './org-context.guard';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
@@ -22,7 +22,9 @@ const mockPermissionResolver = {
 const USER_ID = 'user-uuid-1';
 const ORG_ID = 'org-uuid-1';
 
-function makeContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
+function makeContext(
+  overrides: Partial<ExecutionContext> = {},
+): ExecutionContext {
   const request: Partial<RequestWithOrgContext> = {
     user: { sub: 'auth0|123', email: 'test@example.com', dbUserId: USER_ID },
     orgId: ORG_ID,
@@ -194,7 +196,10 @@ describe('RBACGuard', () => {
       mockReflector.getAllAndOverride = vi.fn((key) => {
         if (key === PERMISSIONS_KEY)
           return {
-            permissions: [PERMISSIONS.ORG_MANAGE, PERMISSIONS.ORG_BILLING_MANAGE],
+            permissions: [
+              PERMISSIONS.ORG_MANAGE,
+              PERMISSIONS.ORG_BILLING_MANAGE,
+            ],
             mode: 'ALL',
           };
         if (key === REQUIRE_ROLE_KEY) return undefined;
@@ -247,7 +252,11 @@ describe('RBACGuard', () => {
         .mockResolvedValue(permissions);
 
       const request: Partial<RequestWithOrgContext> = {
-        user: { sub: 'auth0|123', email: 'test@example.com', dbUserId: USER_ID },
+        user: {
+          sub: 'auth0|123',
+          email: 'test@example.com',
+          dbUserId: USER_ID,
+        },
         orgId: ORG_ID,
         membership: {
           id: 'membership-1',
@@ -289,7 +298,11 @@ describe('RBACGuard', () => {
       });
 
       const request: Partial<RequestWithOrgContext> = {
-        user: { sub: 'auth0|123', email: 'test@example.com', dbUserId: USER_ID },
+        user: {
+          sub: 'auth0|123',
+          email: 'test@example.com',
+          dbUserId: USER_ID,
+        },
         orgId: ORG_ID,
         membership: {
           id: 'membership-1',
@@ -324,7 +337,11 @@ describe('RBACGuard', () => {
       });
 
       const request: Partial<RequestWithOrgContext> = {
-        user: { sub: 'auth0|123', email: 'test@example.com', dbUserId: undefined },
+        user: {
+          sub: 'auth0|123',
+          email: 'test@example.com',
+          dbUserId: undefined,
+        },
         orgId: ORG_ID,
         membership: {
           id: 'membership-1',
@@ -342,7 +359,9 @@ describe('RBACGuard', () => {
       } as unknown as ExecutionContext;
 
       await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
-      await expect(guard.canActivate(ctx)).rejects.toThrow('User context not found');
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        'User context not found',
+      );
     });
 
     it('throws ForbiddenException when orgId is missing', async () => {
@@ -353,7 +372,11 @@ describe('RBACGuard', () => {
       });
 
       const request: Partial<RequestWithOrgContext> = {
-        user: { sub: 'auth0|123', email: 'test@example.com', dbUserId: USER_ID },
+        user: {
+          sub: 'auth0|123',
+          email: 'test@example.com',
+          dbUserId: USER_ID,
+        },
         orgId: undefined,
         membership: {
           id: 'membership-1',
@@ -384,7 +407,11 @@ describe('RBACGuard', () => {
       });
 
       const request: Partial<RequestWithOrgContext> = {
-        user: { sub: 'auth0|123', email: 'test@example.com', dbUserId: USER_ID },
+        user: {
+          sub: 'auth0|123',
+          email: 'test@example.com',
+          dbUserId: USER_ID,
+        },
         orgId: ORG_ID,
         membership: undefined,
       };
@@ -398,7 +425,9 @@ describe('RBACGuard', () => {
       } as unknown as ExecutionContext;
 
       await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
-      await expect(guard.canActivate(ctx)).rejects.toThrow('Membership not found');
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        'Membership not found',
+      );
     });
   });
 
@@ -410,7 +439,8 @@ describe('RBACGuard', () => {
       // so it should return true (line 103)
       mockReflector.getAllAndOverride = vi.fn((key) => {
         if (key === PERMISSIONS_KEY) return undefined;
-        if (key === REQUIRE_ROLE_KEY) return [MembershipRole.ADMIN, MembershipRole.OWNER];
+        if (key === REQUIRE_ROLE_KEY)
+          return [MembershipRole.ADMIN, MembershipRole.OWNER];
         return undefined;
       });
       const ctx = makeContext();

@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import { RBACService } from './rbac.service';
 import { MembershipsService } from '@libs/memberships';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { PERMISSIONS } from '@libs/common';
 
 // ─── Mock Setup ──────────────────────────────────────────────────────────────
@@ -53,12 +53,16 @@ describe('RBACService', () => {
     });
 
     it('returns only read permission for READ_ONLY role', () => {
-      const permissions = service.getPermissionsForRole(MembershipRole.READ_ONLY);
+      const permissions = service.getPermissionsForRole(
+        MembershipRole.READ_ONLY,
+      );
       expect(permissions).toEqual([PERMISSIONS.ORG_READ]);
     });
 
     it('returns empty array for unknown role and logs warning', () => {
-      const permissions = service.getPermissionsForRole('UNKNOWN' as MembershipRole);
+      const permissions = service.getPermissionsForRole(
+        'UNKNOWN' as MembershipRole,
+      );
       expect(permissions).toEqual([]);
     });
   });
@@ -76,11 +80,16 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.resolveContext(USER_ID, ORG_ID);
 
-      expect(mockMembershipsService.findByUserAndOrg).toHaveBeenCalledWith(USER_ID, ORG_ID);
+      expect(mockMembershipsService.findByUserAndOrg).toHaveBeenCalledWith(
+        USER_ID,
+        ORG_ID,
+      );
       expect(result).toEqual({
         userId: USER_ID,
         orgId: ORG_ID,
@@ -100,7 +109,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.resolveContext(USER_ID, ORG_ID);
 
@@ -131,9 +142,15 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
-      const result = await service.hasPermission(USER_ID, ORG_ID, PERMISSIONS.ORG_MANAGE);
+      const result = await service.hasPermission(
+        USER_ID,
+        ORG_ID,
+        PERMISSIONS.ORG_MANAGE,
+      );
 
       expect(result).toBe(true);
     });
@@ -148,9 +165,15 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
-      const result = await service.hasPermission(USER_ID, ORG_ID, PERMISSIONS.ORG_MANAGE);
+      const result = await service.hasPermission(
+        USER_ID,
+        ORG_ID,
+        PERMISSIONS.ORG_MANAGE,
+      );
 
       expect(result).toBe(false);
     });
@@ -165,9 +188,15 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
-      const result = await service.hasPermission(USER_ID, ORG_ID, PERMISSIONS.ORG_MANAGE);
+      const result = await service.hasPermission(
+        USER_ID,
+        ORG_ID,
+        PERMISSIONS.ORG_MANAGE,
+      );
 
       expect(result).toBe(false);
     });
@@ -175,7 +204,11 @@ describe('RBACService', () => {
     it('returns false when membership is not found', async () => {
       mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(null);
 
-      const result = await service.hasPermission(USER_ID, ORG_ID, PERMISSIONS.ORG_READ);
+      const result = await service.hasPermission(
+        USER_ID,
+        ORG_ID,
+        PERMISSIONS.ORG_READ,
+      );
 
       expect(result).toBe(false);
     });
@@ -194,7 +227,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.hasAnyPermission(USER_ID, ORG_ID, [
         PERMISSIONS.ORG_MANAGE,
@@ -214,7 +249,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.hasAnyPermission(USER_ID, ORG_ID, [
         PERMISSIONS.ORG_MANAGE,
@@ -234,7 +271,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.hasAnyPermission(USER_ID, ORG_ID, [
         PERMISSIONS.ORG_READ,
@@ -268,7 +307,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.hasAllPermissions(USER_ID, ORG_ID, [
         PERMISSIONS.ORG_MANAGE,
@@ -289,7 +330,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.hasAllPermissions(USER_ID, ORG_ID, [
         PERMISSIONS.ORG_MANAGE,
@@ -309,7 +352,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.hasAllPermissions(USER_ID, ORG_ID, [
         PERMISSIONS.ORG_READ,
@@ -342,7 +387,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.hasRole(USER_ID, ORG_ID, [
         MembershipRole.OWNER,
@@ -362,7 +409,9 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
       const result = await service.hasRole(USER_ID, ORG_ID, [
         MembershipRole.OWNER,
@@ -382,9 +431,13 @@ describe('RBACService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
 
-      const result = await service.hasRole(USER_ID, ORG_ID, [MembershipRole.OWNER]);
+      const result = await service.hasRole(USER_ID, ORG_ID, [
+        MembershipRole.OWNER,
+      ]);
 
       expect(result).toBe(false);
     });
@@ -392,7 +445,9 @@ describe('RBACService', () => {
     it('returns false when membership is not found', async () => {
       mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(null);
 
-      const result = await service.hasRole(USER_ID, ORG_ID, [MembershipRole.MEMBER]);
+      const result = await service.hasRole(USER_ID, ORG_ID, [
+        MembershipRole.MEMBER,
+      ]);
 
       expect(result).toBe(false);
     });

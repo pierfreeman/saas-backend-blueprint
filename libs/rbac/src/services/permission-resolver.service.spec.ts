@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import { PermissionResolverService } from './permission-resolver.service';
 import { RBACService, RBACContextData } from './rbac.service';
 import { RBACCacheService } from './rbac-cache.service';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { PERMISSIONS } from '@libs/common';
 
 // ─── Mock Setup ──────────────────────────────────────────────────────────────
@@ -21,7 +21,9 @@ const mockRbacCache = {
 const USER_ID = 'user-uuid-1';
 const ORG_ID = 'org-uuid-1';
 
-function makeContext(overrides: Partial<RBACContextData> = {}): RBACContextData {
+function makeContext(
+  overrides: Partial<RBACContextData> = {},
+): RBACContextData {
   return {
     userId: USER_ID,
     orgId: ORG_ID,
@@ -62,7 +64,10 @@ describe('PermissionResolverService', () => {
       const result = await service.resolvePermissions(USER_ID, ORG_ID);
 
       expect(mockRbacCache.get).toHaveBeenCalledWith(USER_ID, ORG_ID);
-      expect(mockRbacService.resolveContext).toHaveBeenCalledWith(USER_ID, ORG_ID);
+      expect(mockRbacService.resolveContext).toHaveBeenCalledWith(
+        USER_ID,
+        ORG_ID,
+      );
       expect(mockRbacCache.set).toHaveBeenCalledWith(context);
       expect(result).toEqual(context.permissions);
     });
@@ -237,7 +242,10 @@ describe('PermissionResolverService', () => {
       const result = await service.getUserRole(USER_ID, ORG_ID);
 
       expect(mockRbacCache.get).toHaveBeenCalledWith(USER_ID, ORG_ID);
-      expect(mockRbacService.resolveContext).toHaveBeenCalledWith(USER_ID, ORG_ID);
+      expect(mockRbacService.resolveContext).toHaveBeenCalledWith(
+        USER_ID,
+        ORG_ID,
+      );
       expect(mockRbacCache.set).toHaveBeenCalledWith(context);
       expect(result).toBe(MembershipRole.ADMIN);
     });

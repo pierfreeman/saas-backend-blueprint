@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import { RBACCacheService } from './rbac-cache.service';
 import { RBACContextData } from './rbac.service';
 import { CacheService } from '@libs/redis';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { PERMISSIONS } from '@libs/common';
 
 // ─── Mock Setup ──────────────────────────────────────────────────────────────
@@ -17,7 +17,9 @@ const mockCacheService = {
 const USER_ID = 'user-uuid-1';
 const ORG_ID = 'org-uuid-1';
 
-function makeContext(overrides: Partial<RBACContextData> = {}): RBACContextData {
+function makeContext(
+  overrides: Partial<RBACContextData> = {},
+): RBACContextData {
   return {
     userId: USER_ID,
     orgId: ORG_ID,
