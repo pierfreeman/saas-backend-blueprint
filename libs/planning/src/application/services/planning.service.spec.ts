@@ -53,6 +53,8 @@ describe('PlanningService', () => {
     upsertException: ReturnType<typeof vi.fn>;
     deleteAttendeesExcluding: ReturnType<typeof vi.fn>;
     splitSeries: ReturnType<typeof vi.fn>;
+    upsertOccurrenceAttendee: ReturnType<typeof vi.fn>;
+    ensureAttendee: ReturnType<typeof vi.fn>;
   };
   let activityLog: { logActivity: ReturnType<typeof vi.fn> };
   let legalAudit: { recordEvent: ReturnType<typeof vi.fn> };
@@ -80,6 +82,8 @@ describe('PlanningService', () => {
       upsertException: vi.fn(),
       deleteAttendeesExcluding: vi.fn(),
       splitSeries: vi.fn(),
+      upsertOccurrenceAttendee: vi.fn(),
+      ensureAttendee: vi.fn(),
     };
     activityLog = { logActivity: vi.fn() };
     legalAudit = { recordEvent: vi.fn() };
@@ -447,6 +451,92 @@ describe('PlanningService', () => {
 
       // Fire-and-forget — just verify it doesn't throw
       await new Promise((r) => setImmediate(r));
+    });
+
+    it('per-occurrence: calls upsertOccurrenceAttendee and ensureAttendee when originalStartUtc is provided on a recurring event', async () => {
+      const occStart = '2026-01-12T10:00:00.000Z';
+      const masterAttendee = {
+        id: 'att-1',
+        eventId: 'event-1',
+        userId: 'user-2',
+        status: RSVPStatus.YES,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ rrule: 'FREQ=WEEKLY;BYDAY=MO' }),
+      );
+      repo.upsertOccurrenceAttendee.mockResolvedValue(undefined);
+      repo.ensureAttendee.mockResolvedValue(masterAttendee);
+
+      const result = await service.rsvp(
+        'org-1',
+        'event-1',
+        'user-2',
+        RSVPStatus.NO,
+        occStart,
+      );
+
+      expect(repo.upsertOccurrenceAttendee).toHaveBeenCalledWith(
+        'event-1',
+        'user-2',
+        new Date(occStart),
+        RSVPStatus.NO,
+      );
+      expect(repo.ensureAttendee).toHaveBeenCalledWith(
+        'event-1',
+        'user-2',
+        RSVPStatus.NO,
+      );
+      expect(repo.upsertAttendee).not.toHaveBeenCalled();
+      expect(result).toEqual(masterAttendee);
+    });
+
+    it('per-occurrence: falls back to series-wide upsert when event has no rrule', async () => {
+      const occStart = '2026-01-05T10:00:00.000Z';
+      const masterAttendee = {
+        id: 'att-1',
+        eventId: 'event-1',
+        userId: 'user-2',
+        status: RSVPStatus.YES,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      repo.findEventById.mockResolvedValue(makeEvent({ rrule: null }));
+      repo.upsertAttendee.mockResolvedValue(masterAttendee);
+
+      await service.rsvp(
+        'org-1',
+        'event-1',
+        'user-2',
+        RSVPStatus.YES,
+        occStart,
+      );
+
+      expect(repo.upsertOccurrenceAttendee).not.toHaveBeenCalled();
+      expect(repo.upsertAttendee).toHaveBeenCalledWith(
+        'event-1',
+        'user-2',
+        RSVPStatus.YES,
+      );
+    });
+
+    it('per-occurrence: throws BadRequestException when originalStartUtc is not a valid date', async () => {
+      repo.findEventById.mockResolvedValue(
+        makeEvent({ rrule: 'FREQ=WEEKLY;BYDAY=MO' }),
+      );
+
+      await expect(
+        service.rsvp(
+          'org-1',
+          'event-1',
+          'user-2',
+          RSVPStatus.YES,
+          'not-a-date',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(repo.upsertOccurrenceAttendee).not.toHaveBeenCalled();
     });
   });
 

@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RecurrenceService } from './recurrence.service';
-import { Event, EventAttendee, EventException } from '@libs/prisma-business';
+import {
+  Event,
+  EventAttendee,
+  EventException,
+  EventOccurrenceAttendee,
+  RSVPStatus,
+} from '@libs/prisma-business';
 
-function makeEvent(
-  overrides: Partial<Event> = {},
-): Event & { attendees: EventAttendee[]; exceptions: EventException[] } {
+function makeEvent(overrides: Partial<Event> = {}): Event & {
+  attendees: EventAttendee[];
+  occurrenceAttendees: EventOccurrenceAttendee[];
+  exceptions: EventException[];
+} {
   const base: Event = {
     id: 'event-1',
     orgId: 'org-1',
@@ -25,7 +33,7 @@ function makeEvent(
     updatedAt: new Date(),
     ...overrides,
   };
-  return { ...base, attendees: [], exceptions: [] };
+  return { ...base, attendees: [], occurrenceAttendees: [], exceptions: [] };
 }
 
 describe('RecurrenceService', () => {
@@ -318,6 +326,137 @@ describe('RecurrenceService', () => {
       expect(result).toContain('FREQ=YEARLY');
       expect(result).not.toContain('COUNT=');
       expect(result).not.toContain('UNTIL=');
+    });
+  });
+
+  // ── per-occurrence RSVP merge ──────────────────────────────────────────────
+
+  describe('expand — per-occurrence RSVP overrides', () => {
+    function makeAttendee(userId: string, status: RSVPStatus): EventAttendee {
+      return {
+        id: `att-${userId}`,
+        eventId: 'event-1',
+        userId,
+        status,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+
+    function makeOccurrenceAttendee(
+      userId: string,
+      originalStartUtc: Date,
+      status: RSVPStatus,
+    ): EventOccurrenceAttendee {
+      return {
+        id: `oatt-${userId}`,
+        eventId: 'event-1',
+        userId,
+        originalStartUtc,
+        status,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+
+    it('uses master attendee status when no occurrence override exists', () => {
+      const event = makeEvent({
+        startUtc: new Date('2026-01-05T10:00:00Z'),
+        endUtc: new Date('2026-01-05T11:00:00Z'),
+        rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      });
+      event.attendees = [makeAttendee('user-1', RSVPStatus.YES)];
+      // No occurrence-level overrides
+      event.occurrenceAttendees = [];
+
+      const from = new Date('2026-01-01T00:00:00Z');
+      const to = new Date('2026-01-12T23:59:59Z');
+      const results = service.expand(event, from, to);
+
+      expect(results).toHaveLength(2);
+      for (const occ of results) {
+        expect(occ.attendees[0].status).toBe(RSVPStatus.YES);
+      }
+    });
+
+    it('overrides attendee status for the specific occurrence that has a per-occurrence RSVP', () => {
+      const jan5 = new Date('2026-01-05T10:00:00Z');
+      const jan12 = new Date('2026-01-12T10:00:00Z');
+
+      const event = makeEvent({
+        startUtc: jan5,
+        endUtc: new Date('2026-01-05T11:00:00Z'),
+        rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      });
+      event.attendees = [makeAttendee('user-1', RSVPStatus.YES)];
+      // user-1 RSVPed NO specifically for the Jan 12 occurrence
+      event.occurrenceAttendees = [
+        makeOccurrenceAttendee('user-1', jan12, RSVPStatus.NO),
+      ];
+
+      const from = new Date('2026-01-01T00:00:00Z');
+      const to = new Date('2026-01-31T23:59:59Z');
+      const results = service.expand(event, from, to);
+
+      const jan5Occ = results.find(
+        (o) => o.originalStartUtc.getTime() === jan5.getTime(),
+      )!;
+      const jan12Occ = results.find(
+        (o) => o.originalStartUtc.getTime() === jan12.getTime(),
+      )!;
+
+      // Jan 5 — no override → master status YES
+      expect(jan5Occ.attendees[0].status).toBe(RSVPStatus.YES);
+      // Jan 12 — has override → NO
+      expect(jan12Occ.attendees[0].status).toBe(RSVPStatus.NO);
+    });
+
+    it('applies occurrence overrides for multiple attendees independently', () => {
+      const jan5 = new Date('2026-01-05T10:00:00Z');
+
+      const event = makeEvent({
+        startUtc: jan5,
+        endUtc: new Date('2026-01-05T11:00:00Z'),
+        rrule: 'FREQ=WEEKLY;BYDAY=MO',
+      });
+      event.attendees = [
+        makeAttendee('user-1', RSVPStatus.YES),
+        makeAttendee('user-2', RSVPStatus.PENDING),
+      ];
+      // user-2 answered MAYBE for Jan 5; user-1 has no override
+      event.occurrenceAttendees = [
+        makeOccurrenceAttendee('user-2', jan5, RSVPStatus.MAYBE),
+      ];
+
+      const from = new Date('2026-01-01T00:00:00Z');
+      const to = new Date('2026-01-05T23:59:59Z');
+      const results = service.expand(event, from, to);
+
+      expect(results).toHaveLength(1);
+      const jan5Occ = results[0];
+      const u1 = jan5Occ.attendees.find((a) => a.userId === 'user-1')!;
+      const u2 = jan5Occ.attendees.find((a) => a.userId === 'user-2')!;
+
+      expect(u1.status).toBe(RSVPStatus.YES); // master unchanged
+      expect(u2.status).toBe(RSVPStatus.MAYBE); // override applied
+    });
+
+    it('does not apply occurrence overrides to a non-recurring (single) event', () => {
+      const start = new Date('2026-01-05T10:00:00Z');
+      const event = makeEvent({ startUtc: start, rrule: null });
+      event.attendees = [makeAttendee('user-1', RSVPStatus.YES)];
+      // Even if the DB somehow has an occurrence attendee row, it should not affect expansion
+      event.occurrenceAttendees = [
+        makeOccurrenceAttendee('user-1', start, RSVPStatus.NO),
+      ];
+
+      const from = new Date('2026-01-01T00:00:00Z');
+      const to = new Date('2026-01-31T23:59:59Z');
+      const results = service.expand(event, from, to);
+
+      // Single event uses buildOccurrence without occurrenceRsvpOverrides → master status
+      expect(results).toHaveLength(1);
+      expect(results[0].attendees[0].status).toBe(RSVPStatus.YES);
     });
   });
 });

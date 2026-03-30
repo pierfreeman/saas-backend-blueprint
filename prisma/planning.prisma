@@ -73,8 +73,9 @@ model Event {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // ── Relations ──────────────────────────────────────────────────────────────
-  attendees  EventAttendee[]
-  exceptions EventException[]
+  attendees           EventAttendee[]
+  occurrenceAttendees EventOccurrenceAttendee[]
+  exceptions          EventException[]
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   /// Primary tenant query.
@@ -120,6 +121,41 @@ model EventAttendee {
   /// Supports listing all events a user is invited to.
   @@index([userId])
   @@map("event_attendees")
+  @@schema("public")
+}
+
+/// Per-occurrence RSVP override for a single occurrence of a recurring event.
+/// When present, this status takes precedence over the master EventAttendee status
+/// for the specific occurrence identified by (eventId, originalStartUtc).
+/// Allows a user to RSVP YES to one occurrence and NO to another without
+/// affecting the rest of the series.
+model EventOccurrenceAttendee {
+  /// Internal UUID – primary key.
+  id               String     @id @default(uuid()) @db.Uuid
+  /// FK → Event (the recurring master). Cascade-deletes with parent event.
+  eventId          String     @map("event_id") @db.Uuid
+  /// DB user ID of the attendee.
+  userId           String     @map("user_id") @db.Uuid
+  /// RRULE-generated start time of the occurrence this RSVP applies to (UTC).
+  originalStartUtc DateTime   @map("original_start_utc")
+
+  /// RSVP response status for this specific occurrence.
+  status           RSVPStatus
+
+  /// Immutable creation timestamp.
+  createdAt        DateTime   @default(now()) @map("created_at")
+  /// Timestamp of the last status change.
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Enforces one occurrence-level RSVP per user per occurrence.
+  @@unique([eventId, userId, originalStartUtc])
+  /// Supports loading all occurrence RSVPs for an event.
+  @@index([eventId])
+  @@map("event_occurrence_attendees")
   @@schema("public")
 }
 

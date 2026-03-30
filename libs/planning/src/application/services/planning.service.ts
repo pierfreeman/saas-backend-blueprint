@@ -426,17 +426,32 @@ export class PlanningService {
     eventId: string,
     actorUserId: string,
     status: RSVPStatus,
+    originalStartUtc?: string,
   ): Promise<EventAttendee> {
     const event = await this.repo.findEventById(eventId, orgId);
     if (!event) {
       throw new NotFoundException(`Event ${eventId} not found`);
     }
 
-    const attendee = await this.repo.upsertAttendee(
-      eventId,
-      actorUserId,
-      status,
-    );
+    let attendee: EventAttendee;
+
+    if (originalStartUtc && event.rrule) {
+      const occStartUtc = new Date(originalStartUtc);
+      if (isNaN(occStartUtc.getTime())) {
+        throw new BadRequestException(
+          `originalStartUtc is not a valid ISO 8601 date: "${originalStartUtc}"`,
+        );
+      }
+      await this.repo.upsertOccurrenceAttendee(
+        eventId,
+        actorUserId,
+        occStartUtc,
+        status,
+      );
+      attendee = await this.repo.ensureAttendee(eventId, actorUserId, status);
+    } else {
+      attendee = await this.repo.upsertAttendee(eventId, actorUserId, status);
+    }
 
     // Notify creator of the RSVP (only if actor is not the creator)
     if (event.createdByUserId !== actorUserId) {

@@ -8,6 +8,7 @@ import {
   Event,
   EventAttendee,
   EventException,
+  EventOccurrenceAttendee,
   Prisma,
   RSVPStatus,
 } from '@libs/prisma-business';
@@ -55,6 +56,7 @@ export interface UpsertExceptionData {
 
 export type EventWithRelations = Event & {
   attendees: EventAttendee[];
+  occurrenceAttendees: EventOccurrenceAttendee[];
   exceptions: EventException[];
 };
 
@@ -114,7 +116,7 @@ export class PlanningRepository {
           },
         ],
       },
-      include: { attendees: true, exceptions: true },
+      include: { attendees: true, occurrenceAttendees: true, exceptions: true },
     });
   }
 
@@ -161,6 +163,7 @@ export class PlanningRepository {
       },
       include: {
         attendees: true,
+        occurrenceAttendees: true,
         exceptions: true,
       },
     });
@@ -202,6 +205,7 @@ export class PlanningRepository {
       },
       include: {
         attendees: true,
+        occurrenceAttendees: true,
         exceptions: true,
       },
     });
@@ -215,6 +219,7 @@ export class PlanningRepository {
       where: { id, orgId, deletedAt: null },
       include: {
         attendees: true,
+        occurrenceAttendees: true,
         exceptions: true,
       },
     });
@@ -257,7 +262,7 @@ export class PlanningRepository {
 
     return this.prisma.event.findUniqueOrThrow({
       where: { id },
-      include: { attendees: true, exceptions: true },
+      include: { attendees: true, occurrenceAttendees: true, exceptions: true },
     });
   }
 
@@ -291,6 +296,43 @@ export class PlanningRepository {
 
   async findAttendees(eventId: string): Promise<EventAttendee[]> {
     return this.prisma.eventAttendee.findMany({ where: { eventId } });
+  }
+
+  /**
+   * Upserts a per-occurrence RSVP override.
+   * Overwrites the status if a row already exists for this (eventId, userId, originalStartUtc).
+   */
+  async upsertOccurrenceAttendee(
+    eventId: string,
+    userId: string,
+    originalStartUtc: Date,
+    status: RSVPStatus,
+  ): Promise<EventOccurrenceAttendee> {
+    return this.prisma.eventOccurrenceAttendee.upsert({
+      where: {
+        eventId_userId_originalStartUtc: { eventId, userId, originalStartUtc },
+      },
+      create: { eventId, userId, originalStartUtc, status },
+      update: { status },
+    });
+  }
+
+  /**
+   * Adds a user to the master attendee list with `defaultStatus` only when they
+   * are not already listed. If they already have a master RSVP, it is preserved.
+   */
+  async ensureAttendee(
+    eventId: string,
+    userId: string,
+    defaultStatus: RSVPStatus,
+  ): Promise<EventAttendee> {
+    const existing = await this.prisma.eventAttendee.findUnique({
+      where: { eventId_userId: { eventId, userId } },
+    });
+    if (existing) return existing;
+    return this.prisma.eventAttendee.create({
+      data: { eventId, userId, status: defaultStatus },
+    });
   }
 
   /**
@@ -448,18 +490,45 @@ export class PlanningRepository {
         });
       }
 
+      // 5. Migrate per-occurrence RSVP overrides at or after the split point.
+      const futureOccurrenceAttendees = original.occurrenceAttendees.filter(
+        (oa) => oa.originalStartUtc >= splitPointUtc,
+      );
+      if (futureOccurrenceAttendees.length > 0) {
+        await tx.eventOccurrenceAttendee.deleteMany({
+          where: {
+            eventId: original.id,
+            originalStartUtc: { gte: splitPointUtc },
+          },
+        });
+        await tx.eventOccurrenceAttendee.createMany({
+          data: futureOccurrenceAttendees.map((oa) => ({
+            eventId: newEvent.id,
+            userId: oa.userId,
+            originalStartUtc: oa.originalStartUtc,
+            status: oa.status,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
       return newEvent;
     });
 
     // Re-fetch both events with their relations for the caller.
+    const include = {
+      attendees: true,
+      occurrenceAttendees: true,
+      exceptions: true,
+    } as const;
     const [updatedOriginal, newEventWithRelations] = await Promise.all([
       this.prisma.event.findUniqueOrThrow({
         where: { id: original.id },
-        include: { attendees: true, exceptions: true },
+        include,
       }),
       this.prisma.event.findUniqueOrThrow({
         where: { id: result.id },
-        include: { attendees: true, exceptions: true },
+        include,
       }),
     ]);
 

@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { RRule } from 'rrule';
-import { Event, EventAttendee, EventException } from '@libs/prisma-business';
+import {
+  Event,
+  EventAttendee,
+  EventException,
+  EventOccurrenceAttendee,
+} from '@libs/prisma-business';
 import { EventOccurrence } from '../../planning.types';
 
 /** Maximum number of occurrences returned per range query, as a safety cap. */
@@ -22,7 +27,11 @@ export class RecurrenceService {
    * occurrence timestamps are computed.
    */
   expand(
-    event: Event & { attendees: EventAttendee[]; exceptions: EventException[] },
+    event: Event & {
+      attendees: EventAttendee[];
+      occurrenceAttendees: EventOccurrenceAttendee[];
+      exceptions: EventException[];
+    },
     from: Date,
     to: Date,
   ): EventOccurrence[] {
@@ -72,6 +81,19 @@ export class RecurrenceService {
       event.exceptions.map((ex) => [ex.originalStartUtc.getTime(), ex]),
     );
 
+    // Build a lookup map: originalStartUtc (epoch ms) → Map<userId, RSVPStatus>
+    const occurrenceRsvpMap = new Map<
+      number,
+      Map<string, EventOccurrenceAttendee>
+    >();
+    for (const oa of event.occurrenceAttendees) {
+      const key = oa.originalStartUtc.getTime();
+      if (!occurrenceRsvpMap.has(key)) {
+        occurrenceRsvpMap.set(key, new Map());
+      }
+      occurrenceRsvpMap.get(key)!.set(oa.userId, oa);
+    }
+
     const occurrences: EventOccurrence[] = [];
 
     for (const date of dates) {
@@ -92,6 +114,7 @@ export class RecurrenceService {
           effectiveStart,
           effectiveEnd,
           ex ?? null,
+          occurrenceRsvpMap.get(date.getTime()),
         ),
       );
     }
@@ -175,7 +198,14 @@ export class RecurrenceService {
     startUtc: Date,
     endUtc: Date,
     exception: EventException | null,
+    occurrenceRsvpOverrides?: Map<string, EventOccurrenceAttendee>,
   ): EventOccurrence {
+    // Merge occurrence-level RSVP overrides into the master attendees array.
+    // For each attendee, prefer the occurrence-specific status if one exists.
+    const attendees: EventAttendee[] = event.attendees.map((att) => {
+      const override = occurrenceRsvpOverrides?.get(att.userId);
+      return override ? { ...att, status: override.status } : att;
+    });
     return {
       eventId: event.id,
       originalStartUtc,
@@ -193,7 +223,7 @@ export class RecurrenceService {
       createdByUserId: event.createdByUserId,
       orgId: event.orgId,
       version: event.version,
-      attendees: event.attendees,
+      attendees,
     };
   }
 }

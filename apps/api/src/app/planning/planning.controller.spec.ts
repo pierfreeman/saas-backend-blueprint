@@ -309,6 +309,7 @@ describe('PlanningController', () => {
         EVENT_ID,
         USER_ID,
         RSVPStatus.YES,
+        undefined,
       );
     });
 
@@ -326,6 +327,7 @@ describe('PlanningController', () => {
         EVENT_ID,
         USER_ID,
         RSVPStatus.NO,
+        undefined,
       );
 
       await controller.rsvp(
@@ -339,6 +341,27 @@ describe('PlanningController', () => {
         EVENT_ID,
         USER_ID,
         RSVPStatus.MAYBE,
+        undefined,
+      );
+    });
+
+    it('passes originalStartUtc to planningService.rsvp for a per-occurrence RSVP', async () => {
+      const originalStartUtc = '2026-04-14T10:00:00.000Z';
+      mockService.rsvp = vi.fn().mockResolvedValue({});
+
+      await controller.rsvp(
+        ORG_ID,
+        EVENT_ID,
+        { status: RSVPStatus.YES, originalStartUtc },
+        USER_ID,
+      );
+
+      expect(mockService.rsvp).toHaveBeenCalledWith(
+        ORG_ID,
+        EVENT_ID,
+        USER_ID,
+        RSVPStatus.YES,
+        originalStartUtc,
       );
     });
   });

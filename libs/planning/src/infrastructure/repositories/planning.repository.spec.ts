@@ -55,6 +55,7 @@ const baseEvent = {
 const baseEventWithRelations = {
   ...baseEvent,
   attendees: [],
+  occurrenceAttendees: [],
   exceptions: [],
 };
 
@@ -121,7 +122,11 @@ describe('PlanningRepository', () => {
             },
           ],
         },
-        include: { attendees: true, exceptions: true },
+        include: {
+          attendees: true,
+          occurrenceAttendees: true,
+          exceptions: true,
+        },
       });
     });
 
@@ -259,7 +264,11 @@ describe('PlanningRepository', () => {
             orgId: 'org-1',
             deletedAt: null,
           }),
-          include: { attendees: true, exceptions: true },
+          include: {
+            attendees: true,
+            occurrenceAttendees: true,
+            exceptions: true,
+          },
         }),
       );
     });
@@ -302,7 +311,11 @@ describe('PlanningRepository', () => {
             orgId: 'org-1',
             deletedAt: null,
           }),
-          include: { attendees: true, exceptions: true },
+          include: {
+            attendees: true,
+            occurrenceAttendees: true,
+            exceptions: true,
+          },
         }),
       );
     });
@@ -321,7 +334,11 @@ describe('PlanningRepository', () => {
       expect(result).toBe(baseEventWithRelations);
       expect(mockPrisma.event.findFirst).toHaveBeenCalledWith({
         where: { id: 'event-1', orgId: 'org-1', deletedAt: null },
-        include: { attendees: true, exceptions: true },
+        include: {
+          attendees: true,
+          occurrenceAttendees: true,
+          exceptions: true,
+        },
       });
     });
 
@@ -603,7 +620,12 @@ describe('PlanningRepository', () => {
       ...baseEventWithRelations,
       rrule: 'FREQ=DAILY;UNTIL=20260107T235959Z',
     };
-    const tailWithRelations = { ...tailEvent, attendees: [], exceptions: [] };
+    const tailWithRelations = {
+      ...tailEvent,
+      attendees: [],
+      occurrenceAttendees: [],
+      exceptions: [],
+    };
 
     function makeParams(
       overrides: Partial<Parameters<typeof repo.splitSeries>[0]> = {},
@@ -812,11 +834,19 @@ describe('PlanningRepository', () => {
       expect(mockPrisma.event.findUniqueOrThrow).toHaveBeenCalledTimes(2);
       expect(mockPrisma.event.findUniqueOrThrow).toHaveBeenCalledWith({
         where: { id: 'event-1' },
-        include: { attendees: true, exceptions: true },
+        include: {
+          attendees: true,
+          occurrenceAttendees: true,
+          exceptions: true,
+        },
       });
       expect(mockPrisma.event.findUniqueOrThrow).toHaveBeenCalledWith({
         where: { id: tailEvent.id },
-        include: { attendees: true, exceptions: true },
+        include: {
+          attendees: true,
+          occurrenceAttendees: true,
+          exceptions: true,
+        },
       });
     });
 

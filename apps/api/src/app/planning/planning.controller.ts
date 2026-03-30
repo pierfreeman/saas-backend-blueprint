@@ -346,7 +346,13 @@ export class PlanningController {
     @Body() dto: RsvpEventDto,
     @CurrentUserId() actorUserId: string,
   ) {
-    return this.planningService.rsvp(orgId, id, actorUserId, dto.status);
+    return this.planningService.rsvp(
+      orgId,
+      id,
+      actorUserId,
+      dto.status,
+      dto.originalStartUtc,
+    );
   }
 
   // ── Exceptions ─────────────────────────────────────────────────────────────
