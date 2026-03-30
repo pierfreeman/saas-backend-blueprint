@@ -1,4 +1,5 @@
-import { JobStatus } from '@prisma/client';
+// Matches Prisma $Enums.JobStatus — keep in sync with prisma/schema.prisma
+type JobStatus = 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
 
 /**
  * JobUpdateMessage

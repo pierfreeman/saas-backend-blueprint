@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MembershipsService } from '@libs/memberships';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { PermissionKey, ROLE_PERMISSIONS } from '@libs/common';
 
 export interface RBACContextData {

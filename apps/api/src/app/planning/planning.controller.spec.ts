@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { MembershipRole, RSVPStatus } from '@prisma/client';
+import { MembershipRole, RSVPStatus } from '@libs/prisma-business';
 import { vi } from 'vitest';
 import { PlanningService } from '@libs/planning';
 import { PlanningController } from './planning.controller';

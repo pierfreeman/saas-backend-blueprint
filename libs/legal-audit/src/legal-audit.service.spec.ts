@@ -1,9 +1,3 @@
-// Prevent @prisma/legal-client from being loaded (it requires prisma generate).
-// The test mocks PrismaLegalService at the DI level anyway.
-vi.mock('@prisma/legal-client', () => ({
-  PrismaClient: class PrismaClient {},
-}));
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { LegalAuditService } from './legal-audit.service';
 import { PrismaLegalService } from '@libs/prisma-legal';

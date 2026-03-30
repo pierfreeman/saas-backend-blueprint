@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
-import { BillingStatus } from '@prisma/client';
+import { BillingStatus } from '@libs/prisma-business';
 import { StripeService } from '../../infrastructure/stripe/stripe.service';
 import {
   BillingRepository,

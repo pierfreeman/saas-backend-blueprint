@@ -19,7 +19,7 @@ import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@libs/prisma-business';
 
 describe('Redis RBAC Cache (integration)', () => {
   let app: INestApplication;

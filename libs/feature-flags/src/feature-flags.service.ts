@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { BillingService } from '@libs/billing';
 import { CacheService } from '@libs/redis';
 import { LocalTransport, DomainEvent, DOMAIN_EVENTS } from '@libs/events';
-import { BillingStatus } from '@prisma/client';
+import { BillingStatus } from '@libs/prisma-business';
 import {
   PlanEntitlements,
   OrganizationEntitlements,

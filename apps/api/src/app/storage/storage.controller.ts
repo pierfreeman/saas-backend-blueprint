@@ -21,7 +21,7 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@libs/prisma-business';
 import { StorageService, UploadPolicyService } from '@libs/storage';
 import { JwtAuthGuard } from '@libs/common';
 import { OrgContextGuard, RBACGuard, OrgScoped, RequireRole } from '@libs/rbac';

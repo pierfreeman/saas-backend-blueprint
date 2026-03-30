@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaBusinessService } from '@libs/prisma-business';
-import { MembershipRole, MembershipStatus, User } from '@prisma/client';
+import { MembershipRole, MembershipStatus, User } from '@libs/prisma-business';
 
 @Injectable()
 export class UserRepository {

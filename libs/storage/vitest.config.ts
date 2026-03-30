@@ -18,6 +18,7 @@ export default defineConfig({
     }),
   ],
   test: {
+    root: dirname(fileURLToPath(import.meta.url)),
     name: 'storage',
     globals: true,
     environment: 'node',

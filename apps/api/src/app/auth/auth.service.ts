@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UsersService } from '@libs/users';
-import { User } from '@prisma/client';
+import { User } from '@libs/prisma-business';
 import { Auth0ManagementService } from './auth0-management.service';
 
 /** Prefix used for Prisma users created by the invite flow before the

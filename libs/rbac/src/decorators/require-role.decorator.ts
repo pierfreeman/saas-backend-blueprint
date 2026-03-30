@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@libs/prisma-business';
 
 export const REQUIRE_ROLE_KEY = 'rbac:require-role';
 

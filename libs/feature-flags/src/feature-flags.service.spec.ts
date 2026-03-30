@@ -2,7 +2,7 @@ import { FeatureFlagsService } from './feature-flags.service';
 import { BillingService } from '@libs/billing';
 import { CacheService } from '@libs/redis';
 import { LocalTransport, DOMAIN_EVENTS } from '@libs/events';
-import { BillingStatus } from '@prisma/client';
+import { BillingStatus } from '@libs/prisma-business';
 import { OrganizationEntitlements } from './interfaces/entitlements.interface';
 import { Mock, vi } from 'vitest';
 

@@ -10,7 +10,7 @@ import {
   EventException,
   Prisma,
   RSVPStatus,
-} from '@prisma/client';
+} from '@libs/prisma-business';
 
 export interface CreateEventData {
   orgId: string;

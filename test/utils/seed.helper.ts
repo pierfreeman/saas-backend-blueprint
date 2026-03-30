@@ -10,14 +10,14 @@
  *   // ctx.owner.auth0Id — use to generate test JWT
  *   // ctx.org.id       — use as :orgId in requests
  */
-import { PrismaBusinessService } from '@libs/prisma-business';
 import {
+  PrismaBusinessService,
   MembershipRole,
   MembershipStatus,
   Organization,
   User,
   Membership,
-} from '@prisma/client';
+} from '@libs/prisma-business';
 import * as crypto from 'node:crypto';
 
 function shortId(): string {

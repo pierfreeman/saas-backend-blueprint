@@ -4,7 +4,7 @@ import {
   BillingStatus,
   MembershipRole,
   MembershipStatus,
-} from '@prisma/client';
+} from '@libs/prisma-business';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 import { BillingStatus as DomainBillingStatus } from '../../domain/enums/billing-status.enum';
 

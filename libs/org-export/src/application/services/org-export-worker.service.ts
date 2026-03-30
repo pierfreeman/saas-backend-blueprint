@@ -4,7 +4,7 @@ import { StorageService, S3StorageClient } from '@libs/storage';
 import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ExportStatus } from '@prisma/client';
+import { ExportStatus } from '@libs/prisma-business';
 import JSZip from 'jszip';
 import { ORG_EXPORT_EVENT_TYPES } from '../../constants/org-export-event.constants';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';

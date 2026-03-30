@@ -30,7 +30,7 @@ import {
   RBACGuard,
   RequirePermissions,
 } from '@libs/rbac';
-import { Membership } from '@prisma/client';
+import { Membership } from '@libs/prisma-business';
 import { PlanningService } from '@libs/planning';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';

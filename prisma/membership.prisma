@@ -1,0 +1,71 @@
+// ============================================================================
+// MEMBERSHIP MODEL
+// Join table between User and Organization, enriched with role and status.
+// A user can belong to multiple organizations, each with an independent role.
+// ============================================================================
+
+/// RBAC role assigned to a Membership. Roles are hierarchical:
+/// OWNER > ADMIN > MEMBER > READ_ONLY.
+enum MembershipRole {
+  /// Full control over the organization, including deletion and owner transfer.
+  /// There must always be at least one OWNER per organization.
+  OWNER
+  /// Can manage members (invite, update role, remove) and read activity logs.
+  /// Cannot delete the organization or transfer ownership.
+  ADMIN
+  /// Standard access to organization resources. Cannot manage other members.
+  MEMBER
+  /// Read-only access. Cannot create, update, or delete any resource.
+  READ_ONLY
+
+  @@schema("public")
+}
+
+/// Lifecycle status of a Membership record.
+enum MembershipStatus {
+  /// Membership is active – the user has full access according to their role.
+  ACTIVE
+  /// User has been invited but has not yet accepted the invitation.
+  INVITED
+  /// Membership has been suspended; the user cannot access the organization.
+  SUSPENDED
+
+  @@schema("public")
+}
+
+model Membership {
+  /// Internal UUID – primary key.
+  id        String           @id @default(uuid()) @db.Uuid
+  /// FK → User. Cascade-delete removes the membership when the user is deleted.
+  userId    String           @map("user_id") @db.Uuid
+  /// FK → Organization. Cascade-delete removes all memberships when the org is deleted.
+  orgId     String           @map("org_id") @db.Uuid
+  /// RBAC role of the member within this organization.
+  role      MembershipRole
+  /// Lifecycle status of this membership record. Defaults to ACTIVE.
+  status    MembershipStatus @default(ACTIVE)
+  /// Timestamp when the membership was created (invitation sent or direct add).
+  createdAt DateTime         @default(now()) @map("created_at")
+  /// Timestamp of the last role or status change.
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Enforces that a user can only have one membership per organization.
+  @@unique([userId, orgId])
+  /// Supports "list all memberships for an org" (also backing the unique constraint lookup).
+  @@index([orgId])
+  /// Supports "list all orgs a user belongs to".
+  @@index([userId])
+  /// Supports filtering memberships by status across all orgs (admin dashboards).
+  @@index([status])
+  /// Supports the most common RBAC query: "fetch all ACTIVE members of an org".
+  @@index([orgId, status])
+  /// Supports role-based permission checks: "find all ADMINs/OWNERs of an org".
+  @@index([orgId, role])
+  @@map("memberships")
+  @@schema("public")
+}

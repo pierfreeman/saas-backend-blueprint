@@ -7,7 +7,7 @@
  */
 import { JobsGateway } from './jobs.gateway';
 import { PubSubService } from '@libs/redis';
-import { JobStatus } from '@prisma/client';
+import { JobStatus } from '@libs/prisma-business';
 import { Mock, Mocked, vi } from 'vitest';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

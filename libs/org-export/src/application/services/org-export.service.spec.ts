@@ -6,7 +6,7 @@ import { OrgExportRepository } from '../../infrastructure/repositories/org-expor
 import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { ActivityLogService } from '@libs/activity-log';
-import { ExportStatus, OrganizationStatus } from '@prisma/client';
+import { ExportStatus, OrganizationStatus } from '@libs/prisma-business';
 import { vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────

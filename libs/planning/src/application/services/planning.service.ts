@@ -17,7 +17,7 @@ import {
   MembershipRole,
   Prisma,
   RSVPStatus,
-} from '@prisma/client';
+} from '@libs/prisma-business';
 import {
   PlanningRepository,
   SplitSeriesParams,
@@ -620,12 +620,19 @@ export class PlanningService {
     );
     const tailRrule = this.recurrenceService.stripCountAndUntil(event.rrule);
 
+    // For COUNT-based rules, rruleUntilUtc is null on the event row.
+    // The tail must still be capped at the original series' last occurrence,
+    // so compute it from the rrule when it isn't already stored.
+    const tailRruleUntilUtc =
+      event.rruleUntilUtc ??
+      this.recurrenceService.getLastOccurrenceDate(event.rrule, event.startUtc);
+
     const params: SplitSeriesParams = {
       original: event,
       splitPointUtc,
       truncatedRrule,
       tailRrule,
-      tailRruleUntilUtc: event.rruleUntilUtc,
+      tailRruleUntilUtc,
       tailStartUtc,
       tailEndUtc,
       overrides: {

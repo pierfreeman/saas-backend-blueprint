@@ -19,7 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Organization, MembershipRole } from '@prisma/client';
+import { Organization, MembershipRole } from '@libs/prisma-business';
 import { OrgDeletionService, DeletionTrigger } from '@libs/org-deletion';
 import { OrgExportService } from '@libs/org-export';
 import { AuthService } from '../auth/auth.service';

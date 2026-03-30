@@ -5,7 +5,8 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from './generated/prisma/client.js';
 
 /**
  * PrismaBusinessService
@@ -27,13 +28,11 @@ export class PrismaBusinessService
   private readonly config: ConfigService;
 
   constructor(config: ConfigService) {
+    const connectionString =
+      config.get<string>('database.url') ?? process.env['DATABASE_URL'] ?? '';
+    const adapter = new PrismaPg({ connectionString });
     super({
-      datasources: {
-        db: {
-          url:
-            config.get<string>('database.url') ?? process.env['DATABASE_URL'],
-        },
-      },
+      adapter,
       log: [
         { emit: 'event', level: 'query' },
         { emit: 'event', level: 'error' },

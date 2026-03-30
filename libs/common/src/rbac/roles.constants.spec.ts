@@ -5,7 +5,7 @@ import {
   ROLES,
 } from './roles.constants';
 import { PERMISSIONS } from './permissions.constants';
-import { MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@libs/prisma-business';
 
 describe('isRoleHigherOrEqual', () => {
   it('returns true when roles are equal', () => {

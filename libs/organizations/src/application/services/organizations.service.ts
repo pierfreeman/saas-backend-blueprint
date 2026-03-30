@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import { Organization } from '@prisma/client';
+import { Organization } from '@libs/prisma-business';
 import { OrganizationsRepository } from '../../infrastructure/repositories/organizations.repository';
 
 @Injectable()

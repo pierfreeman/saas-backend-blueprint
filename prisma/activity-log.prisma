@@ -1,0 +1,39 @@
+// ============================================================================
+// ACTIVITY LOG MODEL
+// Business-level, tenant-visible activity log.
+// Scoped to an organisation. Cascade-deleted when the organisation is deleted.
+// Not suitable for legal/compliance obligations — use the legal audit database.
+// ============================================================================
+
+model ActivityLog {
+  /// Internal UUID – primary key.
+  id         String   @id @default(uuid()) @db.Uuid
+  /// FK → Organization. Cascade-delete removes activity logs when the org is deleted.
+  orgId      String   @map("org_id") @db.Uuid
+  /// Internal UUID of the user who triggered the action. Nullable for system actions.
+  actorId    String?  @map("actor_id") @db.Uuid
+  /// RBAC role of the actor at the time of the action (e.g. 'OWNER', 'ADMIN').
+  actorRole  String?  @map("actor_role")
+  /// Dot-notation action string. Use the narrowest prefix possible.
+  /// Examples: 'org.created', 'membership.role.changed', 'org.deleted'
+  action     String
+  /// Category of the entity the action was performed on (e.g. 'Organization').
+  entityType String?  @map("entity_type")
+  /// UUID of the entity the action was performed on.
+  entityId   String?  @map("entity_id") @db.Uuid
+  /// Sanitised structured context. Must NOT contain PII or credentials.
+  metadata   Json     @default("{}")
+  /// Immutable creation timestamp.
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Primary tenant query: events for a given org, newest first.
+  @@index([orgId, createdAt(sort: Desc)])
+  /// Action-type queries with time ordering (e.g. all 'org.*' events).
+  @@index([action, createdAt(sort: Desc)])
+  @@map("activity_logs")
+  @@schema("app_audit")
+}

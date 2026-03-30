@@ -19,7 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Job, JobStatus } from '@prisma/client';
+import { Job, JobStatus } from '@libs/prisma-business';
 import { Request } from 'express';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { JobStatusDto } from './dto/job-status.dto';

@@ -20,34 +20,34 @@ Client
 
 ## Library Boundaries
 
-| Path | Contents |
-|---|---|
-| `libs/notifications/types` | Shared interfaces, constants, cache key helpers |
-| `libs/notifications/data-access` | `NotificationsService`, `NotificationsPubSubService` |
-| `libs/notifications/realtime` | `NotificationsGateway`, `WsJwtGuard` |
-| `libs/notifications/api` | `NotificationsModule`, `NotificationsController`, DTOs |
+| Path                             | Contents                                               |
+| -------------------------------- | ------------------------------------------------------ |
+| `libs/notifications/types`       | Shared interfaces, constants, cache key helpers        |
+| `libs/notifications/data-access` | `NotificationsService`, `NotificationsPubSubService`   |
+| `libs/notifications/realtime`    | `NotificationsGateway`, `WsJwtGuard`                   |
+| `libs/notifications/api`         | `NotificationsModule`, `NotificationsController`, DTOs |
 
 ## REST API
 
 All endpoints require a **Bearer JWT** (`Authorization: Bearer <token>`).
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/notifications` | List notifications (paginated) |
-| `GET` | `/notifications/unread-count` | Unread badge count |
-| `POST` | `/notifications` | Create notification (admin / internal) |
-| `PATCH` | `/notifications/:id/read` | Mark one as read |
-| `PATCH` | `/notifications/read` | Mark many as read (body: `{ ids: string[] }`) |
-| `DELETE` | `/notifications/:id` | Delete a notification |
+| Method   | Path                          | Description                                   |
+| -------- | ----------------------------- | --------------------------------------------- |
+| `GET`    | `/notifications`              | List notifications (paginated)                |
+| `GET`    | `/notifications/unread-count` | Unread badge count                            |
+| `POST`   | `/notifications`              | Create notification (admin / internal)        |
+| `PATCH`  | `/notifications/:id/read`     | Mark one as read                              |
+| `PATCH`  | `/notifications/read`         | Mark many as read (body: `{ ids: string[] }`) |
+| `DELETE` | `/notifications/:id`          | Delete a notification                         |
 
 ### Query Parameters — `GET /notifications`
 
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `orgId` | `uuid` | — | Filter by organisation |
+| Param        | Type      | Default | Description              |
+| ------------ | --------- | ------- | ------------------------ |
+| `orgId`      | `uuid`    | —       | Filter by organisation   |
 | `unreadOnly` | `boolean` | `false` | Return only unread items |
-| `limit` | `number` | `20` | Max results (1-100) |
-| `offset` | `number` | `0` | Pagination offset |
+| `limit`      | `number`  | `20`    | Max results (1-100)      |
+| `offset`     | `number`  | `0`     | Pagination offset        |
 
 ## WebSocket
 
@@ -68,34 +68,35 @@ Token extraction order: `handshake.auth.token` → `query.token` → `Authorizat
 
 ### Events emitted by the server
 
-| Event | Payload | Description |
-|---|---|---|
-| `notification:new` | `NotificationMessage` | A new notification arrived |
-| `notification:unread-count` | `{ count: number }` | Updated unread badge count |
-| `notification:list` | `Notification[]` | Response to `notification:get-all` |
+| Event                       | Payload               | Description                        |
+| --------------------------- | --------------------- | ---------------------------------- |
+| `notification:new`          | `NotificationMessage` | A new notification arrived         |
+| `notification:unread-count` | `{ count: number }`   | Updated unread badge count         |
+| `notification:list`         | `Notification[]`      | Response to `notification:get-all` |
 
 ### Events sent by the client
 
-| Event | Payload | Description |
-|---|---|---|
-| `notification:get-all` | `{ orgId?, limit?, offset?, unreadOnly? }` | Fetch notification list |
-| `notification:mark-read` | `{ notificationId: string }` | Mark one as read |
-| `notification:mark-all-read` | `{ orgId: string }` | Mark all as read for an org |
+| Event                        | Payload                                    | Description                 |
+| ---------------------------- | ------------------------------------------ | --------------------------- |
+| `notification:get-all`       | `{ orgId?, limit?, offset?, unreadOnly? }` | Fetch notification list     |
+| `notification:mark-read`     | `{ notificationId: string }`               | Mark one as read            |
+| `notification:mark-all-read` | `{ orgId: string }`                        | Mark all as read for an org |
 
 ## Redis Keys
 
-| Key pattern | TTL | Description |
-|---|---|---|
-| `app:notifications:unread:<userId>` | 30 days | Per-user unread counter |
-| `notifications:user:<userId>` | — | Pub/sub channel (user scope) |
-| `notifications:org:<orgId>` | — | Pub/sub channel (org scope) |
-| `notifications:global` | — | Pub/sub channel (global broadcast) |
+| Key pattern                         | TTL     | Description                        |
+| ----------------------------------- | ------- | ---------------------------------- |
+| `app:notifications:unread:<userId>` | 30 days | Per-user unread counter            |
+| `notifications:user:<userId>`       | —       | Pub/sub channel (user scope)       |
+| `notifications:org:<orgId>`         | —       | Pub/sub channel (org scope)        |
+| `notifications:global`              | —       | Pub/sub channel (global broadcast) |
 
 Socket.IO adapter channels are managed internally by `@socket.io/redis-adapter`.
 
 ## Multi-Pod Scaling
 
 The system is **stateless** — every pod:
+
 1. Publishes to Redis (any pod can publish).
 2. Subscribes via `NotificationsPubSubService` (user/org patterns + global).
 3. Forwards received messages only to its **local sockets**.
@@ -112,7 +113,7 @@ Pod A  ──publish──►  Redis  ──pmessage──►  Pod A (local sock
 
 ## Prisma Schema
 
-The `Notification` model lives in `prisma/schema.prisma` under the `public` schema.
+The `Notification` model lives in `prisma/notification.prisma` under the `public` schema.
 
 ```prisma
 model Notification {

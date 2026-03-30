@@ -13,8 +13,12 @@ COPY tsconfig.base.json nx.json ./
 COPY apps ./apps
 COPY libs ./libs
 
-RUN npx prisma generate && \
-    npx prisma generate --schema prisma/schema.legal.prisma && \
+RUN DATABASE_URL=postgresql://dummy:dummy@localhost/dummy \
+    LEGAL_AUDIT_DATABASE_URL=postgresql://dummy:dummy@localhost/dummy \
+    npx prisma generate && \
+    DATABASE_URL=postgresql://dummy:dummy@localhost/dummy \
+    LEGAL_AUDIT_DATABASE_URL=postgresql://dummy:dummy@localhost/dummy \
+    npx prisma generate --config prisma.config.legal.ts && \
     npx nx run worker-a:build --configuration=production --skip-nx-cache
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
@@ -30,12 +34,9 @@ COPY prisma ./prisma
 COPY --from=builder /workspace/node_modules ./node_modules
 COPY --from=builder /workspace/dist/apps/worker-a .
 
-# Drop root privileges. The built-in "node" user (uid 1000) ships with the
-# official node image. Ownership is set before the USER switch so that the
-# process can read its own files at runtime.
-RUN npx prisma generate && \
-    npx prisma generate --schema prisma/schema.legal.prisma && \
-    chown -R node:node /app
+# Generate Prisma client for this exact runtime is no longer needed in v7:
+# the Rust-free client is pure JS/TS and is bundled by webpack into main.js.
+RUN chown -R node:node /app
 USER node
 
 CMD ["node", "main.js"]

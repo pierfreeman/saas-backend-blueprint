@@ -29,11 +29,11 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     // Only pick up integration spec files
-    include: ['src/**/*.integration.spec.ts'],
+    include: ['apps/worker-a-e2e/src/**/*.integration.spec.ts'],
     // Run migrations once before all suites
-    globalSetup: ['../../test/setup/global-setup.ts'],
+    globalSetup: ['test/setup/global-setup.ts'],
     // Load .env.test in every worker before test files are imported
-    setupFiles: ['../../test/setup/load-env.ts'],
+    setupFiles: ['test/setup/load-env.ts'],
     // Integration tests are slower than unit tests
     testTimeout: 60000,
     hookTimeout: 60000,
@@ -46,7 +46,7 @@ export default defineConfig({
     },
     coverage: {
       provider: 'v8',
-      reportsDirectory: '../../coverage/integration/apps/worker-a-e2e',
+      reportsDirectory: 'coverage/integration/apps/worker-a-e2e',
       reporter: ['text', 'lcov', 'html'],
     },
   },

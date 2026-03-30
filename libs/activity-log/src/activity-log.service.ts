@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ActivityLog, Prisma } from '@prisma/client';
+import { ActivityLog, Prisma } from '@libs/prisma-business';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import type {
   ActivityLogEvent,

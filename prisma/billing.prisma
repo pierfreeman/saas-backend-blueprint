@@ -1,0 +1,85 @@
+// ============================================================================
+// BILLING EVENT MODEL
+// Idempotency tracking for processed Stripe webhook events.
+// Prevents duplicate processing of retried or replayed webhooks.
+//
+// SUBSCRIPTION SNAPSHOT MODEL
+// Append-only historical record of subscription state changes.
+// Written once per processed Stripe subscription lifecycle event.
+// Never updated — Organization remains the source of truth for current state.
+// Used only for internal analytics, debugging, support, and billing investigations.
+// ============================================================================
+
+/// Immutable record of a processed Stripe webhook event.
+/// Used to guarantee idempotent webhook processing.
+///
+/// TODO: Implement a soft-delete / archival strategy for BillingEvent rows to
+/// prevent unbounded table growth in production.
+/// Suggested approach: add an `archivedAt DateTime?` column and a background
+/// job (e.g. a scheduled Lambda or a cron inside worker-a) that moves rows
+/// older than a configurable retention window (e.g. 90 days) to either:
+///   a) a cold `billing_events_archive` table in the same DB, or
+///   b) an S3 bucket (JSONL per day) with a DROP after export.
+/// The idempotency unique constraint on `stripeEventId` must be preserved
+/// (or mirrored) in whichever archive store is chosen.
+model BillingEvent {
+  /// Internal UUID – primary key.
+  id            String       @id @default(uuid()) @db.Uuid
+  /// FK → Organization. Cascade-delete removes billing events when the org is deleted.
+  orgId         String?      @map("org_id") @db.Uuid
+  /// Stripe event ID (e.g. evt_xxx). Unique constraint prevents duplicate processing.
+  stripeEventId String       @unique @map("stripe_event_id")
+  /// Timestamp when the event was first successfully processed.
+  processedAt   DateTime     @map("processed_at")
+  /// SHA-256 hash of the raw webhook payload for tamper detection.
+  payloadHash   String       @map("payload_hash")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Idempotency lookup by Stripe event ID (backed by unique constraint).
+  @@index([stripeEventId])
+  /// Admin/ops audit: list processed events by time.
+  @@index([processedAt(sort: Desc)])
+  @@map("billing_events")
+  @@schema("public")
+}
+
+/// Immutable point-in-time snapshot of a subscription state.
+/// Created for customer.subscription.created/updated/deleted Stripe events.
+model SubscriptionSnapshot {
+  /// Internal UUID – primary key.
+  id                   String       @id @default(uuid()) @db.Uuid
+  /// FK → Organization.
+  orgId                String       @map("org_id") @db.Uuid
+  /// Stripe subscription ID (e.g. sub_xxx).
+  stripeSubscriptionId String       @map("stripe_subscription_id")
+  /// Stripe Price ID of the plan at the time of the snapshot.
+  planId               String?      @map("plan_id")
+  /// Stripe subscription status string at the time of the snapshot.
+  status               String
+  /// Number of billable seats recorded at snapshot time.
+  seats                Int?
+  /// Maximum seats allowed by the plan (if available).
+  seatLimit            Int?         @map("seat_limit")
+  /// Start of the billing period recorded at snapshot time.
+  periodStart          DateTime     @map("period_start")
+  /// End of the billing period recorded at snapshot time.
+  periodEnd            DateTime     @map("period_end")
+  /// Immutable creation timestamp.
+  createdAt            DateTime     @default(now()) @map("created_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Lookup by org (general).
+  @@index([orgId])
+  /// Lookup by Stripe subscription ID for billing investigations.
+  @@index([stripeSubscriptionId])
+  /// Timeline query: "show subscription history for org X, newest first".
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("subscription_snapshots")
+  @@schema("public")
+}

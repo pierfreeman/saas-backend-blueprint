@@ -27,7 +27,7 @@ import {
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { PrismaLegalService } from '@libs/prisma-legal';
-import { MembershipRole, OrganizationStatus } from '@prisma/client';
+import { MembershipRole, OrganizationStatus } from '@libs/prisma-business';
 import { OrgDeletionWorkerService } from '@libs/org-deletion';
 import { DeletionTrigger } from '@libs/org-deletion';
 

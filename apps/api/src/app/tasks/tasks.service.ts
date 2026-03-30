@@ -1,7 +1,7 @@
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { JobService } from '@libs/jobs';
 import { Injectable, Logger } from '@nestjs/common';
-import { Job } from '@prisma/client';
+import { Job } from '@libs/prisma-business';
 import { randomUUID } from 'node:crypto';
 import { CreateTaskDto } from './dto/create-task.dto';
 
