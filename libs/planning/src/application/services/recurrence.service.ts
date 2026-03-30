@@ -151,6 +151,23 @@ export class RecurrenceService {
     return new RRule(opts).toString().replace(/^RRULE:/, '');
   }
 
+  /**
+   * Returns the last occurrence date produced by an RRULE, or null if the rule
+   * is open-ended (no COUNT and no UNTIL clause).
+   *
+   * Used when splitting a COUNT-based series to compute the `rruleUntilUtc` for
+   * the tail event, since COUNT rules don't store an explicit `rruleUntilUtc`.
+   */
+  getLastOccurrenceDate(rruleStr: string, dtstart: Date): Date | null {
+    const opts = RRule.parseString(rruleStr);
+    if (!opts.count && !opts.until) {
+      return null; // open-ended rule
+    }
+    const rule = new RRule({ ...opts, dtstart });
+    const last = rule.all().at(-1);
+    return last ?? null;
+  }
+
   private buildOccurrence(
     event: Event & { attendees: EventAttendee[] },
     originalStartUtc: Date,
