@@ -401,4 +401,23 @@ describe('RBACGuard', () => {
       await expect(guard.canActivate(ctx)).rejects.toThrow('Membership not found');
     });
   });
+
+  // ── Edge Cases ─────────────────────────────────────────────────────────────
+
+  describe('edge cases', () => {
+    it('returns true when role matches and no permission check needed', async () => {
+      // This tests the path where role matches, there's no permission metadata,
+      // so it should return true (line 103)
+      mockReflector.getAllAndOverride = vi.fn((key) => {
+        if (key === PERMISSIONS_KEY) return undefined;
+        if (key === REQUIRE_ROLE_KEY) return [MembershipRole.ADMIN, MembershipRole.OWNER];
+        return undefined;
+      });
+      const ctx = makeContext();
+
+      const result = await guard.canActivate(ctx);
+
+      expect(result).toBe(true);
+    });
+  });
 });

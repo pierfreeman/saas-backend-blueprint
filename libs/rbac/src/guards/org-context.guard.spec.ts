@@ -415,4 +415,53 @@ describe('OrgContextGuard', () => {
       await expect(guard.canActivate(ctx)).rejects.toThrow('User not authenticated');
     });
   });
+
+  // ── TenantContext Sync ─────────────────────────────────────────────────────
+
+  describe('tenantContext sync', () => {
+    it('preserves existing tenantContext permissions and timestamp when present', async () => {
+      mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
+
+      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const membership = {
+        id: 'membership-1',
+        userId: USER_ID,
+        orgId: ORG_ID,
+        role: 'OWNER',
+        status: MembershipStatus.ACTIVE,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const existingTimestamp = new Date('2025-01-01');
+      const existingPermissions = ['existing.permission'];
+
+      mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
+      mockMembershipsService.findByUserAndOrg = vi.fn().mockResolvedValue(membership);
+
+      const request = makeRequest({
+        params: { orgId: ORG_ID },
+        // Existing tenantContext with permissions and timestamp
+        tenantContext: {
+          tenantId: 'old-org',
+          userId: 'old-user',
+          role: 'old-role',
+          permissions: existingPermissions,
+          timestamp: existingTimestamp,
+        },
+      });
+      const ctx = makeContext(request);
+
+      const result = await guard.canActivate(ctx);
+
+      expect(result).toBe(true);
+      // Verify tenantContext was synced with existing permissions and timestamp
+      expect(request.tenantContext).toBeDefined();
+      expect(request.tenantContext?.permissions).toEqual(existingPermissions);
+      expect(request.tenantContext?.timestamp).toBe(existingTimestamp);
+      expect(request.tenantContext?.tenantId).toBe(ORG_ID);
+      expect(request.tenantContext?.userId).toBe(USER_ID);
+      expect(request.tenantContext?.role).toBe('OWNER');
+    });
+  });
 });
