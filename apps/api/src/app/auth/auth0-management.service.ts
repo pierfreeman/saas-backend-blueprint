@@ -180,4 +180,33 @@ export class Auth0ManagementService {
 
     this.logger.log(`Passwordless link sent to ${email}`);
   }
+
+  /**
+   * Sends a password reset email for a database-connection user.
+   *
+   * Only applicable to accounts with the `auth0|` Auth0 subject prefix
+   * (Username-Password-Authentication connection). Auth0 will email the user
+   * a link that lets them choose a new password.
+   *
+   * Uses the Auth0 Authentication API — no Management token required.
+   */
+  async sendChangePasswordEmail(email: string): Promise<void> {
+    const domain = this.configService.get<string>('auth.domain');
+    const clientId = this.configService.get<string>('auth.spaClientId');
+
+    if (!domain || !clientId) {
+      throw new Error(
+        'Auth0 SPA client ID is not configured. ' +
+          'Set AUTH0_SPA_CLIENT_ID environment variable.',
+      );
+    }
+
+    await this.http.post(`https://${domain}/dbconnections/change_password`, {
+      client_id: clientId,
+      email,
+      connection: 'Username-Password-Authentication',
+    });
+
+    this.logger.log(`Password reset email sent to ${email}`);
+  }
 }

@@ -170,6 +170,10 @@ export class AuthService {
     return this.usersService.updateProfile(userId, data);
   }
 
+  async requestPasswordChange(email: string): Promise<void> {
+    await this.auth0ManagementService.sendChangePasswordEmail(email);
+  }
+
   async findUserByAuth0Id(auth0Id: string): Promise<User | null> {
     return this.usersService.findByAuth0Id(auth0Id);
   }

@@ -1,10 +1,13 @@
 import { JwtAuthGuard, RequestUser } from '@libs/common';
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  HttpCode,
   HttpStatus,
   Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -158,5 +161,37 @@ export class AuthController {
       lastName: updated.lastName ?? null,
       pictureUrl: updated.pictureUrl ?? null,
     };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('me/change-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Request a password reset email',
+    description:
+      'Triggers an Auth0 password reset email for the current user. ' +
+      'Only available for email/password accounts (auth0| prefix). ' +
+      'Google and passwordless accounts are not supported.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Password reset email sent successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Password reset is not available for this account type.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid JWT bearer token.',
+  })
+  async requestPasswordChange(@CurrentUser() user: RequestUser): Promise<void> {
+    if (!user.sub.startsWith('auth0|')) {
+      throw new BadRequestException(
+        'Password reset is only available for email/password accounts.',
+      );
+    }
+    const dbUser = await this.authService.syncUser(user.sub, user.email);
+    await this.authService.requestPasswordChange(dbUser.email);
   }
 }
