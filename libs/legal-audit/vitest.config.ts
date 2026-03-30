@@ -18,6 +18,7 @@ export default defineConfig({
     }),
   ],
   test: {
+    root: dirname(fileURLToPath(import.meta.url)),
     name: 'legal-audit',
     globals: true,
     environment: 'node',
