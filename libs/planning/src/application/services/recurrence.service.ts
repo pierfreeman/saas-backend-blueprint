@@ -164,7 +164,8 @@ export class RecurrenceService {
       return null; // open-ended rule
     }
     const rule = new RRule({ ...opts, dtstart });
-    const last = rule.all().at(-1);
+    const all = rule.all();
+    const last = all[all.length - 1];
     return last ?? null;
   }
 
