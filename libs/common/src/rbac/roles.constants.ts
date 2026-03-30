@@ -1,4 +1,5 @@
-import { MembershipRole } from '@prisma/client';
+// Matches Prisma $Enums.MembershipRole — keep in sync with prisma/schema.prisma
+type MembershipRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'READ_ONLY';
 import { PermissionKey, PERMISSIONS } from './permissions.constants';
 
 export const ROLES = {
@@ -50,6 +51,8 @@ export const ROLE_PERMISSIONS: Record<MembershipRole, PermissionKey[]> = {
     // PERMISSIONS.TEAM_READ,
     PERMISSIONS.ANALYTICS_VIEW,
     PERMISSIONS.ANALYTICS_EXPORT,
+    PERMISSIONS.PLANNING_MANAGE,
+    PERMISSIONS.PLANNING_MANAGE_ANY,
   ],
   ADMIN: [
     PERMISSIONS.ORG_MANAGE,
@@ -63,6 +66,8 @@ export const ROLE_PERMISSIONS: Record<MembershipRole, PermissionKey[]> = {
     // PERMISSIONS.TEAM_DELETE,
     // PERMISSIONS.TEAM_READ,
     PERMISSIONS.ANALYTICS_VIEW,
+    PERMISSIONS.PLANNING_MANAGE,
+    PERMISSIONS.PLANNING_MANAGE_ANY,
   ],
   MEMBER: [
     PERMISSIONS.ORG_READ,
@@ -70,6 +75,7 @@ export const ROLE_PERMISSIONS: Record<MembershipRole, PermissionKey[]> = {
     // PERMISSIONS.TEAM_UPDATE,
     // PERMISSIONS.TEAM_READ,
     PERMISSIONS.ANALYTICS_VIEW,
+    PERMISSIONS.PLANNING_MANAGE,
   ],
   READ_ONLY: [PERMISSIONS.ORG_READ /* PERMISSIONS.TEAM_READ */],
 };

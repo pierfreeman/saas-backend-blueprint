@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as Handlebars from 'handlebars';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   EmailTemplateName,
   EmailTemplateData,
@@ -24,7 +25,7 @@ export class TemplateRendererService {
     // Templates directory is in the same directory as this service file
     // During tests, templates are at libs/email/src/lib/templates/*.hbs
     // In compiled output, they should be copied to dist
-    this.templatesDir = __dirname;
+    this.templatesDir = path.dirname(fileURLToPath(import.meta.url));
 
     // Register Handlebars helpers
     this.registerHelpers();
@@ -80,6 +81,7 @@ export class TemplateRendererService {
       );
       throw new Error(
         `Template rendering failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error },
       );
     }
   }

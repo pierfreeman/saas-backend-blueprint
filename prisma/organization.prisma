@@ -1,0 +1,106 @@
+// ============================================================================
+// ORGANIZATION MODEL
+// A tenant boundary. All multi-tenant resources are scoped to an Organization.
+// ============================================================================
+
+/// Lifecycle status of an Organization.
+enum OrganizationStatus {
+  /// Organization is fully operational and can be accessed by all its members.
+  ACTIVE
+  /// Organization has been administratively suspended (e.g. billing failure,
+  /// policy violation). Members cannot access org resources while suspended.
+  SUSPENDED
+  /// Organization deletion has been requested and scheduled; awaiting background worker execution.
+  PENDING_DELETION
+  /// Organization has been fully deleted; all tenant data removed. Legal audit records remain.
+  DELETED
+
+  @@schema("public")
+}
+
+/// Billing lifecycle status of an Organization's subscription.
+/// Mirrors Stripe subscription statuses with a NONE sentinel for no subscription.
+enum BillingStatus {
+  /// No subscription exists (free tier or never subscribed).
+  NONE
+  /// Currently in a free trial period.
+  TRIALING
+  /// Active, paid subscription.
+  ACTIVE
+  /// Payment failed; subscription will be canceled if not resolved.
+  PAST_DUE
+  /// Subscription was explicitly canceled (may still be active until period end).
+  CANCELED
+  /// Invoice is open and past due with final payment attempt failed.
+  UNPAID
+  /// First payment not yet made; subscription is being set up.
+  INCOMPLETE
+  /// Incomplete subscription expired without payment.
+  INCOMPLETE_EXPIRED
+  /// Subscription is paused (Stripe feature).
+  PAUSED
+
+  @@schema("public")
+}
+
+model Organization {
+  /// Internal UUID – used as the primary key across all relations.
+  id               String             @id @default(uuid()) @db.Uuid
+  /// Display name of the organization. Must be at least 3 characters.
+  name             String
+  /// Current lifecycle status. Defaults to ACTIVE on creation.
+  status           OrganizationStatus @default(ACTIVE)
+  /// Stripe customer ID, set when the organization subscribes to a paid plan.
+  /// Null for free-tier organizations.
+  stripeCustomerId          String?        @unique @map("stripe_customer_id")
+  /// Stripe subscription ID. Null until a subscription is created.
+  subscriptionId            String?        @unique @map("subscription_id")
+  /// Current billing lifecycle status. Mirrors Stripe subscription status.
+  billingStatus             BillingStatus  @default(NONE) @map("billing_status")
+  /// Stripe Price ID of the active plan (e.g. price_xxx). Null if no subscription.
+  planId                    String?        @map("plan_id")
+  /// Storage quota in bytes. Null means plan default applies.
+  storageLimit              BigInt?        @map("storage_limit")
+  /// Start of the current billing period (from Stripe).
+  subscriptionPeriodStart   DateTime?      @map("subscription_period_start")
+  /// End of the current billing period (from Stripe).
+  subscriptionPeriodEnd     DateTime?      @map("subscription_period_end")
+  /// If true, subscription cancels at the end of the current period.
+  cancelAtPeriodEnd         Boolean        @default(false) @map("cancel_at_period_end")
+  /// Timestamp when organization deletion was requested (user or system trigger).
+  deletionRequestedAt       DateTime?      @map("deletion_requested_at")
+  /// Timestamp when the deletion job is scheduled to execute (requestedAt + retention period).
+  deletionScheduledAt       DateTime?      @map("deletion_scheduled_at")
+  /// Timestamp when deletion completed successfully (status = DELETED).
+  deletionCompletedAt       DateTime?      @map("deletion_completed_at")
+  /// Custom retention period in days for this organization. Overrides default if set.
+  /// Used for enterprise agreements or subscription-specific requirements.
+  retentionPeriodDays       Int?           @map("retention_period_days")
+  /// Timestamp of organization creation.
+  createdAt                 DateTime       @default(now()) @map("created_at")
+  /// Timestamp of the last update.
+  updatedAt                 DateTime       @updatedAt @map("updated_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  memberships            Membership[]
+  activityLogs           ActivityLog[]
+  billingEvents          BillingEvent[]
+  subscriptionSnapshots  SubscriptionSnapshot[]
+  files                  File[]
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Supports filtering organizations by lifecycle status (e.g. list all SUSPENDED orgs).
+  @@index([status])
+  /// Supports paginated admin listings filtered by status, ordered by creation date.
+  @@index([status, createdAt(sort: Desc)])
+  /// Supports organization name search/lookup (prefix queries use this index).
+  @@index([name])
+  /// Supports paginated admin listings ordered by creation date.
+  @@index([createdAt(sort: Desc)])
+  /// Supports admin queries filtering organizations by billing status (e.g. list all PAST_DUE orgs).
+  @@index([billingStatus])
+  /// Supports paginated admin listings filtered by billing status, ordered by creation date.
+  @@index([billingStatus, createdAt(sort: Desc)])
+  @@map("organizations")
+  @@schema("public")
+}

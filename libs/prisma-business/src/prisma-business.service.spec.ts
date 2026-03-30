@@ -1,5 +1,5 @@
-// Mock @prisma/client so no real DB engine is loaded and no connections are made.
-vi.mock('@prisma/client', () => {
+// Mock the generated Prisma client and adapter so no real DB connection is made.
+vi.mock('./generated/prisma/client.js', () => {
   class PrismaClient {
     $connect = vi.fn().mockResolvedValue(undefined);
     $disconnect = vi.fn().mockResolvedValue(undefined);
@@ -7,6 +7,9 @@ vi.mock('@prisma/client', () => {
   }
   return { PrismaClient };
 });
+vi.mock('@prisma/adapter-pg', () => ({
+  PrismaPg: class PrismaPg {},
+}));
 
 import { ConfigService } from '@nestjs/config';
 import { PrismaBusinessService } from './prisma-business.service';

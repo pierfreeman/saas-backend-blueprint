@@ -17,6 +17,9 @@ import nock from 'nock';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TEST_DOMAIN = 'test.auth0.local';
 export const TEST_KID = 'test-key-1';

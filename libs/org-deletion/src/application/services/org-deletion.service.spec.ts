@@ -7,7 +7,7 @@ import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { ActivityLogService } from '@libs/activity-log';
 import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
-import { OrganizationStatus } from '@prisma/client';
+import { OrganizationStatus } from '@libs/prisma-business';
 import { vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────

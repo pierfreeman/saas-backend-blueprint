@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UsersService } from '@libs/users';
-import { User } from '@prisma/client';
+import { User } from '@libs/prisma-business';
 import { Auth0ManagementService } from './auth0-management.service';
 
 /** Prefix used for Prisma users created by the invite flow before the
@@ -168,6 +168,10 @@ export class AuthService {
     data: { firstName?: string; lastName?: string; pictureUrl?: string },
   ): Promise<User> {
     return this.usersService.updateProfile(userId, data);
+  }
+
+  async requestPasswordChange(email: string): Promise<void> {
+    await this.auth0ManagementService.sendChangePasswordEmail(email);
   }
 
   async findUserByAuth0Id(auth0Id: string): Promise<User | null> {

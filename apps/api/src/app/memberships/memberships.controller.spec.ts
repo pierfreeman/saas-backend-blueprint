@@ -1,7 +1,7 @@
 import { MembershipsController } from './memberships.controller';
 import { MembershipsService } from '@libs/memberships';
 import { RBACCacheService } from '@libs/rbac';
-import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { InviteMemberService } from './invite-member.service';
 import { RemoveMemberService } from './remove-member.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';

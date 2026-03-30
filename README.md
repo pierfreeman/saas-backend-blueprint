@@ -10,7 +10,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 | ------------------ | ---------------------------------------------------- |
 | Framework          | NestJS (TypeScript)                                  |
 | Monorepo           | Nx                                                   |
-| ORM / migrations   | Prisma                                               |
+| ORM / migrations   | Prisma 7 (ESM, driver adapter)                       |
 | Databases          | PostgreSQL × 2 (business DB + legal audit DB)        |
 | Cache / pub-sub    | Redis (ioredis)                                      |
 | Authentication     | Auth0 — JWT RS256, JWKS endpoint                     |
@@ -53,6 +53,10 @@ docker compose up -d postgres postgres-legal redis
 # Configure environment (defaults work out of the box for local dev)
 cp .env.example .env
 
+# Generate Prisma clients
+npx prisma generate
+npx prisma generate --config prisma.config.legal.ts
+
 # Run all migrations
 npx prisma migrate dev
 npx prisma migrate dev --config prisma.config.legal.ts
@@ -86,17 +90,28 @@ libs/
   org-export      — GDPR-compliant organization export with presigned URL
   notifications   — Real-time in-app notifications (Socket.IO + REST + Redis pub/sub)
   observability   — Structured logging, Sentry, Prometheus/Datadog stubs
+  planning        — RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), event reminder scheduler
   prisma-business — PrismaBusinessService → business DB
   prisma-legal    — PrismaLegalService → legal audit DB
   redis           — CacheService (DB 1) and PubSubService (DB 0)
   security        — Rate limiting, brute-force protection, CORS, Helmet, CSRF
   storage         — S3 file storage (presigned URLs, multi-tenant isolation, quota)
 
-prisma/
-  schema.prisma        — Business DB: User, Organization, Membership, ActivityLog, Job
-  schema.legal.prisma  — Legal audit DB: AuditEvent (append-only)
+prisma/                  — Business DB (multi-file schema, Prisma v7)
+  schema.prisma          — generator + datasource block only
+  user.prisma            — User
+  organization.prisma    — Organization, OrganizationStatus, BillingStatus
+  membership.prisma      — Membership, MembershipRole, MembershipStatus
+  activity-log.prisma    — ActivityLog (app_audit schema)
+  billing.prisma         — BillingEvent, SubscriptionSnapshot
+  notification.prisma    — Notification
+  file.prisma            — File, FileStatus
+  job.prisma             — Job, OrgExport, JobStatus, ExportStatus
+  planning.prisma        — Event, EventAttendee, EventException, RSVPStatus
   migrations/
-  migrations-legal/
+prisma-legal/
+  schema.prisma          — Legal audit DB: AuditEvent (append-only)
+  (migrations at prisma/migrations-legal/)
 ```
 
 ### Infrastructure
@@ -119,21 +134,22 @@ prisma/
 
 ### Business
 
-| Feature       | Library                                               | Description                                                                                                 |
-| ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                |
-| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning  |
-| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                   |
-| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                               |
-| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                              |
-| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                 |
-| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                               |
-| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; SendGrid/SMTP providers; Handlebars templates; fire-and-forget with audit |
-| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                          |
-| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                 |
-| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation         |
-| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration        |
-| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                       |
+| Feature       | Library                                               | Description                                                                                                                                                                      |
+| ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                                                                                     |
+| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning                                                                       |
+| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                                                                                        |
+| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                                                                                                    |
+| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                                                                                                   |
+| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                      |
+| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                    |
+| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; SendGrid/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                      |
+| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                               |
+| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                      |
+| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                              |
+| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration                                                                             |
+| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                                                                                            |
+| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), calendar range queries, event reminder notifications (cron sweep every 5 min) |
 
 ### Architectural
 
@@ -150,7 +166,7 @@ prisma/
 
 ## Prerequisites
 
-- Node.js ≥ 20
+- Node.js ≥ 20.19.0 (LTS recommended)
 - Docker & Docker Compose v2
 - `pnpm`
 - An Auth0 tenant (see [Authentication](#authentication))
@@ -226,7 +242,19 @@ cp .env.example .env
 
 For the complete variable list for each subsystem, see the relevant library README.
 
-### 4. Run database migrations
+### 4. Generate Prisma clients
+
+```sh
+# Business database (prisma.config.ts auto-detected):
+npx prisma generate
+
+# Legal audit database:
+npx prisma generate --config prisma.config.legal.ts
+```
+
+Clients are generated into `libs/prisma-business/src/generated/prisma/` and `libs/prisma-legal/src/generated/prisma/`. These directories are gitignored — run `generate` after every schema change and after a fresh clone.
+
+### 5. Run database migrations
 
 ```sh
 # Business database (prisma.config.ts auto-detected):
@@ -238,7 +266,7 @@ npx prisma migrate dev --config prisma.config.legal.ts
 
 Append `--name <description>` to create a named migration.
 
-### 5. Serve applications
+### 6. Serve applications
 
 ```sh
 npx nx serve api       # HTTP API on :3000
@@ -388,7 +416,21 @@ http://localhost:3000/docs
 
 ```sh
 npx prisma studio                                   # business DB
-npx prisma studio --config prisma.config.legal.ts  # legal audit DB
+npx prisma studio --config prisma.config.legal.ts   # legal audit DB
+```
+
+### Schema changes
+
+When you modify any `.prisma` file under `prisma/` or `prisma-legal/schema.prisma`:
+
+```sh
+# Re-generate the affected client
+npx prisma generate
+npx prisma generate --config prisma.config.legal.ts
+
+# Then create a migration
+npx prisma migrate dev --name <description>
+npx prisma migrate dev --config prisma.config.legal.ts --name <description>
 ```
 
 ### Nx tasks

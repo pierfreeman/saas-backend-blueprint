@@ -15,6 +15,7 @@ const mockUsersService = {
 
 const mockAuth0ManagementService = {
   getUserById: vi.fn(),
+  sendChangePasswordEmail: vi.fn(),
 } as unknown as Auth0ManagementService;
 
 describe('AuthService', () => {
@@ -657,6 +658,30 @@ describe('AuthService', () => {
         auth0Id,
         placeholderEmail,
       );
+    });
+  });
+
+  describe('requestPasswordChange', () => {
+    it('delegates to auth0ManagementService.sendChangePasswordEmail', async () => {
+      (
+        mockAuth0ManagementService.sendChangePasswordEmail as Mock
+      ).mockResolvedValue(undefined);
+
+      await service.requestPasswordChange('alice@example.com');
+
+      expect(
+        mockAuth0ManagementService.sendChangePasswordEmail,
+      ).toHaveBeenCalledWith('alice@example.com');
+    });
+
+    it('propagates errors from sendChangePasswordEmail', async () => {
+      (
+        mockAuth0ManagementService.sendChangePasswordEmail as Mock
+      ).mockRejectedValue(new Error('Auth0 error'));
+
+      await expect(
+        service.requestPasswordChange('alice@example.com'),
+      ).rejects.toThrow('Auth0 error');
     });
   });
 });

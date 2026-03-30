@@ -29,7 +29,7 @@ import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { LocalTransport, DOMAIN_EVENTS } from '@libs/events';
-import { BillingStatus } from '@prisma/client';
+import { BillingStatus } from '@libs/prisma-business';
 
 const PRO_PRICE_ID = process.env['STRIPE_PRICE_ID_PRO'] ?? 'price_test_pro';
 const ENTERPRISE_PRICE_ID =

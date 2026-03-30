@@ -8,7 +8,7 @@ import {
   CreateSnapshotInput,
 } from '../../infrastructure/repositories/billing.repository';
 import { BillingStatus } from '../../domain/enums/billing-status.enum';
-import { BillingStatus as PrismaBillingStatus } from '@prisma/client';
+import { BillingStatus as PrismaBillingStatus } from '@libs/prisma-business';
 
 /** Context passed from webhook handlers into the sync function. */
 export interface SyncContext {

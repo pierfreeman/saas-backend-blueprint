@@ -1,0 +1,202 @@
+// ============================================================================
+// PLANNING / CALENDAR
+// Org-scoped event management with RRULE recurrence, RSVP, and soft-delete.
+// Occurrences are generated dynamically from the RRULE — no pre-materialization.
+// Exceptions (overrides / cancellations) are persisted only when needed.
+// ============================================================================
+
+/// RSVP response status for an event attendee.
+enum RSVPStatus {
+  /// Invitation sent; attendee has not yet responded.
+  PENDING
+  /// Attendee confirmed attendance.
+  YES
+  /// Attendee declined.
+  NO
+  /// Attendee responded tentatively.
+  MAYBE
+
+  @@schema("public")
+}
+
+/// Master event record. Single events and recurring series alike.
+/// Recurring occurrences are generated dynamically from `rrule`; only
+/// modified or cancelled occurrences are persisted as EventException rows.
+model Event {
+  /// Internal UUID – primary key.
+  id              String    @id @default(uuid()) @db.Uuid
+  /// FK → Organization (plain string, no relation, survives org deletion for audit).
+  orgId           String    @map("org_id") @db.Uuid
+  /// DB user ID of the member who created the event.
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+
+  /// Short display title of the event.
+  title           String
+  /// Optional longer description.
+  description     String?   @db.Text
+  /// Optional physical or virtual location string.
+  location        String?
+
+  /// UTC start datetime. For all-day events, represents midnight in eventTimezone.
+  startUtc        DateTime  @map("start_utc")
+  /// UTC end datetime. For all-day events, represents end-of-day in eventTimezone.
+  endUtc          DateTime  @map("end_utc")
+  /// True when the event spans the full day (time component is ignored for display).
+  isAllDay        Boolean   @default(false) @map("is_all_day")
+  /// IANA timezone name used for recurrence expansion and display (e.g. Europe/Rome).
+  eventTimezone   String    @map("event_timezone")
+
+  /// RFC 5545 RRULE string (e.g. FREQ=WEEKLY;BYDAY=MO). Null for single events.
+  rrule           String?   @db.Text
+  /// Pre-parsed UNTIL boundary for range queries; mirrors any UNTIL in the RRULE.
+  rruleUntilUtc   DateTime? @map("rrule_until_utc")
+
+  /// Freeform structured metadata (links, tags, etc.).
+  metadata        Json?
+
+  /// Optimistic-concurrency version counter. Incremented on every update.
+  version         Int       @default(1)
+
+  /// Minutes before event start to send a reminder notification.
+  /// Null means no reminder. Supported values: 5, 10, 15, 30, 60, 120, 1440.
+  reminderMinutes         Int?      @map("reminder_minutes")
+  /// UTC timestamp of the last occurrence for which a reminder was sent.
+  /// Used by the cron sweep to avoid re-sending reminders for already-notified occurrences.
+  lastReminderOccurrenceUtc DateTime? @map("last_reminder_occurrence_utc")
+
+  /// Soft-delete timestamp. Null means the event is active.
+  deletedAt       DateTime? @map("deleted_at")
+
+  /// Immutable creation timestamp.
+  createdAt       DateTime  @default(now()) @map("created_at")
+  /// Timestamp of the last update.
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  attendees           EventAttendee[]
+  occurrenceAttendees EventOccurrenceAttendee[]
+  exceptions          EventException[]
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Primary tenant query.
+  @@index([orgId])
+  /// Range query for non-recurring events.
+  @@index([orgId, startUtc])
+  /// Soft-delete filter (only active events).
+  @@index([orgId, deletedAt])
+  /// Recurring event boundary query (find series that overlap a date range).
+  @@index([orgId, startUtc, rruleUntilUtc])
+  /// Reminder sweep query (find events with a configured reminder that are not soft-deleted).
+  @@index([reminderMinutes, deletedAt])
+  @@map("events")
+  @@schema("public")
+}
+
+/// Attendee record for an event (one row per user per event).
+/// Tracks RSVP status. Cascade-deleted when the parent event is deleted.
+model EventAttendee {
+  /// Internal UUID – primary key.
+  id        String     @id @default(uuid()) @db.Uuid
+  /// FK → Event. Cascade-deletes with parent event.
+  eventId   String     @map("event_id") @db.Uuid
+  /// DB user ID of the attendee.
+  userId    String     @map("user_id") @db.Uuid
+
+  /// RSVP response status. Defaults to PENDING for invited users.
+  status    RSVPStatus @default(PENDING)
+
+  /// Immutable creation timestamp (when the attendee was added / invited).
+  createdAt DateTime   @default(now()) @map("created_at")
+  /// Timestamp of the last status change.
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Enforces one RSVP record per user per event.
+  @@unique([eventId, userId])
+  /// Supports listing attendees of an event.
+  @@index([eventId])
+  /// Supports listing all events a user is invited to.
+  @@index([userId])
+  @@map("event_attendees")
+  @@schema("public")
+}
+
+/// Per-occurrence RSVP override for a single occurrence of a recurring event.
+/// When present, this status takes precedence over the master EventAttendee status
+/// for the specific occurrence identified by (eventId, originalStartUtc).
+/// Allows a user to RSVP YES to one occurrence and NO to another without
+/// affecting the rest of the series.
+model EventOccurrenceAttendee {
+  /// Internal UUID – primary key.
+  id               String     @id @default(uuid()) @db.Uuid
+  /// FK → Event (the recurring master). Cascade-deletes with parent event.
+  eventId          String     @map("event_id") @db.Uuid
+  /// DB user ID of the attendee.
+  userId           String     @map("user_id") @db.Uuid
+  /// RRULE-generated start time of the occurrence this RSVP applies to (UTC).
+  originalStartUtc DateTime   @map("original_start_utc")
+
+  /// RSVP response status for this specific occurrence.
+  status           RSVPStatus
+
+  /// Immutable creation timestamp.
+  createdAt        DateTime   @default(now()) @map("created_at")
+  /// Timestamp of the last status change.
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Enforces one occurrence-level RSVP per user per occurrence.
+  @@unique([eventId, userId, originalStartUtc])
+  /// Supports loading all occurrence RSVPs for an event.
+  @@index([eventId])
+  @@map("event_occurrence_attendees")
+  @@schema("public")
+}
+
+/// Override or cancellation record for a single occurrence of a recurring event.
+/// Only persisted when an occurrence deviates from the master event's template.
+/// Matched to an occurrence by `originalStartUtc` (the RRULE-computed start time).
+model EventException {
+  /// Internal UUID – primary key.
+  id              String    @id @default(uuid()) @db.Uuid
+  /// FK → Event (the recurring master). Cascade-deletes with the parent event.
+  eventId         String    @map("event_id") @db.Uuid
+
+  /// RRULE-generated start time of the original occurrence (UTC). Immutable key.
+  originalStartUtc DateTime @map("original_start_utc")
+
+  /// Overridden start time. Null means use the RRULE-computed time.
+  startUtc        DateTime? @map("start_utc")
+  /// Overridden end time. Null means compute from original duration.
+  endUtc          DateTime? @map("end_utc")
+
+  /// True when this occurrence is cancelled (EXDATE equivalent).
+  isCancelled     Boolean   @default(false) @map("is_cancelled")
+
+  /// Overridden title. Null means inherit from master event.
+  title           String?
+  /// Overridden description. Null means inherit from master event.
+  description     String?   @db.Text
+  /// Overridden location. Null means inherit from master event.
+  location        String?
+
+  /// Immutable creation timestamp.
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Enforces one exception per occurrence per event.
+  @@unique([eventId, originalStartUtc])
+  /// Supports loading all exceptions for an event.
+  @@index([eventId])
+  @@map("event_exceptions")
+  @@schema("public")
+}

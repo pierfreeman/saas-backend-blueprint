@@ -1,0 +1,133 @@
+// ============================================================================
+// JOB MODEL
+// Tracks the full lifecycle of an asynchronous background job.
+// Created by the API as PENDING when the event is enqueued; updated by the
+// worker to PROCESSING → DONE | FAILED. Queryable via GET /tasks/:jobId.
+//
+// ORG EXPORT MODEL
+// Tracks organization data export requests for GDPR/ISO 27001 compliance.
+// Links to Job for async processing; maintains domain-specific state.
+// ============================================================================
+
+/// Lifecycle status of an asynchronous background job.
+/// Transitions: PENDING → PROCESSING → DONE | FAILED
+enum JobStatus {
+  /// Job has been accepted and enqueued, waiting for a worker to pick it up.
+  PENDING
+  /// A worker has dequeued the job and is actively executing it.
+  PROCESSING
+  /// The worker completed execution successfully. Result is stored in `result`.
+  DONE
+  /// The worker encountered an unrecoverable error. Details are in `error`.
+  FAILED
+
+  @@schema("public")
+}
+
+/// Status of an organization data export.
+/// Transitions: PENDING → PROCESSING → COMPLETED | FAILED | EXPIRED
+enum ExportStatus {
+  /// Export has been requested and is waiting to be processed.
+  PENDING
+  /// Worker is actively generating the export file.
+  PROCESSING
+  /// Export file has been generated and is ready for download.
+  COMPLETED
+  /// Export generation failed due to an error.
+  FAILED
+  /// Export file has expired and is no longer available for download.
+  EXPIRED
+
+  @@schema("public")
+}
+
+model Job {
+  /// Internal UUID – primary key. Matches the jobId propagated on SQS.
+  id         String    @id @default(uuid()) @db.Uuid
+  /// FK → Organization (tenant). Links the job to a billing/RBAC boundary.
+  /// Stored as a plain string (no relation) to avoid cascade complexity;
+  /// jobs must survive org deletion for billing audit purposes.
+  orgId      String    @map("org_id")
+  /// Auth0 subject of the user who submitted the job. Null for system-initiated jobs.
+  userId     String?   @map("user_id")
+  /// Discriminator for the job handler (e.g. 'heavy_job').
+  /// Allows future fan-out to multiple worker types without schema changes.
+  type       String    @default("heavy_job")
+  /// Current lifecycle status. Defaults to PENDING on creation.
+  status     JobStatus @default(PENDING)
+  /// Original request payload forwarded verbatim from the API to the worker.
+  /// Must NOT contain raw secrets; callers are responsible for sanitisation.
+  payload    Json      @default("{}")
+  /// Structured output produced by the worker on successful completion.
+  result     Json?
+  /// Human-readable error message when status = FAILED.
+  error      String?
+  /// Number of times a worker has attempted this job (incremented on PROCESSING).
+  /// Useful for detecting jobs that fail repeatedly before hitting the DLQ.
+  attempts   Int       @default(0)
+  /// Timestamp when the first PROCESSING transition occurred.
+  startedAt  DateTime? @map("started_at")
+  /// Timestamp when the job reached a terminal state (DONE or FAILED).
+  finishedAt DateTime? @map("finished_at")
+  /// Timestamp of record creation (= time the job was accepted by the API).
+  createdAt  DateTime  @default(now()) @map("created_at")
+  /// Timestamp of the last status update.
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  orgExport  OrgExport?
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Primary tenant query: "list all jobs for tenant X, newest first".
+  @@index([orgId, createdAt(sort: Desc)])
+  /// Status-filtered tenant query: "show me all FAILED jobs for tenant X".
+  @@index([orgId, status])
+  /// User activity timeline: "show me all jobs submitted by user Y".
+  @@index([userId, createdAt(sort: Desc)])
+  /// Admin/ops query: global status sweep (e.g. stuck PROCESSING jobs).
+  @@index([status, createdAt(sort: Desc)])
+  @@map("jobs")
+  @@schema("public")
+}
+
+/// Organization data export record for GDPR Right to Data Portability.
+/// Tracks export lifecycle from request to completion/expiration.
+model OrgExport {
+  /// Internal UUID – primary key.
+  id                String       @id @default(uuid()) @db.Uuid
+  /// FK → Organization (plain string, no relation, survives org deletion for audit).
+  orgId             String       @map("org_id")
+  /// FK → Job (unique 1:1 relationship with the async job processing this export).
+  jobId             String       @unique @map("job_id") @db.Uuid
+  job               Job          @relation(fields: [jobId], references: [id])
+  /// Auth0 subject of the user who requested the export.
+  requestedByUserId String       @map("requested_by_user_id")
+  /// Current status of the export.
+  status            ExportStatus @default(PENDING)
+  /// Signed URL to download the export file (set when status = COMPLETED).
+  fileUrl           String?      @map("file_url")
+  /// Size of the export file in bytes (set when status = COMPLETED).
+  fileSize          BigInt?      @map("file_size")
+  /// Timestamp when the signed download URL expires.
+  expiresAt         DateTime?    @map("expires_at")
+  /// Timestamp when the export was requested.
+  createdAt         DateTime     @default(now()) @map("created_at")
+  /// Timestamp when the export completed successfully.
+  completedAt       DateTime?    @map("completed_at")
+  /// Timestamp when the export failed.
+  failedAt          DateTime?    @map("failed_at")
+  /// Human-readable error message if status = FAILED.
+  error             String?
+
+  // ── Indexes ────────────────────────────────────────────────────────────────
+  /// Primary tenant query: "list all exports for org X, newest first".
+  @@index([orgId, createdAt(sort: Desc)])
+  /// Status-filtered tenant query: "show me all COMPLETED exports for org X".
+  @@index([orgId, status])
+  /// User activity query: "show me all exports requested by user Y".
+  @@index([requestedByUserId, createdAt(sort: Desc)])
+  /// Admin/ops query: find exports that have expired.
+  @@index([status, expiresAt])
+  @@map("org_exports")
+  @@schema("public")
+}

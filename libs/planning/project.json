@@ -1,0 +1,27 @@
+{
+  "name": "planning",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/planning/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:planning"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/planning"],
+      "options": {
+        "configFile": "libs/planning/vitest.config.ts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/planning/tsconfig.lib.json --noEmit"
+      }
+    }
+  }
+}

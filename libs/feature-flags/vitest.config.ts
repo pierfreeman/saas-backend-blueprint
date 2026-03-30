@@ -18,6 +18,7 @@ export default defineConfig({
     }),
   ],
   test: {
+    root: dirname(fileURLToPath(import.meta.url)),
     name: 'feature-flags',
     globals: true,
     environment: 'node',

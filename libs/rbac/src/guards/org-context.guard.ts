@@ -13,7 +13,7 @@ import { MembershipsService } from '@libs/memberships';
 import { OrganizationsService } from '@libs/organizations';
 import { RequestUser, TenantRequest } from '@libs/common';
 import { ORG_SCOPED_KEY } from '../decorators/org-scoped.decorator';
-import { MembershipStatus } from '@prisma/client';
+import { MembershipStatus } from '@libs/prisma-business';
 
 export interface RequestWithOrgContext extends Request, TenantRequest {
   user: RequestUser & { dbUserId?: string };

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Job } from '@prisma/client';
+import { Job } from '@libs/prisma-business';
 import { JobRepository } from '../../infrastructure/repositories/job.repository';
 
 @Injectable()

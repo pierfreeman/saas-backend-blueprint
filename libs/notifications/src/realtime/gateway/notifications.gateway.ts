@@ -297,29 +297,53 @@ export class NotificationsGateway
 
   /**
    * Forwards a `notification:new` event to the target user's room.
+   * Also emits the updated unread count for the user.
    *
    * @event notification:new
+   * @event notification:unread-count
    */
-  private handleUserNotificationMessage(
+  private async handleUserNotificationMessage(
     event: RealtimeEvent<NotificationMessage>,
-  ): void {
+  ): Promise<void> {
     const { userId } = event.payload;
     this.server.to(`user:${userId}`).emit('notification:new', event.payload);
+
+    // Emit updated unread count for the user
+    const unreadCount = await this.notificationsService.getUnreadCount(userId);
+    this.server
+      .to(`user:${userId}`)
+      .emit('notification:unread-count', { count: unreadCount });
+
     this.logger.debug(`Forwarded user notification to room user:${userId}`);
   }
 
-  private handleOrgNotificationMessage(
+  private async handleOrgNotificationMessage(
     event: RealtimeEvent<NotificationMessage>,
-  ): void {
-    const { orgId } = event.payload;
+  ): Promise<void> {
+    const { userId, orgId } = event.payload;
     this.server.to(`org:${orgId}`).emit('notification:new', event.payload);
+
+    // Emit updated unread count for the specific user who received the notification
+    const unreadCount = await this.notificationsService.getUnreadCount(userId);
+    this.server
+      .to(`user:${userId}`)
+      .emit('notification:unread-count', { count: unreadCount });
+
     this.logger.debug(`Forwarded org notification to room org:${orgId}`);
   }
 
-  private handleGlobalNotificationMessage(
+  private async handleGlobalNotificationMessage(
     event: RealtimeEvent<NotificationMessage>,
-  ): void {
+  ): Promise<void> {
+    const { userId } = event.payload;
     this.server.emit('notification:new', event.payload);
+
+    // Emit updated unread count for the specific user who received the notification
+    const unreadCount = await this.notificationsService.getUnreadCount(userId);
+    this.server
+      .to(`user:${userId}`)
+      .emit('notification:unread-count', { count: unreadCount });
+
     this.logger.debug('Forwarded global notification to all sockets');
   }
 

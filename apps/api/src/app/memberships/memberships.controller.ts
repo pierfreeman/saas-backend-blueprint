@@ -18,7 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Membership } from '@prisma/client';
+import { Membership } from '@libs/prisma-business';
 import {
   OrgScoped,
   RequirePermissions,

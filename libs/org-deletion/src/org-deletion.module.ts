@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaBusinessModule } from '@libs/prisma-business';
 import { EventsModule } from '@libs/events';
 import { LegalAuditModule } from '@libs/legal-audit';
@@ -17,7 +16,6 @@ import { OrgDeletionRepository } from './infrastructure/repositories/org-deletio
 @Module({
   imports: [
     ConfigModule,
-    ScheduleModule.forRoot(),
     PrismaBusinessModule,
     EventsModule,
     LegalAuditModule,

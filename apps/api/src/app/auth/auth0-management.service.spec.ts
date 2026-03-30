@@ -287,4 +287,77 @@ describe('Auth0ManagementService', () => {
       ).rejects.toThrow('Passwordless API error');
     });
   });
+
+  describe('sendChangePasswordEmail', () => {
+    beforeEach(() => {
+      mockGet.mockImplementation((key: string) => {
+        const cfg: Record<string, string> = {
+          'auth.domain': 'test.auth0.com',
+          'auth.m2mClientId': 'client-id',
+          'auth.m2mClientSecret': 'client-secret',
+          'auth.spaClientId': 'spa-client-id',
+        };
+        return cfg[key];
+      });
+    });
+
+    it('sends a change-password request to the Auth0 dbconnections endpoint', async () => {
+      mockPost.mockResolvedValue({ data: {} });
+
+      await service.sendChangePasswordEmail('alice@example.com');
+
+      expect(mockPost).toHaveBeenCalledWith(
+        'https://test.auth0.com/dbconnections/change_password',
+        {
+          client_id: 'spa-client-id',
+          email: 'alice@example.com',
+          connection: 'Username-Password-Authentication',
+        },
+      );
+    });
+
+    it('does NOT fetch an M2M token (Authentication API — no token required)', async () => {
+      mockPost.mockResolvedValue({ data: {} });
+
+      await service.sendChangePasswordEmail('alice@example.com');
+
+      // The only post call should be to the change_password endpoint, not /oauth/token
+      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockPost).not.toHaveBeenCalledWith(
+        expect.stringContaining('/oauth/token'),
+        expect.anything(),
+      );
+    });
+
+    it('throws when Auth0 SPA client ID is not configured', async () => {
+      mockGet.mockImplementation((key: string) => {
+        const cfg: Record<string, string> = {
+          'auth.domain': 'test.auth0.com',
+        };
+        return cfg[key];
+      });
+      service = buildService();
+
+      await expect(
+        service.sendChangePasswordEmail('alice@example.com'),
+      ).rejects.toThrow('Auth0 SPA client ID is not configured');
+    });
+
+    it('throws when Auth0 domain is not configured', async () => {
+      mockGet.mockReturnValue(undefined);
+      service = buildService();
+
+      await expect(
+        service.sendChangePasswordEmail('alice@example.com'),
+      ).rejects.toThrow('Auth0 SPA client ID is not configured');
+    });
+
+    it('propagates errors from the HTTP request', async () => {
+      mockPost.mockRejectedValue(new Error('Auth0 API error'));
+
+      await expect(
+        service.sendChangePasswordEmail('alice@example.com'),
+      ).rejects.toThrow('Auth0 API error');
+    });
+  });
 });

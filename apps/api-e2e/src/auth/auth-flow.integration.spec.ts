@@ -30,7 +30,7 @@ import {
   BillingStatus,
   MembershipRole,
   MembershipStatus,
-} from '@prisma/client';
+} from '@libs/prisma-business';
 
 describe('Auth Flow (integration)', () => {
   let app: INestApplication;

@@ -1,11 +1,13 @@
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { RequestUser } from '@libs/common';
+import { BadRequestException } from '@nestjs/common';
 import { vi } from 'vitest';
 
 const mockAuthService = {
   syncUser: vi.fn(),
   updateProfile: vi.fn(),
+  requestPasswordChange: vi.fn(),
 } as unknown as AuthService;
 
 const baseUser: RequestUser = {
@@ -164,6 +166,72 @@ describe('AuthController', () => {
       expect(result.firstName).toBeNull();
       expect(result.lastName).toBeNull();
       expect(result.pictureUrl).toBeNull();
+    });
+  });
+
+  describe('requestPasswordChange', () => {
+    it('syncs the user then sends a password reset email', async () => {
+      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
+      mockAuthService.requestPasswordChange = vi
+        .fn()
+        .mockResolvedValue(undefined);
+
+      await controller.requestPasswordChange(baseUser);
+
+      expect(mockAuthService.syncUser).toHaveBeenCalledWith(
+        'auth0|u1',
+        'user@example.com',
+      );
+      expect(mockAuthService.requestPasswordChange).toHaveBeenCalledWith(
+        'user@example.com',
+      );
+    });
+
+    it('throws BadRequestException for Google accounts (google-oauth2| prefix)', async () => {
+      const googleUser: RequestUser = {
+        sub: 'google-oauth2|123',
+        email: 'user@example.com',
+      };
+
+      await expect(
+        controller.requestPasswordChange(googleUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException for passwordless accounts (email| prefix)', async () => {
+      const passwordlessUser: RequestUser = {
+        sub: 'email|abc',
+        email: 'user@example.com',
+      };
+
+      await expect(
+        controller.requestPasswordChange(passwordlessUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('does not call syncUser or requestPasswordChange for non-database accounts', async () => {
+      const googleUser: RequestUser = {
+        sub: 'google-oauth2|123',
+        email: 'user@example.com',
+      };
+
+      await expect(
+        controller.requestPasswordChange(googleUser),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockAuthService.syncUser).not.toHaveBeenCalled();
+      expect(mockAuthService.requestPasswordChange).not.toHaveBeenCalled();
+    });
+
+    it('propagates errors from requestPasswordChange', async () => {
+      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
+      mockAuthService.requestPasswordChange = vi
+        .fn()
+        .mockRejectedValue(new Error('Auth0 error'));
+
+      await expect(controller.requestPasswordChange(baseUser)).rejects.toThrow(
+        'Auth0 error',
+      );
     });
   });
 });
