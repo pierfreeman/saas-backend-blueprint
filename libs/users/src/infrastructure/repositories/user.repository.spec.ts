@@ -8,6 +8,7 @@ const mockPrisma = {
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   },
   organization: { create: vi.fn() },
   membership: { create: vi.fn() },
@@ -47,6 +48,23 @@ describe('UserRepository', () => {
     });
   });
 
+  describe('findByEmail', () => {
+    it('queries user by email', async () => {
+      const user = { id: 'u-1', auth0Id: 'auth0|1', email: 'a@b.com' };
+      mockPrisma.user.findUnique = vi.fn().mockResolvedValue(user);
+
+      expect(await repo.findByEmail('a@b.com')).toBe(user);
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'a@b.com' },
+      });
+    });
+
+    it('returns null when email is not found', async () => {
+      mockPrisma.user.findUnique = vi.fn().mockResolvedValue(null);
+      expect(await repo.findByEmail('missing@b.com')).toBeNull();
+    });
+  });
+
   describe('updateEmail', () => {
     it('updates the email field', async () => {
       const updated = { id: 'u-1', email: 'new@b.com' };
@@ -56,6 +74,19 @@ describe('UserRepository', () => {
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'u-1' },
         data: { email: 'new@b.com' },
+      });
+    });
+  });
+
+  describe('updateAuth0Id', () => {
+    it('updates the auth0Id field', async () => {
+      const updated = { id: 'u-1', auth0Id: 'auth0|new' };
+      mockPrisma.user.update = vi.fn().mockResolvedValue(updated);
+
+      expect(await repo.updateAuth0Id('u-1', 'auth0|new')).toBe(updated);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
+        data: { auth0Id: 'auth0|new' },
       });
     });
   });
@@ -150,6 +181,18 @@ describe('UserRepository', () => {
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'u-1' },
         data: { firstName: 'Bob' },
+      });
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('deletes the user by id', async () => {
+      mockPrisma.user.delete = vi.fn().mockResolvedValue(undefined);
+
+      await repo.deleteUser('u-1');
+
+      expect(mockPrisma.user.delete).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
       });
     });
   });
