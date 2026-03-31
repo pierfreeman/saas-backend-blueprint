@@ -29,7 +29,7 @@ libs/
   billing/         → Stripe subscriptions (Pattern A — DDD)
   common/          → RBAC constants, tenant context, exception filter
   config/          → ConfigModule with Joi validation
-  email/           → Transactional email (SendGrid/SMTP)
+  email/           → Transactional email (Resend/SMTP)
   events/          → EventBusService (Local/SQS)
   jobs/            → Background job lifecycle
   legal-audit/     → Immutable compliance trail (legal DB)

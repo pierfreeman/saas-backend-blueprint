@@ -31,7 +31,7 @@ Pairs with [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + M
 | Background workers | NestJS standalone app, long-polls SQS Standard queue      |
 | Real-time          | Socket.IO 4.8 with Redis adapter (multi-pod)              |
 | File storage       | AWS S3 (presigned URLs, multi-tenant isolation)           |
-| Email              | SendGrid / SMTP, Handlebars templates                     |
+| Email              | Resend / SMTP, Handlebars templates                       |
 | Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles      |
 | Testing            | Vitest 4 (unit + integration)                             |
 | Observability      | Structured JSON logging, Sentry, Prometheus/Datadog stubs |
@@ -54,7 +54,7 @@ libs/
   billing/         → Stripe subscription management (checkout, portal, webhooks)
   common/          → Shared RBAC constants, tenant context, exception filter
   config/          → NestJS ConfigModule wrappers with Joi validation
-  email/           → Event-driven transactional email (SendGrid/SMTP, Handlebars)
+  email/           → Event-driven transactional email (Resend/SMTP, Handlebars)
   events/          → EventBusService facade (LocalTransport / SQS)
   feature-flags/   → Plan-based entitlements with Redis cache + route-level FeatureGuard
   jobs/            → Background job lifecycle (create → enqueue → process → done/fail)

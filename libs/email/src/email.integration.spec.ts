@@ -10,22 +10,18 @@ import {
 
 // Hoist mocks so the factory below can reference them (vi.hoisted runs
 // before vi.mock factories and module imports).
-const { mockSend, mockSetApiKey } = vi.hoisted(() => ({
+const { mockSend } = vi.hoisted(() => ({
   mockSend: vi.fn(),
-  mockSetApiKey: vi.fn(),
 }));
 
-// Explicit factory: the @sendgrid/mail package uses `export =` (CJS singleton).
-// When compiled via esModuleInterop the provider resolves `SendGridMail.default`
-// first, so we must stub *both* the default export and the named exports with
-// the same mock functions to guarantee the same reference is checked in
-// assertions regardless of which resolution path the provider takes.
-vi.mock('@sendgrid/mail', () => ({
-  __esModule: true,
-  default: { send: mockSend, setApiKey: mockSetApiKey },
-  send: mockSend,
-  setApiKey: mockSetApiKey,
-}));
+// Mock the Resend SDK — constructor returns an object with emails.send().
+vi.mock('resend', () => {
+  return {
+    Resend: class MockResend {
+      emails = { send: mockSend };
+    },
+  };
+});
 
 describe('Email Integration Tests', () => {
   let module: TestingModule;
@@ -33,10 +29,10 @@ describe('Email Integration Tests', () => {
   let emailProvider: EmailProvider;
 
   beforeEach(async () => {
-    // Reset mocks between tests — must call mockReset on the shared functions
-    // (not reassign them, which would break the reference inside the module).
-    mockSend.mockReset().mockResolvedValue([{ statusCode: 202 }]);
-    mockSetApiKey.mockReset();
+    // Reset mocks between tests
+    mockSend
+      .mockReset()
+      .mockResolvedValue({ data: { id: 'msg-123' }, error: null });
 
     module = await Test.createTestingModule({
       imports: [
@@ -45,12 +41,12 @@ describe('Email Integration Tests', () => {
           load: [
             () => ({
               email: {
-                provider: 'sendgrid',
+                provider: 'resend',
                 from: {
                   address: 'noreply@test.com',
                   name: 'Test System',
                 },
-                sendgrid: {
+                resend: {
                   apiKey: 'test-api-key',
                 },
               },
@@ -89,7 +85,7 @@ describe('Email Integration Tests', () => {
 
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
-          to: 'test@example.com',
+          to: ['test@example.com'],
           subject: 'Sign in to your account',
         }),
       );
@@ -103,10 +99,6 @@ describe('Email Integration Tests', () => {
 
     it('should provide email provider', () => {
       expect(emailProvider).toBeDefined();
-    });
-
-    it('should initialize SendGrid with API key', () => {
-      expect(mockSetApiKey).toHaveBeenCalledWith('test-api-key');
     });
   });
 });

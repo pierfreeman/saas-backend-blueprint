@@ -33,7 +33,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 - 📋 Two-tier audit logging — tenant-visible activity log + immutable legal audit trail (ISO 27001 / GDPR)
 - 🗑️ GDPR-compliant org deletion — configurable retention periods, async worker execution, legal audit preservation
 - 📦 GDPR-compliant org export — async JSON+gzip data export, presigned download URLs, automatic expiration (Right to Data Portability)
-- ✉️ Event-driven transactional email — SendGrid/SMTP, Handlebars templates, automatic audit logging
+- ✉️ Event-driven transactional email — Resend/SMTP, Handlebars templates, automatic audit logging
 - 🗄️ S3 file storage — presigned upload/download URLs, per-org isolation, quota enforcement, cleanup scheduler
 - 🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
 - 📊 Structured observability — JSON logging, Sentry, Prometheus/Datadog stubs
@@ -83,7 +83,7 @@ libs/
   billing         — Stripe subscription management (checkout, portal, webhooks)
   common          — Shared RBAC constants, tenant context, exception filter
   config          — NestJS ConfigModule wrappers with Joi validation
-  email           — Event-driven transactional email (SendGrid/SMTP, Handlebars templates)
+  email           — Event-driven transactional email (Resend/SMTP, Handlebars templates)
   events          — EventBusService facade (LocalTransport / SQS), DomainEvent types
   legal-audit     — Immutable compliance event recorder (legal DB, ISO 27001 / GDPR)
   org-deletion    — GDPR-compliant organization deletion with retention periods and audit trail
@@ -143,7 +143,7 @@ prisma-legal/
 | Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                                                                                                   |
 | Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                      |
 | Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                    |
-| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; SendGrid/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                      |
+| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; Resend/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                        |
 | Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                               |
 | Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                      |
 | Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                              |
@@ -220,10 +220,10 @@ cp .env.example .env
 | `STRIPE_WEBHOOK_SECRET`       | —                       | Stripe webhook signing secret (`whsec_…`)                           |
 | `STRIPE_PRICE_ID_PRO`         | —                       | Stripe Price ID → PRO tier                                          |
 | `STRIPE_PRICE_ID_ENTERPRISE`  | —                       | Stripe Price ID → ENTERPRISE tier                                   |
-| `EMAIL_PROVIDER`              | `sendgrid`              | Email provider: `sendgrid` or `smtp`                                |
+| `EMAIL_PROVIDER`              | `resend`                | Email provider: `resend` or `smtp`                                  |
 | `EMAIL_FROM_ADDRESS`          | —                       | Sender email address                                                |
 | `EMAIL_FROM_NAME`             | —                       | Sender display name                                                 |
-| `SENDGRID_API_KEY`            | —                       | SendGrid API key (required when `EMAIL_PROVIDER=sendgrid`)          |
+| `RESEND_API_KEY`              | —                       | Resend API key (required when `EMAIL_PROVIDER=resend`)              |
 | `SMTP_HOST`                   | —                       | SMTP host (required when `EMAIL_PROVIDER=smtp`)                     |
 | `SENTRY_DSN`                  | —                       | Sentry project DSN                                                  |
 | `CORS_ALLOWED_ORIGINS`        | _(all in dev)_          | Comma-separated allowed origins (required in production)            |

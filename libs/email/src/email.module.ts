@@ -5,7 +5,7 @@ import { LegalAuditModule } from '@libs/legal-audit';
 import { EmailService } from './email.service';
 import { TemplateRendererService } from './templates/template-renderer.service';
 import { EMAIL_PROVIDER } from './providers/email-provider.interface';
-import { SendGridProvider } from './providers/sendgrid.provider';
+import { ResendProvider } from './providers/resend.provider';
 import { SmtpProvider } from './providers/smtp.provider';
 
 @Module({
@@ -18,7 +18,7 @@ import { SmtpProvider } from './providers/smtp.provider';
         if (provider === 'smtp') {
           return new SmtpProvider(configService);
         }
-        return new SendGridProvider(configService);
+        return new ResendProvider(configService);
       },
       inject: [ConfigService],
     },

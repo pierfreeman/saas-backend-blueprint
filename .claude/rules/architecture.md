@@ -33,7 +33,7 @@ apps/  →  libs/ (application services)  →  libs/ (infrastructure/repositorie
 
 ## Pattern A — Full DDD
 
-For libs with external integration boundaries (Stripe, S3, SendGrid).
+For libs with external integration boundaries (Stripe, S3, Resend).
 
 ```
 libs/{name}/src/
@@ -126,7 +126,7 @@ Adding inside an app (apps/api or apps/worker-a)?
   → Pattern F (thin feature module). Extract logic to libs/ if complex.
 
 Creating a shared library?
-  ├─ Wraps a third-party service (Stripe, S3, SendGrid)?
+  ├─ Wraps a third-party service (Stripe, S3, Resend)?
   │    → Pattern A (3-layer DDD with port/adapter)
   ├─ Owns a domain aggregate with stable DB schema?
   │    → Pattern B (2-layer: application + infrastructure)

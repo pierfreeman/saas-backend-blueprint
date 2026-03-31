@@ -1,12 +1,12 @@
 import { registerAs } from '@nestjs/config';
 
 export interface EmailConfig {
-  provider: 'sendgrid' | 'smtp';
+  provider: 'resend' | 'smtp';
   from: {
     address: string;
     name: string;
   };
-  sendgrid?: {
+  resend?: {
     apiKey: string;
   };
   smtp?: {
@@ -23,14 +23,13 @@ export interface EmailConfig {
 export default registerAs(
   'email',
   (): EmailConfig => ({
-    provider:
-      (process.env['EMAIL_PROVIDER'] as 'sendgrid' | 'smtp') ?? 'sendgrid',
+    provider: (process.env['EMAIL_PROVIDER'] as 'resend' | 'smtp') ?? 'resend',
     from: {
       address: process.env['EMAIL_FROM_ADDRESS'] ?? 'noreply@example.com',
       name: process.env['EMAIL_FROM_NAME'] ?? 'SaaS Backend',
     },
-    sendgrid: {
-      apiKey: process.env['SENDGRID_API_KEY'] ?? '',
+    resend: {
+      apiKey: process.env['RESEND_API_KEY'] ?? '',
     },
     smtp: {
       host: process.env['SMTP_HOST'] ?? '',

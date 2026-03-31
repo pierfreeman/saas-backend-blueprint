@@ -116,15 +116,15 @@ export const envValidationSchema = Joi.object({
   DATADOG_SERVICE_NAME: Joi.string().optional(),
 
   // ── Email ─────────────────────────────────────────────────────────────────
-  EMAIL_PROVIDER: Joi.string().valid('sendgrid', 'smtp').default('sendgrid'),
+  EMAIL_PROVIDER: Joi.string().valid('resend', 'smtp').default('resend'),
   EMAIL_FROM_ADDRESS: Joi.string()
     .email({ tlds: { allow: false } })
     .default('noreply@example.com'),
   EMAIL_FROM_NAME: Joi.string().default('SaaS Backend'),
 
-  // SendGrid
-  SENDGRID_API_KEY: Joi.string().when('EMAIL_PROVIDER', {
-    is: 'sendgrid',
+  // Resend
+  RESEND_API_KEY: Joi.string().when('EMAIL_PROVIDER', {
+    is: 'resend',
     then: Joi.required(),
     otherwise: Joi.optional().allow(''),
   }),

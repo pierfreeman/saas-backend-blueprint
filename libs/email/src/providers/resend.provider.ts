@@ -1,63 +1,55 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as SendGridMail from '@sendgrid/mail';
+import { Resend } from 'resend';
 import { EmailProvider } from './email-provider.interface';
 import { SendEmailDto } from '../dto/send-email.dto';
 
-// @sendgrid/mail exports a MailService singleton via `export =`, so methods
-// like setApiKey and send live on the prototype — not as own enumerable
-// properties. When esModuleInterop:true causes `import * as` to be compiled
-// via __importStar(), prototype methods are stripped from the result.
-// Resolving the real module reference here handles both compilation modes.
-const sgMail =
-  (SendGridMail as unknown as { default?: typeof SendGridMail }).default ??
-  SendGridMail;
-
 /**
- * SendGrid Email Provider
+ * Resend Email Provider
  *
- * Implements email delivery via SendGrid's API.
+ * Implements email delivery via Resend's API.
  * Initialized with API key from ConfigService.
  */
 @Injectable()
-export class SendGridProvider implements EmailProvider {
-  private readonly logger = new Logger(SendGridProvider.name);
+export class ResendProvider implements EmailProvider {
+  private readonly logger = new Logger(ResendProvider.name);
+  private readonly client: Resend;
   private readonly fromAddress: string;
   private readonly fromName: string;
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('email.sendgrid.apiKey');
+    const apiKey = this.configService.get<string>('email.resend.apiKey');
     this.fromAddress = this.configService.get<string>('email.from.address')!;
     this.fromName = this.configService.get<string>('email.from.name')!;
 
     if (apiKey) {
-      sgMail.setApiKey(apiKey);
-      this.logger.log('SendGrid provider initialized');
+      this.client = new Resend(apiKey);
+      this.logger.log('Resend provider initialized');
     } else {
+      this.client = new Resend('');
       this.logger.warn(
-        'SendGrid API key not configured. Email sending will fail.',
+        'Resend API key not configured. Email sending will fail.',
       );
     }
   }
 
   /**
-   * Send email via SendGrid
+   * Send email via Resend
    */
   async sendEmail(input: SendEmailDto): Promise<void> {
     try {
-      const message: SendGridMail.MailDataRequired = {
-        to: input.to,
-        from: {
-          email: this.fromAddress,
-          name: this.fromName,
-        },
+      const { error } = await this.client.emails.send({
+        from: `${this.fromName} <${this.fromAddress}>`,
+        to: [input.to],
         subject: input.subject,
         html: input.html,
         text: input.text,
         replyTo: input.replyTo,
-      };
+      });
 
-      await sgMail.send(message);
+      if (error) {
+        throw new Error(error.message);
+      }
 
       this.logger.log(`Email sent successfully to ${input.to}`);
     } catch (error) {

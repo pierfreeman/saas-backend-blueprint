@@ -1,34 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { SendGridProvider } from './sendgrid.provider';
+import { ResendProvider } from './resend.provider';
 import { SendEmailDto } from '../dto/send-email.dto';
 import { vi } from 'vitest';
 
-const { mockSetApiKey, mockSend } = vi.hoisted(() => ({
-  mockSetApiKey: vi.fn(),
+const { mockSend } = vi.hoisted(() => ({
   mockSend: vi.fn(),
 }));
 
-// Mock SendGrid module - provider resolves sgMail via `.default ?? module`
-vi.mock('@sendgrid/mail', () => {
-  const sgMock = {
-    setApiKey: mockSetApiKey,
-    send: mockSend,
-  };
+vi.mock('resend', () => {
   return {
-    default: sgMock,
-    ...sgMock,
+    Resend: class MockResend {
+      emails = { send: mockSend };
+    },
   };
 });
 
-describe('SendGridProvider', () => {
-  let provider: SendGridProvider;
-  let configService: ConfigService;
+describe('ResendProvider', () => {
+  let provider: ResendProvider;
 
   const mockConfigService = {
     get: vi.fn((key: string) => {
       const config: Record<string, string> = {
-        'email.sendgrid.apiKey': 'test-api-key',
+        'email.resend.apiKey': 'test-api-key',
         'email.from.address': 'test@example.com',
         'email.from.name': 'Test Sender',
       };
@@ -41,7 +35,7 @@ describe('SendGridProvider', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        SendGridProvider,
+        ResendProvider,
         {
           provide: ConfigService,
           useValue: mockConfigService,
@@ -49,16 +43,11 @@ describe('SendGridProvider', () => {
       ],
     }).compile();
 
-    provider = module.get<SendGridProvider>(SendGridProvider);
-    configService = module.get<ConfigService>(ConfigService);
+    provider = module.get<ResendProvider>(ResendProvider);
   });
 
   it('should be defined', () => {
     expect(provider).toBeDefined();
-  });
-
-  it('should initialize SendGrid with API key', () => {
-    expect(mockSetApiKey).toHaveBeenCalledWith('test-api-key');
   });
 
   describe('sendEmail', () => {
@@ -70,16 +59,13 @@ describe('SendGridProvider', () => {
         text: 'Test Text',
       };
 
-      mockSend.mockResolvedValue([{ statusCode: 202 }]);
+      mockSend.mockResolvedValue({ data: { id: 'msg-123' }, error: null });
 
       await provider.sendEmail(emailDto);
 
       expect(mockSend).toHaveBeenCalledWith({
-        to: 'recipient@example.com',
-        from: {
-          email: 'test@example.com',
-          name: 'Test Sender',
-        },
+        from: 'Test Sender <test@example.com>',
+        to: ['recipient@example.com'],
         subject: 'Test Subject',
         html: '<p>Test HTML</p>',
         text: 'Test Text',
@@ -95,7 +81,7 @@ describe('SendGridProvider', () => {
         replyTo: 'reply@example.com',
       };
 
-      mockSend.mockResolvedValue([{ statusCode: 202 }]);
+      mockSend.mockResolvedValue({ data: { id: 'msg-123' }, error: null });
 
       await provider.sendEmail(emailDto);
 
@@ -106,15 +92,31 @@ describe('SendGridProvider', () => {
       );
     });
 
-    it('should throw error if SendGrid fails', async () => {
+    it('should throw error if Resend returns an error response', async () => {
       const emailDto: SendEmailDto = {
         to: 'recipient@example.com',
         subject: 'Test Subject',
         html: '<p>Test HTML</p>',
       };
 
-      const mockError = new Error('SendGrid API error');
-      mockSend.mockRejectedValue(mockError);
+      mockSend.mockResolvedValue({
+        data: null,
+        error: { message: 'Invalid API key', name: 'validation_error' },
+      });
+
+      await expect(provider.sendEmail(emailDto)).rejects.toThrow(
+        'Email delivery failed',
+      );
+    });
+
+    it('should throw error if Resend SDK throws', async () => {
+      const emailDto: SendEmailDto = {
+        to: 'recipient@example.com',
+        subject: 'Test Subject',
+        html: '<p>Test HTML</p>',
+      };
+
+      mockSend.mockRejectedValue(new Error('Network error'));
 
       await expect(provider.sendEmail(emailDto)).rejects.toThrow(
         'Email delivery failed',
@@ -141,7 +143,7 @@ describe('SendGridProvider', () => {
       const mockConfigWithoutKey = {
         get: vi.fn((key: string) => {
           const config: Record<string, string | undefined> = {
-            'email.sendgrid.apiKey': undefined,
+            'email.resend.apiKey': undefined,
             'email.from.address': 'test@example.com',
             'email.from.name': 'Test Sender',
           };
@@ -151,7 +153,7 @@ describe('SendGridProvider', () => {
 
       const module: TestingModule = await Test.createTestingModule({
         providers: [
-          SendGridProvider,
+          ResendProvider,
           {
             provide: ConfigService,
             useValue: mockConfigWithoutKey,
@@ -159,10 +161,9 @@ describe('SendGridProvider', () => {
         ],
       }).compile();
 
-      const providerWithoutKey = module.get<SendGridProvider>(SendGridProvider);
+      const providerWithoutKey = module.get<ResendProvider>(ResendProvider);
 
       expect(providerWithoutKey).toBeDefined();
-      // The provider should still be created but will log a warning
     });
   });
 });
