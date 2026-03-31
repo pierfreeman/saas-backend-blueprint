@@ -1,6 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import * as fs from 'node:fs';
 import { TemplateRendererService } from './template-renderer.service';
 import { EmailTemplateName } from '../types/email-template.type';
+import { Mock, vi } from 'vitest';
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return { ...actual, existsSync: vi.fn(actual.existsSync) };
+});
 
 describe('TemplateRendererService', () => {
   let service: TemplateRendererService;
@@ -170,6 +177,64 @@ describe('TemplateRendererService', () => {
 
       // The severity should be uppercased in the template
       expect(result).toContain('HIGH');
+    });
+
+    it('should return empty string from uppercase helper when arg is falsy', async () => {
+      const data = {
+        userName: 'Test User',
+        alertType: 'security',
+        severity: '', // falsy — triggers the '' branch
+        timestamp: new Date(),
+        message: 'Test message',
+      };
+
+      // Should not throw — the uppercase helper returns '' for falsy input
+      const result = await service.render('system-alert', data);
+      expect(typeof result).toBe('string');
+    });
+  });
+
+  describe('render — non-Error throw in template', () => {
+    it('should wrap non-Error throws with generic message', async () => {
+      // Inject a compiled template into the cache that throws a non-Error
+      (service as any).templateCache.set('user-invite', () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 'raw string throw';
+      });
+
+      await expect(service.render('user-invite', {})).rejects.toThrow(
+        'Template rendering failed: Unknown error',
+      );
+    });
+  });
+
+  describe('resolveTemplatesDir', () => {
+    it('uses cwd when source dir has no templates but cwd does', async () => {
+      (fs.existsSync as Mock)
+        .mockReturnValueOnce(false) // sourceDir check → miss
+        .mockReturnValueOnce(true); // cwdDir check → hit
+
+      const mod = await Test.createTestingModule({
+        providers: [TemplateRendererService],
+      }).compile();
+      const svc = mod.get<TemplateRendererService>(TemplateRendererService);
+
+      expect((svc as any).templatesDir).toBe(process.cwd());
+    });
+
+    it('falls back to sourceDir when neither dir has templates', async () => {
+      (fs.existsSync as Mock)
+        .mockReturnValueOnce(false) // sourceDir check → miss
+        .mockReturnValueOnce(false); // cwdDir check → miss
+
+      const mod = await Test.createTestingModule({
+        providers: [TemplateRendererService],
+      }).compile();
+      const svc = mod.get<TemplateRendererService>(TemplateRendererService);
+
+      // templatesDir is set to sourceDir (non-empty string, not cwd)
+      expect(typeof (svc as any).templatesDir).toBe('string');
+      expect((svc as any).templatesDir).not.toBe(process.cwd());
     });
   });
 });

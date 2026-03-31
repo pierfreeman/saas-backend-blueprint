@@ -225,5 +225,13 @@ describe('ResendProvider', () => {
         provider.createContact({ email: 'user@example.com' }),
       ).rejects.toThrow('Contact creation failed: Network error');
     });
+
+    it('should handle unknown (non-Error) rejections', async () => {
+      mockContactsCreate.mockRejectedValue('raw string rejection');
+
+      await expect(
+        provider.createContact({ email: 'user@example.com' }),
+      ).rejects.toThrow('Contact creation failed: Unknown error');
+    });
   });
 });
