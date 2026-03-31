@@ -233,4 +233,18 @@ describe('CacheService', () => {
       expect(retryStrategy(50)).toBe(2000); // 50 * 50 = 2500 → capped at 2000
     });
   });
+
+  describe('constructor with env vars', () => {
+    it('uses REDIS_HOST and REDIS_PORT from environment when set', () => {
+      process.env['REDIS_HOST'] = 'redis-server';
+      process.env['REDIS_PORT'] = '6380';
+      vi.clearAllMocks();
+      new CacheService();
+      const opts = (Redis as any).mock.calls.at(-1)?.[0] as any;
+      expect(opts.host).toBe('redis-server');
+      expect(opts.port).toBe(6380);
+      delete process.env['REDIS_HOST'];
+      delete process.env['REDIS_PORT'];
+    });
+  });
 });
