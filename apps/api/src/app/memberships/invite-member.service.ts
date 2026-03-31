@@ -112,10 +112,18 @@ export class InviteMemberService {
     if (!isSocialConnection) {
       const redirectUri = `${baseUrl}/auth/callback`;
 
-      await this.auth0ManagementService.sendPasswordlessLink(
-        email,
-        redirectUri,
-      );
+      try {
+        await this.auth0ManagementService.sendPasswordlessLink(
+          email,
+          redirectUri,
+        );
+      } catch (err) {
+        // Auth0 passwordless is optional — the invite email is sent via
+        // the USER_INVITED event (Resend). Log the failure but don't 500.
+        this.logger.warn(
+          `Auth0 passwordless link failed for ${email}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
 
     this.logger.log(`Invite sent to ${email} for org ${orgId}.`);
