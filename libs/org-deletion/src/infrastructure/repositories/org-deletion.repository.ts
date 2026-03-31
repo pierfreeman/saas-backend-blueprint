@@ -125,6 +125,8 @@ export class OrgDeletionRepository {
    */
   async deleteDatabaseRecords(orgId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      await tx.subscriptionSnapshot.deleteMany({ where: { orgId } });
+      await tx.event.deleteMany({ where: { orgId } });
       await tx.file.deleteMany({ where: { orgId } });
       await tx.notification.deleteMany({ where: { orgId } });
       await tx.orgExport.deleteMany({ where: { orgId } });

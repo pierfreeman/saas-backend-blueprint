@@ -251,6 +251,7 @@ export class OrgExportWorkerService {
       notifications: (raw.notifications as unknown[]).map((n) =>
         this.sanitizeNotification(n),
       ),
+      events: (raw.events as unknown[]).map((e) => this.sanitizeEvent(e)),
       metadata: {
         exportedAt: new Date().toISOString(),
         version: '1.0',
@@ -496,8 +497,7 @@ export class OrgExportWorkerService {
       id: string;
       type: string;
       title: string;
-      message: string;
-      isRead: boolean;
+      body: string;
       metadata: unknown;
       createdAt: Date | null;
       readAt: Date | null;
@@ -506,11 +506,45 @@ export class OrgExportWorkerService {
       id: n.id,
       type: n.type,
       title: n.title,
-      message: n.message,
-      isRead: n.isRead,
+      body: n.body,
       metadata: n.metadata,
       createdAt: n.createdAt?.toISOString(),
       readAt: n.readAt?.toISOString(),
+    };
+  }
+
+  private sanitizeEvent(event: unknown): Record<string, unknown> {
+    const e = event as {
+      id: string;
+      title: string;
+      description: string | null;
+      location: string | null;
+      startUtc: Date;
+      endUtc: Date;
+      isAllDay: boolean;
+      eventTimezone: string;
+      rrule: string | null;
+      rruleUntilUtc: Date | null;
+      reminderMinutes: number | null;
+      metadata: unknown;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+    return {
+      id: e.id,
+      title: e.title,
+      description: e.description,
+      location: e.location,
+      startUtc: e.startUtc?.toISOString(),
+      endUtc: e.endUtc?.toISOString(),
+      isAllDay: e.isAllDay,
+      eventTimezone: e.eventTimezone,
+      rrule: e.rrule,
+      rruleUntilUtc: e.rruleUntilUtc?.toISOString() ?? null,
+      reminderMinutes: e.reminderMinutes,
+      metadata: e.metadata,
+      createdAt: e.createdAt?.toISOString(),
+      updatedAt: e.updatedAt?.toISOString(),
     };
   }
 }
