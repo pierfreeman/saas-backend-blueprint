@@ -60,5 +60,9 @@ export const NOTIFICATION_PATTERNS = {
 export const UNREAD_CACHE_KEY = (userId: string) =>
   `app:notifications:unread:${userId}`;
 
+/** Redis key for the per-user-per-org unread notification counter (TTL: 30 days). */
+export const UNREAD_ORG_CACHE_KEY = (userId: string, orgId: string) =>
+  `app:notifications:unread:${userId}:${orgId}`;
+
 /** TTL in seconds for the unread counter (30 days). */
 export const UNREAD_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;

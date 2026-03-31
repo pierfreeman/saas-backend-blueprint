@@ -47,6 +47,7 @@ function makeReq(sub = 'user-1'): any {
 const mockService = {
   getUserNotifications: vi.fn(),
   getUnreadCount: vi.fn(),
+  getUnreadCountForOrg: vi.fn(),
   createNotification: vi.fn(),
   markAsRead: vi.fn(),
   markManyAsRead: vi.fn(),
@@ -118,13 +119,25 @@ describe('NotificationsController', () => {
   // ── GET /notifications/unread-count ────────────────────────────────────────
 
   describe('getUnreadCount', () => {
-    it('returns the unread count wrapped in an object', async () => {
+    it('returns the global unread count when no orgId provided', async () => {
       mockService.getUnreadCount.mockResolvedValue(7);
 
       const result = await controller.getUnreadCount(makeReq());
 
       expect(result).toEqual({ count: 7 });
       expect(mockService.getUnreadCount).toHaveBeenCalledWith('user-1');
+    });
+
+    it('returns org-scoped unread count when orgId is provided', async () => {
+      mockService.getUnreadCountForOrg.mockResolvedValue(3);
+
+      const result = await controller.getUnreadCount(makeReq(), 'org-1');
+
+      expect(result).toEqual({ count: 3 });
+      expect(mockService.getUnreadCountForOrg).toHaveBeenCalledWith(
+        'user-1',
+        'org-1',
+      );
     });
   });
 

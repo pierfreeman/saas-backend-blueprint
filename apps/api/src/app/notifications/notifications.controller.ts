@@ -101,9 +101,14 @@ export class NotificationsController {
     status: HttpStatus.UNAUTHORIZED,
     description: 'Missing or invalid JWT bearer token.',
   })
-  async getUnreadCount(@Req() req: AuthenticatedRequest) {
+  async getUnreadCount(
+    @Req() req: AuthenticatedRequest,
+    @Query('orgId') orgId?: string,
+  ) {
     const { id: userId } = await this.resolveUser(req.user.sub);
-    const count = await this.notificationsService.getUnreadCount(userId);
+    const count = orgId
+      ? await this.notificationsService.getUnreadCountForOrg(userId, orgId)
+      : await this.notificationsService.getUnreadCount(userId);
     return { count };
   }
 

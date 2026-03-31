@@ -4,7 +4,10 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsPubSubService } from './notifications-pubsub.service';
 import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { CacheService } from '@libs/redis';
-import { UNREAD_CACHE_KEY } from '../../types/notification.types';
+import {
+  UNREAD_CACHE_KEY,
+  UNREAD_ORG_CACHE_KEY,
+} from '../../types/notification.types';
 import { vi } from 'vitest';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -46,12 +49,14 @@ const mockRepo = {
   create: vi.fn(),
   findByUser: vi.fn(),
   countUnread: vi.fn(),
+  countUnreadForOrg: vi.fn(),
   findUnreadByIdAndUser: vi.fn(),
   markAsRead: vi.fn(),
   markManyAsRead: vi.fn(),
   markAllAsRead: vi.fn(),
   findByIdAndUser: vi.fn(),
   delete: vi.fn(),
+  findOrgIdsForUnreadNotifications: vi.fn(),
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -93,6 +98,9 @@ describe('NotificationsService', () => {
       );
       expect(mockRedisClient.incr).toHaveBeenCalledWith(
         UNREAD_CACHE_KEY('user-1'),
+      );
+      expect(mockRedisClient.incr).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-1'),
       );
       expect(mockRedisClient.expire).toHaveBeenCalled();
       expect(mockPubSub.publishUserNotification).toHaveBeenCalledWith(
@@ -137,10 +145,47 @@ describe('NotificationsService', () => {
     });
   });
 
+  // ── getUnreadCountForOrg ───────────────────────────────────────────────────
+
+  describe('getUnreadCountForOrg', () => {
+    it('returns cached value when present', async () => {
+      mockRedisClient.get.mockResolvedValue('4');
+
+      const count = await service.getUnreadCountForOrg('user-1', 'org-1');
+
+      expect(count).toBe(4);
+      expect(mockRedisClient.get).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-1'),
+      );
+      expect(mockRepo.countUnreadForOrg).not.toHaveBeenCalled();
+    });
+
+    it('falls back to DB on cache miss and seeds Redis', async () => {
+      mockRedisClient.get.mockResolvedValue(null);
+      mockRepo.countUnreadForOrg.mockResolvedValue(2);
+
+      const count = await service.getUnreadCountForOrg('user-1', 'org-1');
+
+      expect(count).toBe(2);
+      expect(mockRedisClient.set).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-1'),
+        '2',
+      );
+    });
+
+    it('returns 0 when cache value is negative', async () => {
+      mockRedisClient.get.mockResolvedValue('-1');
+
+      const count = await service.getUnreadCountForOrg('user-1', 'org-1');
+
+      expect(count).toBe(0);
+    });
+  });
+
   // ── markAsRead ─────────────────────────────────────────────────────────────
 
   describe('markAsRead', () => {
-    it('marks notification as read and decrements counter', async () => {
+    it('marks notification as read and decrements both global and org counters', async () => {
       const updated = { ...baseNotif, readAt: NOW };
       mockRepo.findUnreadByIdAndUser.mockResolvedValue(baseNotif);
       mockRepo.markAsRead.mockResolvedValue(updated);
@@ -150,6 +195,10 @@ describe('NotificationsService', () => {
       expect(result.readAt).toBe(NOW);
       expect(mockRedisClient.decrby).toHaveBeenCalledWith(
         UNREAD_CACHE_KEY('user-1'),
+        1,
+      );
+      expect(mockRedisClient.decrby).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-1'),
         1,
       );
       expect(mockPubSub.publishUserNotification).toHaveBeenCalled();
@@ -167,7 +216,8 @@ describe('NotificationsService', () => {
   // ── markManyAsRead ─────────────────────────────────────────────────────────
 
   describe('markManyAsRead', () => {
-    it('decrements counter by the number of updated records', async () => {
+    it('decrements global counter and invalidates org caches', async () => {
+      mockRepo.findOrgIdsForUnreadNotifications.mockResolvedValue(['org-1']);
       mockRepo.markManyAsRead.mockResolvedValue(3);
 
       await service.markManyAsRead(['a', 'b', 'c'], 'user-1');
@@ -176,21 +226,42 @@ describe('NotificationsService', () => {
         UNREAD_CACHE_KEY('user-1'),
         3,
       );
+      expect(mockRedisClient.del).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-1'),
+      );
     });
 
     it('does not touch Redis counter when no records were updated', async () => {
+      mockRepo.findOrgIdsForUnreadNotifications.mockResolvedValue([]);
       mockRepo.markManyAsRead.mockResolvedValue(0);
 
       await service.markManyAsRead([], 'user-1');
 
       expect(mockRedisClient.decrby).not.toHaveBeenCalled();
     });
+
+    it('invalidates multiple org caches when notifications span orgs', async () => {
+      mockRepo.findOrgIdsForUnreadNotifications.mockResolvedValue([
+        'org-1',
+        'org-2',
+      ]);
+      mockRepo.markManyAsRead.mockResolvedValue(4);
+
+      await service.markManyAsRead(['a', 'b', 'c', 'd'], 'user-1');
+
+      expect(mockRedisClient.del).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-1'),
+      );
+      expect(mockRedisClient.del).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-2'),
+      );
+    });
   });
 
   // ── markAllAsRead ──────────────────────────────────────────────────────────
 
   describe('markAllAsRead', () => {
-    it('updates all unread records and deletes the Redis counter', async () => {
+    it('updates all unread records and deletes both global and org Redis counters', async () => {
       mockRepo.markAllAsRead.mockResolvedValue(undefined);
 
       await service.markAllAsRead('user-1', 'org-1');
@@ -198,6 +269,9 @@ describe('NotificationsService', () => {
       expect(mockRepo.markAllAsRead).toHaveBeenCalledWith('user-1', 'org-1');
       expect(mockRedisClient.del).toHaveBeenCalledWith(
         UNREAD_CACHE_KEY('user-1'),
+      );
+      expect(mockRedisClient.del).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-1'),
       );
     });
   });
@@ -276,7 +350,7 @@ describe('NotificationsService', () => {
   // ── deleteNotification ─────────────────────────────────────────────────────
 
   describe('deleteNotification', () => {
-    it('deletes notification and decrements counter when unread', async () => {
+    it('deletes notification and decrements both global and org counters when unread', async () => {
       mockRepo.findByIdAndUser.mockResolvedValue(baseNotif);
       mockRepo.delete.mockResolvedValue(undefined);
 
@@ -284,6 +358,10 @@ describe('NotificationsService', () => {
 
       expect(mockRedisClient.decrby).toHaveBeenCalledWith(
         UNREAD_CACHE_KEY('user-1'),
+        1,
+      );
+      expect(mockRedisClient.decrby).toHaveBeenCalledWith(
+        UNREAD_ORG_CACHE_KEY('user-1', 'org-1'),
         1,
       );
       expect(mockRepo.delete).toHaveBeenCalledWith('notif-uuid-1');
