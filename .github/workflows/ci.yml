@@ -13,6 +13,7 @@ concurrency:
 permissions:
   actions: read
   contents: read
+  pull-requests: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -52,6 +53,10 @@ jobs:
       - run: npx nx run-many -t build --nx-bail
 
       - run: npx nx run-many -t test --coverage --nx-bail
+
+      - name: Coverage summary
+        if: always()
+        run: node scripts/coverage-summary.mjs coverage/unit >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
@@ -228,3 +233,23 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: Setup Node.js for coverage script
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Coverage summary
+        if: always()
+        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate coverage PR comment
+        if: always() && github.event_name == 'pull_request'
+        run: node scripts/coverage-summary.mjs > coverage-comment.md
+
+      - name: Post coverage PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage-comment.md
