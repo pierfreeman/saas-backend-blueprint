@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Subscription Has Been Cancelled</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px;">
+    <h1 style="color: #2c3e50; margin-top: 0;">Subscription Cancelled</h1>
+
+    <p>Hi {{userName}},</p>
+
+    <p>We're sorry to see you go. The subscription for <strong>{{organizationName}}</strong> has been cancelled.</p>
+
+    <div style="background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #95a5a6;">
+      <p style="margin: 0;">Your account has been downgraded to the free tier. Your data is safe and will remain accessible.</p>
+    </div>
+
+    <p>If you cancelled by mistake or would like to reactivate your subscription, you can do so at any time from your billing settings.</p>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{billingPortalUrl}}" style="display: inline-block; background-color: #2c3e50; color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reactivate Subscription</a>
+    </div>
+
+    <p style="color: #7f8c8d; font-size: 14px;">
+      We value your feedback. If there's anything we could have done better, please let us know by replying to this email.
+    </p>
+
+    <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+
+    <p style="color: #7f8c8d; font-size: 12px; text-align: center;">
+      If the button doesn't work, copy and paste this link into your browser:<br>
+      <a href="{{billingPortalUrl}}" style="color: #2c3e50;">{{billingPortalUrl}}</a>
+    </p>
+  </div>
+</body>
+</html>

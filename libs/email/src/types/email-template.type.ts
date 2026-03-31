@@ -6,7 +6,11 @@ export type EmailTemplateName =
   | 'auth-login-link'
   | 'export-ready'
   | 'org-deletion-confirmation'
-  | 'system-alert';
+  | 'system-alert'
+  | 'billing-plan-upgraded'
+  | 'billing-plan-downgraded'
+  | 'billing-payment-received'
+  | 'billing-plan-cancelled';
 
 /**
  * Email template data interface

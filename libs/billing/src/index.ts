@@ -5,6 +5,9 @@ export * from './billing.module';
 export * from './application/services/billing.service';
 export * from './application/services/subscription.service';
 
+// Application — domain event handlers
+export * from './application/event-handlers/billing-email.handler';
+
 // Domain
 export * from './domain/enums/billing-status.enum';
 export * from './domain/entities/subscription.entity';

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Plan Has Been Downgraded</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px;">
+    <h1 style="color: #2c3e50; margin-top: 0;">Plan Updated</h1>
+
+    <p>Hi {{userName}},</p>
+
+    <p>Your plan for <strong>{{organizationName}}</strong> has been changed.</p>
+
+    <div style="background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #e67e22;">
+      <p style="margin: 0;"><strong>Previous plan:</strong> {{previousPlanId}}</p>
+      <p style="margin: 10px 0 0 0;"><strong>New plan:</strong> {{newPlanId}}</p>
+    </div>
+
+    <p>Your account has been updated and the new plan is now active. Some features from your previous plan may no longer be available.</p>
+
+    <p>If you changed your plan by mistake or would like to upgrade again, you can manage your subscription at any time.</p>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{billingPortalUrl}}" style="display: inline-block; background-color: #e67e22; color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Manage Billing</a>
+    </div>
+
+    <p style="color: #7f8c8d; font-size: 14px;">
+      If you have any questions, please don't hesitate to contact our support team.
+    </p>
+
+    <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+
+    <p style="color: #7f8c8d; font-size: 12px; text-align: center;">
+      If the button doesn't work, copy and paste this link into your browser:<br>
+      <a href="{{billingPortalUrl}}" style="color: #e67e22;">{{billingPortalUrl}}</a>
+    </p>
+  </div>
+</body>
+</html>

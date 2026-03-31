@@ -7,6 +7,7 @@ import { ObservabilityModule } from '@libs/observability';
 import { OrgDeletionModule } from '@libs/org-deletion';
 import { OrgExportModule } from '@libs/org-export';
 import { MembershipsModule } from '@libs/memberships';
+import { BillingModule } from '@libs/billing';
 import { WorkerController } from './worker.controller';
 import { SqsConsumerService } from './sqs-consumer.service';
 
@@ -25,6 +26,7 @@ import { SqsConsumerService } from './sqs-consumer.service';
     OrgDeletionModule,
     OrgExportModule,
     MembershipsModule,
+    BillingModule,
   ],
   providers: [WorkerController, SqsConsumerService],
 })

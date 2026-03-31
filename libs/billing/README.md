@@ -142,6 +142,37 @@ return 200
 
 ---
 
+## Email notifications
+
+`BillingEmailHandler` (`libs/billing/src/application/event-handlers/billing-email.handler.ts`) listens for billing domain events and sends transactional emails to the org OWNER via `EmailService`.
+
+| Domain event                    | Template                   | Subject                                |
+| ------------------------------- | -------------------------- | -------------------------------------- |
+| `SUBSCRIPTION_PLAN_CHANGED`     | `billing-plan-upgraded` or `billing-plan-downgraded` | "Your plan has been upgraded/updated"  |
+| `BILLING_PAYMENT_SUCCEEDED`     | `billing-payment-received` | "Payment received for \<org\>"         |
+| `BILLING_SUBSCRIPTION_CANCELLED`| `billing-plan-cancelled`   | "Your subscription has been cancelled" |
+
+The handler is exported from `BillingModule` and consumed by `WorkerController` in `apps/worker-a`. All methods are **fire-and-forget** — email failures are logged but do not abort SQS message processing.
+
+The plan-change direction (`upgraded` vs. `downgraded`) is derived from `planChangeDirection` carried in the `SUBSCRIPTION_PLAN_CHANGED` event payload, which is set by `SubscriptionService.resolveActivityAction()`. `'subscription.upgraded'` → upgraded template; anything else → downgraded template.
+
+The `BILLING_PAYMENT_FAILED` (dunning) event is intentionally **not** handled here: dunning emails require retry/delay logic and risk false positives on transient failures — track as a separate task.
+
+### TODO: FIFO consumer (production)
+
+Billing domain events (`billing.*`, `subscription.*`) are published to **SQS FIFO** (`SQS_FIFO_QUEUE_URL`) in staging and production to guarantee strict per-org ordering. The Standard queue consumer in `worker-a` (`SqsConsumerService`) polls only `SQS_STANDARD_QUEUE_URL` and will **not** receive these events in production.
+
+To close this gap, add one of:
+
+1. **`SqsFifoConsumerService`** — a second injectable service that runs the same long-poll loop targeting `SQS_FIFO_QUEUE_URL`, registered in `AppModule` alongside `SqsConsumerService`.
+2. **Dedicated worker app** — a separate NestJS app (e.g. `apps/worker-billing/`) for billing FIFO processing if throughput or isolation requirements grow.
+
+In local development and CI, `LocalTransport` delivers all events in-process regardless of queue routing, so billing emails work end-to-end without the FIFO consumer.
+
+Required env var: add `SQS_FIFO_QUEUE_URL` to the worker's config and Joi schema when implementing.
+
+---
+
 ## Event dispatch
 
 `BillingService` and the webhook handlers publish domain events through the shared `EventBusService` (already `@Global()`). No import of `EventsModule` is needed:

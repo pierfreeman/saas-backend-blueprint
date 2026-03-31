@@ -145,7 +145,12 @@ export class SubscriptionService {
   async syncFromStripeSubscription(
     subscription: Stripe.Subscription,
     ctx: SyncContext,
-  ): Promise<string | null> {
+  ): Promise<{
+    orgId: string;
+    previousPlanId: string | null;
+    newPlanId: string | null;
+    planChangeDirection: string;
+  } | null> {
     const customerId =
       typeof subscription.customer === 'string'
         ? subscription.customer
@@ -235,7 +240,7 @@ export class SubscriptionService {
         `${previousBillingStatus} → ${newBillingStatus} (${activityAction})`,
     );
 
-    return org.orgId;
+    return { orgId: org.orgId, previousPlanId, newPlanId, planChangeDirection: activityAction };
   }
 
   /**
@@ -348,9 +353,11 @@ export class SubscriptionService {
     subscription: Stripe.Subscription,
     ctx: SyncContext,
   ): Promise<void> {
-    const orgId = await this.syncFromStripeSubscription(subscription, ctx);
+    const result = await this.syncFromStripeSubscription(subscription, ctx);
 
-    if (!orgId) return;
+    if (!result) return;
+
+    const { orgId } = result;
 
     await this.eventBus.publish({
       eventType: DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CREATED,
@@ -374,10 +381,11 @@ export class SubscriptionService {
     subscription: Stripe.Subscription,
     ctx: SyncContext,
   ): Promise<void> {
-    const orgId = await this.syncFromStripeSubscription(subscription, ctx);
+    const result = await this.syncFromStripeSubscription(subscription, ctx);
 
-    if (!orgId) return;
+    if (!result) return;
 
+    const { orgId, previousPlanId, newPlanId, planChangeDirection } = result;
     const isCanceled = subscription.status === 'canceled';
 
     const domainEvent = isCanceled
@@ -392,6 +400,9 @@ export class SubscriptionService {
         subscriptionId: subscription.id,
         status: subscription.status,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        previousPlanId,
+        newPlanId,
+        planChangeDirection,
       },
       tenantId: orgId,
       messageGroupId: orgId,
