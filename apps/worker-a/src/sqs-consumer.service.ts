@@ -11,7 +11,11 @@ import {
   Message,
 } from '@aws-sdk/client-sqs';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
-import { WorkerController, HeavyJobPayload } from './worker.controller';
+import {
+  WorkerController,
+  HeavyJobPayload,
+  UserInvitedPayload,
+} from './worker.controller';
 
 /**
  * SqsConsumerService
@@ -179,8 +183,14 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
         await this.workerController.handleOrgDeletionRequested(event as any);
         break;
 
-      case 'org.export.requested':
+      case DOMAIN_EVENTS.ORG_EXPORT_REQUESTED:
         await this.workerController.handleOrgExportRequested(event as any);
+        break;
+
+      case DOMAIN_EVENTS.USER_INVITED:
+        await this.workerController.handleUserInvited(
+          event as unknown as DomainEvent<UserInvitedPayload>,
+        );
         break;
 
       default:

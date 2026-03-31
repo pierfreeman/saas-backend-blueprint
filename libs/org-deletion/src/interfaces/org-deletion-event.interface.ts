@@ -1,9 +1,25 @@
-import { DeletionTrigger } from '../constants/org-deletion-event.constants';
+/**
+ * Trigger source for organization deletion.
+ */
+export enum DeletionTrigger {
+  /**
+   * Deletion requested by an organization owner via API.
+   */
+  USER_REQUEST = 'USER_REQUEST',
+
+  /**
+   * Deletion triggered automatically due to subscription expiry and retention period.
+   */
+  SUBSCRIPTION_EXPIRY = 'SUBSCRIPTION_EXPIRY',
+}
 
 /**
  * Payload for organization deletion request event.
  */
-export interface OrgDeletionRequestedEventPayload extends Record<string, unknown> {
+export interface OrgDeletionRequestedEventPayload extends Record<
+  string,
+  unknown
+> {
   /**
    * Organization ID to be deleted.
    */
@@ -38,7 +54,10 @@ export interface OrgDeletionRequestedEventPayload extends Record<string, unknown
 /**
  * Payload for organization deletion started event.
  */
-export interface OrgDeletionStartedEventPayload extends Record<string, unknown> {
+export interface OrgDeletionStartedEventPayload extends Record<
+  string,
+  unknown
+> {
   orgId: string;
   trigger: DeletionTrigger;
   startedAt: Date;
@@ -47,7 +66,10 @@ export interface OrgDeletionStartedEventPayload extends Record<string, unknown> 
 /**
  * Payload for organization deletion completed event.
  */
-export interface OrgDeletionCompletedEventPayload extends Record<string, unknown> {
+export interface OrgDeletionCompletedEventPayload extends Record<
+  string,
+  unknown
+> {
   orgId: string;
   trigger: DeletionTrigger;
   orgName: string;

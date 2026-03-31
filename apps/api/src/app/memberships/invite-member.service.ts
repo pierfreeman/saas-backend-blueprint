@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { MembershipsService } from '@libs/memberships';
 import { OrganizationsService } from '@libs/organizations';
 import { UsersService } from '@libs/users';
+import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { PENDING_AUTH0_ID_PREFIX } from '../auth/auth.service';
 import { Auth0ManagementService } from '../auth/auth0-management.service';
@@ -46,6 +47,7 @@ export class InviteMemberService {
     private readonly organizationsService: OrganizationsService,
     private readonly auth0ManagementService: Auth0ManagementService,
     private readonly configService: ConfigService,
+    private readonly eventBus: EventBusService,
   ) {}
 
   async invite(
@@ -103,10 +105,11 @@ export class InviteMemberService {
       !user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX) &&
       !user.auth0Id.startsWith('auth0|');
 
+    const baseUrl =
+      this.configService.get<string>('FRONTEND_BASE_URL') ??
+      'http://localhost:4200';
+
     if (!isSocialConnection) {
-      const baseUrl =
-        this.configService.get<string>('FRONTEND_BASE_URL') ??
-        'http://localhost:4200';
       const redirectUri = `${baseUrl}/auth/callback`;
 
       await this.auth0ManagementService.sendPasswordlessLink(
@@ -116,6 +119,24 @@ export class InviteMemberService {
     }
 
     this.logger.log(`Invite sent to ${email} for org ${orgId}.`);
+
+    // 6. Publish USER_INVITED domain event → triggers invitation email via worker
+    await this.eventBus.publish({
+      eventType: DOMAIN_EVENTS.USER_INVITED,
+      timestamp: new Date(),
+      tenantId: orgId,
+      userId: inviterUserId,
+      payload: {
+        inviteeName: email,
+        inviteeEmail: email,
+        inviterName: inviterUserId,
+        organizationName: org.name,
+        organizationId: orgId,
+        role: dto.role,
+        inviteUrl: `${baseUrl}/auth/callback`,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
 
     return { message: 'Invitation sent successfully.' };
   }

@@ -1,4 +1,4 @@
-import { EventBusService } from '@libs/events';
+import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { StorageService, S3StorageClient } from '@libs/storage';
 import { EmailService } from '@libs/email';
@@ -6,7 +6,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExportStatus } from '@libs/prisma-business';
 import JSZip from 'jszip';
-import { ORG_EXPORT_EVENT_TYPES } from '../../constants/org-export-event.constants';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
 
 /**
@@ -66,7 +65,7 @@ export class OrgExportWorkerService {
 
     // Emit export started event
     await this.eventBus.publish({
-      eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_STARTED,
+      eventType: DOMAIN_EVENTS.ORG_EXPORT_STARTED,
       payload: {
         orgId,
         exportId,
@@ -156,7 +155,7 @@ export class OrgExportWorkerService {
 
       // Emit export completed event
       await this.eventBus.publish({
-        eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_COMPLETED,
+        eventType: DOMAIN_EVENTS.ORG_EXPORT_COMPLETED,
         payload: {
           orgId,
           exportId,
@@ -200,7 +199,7 @@ export class OrgExportWorkerService {
 
       // Emit export failed event
       await this.eventBus.publish({
-        eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_FAILED,
+        eventType: DOMAIN_EVENTS.ORG_EXPORT_FAILED,
         payload: {
           orgId,
           exportId,

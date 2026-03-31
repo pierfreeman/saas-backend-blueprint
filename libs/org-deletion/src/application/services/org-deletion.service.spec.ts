@@ -6,7 +6,7 @@ import { OrgDeletionRepository } from '../../infrastructure/repositories/org-del
 import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { ActivityLogService } from '@libs/activity-log';
-import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
+import { DeletionTrigger } from '../../interfaces/org-deletion-event.interface';
 import { OrganizationStatus } from '@libs/prisma-business';
 import { vi } from 'vitest';
 

@@ -5,14 +5,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EventBusService } from '@libs/events';
+import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { ActivityLogService } from '@libs/activity-log';
 import {
-  ORG_DELETION_EVENT_TYPES,
   DeletionTrigger,
-} from '../../constants/org-deletion-event.constants';
-import { OrgDeletionRequestedEventPayload } from '../../interfaces/org-deletion-event.interface';
+  OrgDeletionRequestedEventPayload,
+} from '../../interfaces/org-deletion-event.interface';
 import { OrgDeletionRepository } from '../../infrastructure/repositories/org-deletion.repository';
 
 /**
@@ -132,7 +131,7 @@ export class OrgDeletionService {
     } as OrgDeletionRequestedEventPayload;
 
     await this.eventBus.publish({
-      eventType: ORG_DELETION_EVENT_TYPES.DELETION_REQUESTED,
+      eventType: DOMAIN_EVENTS.ORG_DELETION_REQUESTED,
       payload: eventPayload as Record<string, unknown>,
       tenantId: orgId,
       userId,

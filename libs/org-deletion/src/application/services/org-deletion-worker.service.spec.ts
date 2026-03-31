@@ -7,7 +7,7 @@ import { CacheService } from '@libs/redis';
 import { StorageService } from '@libs/storage';
 import { StripeService } from '@libs/billing';
 import { EmailService } from '@libs/email';
-import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
+import { DeletionTrigger } from '../../interfaces/org-deletion-event.interface';
 import { OrganizationStatus } from '@libs/prisma-business';
 import { Mock, vi } from 'vitest';
 

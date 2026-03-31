@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { OrgDeletionService } from './org-deletion.service';
-import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
+import { DeletionTrigger } from '../../interfaces/org-deletion-event.interface';
 import { OrgDeletionRepository } from '../../infrastructure/repositories/org-deletion.repository';
 
 /**

@@ -10,6 +10,7 @@ import {
   OrgExportWorkerService,
   OrgExportRequestedEventPayload,
 } from '@libs/org-export';
+import { UserInvitedEmailHandler, UserInvitedPayload } from '@libs/memberships';
 import { JobStatus } from '@libs/prisma-business';
 
 /**
@@ -23,6 +24,8 @@ export interface HeavyJobPayload extends Record<string, unknown> {
   userId?: string;
   data: Record<string, unknown>;
 }
+
+export { UserInvitedPayload } from '@libs/memberships';
 
 /** Redis channel pattern: `job:update:{tenantId}` */
 const jobChannel = (tenantId: string) => `job:update:${tenantId}`;
@@ -48,6 +51,7 @@ export class WorkerController {
     private readonly pubSub: PubSubService,
     private readonly orgDeletionWorker: OrgDeletionWorkerService,
     private readonly orgExportWorker: OrgExportWorkerService,
+    private readonly userInvitedHandler: UserInvitedEmailHandler,
   ) {}
 
   /**
@@ -179,5 +183,19 @@ export class WorkerController {
       requestedByUserId,
       requestedAt,
     );
+  }
+
+  /**
+   * Handles USER_INVITED domain events.
+   * Delegates to UserInvitedEmailHandler in libs/memberships.
+   */
+  async handleUserInvited(
+    event: DomainEvent<UserInvitedPayload>,
+  ): Promise<void> {
+    this.logger.log(
+      `[Worker-Compute-A] Received USER_INVITED for ${event.payload.inviteeEmail} in org ${event.payload.organizationId}`,
+    );
+
+    await this.userInvitedHandler.handle(event);
   }
 }

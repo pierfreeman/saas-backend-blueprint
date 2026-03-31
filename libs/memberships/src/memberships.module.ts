@@ -19,6 +19,6 @@ import { UserInvitedEmailHandler } from './application/event-handlers/user-invit
     MembershipsService,
     UserInvitedEmailHandler,
   ],
-  exports: [MembershipsService],
+  exports: [MembershipsService, UserInvitedEmailHandler],
 })
 export class MembershipsModule {}

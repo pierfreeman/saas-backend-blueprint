@@ -1,6 +1,8 @@
 import { WorkerController, HeavyJobPayload } from './worker.controller';
+import type { UserInvitedPayload } from './worker.controller';
 import { JobService } from '@libs/jobs';
 import { PubSubService } from '@libs/redis';
+import { UserInvitedEmailHandler } from '@libs/memberships';
 import {
   OrgDeletionWorkerService,
   OrgDeletionRequestedEventPayload,
@@ -50,6 +52,10 @@ const mockOrgExportWorker = {
   executeExport: vi.fn(),
 } as unknown as OrgExportWorkerService;
 
+const mockUserInvitedHandler = {
+  handle: vi.fn(),
+} as unknown as UserInvitedEmailHandler;
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('WorkerController', () => {
@@ -61,11 +67,13 @@ describe('WorkerController', () => {
     (mockJobRepo.markDone as Mock).mockResolvedValue(undefined);
     (mockJobRepo.markFailed as Mock).mockResolvedValue(undefined);
     (mockPubSub.publish as Mock).mockResolvedValue(undefined);
+    (mockUserInvitedHandler.handle as Mock).mockResolvedValue(undefined);
     controller = new WorkerController(
       mockJobRepo,
       mockPubSub,
       mockOrgDeletionWorker,
       mockOrgExportWorker,
+      mockUserInvitedHandler,
     );
   });
 
@@ -292,6 +300,46 @@ describe('WorkerController', () => {
       await expect(
         controller.handleOrgExportRequested(makeExportEvent()),
       ).rejects.toThrow('export failed');
+    });
+  });
+
+  describe('handleUserInvited', () => {
+    const makeInviteEvent = (
+      override: Partial<DomainEvent<UserInvitedPayload>> = {},
+    ): DomainEvent<UserInvitedPayload> => ({
+      eventType: DOMAIN_EVENTS.USER_INVITED,
+      timestamp: new Date(),
+      tenantId: 'org-inv-1',
+      eventId: 'evt-inv-1',
+      userId: 'inviter-1',
+      payload: {
+        inviteeName: 'alice@example.com',
+        inviteeEmail: 'alice@example.com',
+        inviterName: 'inviter-1',
+        organizationName: 'Invite Corp',
+        organizationId: 'org-inv-1',
+        role: 'MEMBER',
+        inviteUrl: 'http://localhost:4200/auth/callback',
+        expiresAt: new Date('2026-04-07T00:00:00Z'),
+      },
+      ...override,
+    });
+
+    it('delegates to UserInvitedEmailHandler', async () => {
+      const event = makeInviteEvent();
+      await controller.handleUserInvited(event);
+
+      expect(mockUserInvitedHandler.handle).toHaveBeenCalledWith(event);
+    });
+
+    it('propagates errors from UserInvitedEmailHandler', async () => {
+      (mockUserInvitedHandler.handle as Mock).mockRejectedValueOnce(
+        new Error('email send failed'),
+      );
+
+      await expect(
+        controller.handleUserInvited(makeInviteEvent()),
+      ).rejects.toThrow('email send failed');
     });
   });
 });

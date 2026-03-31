@@ -10,7 +10,6 @@ import { OrgExportService } from './application/services/org-export.service';
 import { OrgExportWorkerService } from './application/services/org-export-worker.service';
 import { OrgExportSchedulerService } from './application/services/org-export-scheduler.service';
 import { OrgExportRepository } from './infrastructure/repositories/org-export.repository';
-import { ExportCompletedEmailHandler } from './application/event-handlers/export-completed-email.handler';
 
 /**
  * Module for organization data export functionality.
@@ -31,7 +30,6 @@ import { ExportCompletedEmailHandler } from './application/event-handlers/export
     OrgExportService,
     OrgExportWorkerService,
     OrgExportSchedulerService,
-    ExportCompletedEmailHandler,
   ],
   exports: [
     OrgExportService,

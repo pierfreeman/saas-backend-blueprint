@@ -24,6 +24,7 @@ function makeController(): Mocked<WorkerController> {
     handleHeavyJobCreated: vi.fn().mockResolvedValue(undefined),
     handleOrgDeletionRequested: vi.fn().mockResolvedValue(undefined),
     handleOrgExportRequested: vi.fn().mockResolvedValue(undefined),
+    handleUserInvited: vi.fn().mockResolvedValue(undefined),
   } as unknown as Mocked<WorkerController>;
 }
 
@@ -215,6 +216,12 @@ describe('SqsConsumerService', () => {
       const event = makeEvent({ eventType: 'org.export.requested' });
       await (service as any).dispatch(event);
       expect(controller.handleOrgExportRequested).toHaveBeenCalledWith(event);
+    });
+
+    it('routes USER_INVITED to WorkerController', async () => {
+      const event = makeEvent({ eventType: DOMAIN_EVENTS.USER_INVITED });
+      await (service as any).dispatch(event);
+      expect(controller.handleUserInvited).toHaveBeenCalledWith(event);
     });
 
     it('logs a warning and does not throw for unknown event types', async () => {

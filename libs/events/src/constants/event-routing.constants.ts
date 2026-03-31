@@ -49,8 +49,6 @@ export const DOMAIN_EVENTS = {
 
   // Email / User notifications (Standard queue)
   USER_INVITED: 'user.invited',
-  EXPORT_COMPLETED: 'export.completed',
-  SYSTEM_ALERT_TRIGGERED: 'system.alert.triggered',
 
   // Organization deletion (Standard queue)
   ORG_DELETION_REQUESTED: 'org.deletion.requested',

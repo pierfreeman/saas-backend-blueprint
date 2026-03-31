@@ -22,15 +22,34 @@ export class TemplateRendererService {
   private readonly templatesDir: string;
 
   constructor() {
-    // Templates directory is in the same directory as this service file
-    // During tests, templates are at libs/email/src/lib/templates/*.hbs
-    // In compiled output, they should be copied to dist
-    this.templatesDir = path.dirname(fileURLToPath(import.meta.url));
+    this.templatesDir = this.resolveTemplatesDir();
 
     // Register Handlebars helpers
     this.registerHelpers();
 
     this.logger.log(`Template directory: ${this.templatesDir}`);
+  }
+
+  /**
+   * Resolve the templates directory across environments:
+   * - Development (nx serve): import.meta.url points to the source directory
+   *   where .hbs files are co-located with this file.
+   * - Production (Docker): webpack copies .hbs files to the output directory
+   *   (= process.cwd()), but import.meta.url still points to the source path
+   *   which doesn't exist in the container.
+   */
+  private resolveTemplatesDir(): string {
+    const sourceDir = path.dirname(fileURLToPath(import.meta.url));
+    if (fs.existsSync(path.join(sourceDir, 'user-invite.hbs'))) {
+      return sourceDir;
+    }
+
+    const cwdDir = process.cwd();
+    if (fs.existsSync(path.join(cwdDir, 'user-invite.hbs'))) {
+      return cwdDir;
+    }
+
+    return sourceDir;
   }
 
   /**

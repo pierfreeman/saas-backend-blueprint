@@ -5,10 +5,9 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EventBusService } from '@libs/events';
+import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { ActivityLogService } from '@libs/activity-log';
-import { ORG_EXPORT_EVENT_TYPES } from '../../constants/org-export-event.constants';
 import { OrgExportRequestedEventPayload } from '../../interfaces/org-export-event.interface';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
 
@@ -64,7 +63,7 @@ export class OrgExportService {
     const { exportId, jobId } = await this.repo.createJobAndExport({
       orgId,
       userId,
-      exportEventType: ORG_EXPORT_EVENT_TYPES.EXPORT_REQUESTED,
+      exportEventType: DOMAIN_EVENTS.ORG_EXPORT_REQUESTED,
     });
 
     this.logger.log(
@@ -87,7 +86,7 @@ export class OrgExportService {
 
     // Record legal audit event (permanent, survives deletion)
     this.legalAudit.recordEvent({
-      eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_REQUESTED,
+      eventType: DOMAIN_EVENTS.ORG_EXPORT_REQUESTED,
       orgId,
       userId,
       triggerType: 'user_action',
@@ -111,7 +110,7 @@ export class OrgExportService {
     } as OrgExportRequestedEventPayload;
 
     await this.eventBus.publish({
-      eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_REQUESTED,
+      eventType: DOMAIN_EVENTS.ORG_EXPORT_REQUESTED,
       payload: eventPayload as Record<string, unknown>,
       tenantId: orgId,
       userId,
