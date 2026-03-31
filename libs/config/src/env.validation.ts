@@ -144,14 +144,8 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.optional(),
   }),
   SMTP_SECURE: Joi.string().valid('true', 'false').default('false'),
-  SMTP_USER: Joi.string().when('EMAIL_PROVIDER', {
-    is: 'smtp',
-    then: Joi.required(),
-    otherwise: Joi.optional().allow(''),
-  }),
-  SMTP_PASS: Joi.string().when('EMAIL_PROVIDER', {
-    is: 'smtp',
-    then: Joi.required(),
-    otherwise: Joi.optional().allow(''),
-  }),
+  // Auth is optional — Mailpit and other dev/test SMTP servers don't require credentials.
+  // Production servers that do require auth will have these set via env vars.
+  SMTP_USER: Joi.string().optional().allow(''),
+  SMTP_PASS: Joi.string().optional().allow(''),
 });
