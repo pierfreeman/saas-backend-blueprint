@@ -121,6 +121,13 @@ export class InviteMemberService {
     this.logger.log(`Invite sent to ${email} for org ${orgId}.`);
 
     // 6. Publish USER_INVITED domain event → triggers invitation email via worker
+    // Resolve inviter's display name — prefer "First Last", fall back to email.
+    const inviter = await this.usersService.findById(inviterUserId);
+    const inviterName = inviter
+      ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') ||
+        inviter.email
+      : inviterUserId;
+
     await this.eventBus.publish({
       eventType: DOMAIN_EVENTS.USER_INVITED,
       timestamp: new Date(),
@@ -129,7 +136,7 @@ export class InviteMemberService {
       payload: {
         inviteeName: email,
         inviteeEmail: email,
-        inviterName: inviterUserId,
+        inviterName,
         organizationName: org.name,
         organizationId: orgId,
         role: dto.role,
