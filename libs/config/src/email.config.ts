@@ -6,6 +6,7 @@ export interface EmailConfig {
     address: string;
     name: string;
   };
+  devOverrideTo?: string;
   resend?: {
     apiKey: string;
   };
@@ -28,6 +29,7 @@ export default registerAs(
       address: process.env['EMAIL_FROM_ADDRESS'] ?? 'noreply@example.com',
       name: process.env['EMAIL_FROM_NAME'] ?? 'SaaS Backend',
     },
+    devOverrideTo: process.env['EMAIL_DEV_OVERRIDE_TO'] || undefined,
     resend: {
       apiKey: process.env['RESEND_API_KEY'] ?? '',
     },

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import {
@@ -30,6 +31,7 @@ export class EmailService {
     private readonly templateRenderer: TemplateRendererService,
     private readonly activityLog: ActivityLogService,
     private readonly legalAudit: LegalAuditService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -50,7 +52,14 @@ export class EmailService {
     orgId?: string;
     userId?: string;
   }): Promise<void> {
-    const { templateName, recipient, subject, data, orgId, userId } = params;
+    const { templateName, subject, data, orgId, userId } = params;
+    const devOverride = this.configService.get<string>('email.devOverrideTo');
+    const recipient = devOverride ?? params.recipient;
+    if (devOverride) {
+      this.logger.warn(
+        `[DEV] EMAIL_DEV_OVERRIDE_TO set — redirecting email from ${params.recipient} to ${devOverride}`,
+      );
+    }
 
     try {
       // Validate input

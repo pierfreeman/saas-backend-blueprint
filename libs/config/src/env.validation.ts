@@ -121,6 +121,9 @@ export const envValidationSchema = Joi.object({
     .email({ tlds: { allow: false } })
     .default('noreply@example.com'),
   EMAIL_FROM_NAME: Joi.string().default('SaaS Backend'),
+  EMAIL_DEV_OVERRIDE_TO: Joi.string()
+    .email({ tlds: { allow: false } })
+    .optional(),
 
   // Resend
   RESEND_API_KEY: Joi.string().when('EMAIL_PROVIDER', {

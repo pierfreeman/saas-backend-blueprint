@@ -1,5 +1,6 @@
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EmailService } from './email.service';
 import {
@@ -52,6 +53,10 @@ describe('EmailService', () => {
         {
           provide: LegalAuditService,
           useValue: mockLegalAudit,
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: vi.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
