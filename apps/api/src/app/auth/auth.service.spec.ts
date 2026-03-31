@@ -1,5 +1,6 @@
 import { AuthService, PENDING_AUTH0_ID_PREFIX } from './auth.service';
 import { UsersService } from '@libs/users';
+import { EmailService } from '@libs/email';
 import { Auth0ManagementService } from './auth0-management.service';
 import { Mock, vi } from 'vitest';
 
@@ -18,6 +19,17 @@ const mockAuth0ManagementService = {
   sendChangePasswordEmail: vi.fn(),
 } as unknown as Auth0ManagementService;
 
+const mockEmailService = {
+  addContact: vi.fn(),
+} as unknown as EmailService;
+
+const mockOrganization = {
+  id: 'org-1',
+  name: 'Personal Workspace',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -25,7 +37,11 @@ describe('AuthService', () => {
     vi.clearAllMocks();
     // Default: no pending user found by email
     (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-    service = new AuthService(mockUsersService, mockAuth0ManagementService);
+    service = new AuthService(
+      mockUsersService,
+      mockAuth0ManagementService,
+      mockEmailService,
+    );
   });
 
   describe('syncUser', () => {
@@ -40,9 +56,10 @@ describe('AuthService', () => {
 
       (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
-        createdUser,
-      );
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue({
+        user: createdUser,
+        organization: mockOrganization,
+      });
 
       const result = await service.syncUser('auth0|1', 'a@b.com');
 
@@ -51,6 +68,50 @@ describe('AuthService', () => {
         'auth0|1',
         'a@b.com',
       );
+    });
+
+    it('calls emailService.addContact when provisioning a new user', async () => {
+      const createdUser = {
+        id: 'u-1',
+        auth0Id: 'auth0|1',
+        email: 'new@example.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue({
+        user: createdUser,
+        organization: mockOrganization,
+      });
+
+      await service.syncUser('auth0|1', 'new@example.com');
+
+      expect(mockEmailService.addContact).toHaveBeenCalledWith({
+        email: 'new@example.com',
+        firstName: undefined,
+        lastName: undefined,
+        properties: {
+          org_id: 'org-1',
+          org_name: 'Personal Workspace',
+        },
+      });
+    });
+
+    it('does not call emailService.addContact for returning users', async () => {
+      const existing = {
+        id: 'u-1',
+        auth0Id: 'auth0|1',
+        email: 'a@b.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(existing);
+
+      await service.syncUser('auth0|1', 'a@b.com');
+
+      expect(mockEmailService.addContact).not.toHaveBeenCalled();
     });
 
     it('returns existing user when email is unchanged — no update', async () => {
@@ -158,9 +219,10 @@ describe('AuthService', () => {
         identities: [],
       });
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
-        createdUser,
-      );
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue({
+        user: createdUser,
+        organization: mockOrganization,
+      });
 
       const result = await service.syncUser(auth0Id, placeholderEmail);
 
@@ -223,9 +285,10 @@ describe('AuthService', () => {
         new Error('Management API unavailable'),
       );
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
-        createdUser,
-      );
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue({
+        user: createdUser,
+        organization: mockOrganization,
+      });
 
       const result = await service.syncUser(auth0Id, placeholderEmail);
 
@@ -490,9 +553,10 @@ describe('AuthService', () => {
 
       (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
-        provisioned,
-      );
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue({
+        user: provisioned,
+        organization: mockOrganization,
+      });
       (mockAuth0ManagementService.getUserById as Mock).mockResolvedValue({
         user_id: auth0Id,
         email,
@@ -527,9 +591,10 @@ describe('AuthService', () => {
 
       (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
-        provisioned,
-      );
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue({
+        user: provisioned,
+        organization: mockOrganization,
+      });
       (mockAuth0ManagementService.getUserById as Mock).mockRejectedValue(
         new Error('Auth0 unavailable'),
       );
@@ -570,9 +635,10 @@ describe('AuthService', () => {
 
       (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
-        provisioned,
-      );
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue({
+        user: provisioned,
+        organization: mockOrganization,
+      });
       (mockUsersService.updateProfile as Mock).mockResolvedValue(updated);
 
       const result = await service.syncUser(auth0Id, email, {
@@ -646,9 +712,10 @@ describe('AuthService', () => {
         'non-error string failure',
       );
       (mockUsersService.findByEmail as Mock).mockResolvedValue(null);
-      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue(
-        provisioned,
-      );
+      (mockUsersService.provisionWithPersonalOrg as Mock).mockResolvedValue({
+        user: provisioned,
+        organization: mockOrganization,
+      });
 
       const result = await service.syncUser(auth0Id, placeholderEmail);
 

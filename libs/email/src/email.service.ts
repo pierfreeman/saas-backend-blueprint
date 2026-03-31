@@ -4,6 +4,7 @@ import { LegalAuditService } from '@libs/legal-audit';
 import {
   EmailProvider,
   EMAIL_PROVIDER,
+  CreateContactInput,
 } from './providers/email-provider.interface';
 import { TemplateRendererService } from './templates/template-renderer.service';
 import {
@@ -189,6 +190,26 @@ export class EmailService {
         recipientHash: this.hashEmail(recipient),
         error: errorMessage,
       },
+    });
+  }
+
+  /**
+   * Add a contact to the email provider's audience (fire-and-forget).
+   * Silently skips if the provider doesn't support contact management.
+   */
+  addContact(input: CreateContactInput): void {
+    if (!this.emailProvider.createContact) {
+      this.logger.debug(
+        `Email provider does not support contacts — skipping addContact for ${input.email}`,
+      );
+      return;
+    }
+
+    this.emailProvider.createContact(input).catch((error) => {
+      this.logger.error(
+        `Failed to add contact ${input.email}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     });
   }
 

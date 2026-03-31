@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
-import { EmailProvider } from './email-provider.interface';
+import { EmailProvider, CreateContactInput } from './email-provider.interface';
 import { SendEmailDto } from '../dto/send-email.dto';
 
 /**
@@ -59,6 +59,35 @@ export class ResendProvider implements EmailProvider {
       );
       throw new Error(
         `Email delivery failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error },
+      );
+    }
+  }
+
+  /**
+   * Create a contact in Resend for audience/marketing purposes.
+   */
+  async createContact(input: CreateContactInput): Promise<void> {
+    try {
+      const { error } = await this.client.contacts.create({
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        properties: input.properties,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      this.logger.log(`Contact created in Resend for ${input.email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to create contact for ${input.email}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new Error(
+        `Contact creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         { cause: error },
       );
     }

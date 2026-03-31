@@ -92,7 +92,10 @@ describe('UserRepository', () => {
 
       const result = await repo.provisionWithPersonalOrg('auth0|1', 'a@b.com');
 
-      expect(result).toBe(createdUser);
+      expect(result).toEqual({
+        user: createdUser,
+        organization: createdOrg,
+      });
       expect(mockPrisma.user.create).toHaveBeenCalledWith({
         data: { auth0Id: 'auth0|1', email: 'a@b.com' },
       });

@@ -325,6 +325,8 @@ User clicks "Login"
   → Redirect to /auth/callback?code=...
   → GET /auth/me  →  syncUser(sub, email)
       → new user: provisionWithPersonalOrg()
+          → emailService.addContact({ email, firstName, lastName,
+              properties: { org_id, org_name } })   ← fire-and-forget
       → returning user: return existing record (update email if changed)
   → Navigate to /
 ```

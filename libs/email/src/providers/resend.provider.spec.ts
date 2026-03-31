@@ -4,14 +4,16 @@ import { ResendProvider } from './resend.provider';
 import { SendEmailDto } from '../dto/send-email.dto';
 import { vi } from 'vitest';
 
-const { mockSend } = vi.hoisted(() => ({
+const { mockSend, mockContactsCreate } = vi.hoisted(() => ({
   mockSend: vi.fn(),
+  mockContactsCreate: vi.fn(),
 }));
 
 vi.mock('resend', () => {
   return {
     Resend: class MockResend {
       emails = { send: mockSend };
+      contacts = { create: mockContactsCreate };
     },
   };
 });
@@ -164,6 +166,64 @@ describe('ResendProvider', () => {
       const providerWithoutKey = module.get<ResendProvider>(ResendProvider);
 
       expect(providerWithoutKey).toBeDefined();
+    });
+  });
+
+  describe('createContact', () => {
+    it('should create a contact successfully', async () => {
+      mockContactsCreate.mockResolvedValue({
+        data: { id: 'contact-123' },
+        error: null,
+      });
+
+      await provider.createContact({
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        properties: { org_id: 'org-1', org_name: 'Acme Inc' },
+      });
+
+      expect(mockContactsCreate).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        properties: { org_id: 'org-1', org_name: 'Acme Inc' },
+      });
+    });
+
+    it('should create a contact with email only', async () => {
+      mockContactsCreate.mockResolvedValue({
+        data: { id: 'contact-456' },
+        error: null,
+      });
+
+      await provider.createContact({ email: 'user@example.com' });
+
+      expect(mockContactsCreate).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        firstName: undefined,
+        lastName: undefined,
+        properties: undefined,
+      });
+    });
+
+    it('should throw error if Resend returns an error response', async () => {
+      mockContactsCreate.mockResolvedValue({
+        data: null,
+        error: { message: 'Contact already exists', name: 'conflict_error' },
+      });
+
+      await expect(
+        provider.createContact({ email: 'user@example.com' }),
+      ).rejects.toThrow('Contact creation failed');
+    });
+
+    it('should throw error if Resend SDK throws', async () => {
+      mockContactsCreate.mockRejectedValue(new Error('Network error'));
+
+      await expect(
+        provider.createContact({ email: 'user@example.com' }),
+      ).rejects.toThrow('Contact creation failed: Network error');
     });
   });
 });

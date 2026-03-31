@@ -304,4 +304,44 @@ describe('EmailService', () => {
       });
     });
   });
+
+  describe('addContact', () => {
+    it('should delegate to provider.createContact', async () => {
+      emailProvider.createContact = vi.fn().mockResolvedValue(undefined);
+
+      service.addContact({
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(emailProvider.createContact).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      });
+    });
+
+    it('should silently skip if provider does not support createContact', () => {
+      delete emailProvider.createContact;
+
+      // Should not throw
+      service.addContact({ email: 'user@example.com' });
+    });
+
+    it('should handle provider errors gracefully (fire-and-forget)', async () => {
+      emailProvider.createContact = vi
+        .fn()
+        .mockRejectedValue(new Error('API error'));
+
+      // Should not throw
+      service.addContact({ email: 'user@example.com' });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(emailProvider.createContact).toHaveBeenCalled();
+    });
+  });
 });

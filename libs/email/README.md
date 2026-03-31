@@ -27,7 +27,7 @@ Event Handler (UserInvitedEmailHandler, ExportCompletedEmailHandler)
     ↓
 EmailService (renders template, validates input)
     ↓
-Email Provider (SendGrid, SMTP)
+Email Provider (Resend, SMTP)
     ↓
 External Email Service
 ```
@@ -244,6 +244,65 @@ export class YourService {
   }
 }
 ```
+
+---
+
+## Contact Management
+
+### Overview
+
+The email library supports creating contacts in the email provider's audience for marketing/lifecycle purposes. This is implemented as a **fire-and-forget** operation — failures are logged but never block business flows.
+
+Contact creation is **provider-optional**: only providers that support audience management (e.g., Resend) implement it. SMTP providers silently skip contact operations.
+
+### When Contacts Are Created
+
+Contacts are added automatically during **first-time user provisioning** (`AuthService.provisionNewUser`). The contact includes:
+
+| Field       | Source                       |
+| ----------- | ---------------------------- |
+| `email`     | User's email address         |
+| `firstName` | Auth0 profile (if available) |
+| `lastName`  | Auth0 profile (if available) |
+| `org_id`    | Personal workspace org ID    |
+| `org_name`  | Personal workspace org name  |
+
+### Custom Properties
+
+Resend contacts are created with custom properties (must be pre-defined in the Resend dashboard):
+
+- **`org_id`** — The user's personal workspace organization ID
+- **`org_name`** — The user's personal workspace organization name
+
+### Usage
+
+```typescript
+import { EmailService } from '@libs/email';
+
+@Injectable()
+export class YourService {
+  constructor(private readonly emailService: EmailService) {}
+
+  addUserToAudience(user: User, org: Organization) {
+    this.emailService.addContact({
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      properties: {
+        org_id: org.id,
+        org_name: org.name,
+      },
+    });
+  }
+}
+```
+
+### Provider Support
+
+| Provider | `sendEmail` | `createContact` |
+| -------- | ----------- | --------------- |
+| Resend   | ✅          | ✅              |
+| SMTP     | ✅          | ❌ (skipped)    |
 
 ---
 
@@ -474,6 +533,8 @@ Before deploying to production:
 - [ ] Audit logging tested (check activity log and legal audit tables)
 - [ ] Error monitoring configured (Sentry captures email failures)
 - [ ] Rate limits reviewed (Resend free tier: 100 emails/day, 3000/month)
+- [ ] Resend audience created with custom properties `org_id` (string) and `org_name` (string)
+- [ ] `RESEND_AUDIENCE_ID` set in environment
 - [ ] Consider SPF, DKIM, DMARC for sender domain
 
 ---
@@ -508,15 +569,15 @@ Error: Template not found: my-template.hbs
 
 **Solution**: Ensure template exists at `libs/email/src/lib/templates/my-template.hbs`
 
-### SendGrid API Error: 403 Forbidden
+### Resend API Error: 403 Forbidden
 
 **Cause**: Invalid or missing API key
 
 **Solution**:
 
-- Regenerate API key in SendGrid dashboard
-- Ensure API key has "Mail Send" permission
-- Update `SENDGRID_API_KEY` in `.env`
+- Regenerate API key in the Resend dashboard
+- Ensure the API key has the correct domain permissions
+- Update `RESEND_API_KEY` in `.env`
 
 ---
 
@@ -527,7 +588,7 @@ When adding new email templates or features:
 1. Follow existing patterns (see `user-invite.handler.ts` as reference)
 2. Add comprehensive unit tests (80%+ coverage required)
 3. Update this README with new templates/events
-4. Test locally with MailHog before deploying
+4. Test locally with Resend (or Mailpit for SMTP) before deploying
 
 ---
 
@@ -542,5 +603,5 @@ Proprietary - Part of the SaaS Backend Blueprint
 For issues or questions:
 
 - Check application logs for error details
-- Review SendGrid dashboard for delivery issues
+- Review Resend dashboard for delivery issues
 - Contact the platform team for architecture questions
