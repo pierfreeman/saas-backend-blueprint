@@ -126,6 +126,7 @@ app.enableCors({
     'x-org-id',
     'x-tenant-id',
     'x-csrf-token',
+    'ngrok-skip-browser-warning',
   ],
   maxAge: 86400, // 24h preflight cache
 });
