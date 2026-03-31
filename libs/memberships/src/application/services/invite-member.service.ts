@@ -6,13 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MembershipsService } from '@libs/memberships';
+import { MembershipRole } from '@libs/prisma-business';
+import { MembershipsService } from './memberships.service';
 import { OrganizationsService } from '@libs/organizations';
 import { UsersService } from '@libs/users';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
-import { InviteMemberDto } from './dto/invite-member.dto';
-import { PENDING_AUTH0_ID_PREFIX } from '../auth/auth.service';
-import { Auth0ManagementService } from '../auth/auth0-management.service';
+import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
+import { Auth0ManagementService } from '@libs/auth/infrastructure/clients/auth0-management.service';
 
 export interface InviteMemberResult {
   message: string;
@@ -51,11 +51,12 @@ export class InviteMemberService {
   ) {}
 
   async invite(
-    dto: InviteMemberDto,
+    email: string,
+    role: MembershipRole,
     orgId: string,
     inviterUserId: string,
   ): Promise<InviteMemberResult> {
-    const email = dto.email.toLowerCase();
+    const normalizedEmail = email.toLowerCase();
 
     // 1. Fetch org
     const org = await this.organizationsService.findById(orgId);
@@ -65,17 +66,17 @@ export class InviteMemberService {
     }
 
     // 2. Resolve invited user
-    let user = await this.usersService.findByEmail(email);
+    let user = await this.usersService.findByEmail(normalizedEmail);
 
     if (!user) {
       this.logger.log(
-        `User ${email} not found in Prisma — creating pending record.`,
+        `User ${normalizedEmail} not found in Prisma — creating pending record.`,
       );
       // Create a placeholder Prisma record. The auth0Id is replaced with the
       // real Auth0 sub on the user's first login (see AuthService.syncUser).
       user = await this.usersService.createUser(
         `${PENDING_AUTH0_ID_PREFIX}${randomUUID()}`,
-        email,
+        normalizedEmail,
       );
     }
 
@@ -86,14 +87,14 @@ export class InviteMemberService {
     );
     if (existing) {
       throw new ConflictException(
-        `${email} is already a member of this organization.`,
+        `${normalizedEmail} is already a member of this organization.`,
       );
     }
 
     // 4. Create membership
     await this.membershipsService.createMembership(
       orgId,
-      { userId: user.id, role: dto.role },
+      { userId: user.id, role },
       inviterUserId,
     );
 
@@ -114,19 +115,19 @@ export class InviteMemberService {
 
       try {
         await this.auth0ManagementService.sendPasswordlessLink(
-          email,
+          normalizedEmail,
           redirectUri,
         );
       } catch (err) {
         // Auth0 passwordless is optional — the invite email is sent via
         // the USER_INVITED event (Resend). Log the failure but don't 500.
         this.logger.warn(
-          `Auth0 passwordless link failed for ${email}: ${err instanceof Error ? err.message : String(err)}`,
+          `Auth0 passwordless link failed for ${normalizedEmail}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
 
-    this.logger.log(`Invite sent to ${email} for org ${orgId}.`);
+    this.logger.log(`Invite sent to ${normalizedEmail} for org ${orgId}.`);
 
     // 6. Publish USER_INVITED domain event → triggers invitation email via worker
     // Resolve inviter's display name — prefer "First Last", fall back to email.
@@ -142,12 +143,12 @@ export class InviteMemberService {
       tenantId: orgId,
       userId: inviterUserId,
       payload: {
-        inviteeName: email,
-        inviteeEmail: email,
+        inviteeName: normalizedEmail,
+        inviteeEmail: normalizedEmail,
         inviterName,
         organizationName: org.name,
         organizationId: orgId,
-        role: dto.role,
+        role,
         inviteUrl: `${baseUrl}/auth/callback`,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },

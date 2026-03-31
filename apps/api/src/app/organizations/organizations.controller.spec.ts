@@ -1,7 +1,7 @@
 import { RequestUser } from '@libs/common';
 import { DeletionTrigger, OrgDeletionService } from '@libs/org-deletion';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { AuthService } from '../auth/auth.service';
+import { AuthService } from '@libs/auth';
 import { OrganizationsController } from './organizations.controller';
 import { OrganizationsService } from '@libs/organizations';
 import { OrgExportService } from '@libs/org-export';

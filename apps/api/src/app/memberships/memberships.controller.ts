@@ -34,8 +34,8 @@ import { MembershipsService } from '@libs/memberships';
 import {
   InviteMemberService,
   InviteMemberResult,
-} from './invite-member.service';
-import { RemoveMemberService } from './remove-member.service';
+  RemoveMemberService,
+} from '@libs/memberships';
 
 @ApiTags('Memberships')
 @ApiBearerAuth()
@@ -423,6 +423,6 @@ export class MembershipsController {
     @Body() dto: InviteMemberDto,
     @CurrentUserId() inviterUserId: string,
   ): Promise<InviteMemberResult> {
-    return this.inviteMemberService.invite(dto, orgId, inviterUserId);
+    return this.inviteMemberService.invite(dto.email, dto.role, orgId, inviterUserId);
   }
 }

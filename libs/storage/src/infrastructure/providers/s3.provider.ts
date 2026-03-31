@@ -44,4 +44,13 @@ export class S3Provider implements IStorageProvider {
   async getObjectSize(key: string): Promise<bigint> {
     return this.s3Client.getObjectSize(key);
   }
+
+  async putObject(
+    key: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    this.logger.debug(`Uploading object to key: ${key}`);
+    await this.s3Client.putObject(key, buffer, contentType);
+  }
 }

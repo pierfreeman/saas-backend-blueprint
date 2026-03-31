@@ -22,9 +22,15 @@ import {
 import { Organization, MembershipRole } from '@libs/prisma-business';
 import { OrgDeletionService, DeletionTrigger } from '@libs/org-deletion';
 import { OrgExportService } from '@libs/org-export';
-import { AuthService } from '../auth/auth.service';
+import { AuthService } from '@libs/auth';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { OrgScoped, RequirePermissions, RequireRole, OrgContextGuard, RBACGuard } from '@libs/rbac';
+import {
+  OrgScoped,
+  RequirePermissions,
+  RequireRole,
+  OrgContextGuard,
+  RBACGuard,
+} from '@libs/rbac';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationsService } from '@libs/organizations';

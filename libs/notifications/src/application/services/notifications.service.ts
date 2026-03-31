@@ -4,6 +4,8 @@ import {
   NotFoundException,
   OnModuleDestroy,
 } from '@nestjs/common';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { CacheService } from '@libs/redis';
 import { NotificationsPubSubService } from './notifications-pubsub.service';
 import { Notification } from '@libs/prisma-business';
@@ -47,6 +49,8 @@ export class NotificationsService implements OnModuleDestroy {
     private readonly repo: NotificationsRepository,
     private readonly pubSub: NotificationsPubSubService,
     private readonly cache: CacheService,
+    private readonly activityLog: ActivityLogService,
+    private readonly legalAudit: LegalAuditService,
   ) {}
 
   async onModuleDestroy(): Promise<void> {
@@ -83,6 +87,21 @@ export class NotificationsService implements OnModuleDestroy {
     this.logger.debug(
       `Created notification ${notification.id} for user ${input.userId}`,
     );
+
+    this.activityLog.logActivity({
+      orgId: input.orgId,
+      actorId: input.userId,
+      action: 'notification.created',
+      entityType: 'notification',
+      entityId: notification.id,
+      metadata: { type: input.type, title: input.title },
+    });
+    this.legalAudit.recordEvent({
+      eventType: 'notification.created',
+      orgId: input.orgId,
+      triggerType: 'system',
+      metadata: { notificationId: notification.id, userId: input.userId, type: input.type },
+    });
 
     return notification;
   }
@@ -252,6 +271,21 @@ export class NotificationsService implements OnModuleDestroy {
     }
 
     await this.repo.delete(id);
+
+    this.activityLog.logActivity({
+      orgId: existing.orgId,
+      actorId: userId,
+      action: 'notification.deleted',
+      entityType: 'notification',
+      entityId: id,
+      metadata: { type: existing.type },
+    });
+    this.legalAudit.recordEvent({
+      eventType: 'notification.deleted',
+      orgId: existing.orgId,
+      triggerType: 'user',
+      metadata: { notificationId: id, userId },
+    });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

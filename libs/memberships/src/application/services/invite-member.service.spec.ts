@@ -1,7 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { InviteMemberService } from './invite-member.service';
-import { PENDING_AUTH0_ID_PREFIX } from '../auth/auth.service';
+import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
 import { vi } from 'vitest';
 
 const baseMembership = {
@@ -91,7 +91,8 @@ describe('InviteMemberService', () => {
       mockUsersService.findByEmail.mockResolvedValue(existingUser);
 
       const result = await service.invite(
-        { email: existingUser.email, role: MembershipRole.MEMBER },
+        existingUser.email,
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -131,7 +132,8 @@ describe('InviteMemberService', () => {
       mockUsersService.findByEmail.mockResolvedValue(pendingUser);
 
       const result = await service.invite(
-        { email: pendingUser.email, role: MembershipRole.MEMBER },
+        pendingUser.email,
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -163,7 +165,8 @@ describe('InviteMemberService', () => {
       mockUsersService.findByEmail.mockResolvedValue(socialUser);
 
       const result = await service.invite(
-        { email: socialUser.email, role: MembershipRole.MEMBER },
+        socialUser.email,
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -194,7 +197,8 @@ describe('InviteMemberService', () => {
       mockUsersService.createUser.mockResolvedValue(pendingUser);
 
       const result = await service.invite(
-        { email: pendingUser.email, role: MembershipRole.MEMBER },
+        pendingUser.email,
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -231,7 +235,8 @@ describe('InviteMemberService', () => {
 
       await expect(
         service.invite(
-          { email: existingUser.email, role: MembershipRole.MEMBER },
+          existingUser.email,
+          MembershipRole.MEMBER,
           'org-1',
           inviterUser.id,
         ),
@@ -250,7 +255,8 @@ describe('InviteMemberService', () => {
 
       await expect(
         service.invite(
-          { email: existingUser.email, role: MembershipRole.MEMBER },
+          existingUser.email,
+          MembershipRole.MEMBER,
           'org-missing',
           inviterUser.id,
         ),
@@ -264,7 +270,8 @@ describe('InviteMemberService', () => {
       mockUsersService.createUser.mockResolvedValue(pendingUser);
 
       await service.invite(
-        { email: 'NEWBIE@EXAMPLE.COM', role: MembershipRole.MEMBER },
+        'NEWBIE@EXAMPLE.COM',
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -289,7 +296,8 @@ describe('InviteMemberService', () => {
 
       await expect(
         service.invite(
-          { email: existingUser.email, role: MembershipRole.MEMBER },
+          existingUser.email,
+          MembershipRole.MEMBER,
           'org-null',
           inviterUser.id,
         ),

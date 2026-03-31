@@ -1,10 +1,8 @@
-import { StripeClient } from '@libs/billing';
+import { StripeService } from '@libs/billing';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- health checks probe the DB connection directly via $queryRaw; this is infrastructure, not domain logic
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Stripe from 'stripe';
 
 @Injectable()
 export class HealthService {
@@ -13,8 +11,7 @@ export class HealthService {
   constructor(
     private readonly prisma: PrismaBusinessService,
     private readonly redis: CacheService,
-    private readonly configService: ConfigService,
-    private readonly stripeClient: StripeClient,
+    private readonly stripeService: StripeService,
   ) {}
 
   async checkHealth(): Promise<{
@@ -104,24 +101,6 @@ export class HealthService {
     status: string;
     responseTime?: number;
   }> {
-    const apiKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-    if (
-      !apiKey ||
-      (!apiKey.startsWith('sk_test_') && !apiKey.startsWith('sk_live_'))
-    ) {
-      return { status: 'misconfigured' };
-    }
-
-    try {
-      const start = Date.now();
-      await this.stripeClient.stripe.accounts.retrieve();
-      return { status: 'ok', responseTime: Date.now() - start };
-    } catch (err) {
-      if (err instanceof Stripe.errors.StripeAuthenticationError) {
-        return { status: 'misconfigured' };
-      }
-      this.logger.error('Stripe health check failed', err);
-      return { status: 'error' };
-    }
+    return this.stripeService.checkConnectivity();
   }
 }

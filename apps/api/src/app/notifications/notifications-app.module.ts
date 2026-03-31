@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '@libs/notifications';
-import { AuthModule } from '../auth/auth.module';
+import { RBACModule } from '@libs/rbac';
 import { NotificationsController } from './notifications.controller';
 
 /**
@@ -16,7 +16,7 @@ import { NotificationsController } from './notifications.controller';
  *   - NotificationsAppModule → HTTP controller wired to real guards
  */
 @Module({
-  imports: [NotificationsModule, AuthModule],
+  imports: [NotificationsModule, RBACModule],
   controllers: [NotificationsController],
 })
 export class NotificationsAppModule {}

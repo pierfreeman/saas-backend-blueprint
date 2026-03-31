@@ -43,4 +43,13 @@ export interface IStorageProvider {
    * @returns Size in bytes
    */
   getObjectSize(key: string): Promise<bigint>;
+
+  /**
+   * Upload a buffer directly to storage.
+   * For use by internal workflows that bypass the presigned-URL upload flow.
+   * @param key - Storage key (path) for the file
+   * @param buffer - File content
+   * @param contentType - MIME type of the file
+   */
+  putObject(key: string, buffer: Buffer, contentType: string): Promise<void>;
 }

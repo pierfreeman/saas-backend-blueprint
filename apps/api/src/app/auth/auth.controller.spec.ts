@@ -1,5 +1,5 @@
 import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
+import { AuthService } from '@libs/auth';
 import { RequestUser } from '@libs/common';
 import { BadRequestException } from '@nestjs/common';
 import { vi } from 'vitest';

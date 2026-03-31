@@ -7,6 +7,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+
+/** RFC 4122 UUID format check — avoids ESM-only uuid package import. */
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
 import { Request } from 'express';
 import { UsersService } from '@libs/users';
 import { MembershipsService } from '@libs/memberships';
@@ -65,23 +72,21 @@ export class OrgContextGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated');
     }
 
-    // Resolve orgId from multiple sources.
-    // Checks: params.orgId → params.id (for /organizations/:id routes) → query → body → header
-    const orgId =
+    // Resolve orgId from multiple sources (in priority order).
+    // params['id'] is included only when the route is explicitly @OrgScoped —
+    // this allows /organizations/:id to work while preventing routes like
+    // PATCH /notifications/:id/read from mapping the resource id to an org id.
+    const rawOrgId =
       request.params['orgId'] ??
-      request.params['id'] ??
+      (isOrgScoped
+        ? (request.params['id'] as string | undefined)
+        : undefined) ??
       (request.query['orgId'] as string | undefined) ??
       (request.body as { orgId?: string } | undefined)?.orgId ??
       (request.headers['x-org-id'] as string | undefined);
 
-    if (!orgId) {
-      if (isOrgScoped) {
-        throw new BadRequestException('Organization ID is required');
-      }
-      return true;
-    }
-
-    // Resolve DB user from Auth0 sub
+    // Always resolve the DB user from JWT sub — needed even when orgId is absent
+    // so that request.user.dbUserId is available to controllers without org context.
     let dbUser = await this.usersService.findByAuth0Id(user.sub);
 
     if (!dbUser) {
@@ -91,6 +96,25 @@ export class OrgContextGuard implements CanActivate {
         user.email ?? `${user.sub}@unknown.local`,
       );
     }
+
+    request.user.dbUserId = dbUser.id;
+
+    if (!rawOrgId) {
+      if (isOrgScoped) {
+        throw new BadRequestException('Organization ID is required');
+      }
+      return true;
+    }
+
+    // Validate UUID format before querying Prisma to avoid database errors and 500s.
+    if (!isValidUuid(rawOrgId)) {
+      if (isOrgScoped) {
+        throw new BadRequestException('Organization ID must be a valid UUID');
+      }
+      return true;
+    }
+
+    const orgId = rawOrgId;
 
     // Verify active membership
     const membership = await this.membershipsService.findByUserAndOrg(

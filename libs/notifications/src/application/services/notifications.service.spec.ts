@@ -4,6 +4,8 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsPubSubService } from './notifications-pubsub.service';
 import { NotificationsRepository } from '../../infrastructure/repositories/notifications.repository';
 import { CacheService } from '@libs/redis';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import {
   UNREAD_CACHE_KEY,
   UNREAD_ORG_CACHE_KEY,
@@ -45,6 +47,14 @@ const mockPubSub = {
   publishUserNotification: vi.fn().mockResolvedValue(undefined),
 };
 
+const mockActivityLog = {
+  logActivity: vi.fn(),
+};
+
+const mockLegalAudit = {
+  recordEvent: vi.fn(),
+};
+
 const mockRepo = {
   create: vi.fn(),
   findByUser: vi.fn(),
@@ -73,6 +83,8 @@ describe('NotificationsService', () => {
         { provide: NotificationsRepository, useValue: mockRepo },
         { provide: NotificationsPubSubService, useValue: mockPubSub },
         { provide: CacheService, useValue: mockCache },
+        { provide: ActivityLogService, useValue: mockActivityLog },
+        { provide: LegalAuditService, useValue: mockLegalAudit },
       ],
     }).compile();
 

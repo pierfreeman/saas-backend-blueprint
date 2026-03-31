@@ -378,10 +378,11 @@ export class SubscriptionService {
 
     if (!orgId) return;
 
-    const domainEvent =
-      subscription.status === 'canceled'
-        ? DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CANCELLED
-        : DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED;
+    const isCanceled = subscription.status === 'canceled';
+
+    const domainEvent = isCanceled
+      ? DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CANCELLED
+      : DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED;
 
     await this.eventBus.publish({
       eventType: domainEvent,
@@ -395,6 +396,16 @@ export class SubscriptionService {
       tenantId: orgId,
       messageGroupId: orgId,
     });
+
+    if (isCanceled) {
+      await this.eventBus.publish({
+        eventType: DOMAIN_EVENTS.SUBSCRIPTION_EXPIRED,
+        timestamp: new Date(),
+        payload: { orgId },
+        tenantId: orgId,
+        messageGroupId: orgId,
+      });
+    }
   }
 
   /**
@@ -453,6 +464,14 @@ export class SubscriptionService {
         amountPaid: invoice.amount_paid,
         currency: invoice.currency,
       },
+      tenantId: org.orgId,
+      messageGroupId: org.orgId,
+    });
+
+    await this.eventBus.publish({
+      eventType: DOMAIN_EVENTS.SUBSCRIPTION_ACTIVATED,
+      timestamp: new Date(),
+      payload: { orgId: org.orgId },
       tenantId: org.orgId,
       messageGroupId: org.orgId,
     });

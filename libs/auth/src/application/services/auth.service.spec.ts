@@ -1,7 +1,7 @@
 import { AuthService, PENDING_AUTH0_ID_PREFIX } from './auth.service';
 import { UsersService } from '@libs/users';
 import { EmailService } from '@libs/email';
-import { Auth0ManagementService } from './auth0-management.service';
+import { Auth0ManagementService } from '../../infrastructure/clients/auth0-management.service';
 import { Mock, vi } from 'vitest';
 
 const mockUsersService = {

@@ -18,6 +18,12 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@libs/auth": [
+        "libs/auth/src/index.ts"
+      ],
+      "@libs/auth/*": [
+        "libs/auth/src/*"
+      ],
       "@libs/prisma-business": [
         "libs/prisma-business/src/index.ts"
       ],

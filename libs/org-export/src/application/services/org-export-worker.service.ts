@@ -1,6 +1,6 @@
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
-import { StorageService, S3StorageClient } from '@libs/storage';
+import { StorageService } from '@libs/storage';
 import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -30,7 +30,6 @@ export class OrgExportWorkerService {
     private readonly storage: StorageService,
     private readonly config: ConfigService,
     private readonly email: EmailService,
-    private readonly s3Client: S3StorageClient,
   ) {
     this.urlExpirationHours = this.config.get<number>(
       'EXPORT_URL_EXPIRATION_HOURS',
@@ -122,7 +121,7 @@ export class OrgExportWorkerService {
       );
 
       const expirationSeconds = this.urlExpirationHours * 60 * 60;
-      const downloadUrl = await this.s3Client.generatePresignedDownloadUrl(
+      const downloadUrl = await this.storage.generateRawPresignedDownloadUrl(
         storageKey,
         expirationSeconds,
       );
@@ -300,7 +299,7 @@ export class OrgExportWorkerService {
     storageKey: string,
     buffer: Buffer,
   ): Promise<void> {
-    await this.s3Client.putObject(storageKey, buffer, 'application/zip');
+    await this.storage.putRawObject(storageKey, buffer, 'application/zip');
     this.logger.log(`Uploaded export file to ${storageKey}`);
   }
 

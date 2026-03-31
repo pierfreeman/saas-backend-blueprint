@@ -31,8 +31,8 @@ const mockOrgsService = {
   findById: vi.fn(),
 } as unknown as OrganizationsService;
 
-const USER_ID = 'user-uuid-1';
-const ORG_ID = 'org-uuid-1';
+const USER_ID = '11111111-1111-1111-1111-111111111111';
+const ORG_ID = '00000000-0000-0000-0000-000000000001';
 const AUTH0_ID = 'auth0|123456';
 
 function makeRequest(
@@ -124,8 +124,13 @@ describe('OrgContextGuard', () => {
       expect(request.tenantContext?.userId).toBe(USER_ID);
     });
 
-    it('reads orgId from params.id when params.orgId is not present', async () => {
-      mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
+    // NOTE: params['id'] is intentionally excluded — it conflicts with resource-level :id
+    // params on routes like PATCH /notifications/:id (where :id is a notification, not an org).
+
+    it('reads orgId from params.id when @OrgScoped is true and params.orgId is not present', async () => {
+      // When @OrgScoped is true, the :id param is treated as the org ID
+      // (used by routes like GET /organizations/:id).
+      mockReflector.getAllAndOverride = vi.fn().mockReturnValue(true);
 
       const dbUser = {
         id: USER_ID,
@@ -154,6 +159,25 @@ describe('OrgContextGuard', () => {
 
       expect(result).toBe(true);
       expect(request.orgId).toBe(ORG_ID);
+    });
+
+    it('does NOT read orgId from params.id when @OrgScoped is false (resource routes)', async () => {
+      // When @OrgScoped is false, params.id is a resource ID, not an org ID.
+      // This prevents PATCH /notifications/:id/read from mapping the notification id to an org.
+      mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
+
+      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
+
+      const request = makeRequest({ params: { id: ORG_ID } });
+      const ctx = makeContext(request);
+
+      const result = await guard.canActivate(ctx);
+
+      // Guard returns true without setting org context (resource-level :id ignored).
+      expect(result).toBe(true);
+      expect(request.orgId).toBeUndefined();
+      expect(request.tenantContext).toBeUndefined();
     });
   });
 
@@ -263,6 +287,9 @@ describe('OrgContextGuard', () => {
     it('throws BadRequestException when route is @OrgScoped but no orgId provided', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(true);
 
+      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
+
       const request = makeRequest();
       const ctx = makeContext(request);
 
@@ -275,13 +302,18 @@ describe('OrgContextGuard', () => {
     it('passes through (returns true) when no orgId and route is not @OrgScoped', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
+      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
+
       const request = makeRequest();
       const ctx = makeContext(request);
 
       const result = await guard.canActivate(ctx);
 
       expect(result).toBe(true);
-      expect(mockUsersService.findByAuth0Id).not.toHaveBeenCalled();
+      // Guard always resolves the DB user (sets dbUserId) even without org context.
+      expect(mockUsersService.findByAuth0Id).toHaveBeenCalledWith(AUTH0_ID);
+      expect(request.user?.dbUserId).toBe(USER_ID);
     });
 
     it('throws ForbiddenException when membership is not found but org exists', async () => {

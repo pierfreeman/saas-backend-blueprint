@@ -2,11 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { UsersService } from '@libs/users';
 import { EmailService } from '@libs/email';
 import { User } from '@libs/prisma-business';
-import { Auth0ManagementService } from './auth0-management.service';
+import { Auth0ManagementService } from '../../infrastructure/clients/auth0-management.service';
+import { PENDING_AUTH0_ID_PREFIX } from '../../constants';
 
-/** Prefix used for Prisma users created by the invite flow before the
- *  invitee has logged in and obtained a real Auth0 subject claim. */
-export const PENDING_AUTH0_ID_PREFIX = 'pending:';
+export { PENDING_AUTH0_ID_PREFIX };
 
 @Injectable()
 export class AuthService {

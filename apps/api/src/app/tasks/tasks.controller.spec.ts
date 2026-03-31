@@ -3,9 +3,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 import { JwtAuthGuard } from '@libs/common';
+import { OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { JobStatus } from '@libs/prisma-business';
-import { Request } from 'express';
 import { Mocked, vi } from 'vitest';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -14,7 +14,6 @@ const dto: CreateTaskDto = { name: 'job', data: { x: 1 } };
 
 const TEST_ORG_ID = 'org-1';
 const TEST_USER_ID = 'user-1';
-
 const baseJob = {
   id: 'job-uuid-1',
   orgId: TEST_ORG_ID,
@@ -30,11 +29,6 @@ const baseJob = {
   createdAt: new Date('2026-02-27T10:00:00Z'),
   updatedAt: new Date('2026-02-27T10:00:03Z'),
 };
-
-/** Minimal Express Request stub with a JWT user attached. */
-const makeReq = (sub = TEST_USER_ID): Partial<Request> => ({
-  user: { sub, email: 'user@test.com' } as any,
-});
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +51,10 @@ describe('TasksController', () => {
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
+      .overrideGuard(OrgContextGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RBACGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     controller = module.get(TasksController);
@@ -70,8 +68,8 @@ describe('TasksController', () => {
       tasksService.createHeavyJob.mockResolvedValue({ jobId: 'job_123' });
       const result = await controller.createHeavyJob(
         dto,
-        makeReq() as Request,
         TEST_ORG_ID,
+        TEST_USER_ID,
       );
       expect(result).toMatchObject({
         jobId: 'job_123',
@@ -86,19 +84,9 @@ describe('TasksController', () => {
       );
     });
 
-    it('uses "default" as tenantId when @CurrentTenant returns undefined', async () => {
+    it('passes undefined userId when tenant context is empty', async () => {
       tasksService.createHeavyJob.mockResolvedValue({ jobId: 'job_456' });
-      await controller.createHeavyJob(dto, makeReq() as Request, undefined);
-      expect(tasksService.createHeavyJob).toHaveBeenCalledWith(
-        'default',
-        dto,
-        TEST_USER_ID,
-      );
-    });
-
-    it('passes undefined userId when req.user is absent', async () => {
-      tasksService.createHeavyJob.mockResolvedValue({ jobId: 'job_789' });
-      await controller.createHeavyJob(dto, {} as Request, TEST_ORG_ID);
+      await controller.createHeavyJob(dto, TEST_ORG_ID, undefined);
       expect(tasksService.createHeavyJob).toHaveBeenCalledWith(
         TEST_ORG_ID,
         dto,
@@ -109,7 +97,7 @@ describe('TasksController', () => {
     it('propagates service errors', async () => {
       tasksService.createHeavyJob.mockRejectedValue(new Error('queue full'));
       await expect(
-        controller.createHeavyJob(dto, makeReq() as Request, TEST_ORG_ID),
+        controller.createHeavyJob(dto, TEST_ORG_ID, TEST_USER_ID),
       ).rejects.toThrow('queue full');
     });
   });
@@ -133,15 +121,6 @@ describe('TasksController', () => {
       expect(tasksService.findJobById).toHaveBeenCalledWith(
         'job-uuid-1',
         TEST_ORG_ID,
-      );
-    });
-
-    it('uses "default" tenantId when @CurrentTenant returns undefined', async () => {
-      tasksService.findJobById.mockResolvedValue(baseJob as any);
-      await controller.getJobStatus('job-uuid-1', undefined);
-      expect(tasksService.findJobById).toHaveBeenCalledWith(
-        'job-uuid-1',
-        'default',
       );
     });
 

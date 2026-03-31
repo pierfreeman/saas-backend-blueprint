@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ActivityLogModule } from '@libs/activity-log';
+import { LegalAuditModule } from '@libs/legal-audit';
 import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
 import { NotificationsService } from './application/services/notifications.service';
@@ -28,7 +30,7 @@ import { WsJwtGuard } from './realtime/guards/ws-jwt.guard';
  *   - NotificationsGateway — allows other modules to push realtime events.
  */
 @Module({
-  imports: [PrismaBusinessModule, RedisModule],
+  imports: [ActivityLogModule, LegalAuditModule, PrismaBusinessModule, RedisModule],
   providers: [
     NotificationsRepository,
     NotificationsService,

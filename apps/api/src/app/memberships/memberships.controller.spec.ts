@@ -2,8 +2,8 @@ import { MembershipsController } from './memberships.controller';
 import { MembershipsService } from '@libs/memberships';
 import { RBACCacheService } from '@libs/rbac';
 import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
-import { InviteMemberService } from './invite-member.service';
-import { RemoveMemberService } from './remove-member.service';
+import { InviteMemberService } from '@libs/memberships';
+import { RemoveMemberService } from '@libs/memberships';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { vi } from 'vitest';
 
@@ -169,7 +169,8 @@ describe('MembershipsController', () => {
 
       expect(result).toBe(expected);
       expect(mockInviteMemberService.invite).toHaveBeenCalledWith(
-        inviteDto,
+        inviteDto.email,
+        inviteDto.role,
         'org-1',
         inviterUserId,
       );

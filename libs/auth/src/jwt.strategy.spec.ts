@@ -1,5 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
-import { AuthService } from './auth.service';
+import { AuthService } from './application/services/auth.service';
 import { vi } from 'vitest';
 
 // Stub PassportStrategy and passport-jwt to avoid real JWKS setup

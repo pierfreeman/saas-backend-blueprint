@@ -8,7 +8,12 @@ import {
 } from '@nestjs/common';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import { Membership, MembershipRole, Organization, User } from '@libs/prisma-business';
+import {
+  Membership,
+  MembershipRole,
+  Organization,
+  User,
+} from '@libs/prisma-business';
 import { MembershipsRepository } from '../../infrastructure/repositories/memberships.repository';
 import {
   IMembershipCacheNotifier,
@@ -216,16 +221,5 @@ export class MembershipsService {
   ): Promise<boolean> {
     const membership = await this.findByUserAndOrg(userId, orgId);
     return !!membership && roles.includes(membership.role);
-  }
-
-  async isOwner(userId: string, orgId: string): Promise<boolean> {
-    return this.hasRole(userId, orgId, [MembershipRole.OWNER]);
-  }
-
-  async isAdmin(userId: string, orgId: string): Promise<boolean> {
-    return this.hasRole(userId, orgId, [
-      MembershipRole.OWNER,
-      MembershipRole.ADMIN,
-    ]);
   }
 }
