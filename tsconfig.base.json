@@ -179,6 +179,24 @@
       ],
       "@libs/planning/*": [
         "libs/planning/src/*"
+      ],
+      "@libs/admin/auth": [
+        "libs/admin/auth/src/index.ts"
+      ],
+      "@libs/admin/organizations": [
+        "libs/admin/organizations/src/index.ts"
+      ],
+      "@libs/admin/memberships": [
+        "libs/admin/memberships/src/index.ts"
+      ],
+      "@libs/admin/billing": [
+        "libs/admin/billing/src/index.ts"
+      ],
+      "@libs/admin/activity-log": [
+        "libs/admin/activity-log/src/index.ts"
+      ],
+      "@libs/admin/entitlements": [
+        "libs/admin/entitlements/src/index.ts"
       ]
     }
   },

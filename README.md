@@ -37,6 +37,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 - 🗄️ S3 file storage — presigned upload/download URLs, per-org isolation, quota enforcement, cleanup scheduler
 - 🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
 - 📊 Structured observability — JSON logging, Sentry, Prometheus/Datadog stubs
+- 🛠️ Admin backoffice portal — system-admin gate (`isSystemAdmin` user flag), Customer 360 org view, cross-org member management, billing oversight, activity log, entitlement cache invalidation
 
 ---
 
@@ -80,6 +81,13 @@ apps/
 
 libs/
   activity-log    — Tenant-visible operational event log (business DB)
+  admin/
+    auth          — SystemAdminGuard + CurrentAdminUserId decorator (system-admin gate)
+    activity-log  — Cross-org and per-org activity log queries for backoffice
+    billing       — Read billing overviews + open Stripe portal on behalf of any org
+    entitlements  — Read / invalidate plan entitlements for any org
+    memberships   — List, invite, change-role, remove members across any org
+    organizations — List all orgs with filters, detail view (Customer 360)
   billing         — Stripe subscription management (checkout, portal, webhooks)
   common          — Shared RBAC constants, tenant context, exception filter
   config          — NestJS ConfigModule wrappers with Joi validation
@@ -134,22 +142,23 @@ prisma-legal/
 
 ### Business
 
-| Feature       | Library                                               | Description                                                                                                                                                                      |
-| ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                                                                                     |
-| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning                                                                       |
-| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                                                                                        |
-| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                                                                                                    |
-| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                                                                                                   |
-| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                      |
-| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                    |
-| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; Resend/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                        |
-| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                               |
-| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                      |
-| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                              |
-| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration                                                                             |
-| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                                                                                            |
-| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), calendar range queries, event reminder notifications (cron sweep every 5 min) |
+| Feature       | Library                                               | Description                                                                                                                                                                                                                       |
+| ------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                                                                                                                                      |
+| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning                                                                                                                        |
+| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                                                                                                                                         |
+| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                                                                                                                                                     |
+| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                                                                                                                                                    |
+| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                                                                       |
+| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                                                                     |
+| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; Resend/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                                                                         |
+| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                                                                                |
+| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                                                                       |
+| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                                                                               |
+| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration                                                                                                                              |
+| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                                                                                                                                             |
+| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), calendar range queries, event reminder notifications (cron sweep every 5 min)                                                  |
+| Admin portal  | `libs/admin/*`                                        | System-admin backoffice: org list/detail, member management, billing oversight, activity log, entitlement cache invalidation. Guard: `SystemAdminGuard` (`isSystemAdmin` DB flag). Promote users via `scripts/promote-admin.mjs`. |
 
 ### Architectural
 
@@ -346,7 +355,62 @@ See [`@libs/common`](libs/common/README.md) for RBAC helpers and tenant context 
 
 ---
 
-## Async jobs
+## Admin backoffice portal
+
+A separate role (`isSystemAdmin` on the `User` model) gates access to the `/admin` API prefix. System admins bypass the tenant-scoped RBAC entirely — they operate across all organizations.
+
+### Guard pipeline for admin routes
+
+```
+JwtAuthGuard → SystemAdminGuard
+```
+
+`SystemAdminGuard` (in `@libs/admin/auth`) looks up the user in the DB by `auth0Id` and verifies `isSystemAdmin === true`. Any user without this flag receives `403 Forbidden`.
+
+### Promoting / demoting users
+
+```sh
+# Grant system-admin access
+node scripts/promote-admin.mjs --email user@example.com
+
+# Revoke system-admin access
+node scripts/promote-admin.mjs --email user@example.com --revoke
+```
+
+The script reads `DATABASE_URL` from `.env` and executes a direct SQL `UPDATE` — no Prisma client build step required.
+
+The flag is **never written by the Auth0 login flow** — it can only be set via this script.
+
+### Admin API endpoints (all under `/admin`, require `isSystemAdmin`)
+
+| Method   | Path                                                  | Description                                                                                   |
+| -------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `GET`    | `/admin/organizations`                                | List all orgs — search, status filter, pagination                                             |
+| `GET`    | `/admin/organizations/:orgId`                         | Org detail (Customer 360) — membership count, billing snapshot, recent activity, entitlements |
+| `GET`    | `/admin/organizations/:orgId/members`                 | Paginated member list for an org                                                              |
+| `POST`   | `/admin/organizations/:orgId/members/invite`          | Invite a new member to any org                                                                |
+| `PATCH`  | `/admin/organizations/:orgId/members/:memberId/role`  | Change a member's role                                                                        |
+| `DELETE` | `/admin/organizations/:orgId/members/:memberId`       | Remove a member                                                                               |
+| `GET`    | `/admin/organizations/:orgId/billing`                 | Billing overview (Stripe status, plan, period)                                                |
+| `POST`   | `/admin/organizations/:orgId/billing/portal`          | Generate a Stripe portal URL for any org                                                      |
+| `GET`    | `/admin/organizations/:orgId/activity`                | Paginated activity log scoped to an org                                                       |
+| `GET`    | `/admin/activity`                                     | Cross-org activity log — optional org/action/date filters                                     |
+| `GET`    | `/admin/organizations/:orgId/entitlements`            | Read plan entitlements for an org                                                             |
+| `POST`   | `/admin/organizations/:orgId/entitlements/invalidate` | Flush entitlement Redis cache for an org                                                      |
+
+### Library layout
+
+```
+libs/admin/
+  auth/           — SystemAdminGuard, CurrentAdminUserId decorator, AdminAuthModule
+  activity-log/   — AdminActivityLogService: per-org and cross-org log queries
+  billing/        — AdminBillingService: billing overview + Stripe portal delegation
+  entitlements/   — AdminEntitlementsService: read/invalidate plan entitlements
+  memberships/    — AdminMembershipsService: list, invite, change-role, remove
+  organizations/  — AdminOrganizationsService: list all orgs + Customer 360 detail
+```
+
+---
 
 Jobs follow a create-then-enqueue pattern so every job is immediately queryable:
 

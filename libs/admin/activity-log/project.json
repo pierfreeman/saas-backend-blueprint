@@ -1,0 +1,28 @@
+{
+  "name": "admin-activity-log",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/admin/activity-log/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:admin"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/admin/activity-log"],
+      "options": {
+        "configFile": "libs/admin/activity-log/vitest.config.ts",
+        "passWithNoTests": true
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/admin/activity-log/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

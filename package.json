@@ -29,6 +29,7 @@
     "test:infra:up": "docker compose -f docker-compose.test.yml up -d",
     "test:infra:down": "docker compose -f docker-compose.test.yml down -v",
     "test:migrate": "node scripts/migrate-test.cjs",
+    "admin:promote": "node scripts/promote-admin.mjs",
     "typecheck": "nx run-many --target=typecheck --all",
     "graph": "nx graph",
     "prisma:generate": "prisma generate",

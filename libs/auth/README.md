@@ -349,6 +349,17 @@ Invitee clicks link → normal login flow
   → All existing memberships intact
 ```
 
+### System-admin access
+
+The `isSystemAdmin` flag is **never set by the login flow**. It must be granted explicitly via the CLI script:
+
+```sh
+node scripts/promote-admin.mjs --email user@example.com          # grant
+node scripts/promote-admin.mjs --email user@example.com --revoke # revoke
+```
+
+On every authenticated request the `SystemAdminGuard` (`@libs/admin/auth`) looks up the DB user by `auth0Id` and verifies `isSystemAdmin === true` before allowing access to any `/admin` endpoint. See [`@libs/admin/auth`](../admin/auth/README.md) for the guard details.
+
 ### Account Linking
 
 ```

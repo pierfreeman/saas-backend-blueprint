@@ -30,9 +30,17 @@ saas-backend-blueprint/
 │   ├── worker-a/      ← SQS async job worker
 │   └── worker-a-e2e/
 ├── libs/              ← All shared domain and infrastructure libraries
+│   ├── admin/         ← System-admin backoffice (Pattern D / B subdirectory)
+│   │   ├── auth/            ← SystemAdminGuard + CurrentAdminUserId decorator
+│   │   ├── activity-log/    ← Cross-org + per-org log queries
+│   │   ├── billing/         ← Billing overview + Stripe portal delegation
+│   │   ├── entitlements/    ← Read / invalidate plan entitlement cache
+│   │   ├── memberships/     ← List / invite / change-role / remove across all orgs
+│   │   └── organizations/   ← List all orgs + Customer 360 detail
+│   └── ...            ← all other domain libs
 ├── prisma/
 │   ├── schema.prisma        ← Business DB: generator + datasource only
-│   ├── user.prisma          ← User model
+│   ├── user.prisma          ← User model (incl. isSystemAdmin flag)
 │   ├── organization.prisma  ← Organization, enums
 │   ├── membership.prisma    ← Membership, enums
 │   ├── activity-log.prisma  ← ActivityLog
@@ -43,7 +51,7 @@ saas-backend-blueprint/
 │   └── planning.prisma      ← Event, EventAttendee, EventException, enums
 ├── prisma-legal/
 │   └── schema.prisma        ← Legal audit DB (separate connection)
-└── scripts/           ← LocalStack + migration helpers
+└── scripts/           ← LocalStack + migration helpers (incl. promote-admin.mjs)
 ```
 
 **Stack:** Nx · NestJS · TypeScript · Prisma · PostgreSQL · Redis · SQS (LocalStack in dev).
@@ -306,6 +314,25 @@ export class MembershipsController {
 ```
 
 **Threshold rule:** if a feature module grows beyond a controller + DTOs + module wiring (e.g. a service with more than 3 non-trivial methods), extract it to a new library.
+
+---
+
+### The `libs/admin/` sub-namespace
+
+The admin backoffice libraries live under `libs/admin/` as a logical namespace. They follow the same pattern rules as any other lib, but they all share one additional constraint:
+
+> **Admin libs never import tenant-scoped guards or the `OrgContextGuard`. They bypass normal tenant isolation entirely and operate across all organizations. Access is gated exclusively by `SystemAdminGuard`.**
+
+| Library               | Pattern | Responsibility                                       |
+| --------------------- | ------- | ---------------------------------------------------- |
+| `admin/auth`          | D       | `SystemAdminGuard`, `CurrentAdminUserId` decorator   |
+| `admin/organizations` | B       | List all orgs + Customer 360 detail view             |
+| `admin/memberships`   | B       | List / invite / change-role / remove across any org  |
+| `admin/billing`       | B       | Billing overview + Stripe portal delegation          |
+| `admin/activity-log`  | B       | Per-org and cross-org activity log queries           |
+| `admin/entitlements`  | E       | Read / invalidate plan entitlement cache for any org |
+
+The `isSystemAdmin` flag on `User` is the single gate. It is **never written by the Auth0 login flow** — only by `scripts/promote-admin.mjs`. See `SystemAdminGuard` in `libs/admin/auth` and the root README for the full admin portal reference.
 
 ---
 

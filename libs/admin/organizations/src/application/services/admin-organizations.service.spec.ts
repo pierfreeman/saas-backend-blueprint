@@ -1,0 +1,193 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
+import { OrganizationStatus, BillingStatus } from '@libs/prisma-business';
+import { AdminOrganizationsService } from './admin-organizations.service';
+import { AdminOrganizationsRepository } from '../../infrastructure/repositories/admin-organizations.repository';
+import { ActivityLogService } from '@libs/activity-log';
+import { FeatureFlagsService } from '@libs/feature-flags';
+
+const mockOrg = {
+  id: 'org-1',
+  name: 'Acme Corp',
+  status: OrganizationStatus.ACTIVE,
+  billingStatus: BillingStatus.ACTIVE,
+  planId: 'price_pro',
+  stripeCustomerId: 'cus_abc',
+  subscriptionId: 'sub_xyz',
+  subscriptionPeriodEnd: new Date('2025-01-01'),
+  cancelAtPeriodEnd: false,
+  storageLimit: null,
+  subscriptionPeriodStart: null,
+  deletionRequestedAt: null,
+  deletionScheduledAt: null,
+  deletionCompletedAt: null,
+  retentionPeriodDays: null,
+  createdAt: new Date('2024-01-01'),
+  updatedAt: new Date('2024-06-01'),
+  _count: { memberships: 5 },
+};
+
+const mockActivity = {
+  logs: [
+    {
+      id: 'log-1',
+      orgId: 'org-1',
+      actorId: 'user-1',
+      actorRole: 'OWNER',
+      action: 'org.created',
+      entityType: null,
+      entityId: null,
+      metadata: {},
+      createdAt: new Date(),
+    },
+  ],
+  total: 1,
+  limit: 5,
+  offset: 0,
+};
+
+const mockEntitlements = {
+  organizationId: 'org-1',
+  plan: 'PRO',
+  subscriptionStatus: 'ACTIVE',
+  advancedAnalytics: true,
+  customReports: true,
+  apiAccess: true,
+  ssoEnabled: false,
+  prioritySupport: false,
+  maxSeats: 10,
+  storageLimitBytes: 5 * 1024 * 1024 * 1024,
+};
+
+describe('AdminOrganizationsService', () => {
+  let service: AdminOrganizationsService;
+
+  const mockRepository = {
+    findAll: vi.fn(),
+    findByIdWithMemberCount: vi.fn(),
+  };
+
+  const mockActivityLog = {
+    findByOrg: vi.fn(),
+  };
+
+  const mockFeatureFlags = {
+    getEntitlements: vi.fn(),
+  };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AdminOrganizationsService,
+        { provide: AdminOrganizationsRepository, useValue: mockRepository },
+        { provide: ActivityLogService, useValue: mockActivityLog },
+        { provide: FeatureFlagsService, useValue: mockFeatureFlags },
+      ],
+    }).compile();
+
+    service = module.get(AdminOrganizationsService);
+  });
+
+  describe('listOrganizations', () => {
+    it('returns paginated list from repository', async () => {
+      mockRepository.findAll.mockResolvedValue({ items: [mockOrg], total: 1 });
+
+      const result = await service.listOrganizations(
+        {},
+        { limit: 20, offset: 0 },
+      );
+
+      expect(result.total).toBe(1);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe('org-1');
+      expect(result.items[0].membersCount).toBe(5);
+    });
+
+    it('caps limit at 100', async () => {
+      mockRepository.findAll.mockResolvedValue({ items: [], total: 0 });
+
+      await service.listOrganizations({}, { limit: 999 });
+
+      expect(mockRepository.findAll).toHaveBeenCalledWith(
+        {},
+        { limit: 100, offset: 0 },
+      );
+    });
+
+    it('uses default limit 20 when not provided', async () => {
+      mockRepository.findAll.mockResolvedValue({ items: [], total: 0 });
+
+      await service.listOrganizations();
+
+      expect(mockRepository.findAll).toHaveBeenCalledWith(
+        {},
+        { limit: 20, offset: 0 },
+      );
+    });
+  });
+
+  describe('getOrganizationDetail', () => {
+    it('returns Customer 360 when org exists', async () => {
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(mockOrg);
+      mockActivityLog.findByOrg.mockResolvedValue(mockActivity);
+      mockFeatureFlags.getEntitlements.mockResolvedValue(mockEntitlements);
+
+      const result = await service.getOrganizationDetail('org-1');
+
+      expect(result.id).toBe('org-1');
+      expect(result.membersCount).toBe(5);
+      expect(result.recentActivity).toHaveLength(1);
+      expect(result.entitlements.plan).toBe('PRO');
+      expect(result.stripeCustomerId).toBe('cus_abc');
+    });
+
+    it('throws NotFoundException when org does not exist', async () => {
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(null);
+
+      await expect(service.getOrganizationDetail('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('fetches activity log and entitlements in parallel', async () => {
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(mockOrg);
+      mockActivityLog.findByOrg.mockResolvedValue(mockActivity);
+      mockFeatureFlags.getEntitlements.mockResolvedValue(mockEntitlements);
+
+      await service.getOrganizationDetail('org-1');
+
+      expect(mockActivityLog.findByOrg).toHaveBeenCalledWith('org-1', {
+        limit: 5,
+        offset: 0,
+      });
+      expect(mockFeatureFlags.getEntitlements).toHaveBeenCalledWith('org-1');
+    });
+  });
+
+  describe('searchOrganizations', () => {
+    it('delegates to repository with search filter and limit cap', async () => {
+      mockRepository.findAll.mockResolvedValue({ items: [mockOrg], total: 1 });
+
+      const result = await service.searchOrganizations('Acme');
+
+      expect(mockRepository.findAll).toHaveBeenCalledWith(
+        { search: 'Acme' },
+        { limit: 10, offset: 0 },
+      );
+      expect(result).toHaveLength(1);
+    });
+
+    it('caps search limit at 10', async () => {
+      mockRepository.findAll.mockResolvedValue({ items: [], total: 0 });
+
+      await service.searchOrganizations('test', 999);
+
+      expect(mockRepository.findAll).toHaveBeenCalledWith(
+        { search: 'test' },
+        { limit: 10, offset: 0 },
+      );
+    });
+  });
+});
