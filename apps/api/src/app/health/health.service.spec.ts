@@ -1,9 +1,7 @@
 import { HealthService } from './health.service';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
-import { ConfigService } from '@nestjs/config';
-import { StripeClient } from '@libs/billing';
-import Stripe from 'stripe';
+import { StripeService } from '@libs/billing';
 import { vi } from 'vitest';
 
 const mockPrisma = {
@@ -15,14 +13,9 @@ const mockCacheService = {
   getClient: vi.fn().mockReturnValue(mockRedisClient),
 } as unknown as CacheService;
 
-const mockConfigService = {
-  get: vi.fn(),
-} as unknown as ConfigService;
-
-const mockStripeAccounts = { retrieve: vi.fn() };
-const mockStripeClient = {
-  stripe: { accounts: mockStripeAccounts },
-} as unknown as StripeClient;
+const mockStripeService = {
+  checkConnectivity: vi.fn(),
+} as unknown as StripeService;
 
 describe('HealthService', () => {
   let service: HealthService;
@@ -30,11 +23,13 @@ describe('HealthService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCacheService.getClient = vi.fn().mockReturnValue(mockRedisClient);
+    (
+      mockStripeService.checkConnectivity as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({ status: 'ok', responseTime: 10 });
     service = new HealthService(
       mockPrisma,
       mockCacheService,
-      mockConfigService,
-      mockStripeClient,
+      mockStripeService,
     );
   });
 
@@ -42,13 +37,9 @@ describe('HealthService', () => {
   // checkDatabase (tested indirectly via checkHealth + checkReadiness)
   // -----------------------------------------------------------------------
   describe('checkHealth', () => {
-    it('returns status "ok" when all services are healthy and Stripe key is valid', async () => {
+    it('returns status "ok" when all services are healthy', async () => {
       mockPrisma.$queryRaw = vi.fn().mockResolvedValue([{ '?column?': 1 }]);
       mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc123');
-      mockStripeAccounts.retrieve = vi
-        .fn()
-        .mockResolvedValue({ id: 'acct_test' });
 
       const result = await service.checkHealth();
 
@@ -64,8 +55,6 @@ describe('HealthService', () => {
         .fn()
         .mockRejectedValue(new Error('Connection refused'));
       mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc');
-      mockStripeAccounts.retrieve = vi.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -79,8 +68,6 @@ describe('HealthService', () => {
       mockRedisClient.ping = vi
         .fn()
         .mockRejectedValue(new Error('ECONNREFUSED'));
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc');
-      mockStripeAccounts.retrieve = vi.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -88,88 +75,47 @@ describe('HealthService', () => {
       expect(result.services.redis.status).toBe('error');
     });
 
-    it('returns status "degraded" when Stripe key is missing', async () => {
+    it('delegates Stripe check to stripeService.checkConnectivity', async () => {
       mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
       mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue(undefined);
+      (
+        mockStripeService.checkConnectivity as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ status: 'misconfigured' });
 
       const result = await service.checkHealth();
 
       expect(result.status).toBe('degraded');
       expect(result.services.stripe.status).toBe('misconfigured');
-      expect(mockStripeAccounts.retrieve).not.toHaveBeenCalled();
+      expect(mockStripeService.checkConnectivity).toHaveBeenCalledTimes(1);
     });
 
-    it('returns status "degraded" when Stripe key is malformed', async () => {
+    it('returns stripe status from checkConnectivity result', async () => {
       mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
       mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('invalid_key_format');
-
-      const result = await service.checkHealth();
-
-      expect(result.services.stripe.status).toBe('misconfigured');
-      expect(mockStripeAccounts.retrieve).not.toHaveBeenCalled();
-    });
-
-    it('accepts sk_live_ prefix as valid Stripe key', async () => {
-      mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
-      mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_live_xyz789');
-      mockStripeAccounts.retrieve = vi
-        .fn()
-        .mockResolvedValue({ id: 'acct_live' });
-
-      const result = await service.checkHealth();
-
-      expect(result.services.stripe.status).toBe('ok');
-      expect(mockStripeAccounts.retrieve).toHaveBeenCalledTimes(1);
-    });
-
-    it('returns stripe "misconfigured" when Stripe returns StripeAuthenticationError', async () => {
-      mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
-      mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_bad_key');
-      const authError = new Stripe.errors.StripeAuthenticationError({
-        message: 'No such API key',
-        type: 'invalid_request_error',
-      } as never);
-      mockStripeAccounts.retrieve = vi.fn().mockRejectedValue(authError);
-
-      const result = await service.checkHealth();
-
-      expect(result.services.stripe.status).toBe('misconfigured');
-    });
-
-    it('returns stripe "error" when Stripe throws a network error', async () => {
-      mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
-      mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc');
-      mockStripeAccounts.retrieve = vi
-        .fn()
-        .mockRejectedValue(new Error('ECONNREFUSED'));
+      (
+        mockStripeService.checkConnectivity as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ status: 'error' });
 
       const result = await service.checkHealth();
 
       expect(result.services.stripe.status).toBe('error');
     });
 
-    it('includes responseTime for stripe when healthy', async () => {
+    it('includes responseTime for stripe when provided by checkConnectivity', async () => {
       mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
       mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc');
-      mockStripeAccounts.retrieve = vi.fn().mockResolvedValue({});
+      (
+        mockStripeService.checkConnectivity as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ status: 'ok', responseTime: 42 });
 
       const result = await service.checkHealth();
 
-      expect(typeof result.services.stripe.responseTime).toBe('number');
-      expect(result.services.stripe.responseTime).toBeGreaterThanOrEqual(0);
+      expect(result.services.stripe.responseTime).toBe(42);
     });
 
     it('includes responseTime for database when healthy', async () => {
       mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
       mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc');
-      mockStripeAccounts.retrieve = vi.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -180,8 +126,6 @@ describe('HealthService', () => {
     it('includes responseTime for redis when healthy', async () => {
       mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
       mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc');
-      mockStripeAccounts.retrieve = vi.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -191,8 +135,6 @@ describe('HealthService', () => {
     it('omits responseTime for database when it throws', async () => {
       mockPrisma.$queryRaw = vi.fn().mockRejectedValue(new Error('down'));
       mockRedisClient.ping = vi.fn().mockResolvedValue('PONG');
-      mockConfigService.get = vi.fn().mockReturnValue('sk_test_abc');
-      mockStripeAccounts.retrieve = vi.fn().mockResolvedValue({});
 
       const result = await service.checkHealth();
 
@@ -220,20 +162,19 @@ describe('HealthService', () => {
 
     it('returns false when Redis is down', async () => {
       mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
-      mockRedisClient.ping = vi
-        .fn()
-        .mockRejectedValue(new Error('Redis down'));
+      mockRedisClient.ping = vi.fn().mockRejectedValue(new Error('Redis down'));
 
       expect(await service.checkReadiness()).toBe(false);
     });
 
     it('returns false (does not throw) when an unexpected error occurs', async () => {
       // Simulate a top-level error inside checkReadiness
-      vi
-        .spyOn(service as any, 'checkDatabase')
-        .mockRejectedValue(new Error('Unexpected crash'));
+      vi.spyOn(service as any, 'checkDatabase').mockRejectedValue(
+        new Error('Unexpected crash'),
+      );
 
       expect(await service.checkReadiness()).toBe(false);
     });
   });
 });
+

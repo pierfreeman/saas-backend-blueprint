@@ -1,6 +1,14 @@
 import { WorkerController, HeavyJobPayload } from './worker.controller';
+import type {
+  UserInvitedPayload,
+  PlanChangedPayload,
+  PaymentSucceededPayload,
+  SubscriptionCancelledPayload,
+} from './worker.controller';
 import { JobService } from '@libs/jobs';
 import { PubSubService } from '@libs/redis';
+import { UserInvitedEmailHandler } from '@libs/memberships';
+import { BillingEmailHandler } from '@libs/billing';
 import {
   OrgDeletionWorkerService,
   OrgDeletionRequestedEventPayload,
@@ -50,6 +58,16 @@ const mockOrgExportWorker = {
   executeExport: vi.fn(),
 } as unknown as OrgExportWorkerService;
 
+const mockUserInvitedHandler = {
+  handle: vi.fn(),
+} as unknown as UserInvitedEmailHandler;
+
+const mockBillingEmailHandler = {
+  handlePlanChanged: vi.fn(),
+  handlePaymentSucceeded: vi.fn(),
+  handleSubscriptionCancelled: vi.fn(),
+} as unknown as BillingEmailHandler;
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('WorkerController', () => {
@@ -61,11 +79,17 @@ describe('WorkerController', () => {
     (mockJobRepo.markDone as Mock).mockResolvedValue(undefined);
     (mockJobRepo.markFailed as Mock).mockResolvedValue(undefined);
     (mockPubSub.publish as Mock).mockResolvedValue(undefined);
+    (mockUserInvitedHandler.handle as Mock).mockResolvedValue(undefined);
+    (mockBillingEmailHandler.handlePlanChanged as Mock).mockResolvedValue(undefined);
+    (mockBillingEmailHandler.handlePaymentSucceeded as Mock).mockResolvedValue(undefined);
+    (mockBillingEmailHandler.handleSubscriptionCancelled as Mock).mockResolvedValue(undefined);
     controller = new WorkerController(
       mockJobRepo,
       mockPubSub,
       mockOrgDeletionWorker,
       mockOrgExportWorker,
+      mockUserInvitedHandler,
+      mockBillingEmailHandler,
     );
   });
 
@@ -292,6 +316,124 @@ describe('WorkerController', () => {
       await expect(
         controller.handleOrgExportRequested(makeExportEvent()),
       ).rejects.toThrow('export failed');
+    });
+  });
+
+  describe('handleUserInvited', () => {
+    const makeInviteEvent = (
+      override: Partial<DomainEvent<UserInvitedPayload>> = {},
+    ): DomainEvent<UserInvitedPayload> => ({
+      eventType: DOMAIN_EVENTS.USER_INVITED,
+      timestamp: new Date(),
+      tenantId: 'org-inv-1',
+      eventId: 'evt-inv-1',
+      userId: 'inviter-1',
+      payload: {
+        inviteeName: 'alice@example.com',
+        inviteeEmail: 'alice@example.com',
+        inviterName: 'inviter-1',
+        organizationName: 'Invite Corp',
+        organizationId: 'org-inv-1',
+        role: 'MEMBER',
+        inviteUrl: 'http://localhost:4200/auth/callback',
+        expiresAt: new Date('2026-04-07T00:00:00Z'),
+      },
+      ...override,
+    });
+
+    it('delegates to UserInvitedEmailHandler', async () => {
+      const event = makeInviteEvent();
+      await controller.handleUserInvited(event);
+
+      expect(mockUserInvitedHandler.handle).toHaveBeenCalledWith(event);
+    });
+
+    it('propagates errors from UserInvitedEmailHandler', async () => {
+      (mockUserInvitedHandler.handle as Mock).mockRejectedValueOnce(
+        new Error('email send failed'),
+      );
+
+      await expect(
+        controller.handleUserInvited(makeInviteEvent()),
+      ).rejects.toThrow('email send failed');
+    });
+  });
+
+  describe('handleBillingPlanChanged', () => {
+    const makePlanChangedEvent = (
+      override: Partial<DomainEvent<PlanChangedPayload>> = {},
+    ): DomainEvent<PlanChangedPayload> => ({
+      eventType: DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED,
+      timestamp: new Date(),
+      tenantId: 'org-001',
+      eventId: 'evt-plan-1',
+      payload: {
+        orgId: 'org-001',
+        subscriptionId: 'sub_001',
+        status: 'active',
+        cancelAtPeriodEnd: false,
+        previousPlanId: 'price_basic',
+        newPlanId: 'price_pro',
+        planChangeDirection: 'subscription.upgraded',
+      },
+      ...override,
+    });
+
+    it('delegates to BillingEmailHandler.handlePlanChanged', async () => {
+      const event = makePlanChangedEvent();
+      await controller.handleBillingPlanChanged(event);
+
+      expect(mockBillingEmailHandler.handlePlanChanged).toHaveBeenCalledWith(event);
+    });
+  });
+
+  describe('handleBillingPaymentSucceeded', () => {
+    const makePaymentEvent = (
+      override: Partial<DomainEvent<PaymentSucceededPayload>> = {},
+    ): DomainEvent<PaymentSucceededPayload> => ({
+      eventType: DOMAIN_EVENTS.BILLING_PAYMENT_SUCCEEDED,
+      timestamp: new Date(),
+      tenantId: 'org-001',
+      eventId: 'evt-pay-1',
+      payload: {
+        orgId: 'org-001',
+        invoiceId: 'in_001',
+        amountPaid: 2900,
+        currency: 'usd',
+      },
+      ...override,
+    });
+
+    it('delegates to BillingEmailHandler.handlePaymentSucceeded', async () => {
+      const event = makePaymentEvent();
+      await controller.handleBillingPaymentSucceeded(event);
+
+      expect(mockBillingEmailHandler.handlePaymentSucceeded).toHaveBeenCalledWith(event);
+    });
+  });
+
+  describe('handleBillingSubscriptionCancelled', () => {
+    const makeCancelEvent = (
+      override: Partial<DomainEvent<SubscriptionCancelledPayload>> = {},
+    ): DomainEvent<SubscriptionCancelledPayload> => ({
+      eventType: DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CANCELLED,
+      timestamp: new Date(),
+      tenantId: 'org-001',
+      eventId: 'evt-cancel-1',
+      payload: {
+        orgId: 'org-001',
+        subscriptionId: 'sub_001',
+        status: 'canceled',
+        cancelAtPeriodEnd: false,
+      },
+      ...override,
+    });
+
+    it('delegates to BillingEmailHandler.handleSubscriptionCancelled', async () => {
+      const event = makeCancelEvent();
+      await controller.handleBillingSubscriptionCancelled(event);
+
+      expect(mockBillingEmailHandler.handleSubscriptionCancelled).toHaveBeenCalledWith(event);
     });
   });
 });

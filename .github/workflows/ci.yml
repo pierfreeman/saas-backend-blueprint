@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+    branches: [main, develop]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,6 +13,7 @@ concurrency:
 permissions:
   actions: read
   contents: read
+  pull-requests: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -51,6 +53,10 @@ jobs:
       - run: npx nx run-many -t build --nx-bail
 
       - run: npx nx run-many -t test --coverage --nx-bail
+
+      - name: Coverage summary
+        if: always()
+        run: node scripts/coverage-summary.mjs coverage/unit >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
@@ -166,10 +172,10 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
           LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
-          EMAIL_PROVIDER: sendgrid
+          EMAIL_PROVIDER: resend
           EMAIL_FROM_ADDRESS: noreply@test.example.com
           EMAIL_FROM_NAME: Test Platform
-          SENDGRID_API_KEY: SG.test_placeholder
+          RESEND_API_KEY: re_test_placeholder
 
       # Add future e2e suites here following the same pattern:
       # - name: E2E — <new-app>-e2e
@@ -227,3 +233,23 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: Setup Node.js for coverage script
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Coverage summary
+        if: always()
+        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate coverage PR comment
+        if: always() && github.event_name == 'pull_request'
+        run: node scripts/coverage-summary.mjs > coverage-comment.md
+
+      - name: Post coverage PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage-comment.md

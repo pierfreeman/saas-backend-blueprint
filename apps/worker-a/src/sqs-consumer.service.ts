@@ -11,7 +11,14 @@ import {
   Message,
 } from '@aws-sdk/client-sqs';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
-import { WorkerController, HeavyJobPayload } from './worker.controller';
+import {
+  WorkerController,
+  HeavyJobPayload,
+  UserInvitedPayload,
+  PlanChangedPayload,
+  PaymentSucceededPayload,
+  SubscriptionCancelledPayload,
+} from './worker.controller';
 
 /**
  * SqsConsumerService
@@ -153,19 +160,17 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Routes a DomainEvent to the appropriate WorkerController handler.
-   * Extend this switch when new event types are added.
    *
-   * TODO: Add consumer branches for billing.* FIFO events so that downstream
-   * actions (transactional emails, Slack/webhook notifications, usage metering
-   * updates) are triggered automatically after each billing lifecycle change.
-   * The FIFO queue already receives these events from the API; only the
-   * consumer-side handler is missing. Suggested cases to add:
-   *   BILLING_CHECKOUT_COMPLETED  → send welcome / payment-confirmed email
-   *   BILLING_PAYMENT_FAILED      → send dunning email, alert ops channel
-   *   BILLING_SUBSCRIPTION_CANCELLED → send cancellation confirmation email
-   * Note: worker-a currently polls SQS_STANDARD_QUEUE_URL (Standard queue);
-   * billing events land on SQS_FIFO_QUEUE_URL — a second consumer loop or a
-   * dedicated worker service is needed to drain the FIFO queue.
+   * NOTE: Billing email dispatch cases (SUBSCRIPTION_PLAN_CHANGED,
+   * BILLING_PAYMENT_SUCCEEDED, BILLING_SUBSCRIPTION_CANCELLED) are wired
+   * here and work end-to-end in local development because LocalTransport
+   * delivers all events in-process regardless of queue type.
+   *
+   * In production, billing events are published to SQS_FIFO_QUEUE_URL
+   * (strict ordering per org). This Standard-queue consumer will NOT
+   * receive them. A dedicated FIFO consumer loop (or SqsFifoConsumerService)
+   * polling SQS_FIFO_QUEUE_URL is required to handle them in staging/prod.
+   * See libs/billing/README.md § "TODO: FIFO consumer" for details.
    */
   private async dispatch(event: DomainEvent): Promise<void> {
     switch (event.eventType) {
@@ -179,8 +184,32 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
         await this.workerController.handleOrgDeletionRequested(event as any);
         break;
 
-      case 'org.export.requested':
+      case DOMAIN_EVENTS.ORG_EXPORT_REQUESTED:
         await this.workerController.handleOrgExportRequested(event as any);
+        break;
+
+      case DOMAIN_EVENTS.USER_INVITED:
+        await this.workerController.handleUserInvited(
+          event as unknown as DomainEvent<UserInvitedPayload>,
+        );
+        break;
+
+      case DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED:
+        await this.workerController.handleBillingPlanChanged(
+          event as unknown as DomainEvent<PlanChangedPayload>,
+        );
+        break;
+
+      case DOMAIN_EVENTS.BILLING_PAYMENT_SUCCEEDED:
+        await this.workerController.handleBillingPaymentSucceeded(
+          event as unknown as DomainEvent<PaymentSucceededPayload>,
+        );
+        break;
+
+      case DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CANCELLED:
+        await this.workerController.handleBillingSubscriptionCancelled(
+          event as unknown as DomainEvent<SubscriptionCancelledPayload>,
+        );
         break;
 
       default:

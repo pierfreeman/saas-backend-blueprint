@@ -10,6 +10,8 @@ import { OrganizationStatus } from '@libs/prisma-business';
 
 function buildTx() {
   return {
+    subscriptionSnapshot: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    event: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     file: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     notification: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     orgExport: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
@@ -236,6 +238,12 @@ describe('OrgDeletionRepository', () => {
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
 
       const tx = mockPrisma.__tx;
+      expect(tx.subscriptionSnapshot.deleteMany).toHaveBeenCalledWith({
+        where: { orgId: ORG_UUID },
+      });
+      expect(tx.event.deleteMany).toHaveBeenCalledWith({
+        where: { orgId: ORG_UUID },
+      });
       expect(tx.file.deleteMany).toHaveBeenCalledWith({
         where: { orgId: ORG_UUID },
       });

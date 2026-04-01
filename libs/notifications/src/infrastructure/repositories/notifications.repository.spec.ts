@@ -149,6 +149,58 @@ describe('NotificationsRepository', () => {
     });
   });
 
+  // ── countUnreadForOrg ──────────────────────────────────────────────────────
+
+  describe('countUnreadForOrg', () => {
+    it('counts unread notifications for a user within a specific org', async () => {
+      mockPrisma.notification.count = vi.fn().mockResolvedValue(2);
+
+      const result = await repo.countUnreadForOrg('user-1', 'org-1');
+
+      expect(result).toBe(2);
+      expect(mockPrisma.notification.count).toHaveBeenCalledWith({
+        where: { userId: 'user-1', orgId: 'org-1', readAt: null },
+      });
+    });
+  });
+
+  // ── findOrgIdsForUnreadNotifications ───────────────────────────────────────
+
+  describe('findOrgIdsForUnreadNotifications', () => {
+    it('returns distinct orgIds for unread notifications matching the given ids', async () => {
+      mockPrisma.notification.findMany = vi
+        .fn()
+        .mockResolvedValue([{ orgId: 'org-1' }, { orgId: 'org-2' }]);
+
+      const result = await repo.findOrgIdsForUnreadNotifications(
+        ['notif-1', 'notif-2'],
+        'user-1',
+      );
+
+      expect(result).toEqual(['org-1', 'org-2']);
+      expect(mockPrisma.notification.findMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['notif-1', 'notif-2'] },
+          userId: 'user-1',
+          readAt: null,
+        },
+        select: { orgId: true },
+        distinct: ['orgId'],
+      });
+    });
+
+    it('returns empty array when no matching unread notifications found', async () => {
+      mockPrisma.notification.findMany = vi.fn().mockResolvedValue([]);
+
+      const result = await repo.findOrgIdsForUnreadNotifications(
+        ['notif-x'],
+        'user-1',
+      );
+
+      expect(result).toEqual([]);
+    });
+  });
+
   // ── findUnreadByIdAndUser ─────────────────────────────────────────────────────
 
   describe('findUnreadByIdAndUser', () => {

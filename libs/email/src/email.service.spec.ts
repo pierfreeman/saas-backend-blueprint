@@ -1,5 +1,6 @@
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EmailService } from './email.service';
 import {
@@ -7,7 +8,7 @@ import {
   EmailProvider,
 } from './providers/email-provider.interface';
 import { TemplateRendererService } from './templates/template-renderer.service';
-import { Mocked, vi } from 'vitest';
+import { Mock, Mocked, vi } from 'vitest';
 
 describe('EmailService', () => {
   let service: EmailService;
@@ -15,6 +16,7 @@ describe('EmailService', () => {
   let templateRenderer: Mocked<TemplateRendererService>;
   let activityLog: Mocked<ActivityLogService>;
   let legalAudit: Mocked<LegalAuditService>;
+  let configGet: Mock;
 
   beforeEach(async () => {
     const mockEmailProvider: Mocked<EmailProvider> = {
@@ -34,6 +36,8 @@ describe('EmailService', () => {
       recordEvent: vi.fn().mockResolvedValue(undefined),
     };
 
+    configGet = vi.fn().mockReturnValue(undefined);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailService,
@@ -52,6 +56,10 @@ describe('EmailService', () => {
         {
           provide: LegalAuditService,
           useValue: mockLegalAudit,
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: configGet },
         },
       ],
     }).compile();
@@ -212,6 +220,31 @@ describe('EmailService', () => {
       );
     });
 
+    it('should handle non-Error thrown during initiation (e.g. template throws string)', async () => {
+      templateRenderer.render.mockRejectedValueOnce('non-Error template throw');
+
+      await service.sendTransactionalEmail(validParams);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(emailProvider.sendEmail).not.toHaveBeenCalled();
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'email.failed' }),
+      );
+    });
+
+    it('should handle non-Error thrown by email provider', async () => {
+      emailProvider.sendEmail.mockRejectedValueOnce('non-Error provider throw');
+
+      await service.sendTransactionalEmail(validParams);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(legalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'email.failed' }),
+      );
+    });
+
     it('should work without orgId', async () => {
       const paramsWithoutOrg = {
         templateName: 'user-invite' as const,
@@ -256,6 +289,18 @@ describe('EmailService', () => {
       // Email should still be sent
       expect(emailProvider.sendEmail).toHaveBeenCalled();
     });
+
+    it('redirects email to devOverride address and logs a warning', async () => {
+      configGet.mockReturnValue('dev@override.com');
+
+      await service.sendTransactionalEmail(validParams);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(emailProvider.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'dev@override.com' }),
+      );
+    });
   });
 
   describe('email validation', () => {
@@ -272,6 +317,11 @@ describe('EmailService', () => {
       'user@',
       'user @example.com',
       'user@example',
+      '.user@example.com',
+      'user.@example.com',
+      'us..er@example.com',
+      'a'.repeat(244) + '@example.com', // overall length > 254
+      'a'.repeat(65) + '@example.com', // local part > 64 chars
     ];
 
     validEmails.forEach((email) => {
@@ -302,6 +352,59 @@ describe('EmailService', () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
         expect(emailProvider.sendEmail).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('addContact', () => {
+    it('should delegate to provider.createContact', async () => {
+      emailProvider.createContact = vi.fn().mockResolvedValue(undefined);
+
+      service.addContact({
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(emailProvider.createContact).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      });
+    });
+
+    it('should silently skip if provider does not support createContact', () => {
+      delete emailProvider.createContact;
+
+      // Should not throw
+      service.addContact({ email: 'user@example.com' });
+
+      expect(emailProvider.createContact).toBeUndefined();
+    });
+
+    it('should handle provider errors gracefully (fire-and-forget)', async () => {
+      emailProvider.createContact = vi
+        .fn()
+        .mockRejectedValue(new Error('API error'));
+
+      // Should not throw
+      service.addContact({ email: 'user@example.com' });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(emailProvider.createContact).toHaveBeenCalled();
+    });
+
+    it('should handle non-Error rejections in fire-and-forget', async () => {
+      emailProvider.createContact = vi.fn().mockRejectedValue('string error');
+
+      // Should not throw
+      service.addContact({ email: 'user@example.com' });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(emailProvider.createContact).toHaveBeenCalled();
     });
   });
 });

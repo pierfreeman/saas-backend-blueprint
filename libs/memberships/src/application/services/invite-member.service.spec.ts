@@ -1,7 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { InviteMemberService } from './invite-member.service';
-import { PENDING_AUTH0_ID_PREFIX } from '../auth/auth.service';
+import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
 import { vi } from 'vitest';
 
 const baseMembership = {
@@ -54,6 +54,10 @@ const mockConfigService = {
   get: vi.fn().mockReturnValue('http://localhost:4200'),
 };
 
+const mockEventBus = {
+  publish: vi.fn().mockResolvedValue(undefined),
+};
+
 function buildService() {
   return new InviteMemberService(
     mockUsersService as never,
@@ -61,6 +65,7 @@ function buildService() {
     mockOrganizationsService as never,
     mockAuth0ManagementService as never,
     mockConfigService as never,
+    mockEventBus as never,
   );
 }
 
@@ -86,7 +91,8 @@ describe('InviteMemberService', () => {
       mockUsersService.findByEmail.mockResolvedValue(existingUser);
 
       const result = await service.invite(
-        { email: existingUser.email, role: MembershipRole.MEMBER },
+        existingUser.email,
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -105,6 +111,19 @@ describe('InviteMemberService', () => {
         existingUser.email,
         'http://localhost:4200/auth/callback',
       );
+
+      // USER_INVITED event published
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'user.invited',
+          tenantId: 'org-1',
+          payload: expect.objectContaining({
+            inviteeEmail: existingUser.email,
+            organizationName: 'Acme Corp',
+            role: MembershipRole.MEMBER,
+          }),
+        }),
+      );
     });
   });
 
@@ -113,7 +132,8 @@ describe('InviteMemberService', () => {
       mockUsersService.findByEmail.mockResolvedValue(pendingUser);
 
       const result = await service.invite(
-        { email: pendingUser.email, role: MembershipRole.MEMBER },
+        pendingUser.email,
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -145,7 +165,8 @@ describe('InviteMemberService', () => {
       mockUsersService.findByEmail.mockResolvedValue(socialUser);
 
       const result = await service.invite(
-        { email: socialUser.email, role: MembershipRole.MEMBER },
+        socialUser.email,
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -157,6 +178,16 @@ describe('InviteMemberService', () => {
       expect(
         mockAuth0ManagementService.sendPasswordlessLink,
       ).not.toHaveBeenCalled();
+
+      // USER_INVITED event is still published for social users
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'user.invited',
+          payload: expect.objectContaining({
+            inviteeEmail: socialUser.email,
+          }),
+        }),
+      );
     });
   });
 
@@ -166,7 +197,8 @@ describe('InviteMemberService', () => {
       mockUsersService.createUser.mockResolvedValue(pendingUser);
 
       const result = await service.invite(
-        { email: pendingUser.email, role: MembershipRole.MEMBER },
+        pendingUser.email,
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -203,7 +235,8 @@ describe('InviteMemberService', () => {
 
       await expect(
         service.invite(
-          { email: existingUser.email, role: MembershipRole.MEMBER },
+          existingUser.email,
+          MembershipRole.MEMBER,
           'org-1',
           inviterUser.id,
         ),
@@ -222,7 +255,8 @@ describe('InviteMemberService', () => {
 
       await expect(
         service.invite(
-          { email: existingUser.email, role: MembershipRole.MEMBER },
+          existingUser.email,
+          MembershipRole.MEMBER,
           'org-missing',
           inviterUser.id,
         ),
@@ -236,7 +270,8 @@ describe('InviteMemberService', () => {
       mockUsersService.createUser.mockResolvedValue(pendingUser);
 
       await service.invite(
-        { email: 'NEWBIE@EXAMPLE.COM', role: MembershipRole.MEMBER },
+        'NEWBIE@EXAMPLE.COM',
+        MembershipRole.MEMBER,
         'org-1',
         inviterUser.id,
       );
@@ -261,7 +296,8 @@ describe('InviteMemberService', () => {
 
       await expect(
         service.invite(
-          { email: existingUser.email, role: MembershipRole.MEMBER },
+          existingUser.email,
+          MembershipRole.MEMBER,
           'org-null',
           inviterUser.id,
         ),

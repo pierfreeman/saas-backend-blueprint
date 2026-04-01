@@ -24,6 +24,10 @@ function makeController(): Mocked<WorkerController> {
     handleHeavyJobCreated: vi.fn().mockResolvedValue(undefined),
     handleOrgDeletionRequested: vi.fn().mockResolvedValue(undefined),
     handleOrgExportRequested: vi.fn().mockResolvedValue(undefined),
+    handleUserInvited: vi.fn().mockResolvedValue(undefined),
+    handleBillingPlanChanged: vi.fn().mockResolvedValue(undefined),
+    handleBillingPaymentSucceeded: vi.fn().mockResolvedValue(undefined),
+    handleBillingSubscriptionCancelled: vi.fn().mockResolvedValue(undefined),
   } as unknown as Mocked<WorkerController>;
 }
 
@@ -215,6 +219,30 @@ describe('SqsConsumerService', () => {
       const event = makeEvent({ eventType: 'org.export.requested' });
       await (service as any).dispatch(event);
       expect(controller.handleOrgExportRequested).toHaveBeenCalledWith(event);
+    });
+
+    it('routes USER_INVITED to WorkerController', async () => {
+      const event = makeEvent({ eventType: DOMAIN_EVENTS.USER_INVITED });
+      await (service as any).dispatch(event);
+      expect(controller.handleUserInvited).toHaveBeenCalledWith(event);
+    });
+
+    it('routes SUBSCRIPTION_PLAN_CHANGED to WorkerController', async () => {
+      const event = makeEvent({ eventType: DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED });
+      await (service as any).dispatch(event);
+      expect(controller.handleBillingPlanChanged).toHaveBeenCalledWith(event);
+    });
+
+    it('routes BILLING_PAYMENT_SUCCEEDED to WorkerController', async () => {
+      const event = makeEvent({ eventType: DOMAIN_EVENTS.BILLING_PAYMENT_SUCCEEDED });
+      await (service as any).dispatch(event);
+      expect(controller.handleBillingPaymentSucceeded).toHaveBeenCalledWith(event);
+    });
+
+    it('routes BILLING_SUBSCRIPTION_CANCELLED to WorkerController', async () => {
+      const event = makeEvent({ eventType: DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CANCELLED });
+      await (service as any).dispatch(event);
+      expect(controller.handleBillingSubscriptionCancelled).toHaveBeenCalledWith(event);
     });
 
     it('logs a warning and does not throw for unknown event types', async () => {

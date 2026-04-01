@@ -179,4 +179,113 @@ describe('PubSubService', () => {
       expect(subscriber.quit).toHaveBeenCalledTimes(1);
     });
   });
+
+  // ── Constructor event callbacks ───────────────────────────────────────────────
+
+  describe('constructor event callbacks', () => {
+    it('invokes the publisher connect callback without throwing', () => {
+      const [publisher] = getInstances();
+      const cb = (publisher.on as Mock).mock.calls.find(
+        ([e]: [string]) => e === 'connect',
+      )?.[1] as (() => void) | undefined;
+      expect(() => cb?.()).not.toThrow();
+    });
+
+    it('invokes the publisher error callback without throwing', () => {
+      const [publisher] = getInstances();
+      const cb = (publisher.on as Mock).mock.calls.find(
+        ([e]: [string]) => e === 'error',
+      )?.[1] as ((err: Error) => void) | undefined;
+      expect(() => cb?.(new Error('pub error'))).not.toThrow();
+    });
+
+    it('invokes the subscriber connect callback without throwing', () => {
+      const [, subscriber] = getInstances();
+      const cb = (subscriber.on as Mock).mock.calls.find(
+        ([e]: [string]) => e === 'connect',
+      )?.[1] as (() => void) | undefined;
+      expect(() => cb?.()).not.toThrow();
+    });
+
+    it('invokes the subscriber error callback without throwing', () => {
+      const [, subscriber] = getInstances();
+      const cb = (subscriber.on as Mock).mock.calls.find(
+        ([e]: [string]) => e === 'error',
+      )?.[1] as ((err: Error) => void) | undefined;
+      expect(() => cb?.(new Error('sub error'))).not.toThrow();
+    });
+  });
+
+  // ── subscribe — parse error path ──────────────────────────────────────────────
+
+  describe('subscribe — parse error', () => {
+    it('logs an error when the message event contains invalid JSON', () => {
+      const [, subscriber] = getInstances();
+      const loggerSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(() => undefined);
+
+      service.subscribe('ch', vi.fn());
+
+      const messageListener = (subscriber.on as Mock).mock.calls.find(
+        ([event]: [string]) => event === 'message',
+      )?.[1] as ((ch: string, raw: string) => void) | undefined;
+
+      messageListener?.('ch', '{NOT_VALID_JSON}}}');
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to parse message from channel "ch"'),
+      );
+    });
+  });
+
+  // ── pSubscribe — parse error path ─────────────────────────────────────────────
+
+  describe('pSubscribe — parse error', () => {
+    it('logs an error when the pmessage event contains invalid JSON', () => {
+      const [, subscriber] = getInstances();
+      const loggerSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(() => undefined);
+
+      service.pSubscribe('ch:*', vi.fn());
+
+      const pmsgListener = (subscriber.on as Mock).mock.calls.find(
+        ([event]: [string]) => event === 'pmessage',
+      )?.[1] as ((pat: string, ch: string, raw: string) => void) | undefined;
+
+      pmsgListener?.('ch:*', 'ch:1', '{NOT_VALID_JSON}}}');
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to parse pmessage from channel "ch:1"'),
+      );
+    });
+  });
+
+  // ── Constructor with env vars ─────────────────────────────────────────────────
+
+  describe('constructor with env vars', () => {
+    it('uses REDIS_PORT from environment when set', () => {
+      process.env['REDIS_PORT'] = '6380';
+      vi.clearAllMocks();
+      (Redis as any).__instances = [];
+      new PubSubService();
+      const opts = (Redis as any).mock.calls.at(-1)?.[0] as any;
+      expect(opts.port).toBe(6380);
+      delete process.env['REDIS_PORT'];
+    });
+  });
+
+  // ── Constructor retryStrategy ─────────────────────────────────────────────────
+
+  describe('constructor retryStrategy', () => {
+    it('returns capped delay based on retry count', () => {
+      const opts = (Redis as any).mock.calls.at(-1)?.[0] as any;
+      const retryStrategy = opts?.retryStrategy;
+      expect(retryStrategy).toBeDefined();
+      expect(retryStrategy(1)).toBe(50);    // 1 * 50 = 50 ms
+      expect(retryStrategy(20)).toBe(1000); // 20 * 50 = 1000 ms (< 2000)
+      expect(retryStrategy(50)).toBe(2000); // 50 * 50 = 2500 → capped at 2000
+    });
+  });
 });

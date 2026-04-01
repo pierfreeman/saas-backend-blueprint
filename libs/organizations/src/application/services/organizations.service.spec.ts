@@ -176,7 +176,7 @@ describe('OrganizationsService', () => {
   });
 
   describe('deleteOrganization', () => {
-    it('deletes jobs + org and records legal audit event', async () => {
+    it('deletes jobs + org, fires activityLog and records legal audit event', async () => {
       mockRepo.findById = vi.fn().mockResolvedValue(baseOrg);
       mockRepo.deleteJobs = vi.fn().mockResolvedValue(undefined);
       mockRepo.delete = vi.fn().mockResolvedValue(undefined);
@@ -185,6 +185,9 @@ describe('OrganizationsService', () => {
 
       expect(mockRepo.deleteJobs).toHaveBeenCalledWith('org-1');
       expect(mockRepo.delete).toHaveBeenCalledWith('org-1');
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'organization.deleted' }),
+      );
       expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: 'organization.deleted' }),
       );

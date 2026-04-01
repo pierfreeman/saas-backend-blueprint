@@ -68,9 +68,23 @@ describe('LegalAuditService', () => {
       await new Promise(process.nextTick);
     });
 
-    it('calls logger.error when create rejects', async () => {
-      prismaLegal.auditEvent.create.mockRejectedValueOnce(
-        new Error('Legal DB unavailable'),
+    it('logs JSON.stringify inside persist when create rejects with a non-Error value', async () => {
+      prismaLegal.auditEvent.create.mockRejectedValueOnce({ code: 'P5001' });
+      const loggerSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(() => undefined);
+
+      service.recordEvent({ eventType: 'org.suspended' });
+      await new Promise(process.nextTick);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining(JSON.stringify({ code: 'P5001' })),
+      );
+    });
+
+    it('calls logger.error when persist rejects with an Error', async () => {
+      vi.spyOn(service as any, 'persist').mockRejectedValueOnce(
+        new Error('persist failed'),
       );
       const loggerSpy = vi
         .spyOn((service as any).logger, 'error')
@@ -79,7 +93,23 @@ describe('LegalAuditService', () => {
       service.recordEvent({ eventType: 'org.deleted' });
       await new Promise(process.nextTick);
 
-      expect(loggerSpy).toHaveBeenCalled();
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('persist failed'),
+      );
+    });
+
+    it('logs JSON.stringify when persist rejects with a non-Error value', async () => {
+      vi.spyOn(service as any, 'persist').mockRejectedValueOnce({ code: 'P5001' });
+      const loggerSpy = vi
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(() => undefined);
+
+      service.recordEvent({ eventType: 'org.deleted' });
+      await new Promise(process.nextTick);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining(JSON.stringify({ code: 'P5001' })),
+      );
     });
 
     it('stores null orgId when orgId is not provided', async () => {

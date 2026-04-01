@@ -1,13 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from '@libs/notifications';
-import { JwtAuthGuard, RequestUser } from '@libs/common';
-import { AuthService } from '../auth/auth.service';
-import { CreateNotificationDto } from './dto/create-notification.dto';
+import { JwtAuthGuard } from '@libs/common';
+import { OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { MarkManyReadDto } from './dto/mark-many-read.dto';
 import { QueryNotificationsDto } from './dto/query-notifications.dto';
-import { Mock, vi } from 'vitest';
+import { vi } from 'vitest';
 
 // Prevent Vitest from loading the full @libs/notifications module graph (which
 // pulls in ioredis, socket.io, jwks-rsa — all ESM-only) and causing parse
@@ -16,18 +14,17 @@ vi.mock('@libs/notifications', () => ({
   NotificationsService: class MockNotificationsService {},
 }));
 
-// AuthService is a plain NestJS class — no ESM issues. Mock at module level
-// so imports are resolved without PrismaBusinessService transitive deps.
-vi.mock('../auth/auth.service');
-
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const NOW = new Date('2026-01-01T12:00:00Z');
 
+const ORG_ID = 'org-1';
+const USER_ID = 'user-1';
+
 const baseNotif = {
   id: 'notif-uuid-1',
-  orgId: 'org-1',
-  userId: 'user-1',
+  orgId: ORG_ID,
+  userId: USER_ID,
   type: 'alert',
   title: 'Hello',
   body: 'World',
@@ -36,27 +33,16 @@ const baseNotif = {
   createdAt: NOW,
 };
 
-// Return `any` so the stub is accepted by all controller method signatures
-// without needing to replicate the non-exported AuthenticatedRequest interface.
-function makeReq(sub = 'user-1'): any {
-  return { user: { sub, email: 'user@test.com' } as RequestUser };
-}
-
 // ── Mock service ──────────────────────────────────────────────────────────────
 
 const mockService = {
   getUserNotifications: vi.fn(),
   getUnreadCount: vi.fn(),
+  getUnreadCountForOrg: vi.fn(),
   createNotification: vi.fn(),
   markAsRead: vi.fn(),
   markManyAsRead: vi.fn(),
   deleteNotification: vi.fn(),
-};
-
-// findUserByAuth0Id resolves sub → { id: sub } so service assertions keep
-// matching the sub value used in makeReq() calls.
-const mockAuthService = {
-  findUserByAuth0Id: vi.fn((sub: string) => Promise.resolve({ id: sub })),
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -69,151 +55,108 @@ describe('NotificationsController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [NotificationsController],
-      providers: [
-        { provide: NotificationsService, useValue: mockService },
-        { provide: AuthService, useValue: mockAuthService },
-      ],
+      providers: [{ provide: NotificationsService, useValue: mockService }],
     })
       .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(OrgContextGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RBACGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
     controller = module.get(NotificationsController);
   });
 
-  // ── GET /notifications ──────────────────────────────────────────────────────
+  // ── GET /organizations/:orgId/notifications ────────────────────────────────
 
   describe('getNotifications', () => {
-    it('returns notifications for the authenticated user', async () => {
+    it('returns notifications for the authenticated user in the org', async () => {
       mockService.getUserNotifications.mockResolvedValue([baseNotif]);
 
       const query: QueryNotificationsDto = {
-        orgId: 'org-1',
         limit: 10,
         offset: 0,
       };
-      const result = await controller.getNotifications(makeReq(), query);
+      // New signature: getNotifications(userId, orgId, query)
+      const result = await controller.getNotifications(USER_ID, ORG_ID, query);
 
       expect(result).toEqual([baseNotif]);
       expect(mockService.getUserNotifications).toHaveBeenCalledWith(
-        'user-1',
-        'org-1',
+        USER_ID,
+        ORG_ID,
         { limit: 10, offset: 0, unreadOnly: undefined },
       );
     });
 
-    it('passes empty orgId when not provided', async () => {
-      mockService.getUserNotifications.mockResolvedValue([]);
-
-      await controller.getNotifications(makeReq(), {});
-
-      expect(mockService.getUserNotifications).toHaveBeenCalledWith(
-        'user-1',
-        '',
-        expect.any(Object),
-      );
+    it('propagates service errors', async () => {
+      mockService.getUserNotifications.mockRejectedValue(new Error('db error'));
+      await expect(
+        controller.getNotifications(USER_ID, ORG_ID, {}),
+      ).rejects.toThrow('db error');
     });
   });
 
-  // ── GET /notifications/unread-count ────────────────────────────────────────
+  // ── GET /organizations/:orgId/notifications/unread-count ───────────────────
 
   describe('getUnreadCount', () => {
-    it('returns the unread count wrapped in an object', async () => {
-      mockService.getUnreadCount.mockResolvedValue(7);
+    it('returns user-scoped unread count', async () => {
+      mockService.getUnreadCount.mockResolvedValue(3);
 
-      const result = await controller.getUnreadCount(makeReq());
+      // New signature: getUnreadCount(userId) — no orgId
+      const result = await controller.getUnreadCount(USER_ID);
 
-      expect(result).toEqual({ count: 7 });
-      expect(mockService.getUnreadCount).toHaveBeenCalledWith('user-1');
+      expect(result).toEqual({ count: 3 });
+      expect(mockService.getUnreadCount).toHaveBeenCalledWith(USER_ID);
     });
   });
 
-  // ── POST /notifications ─────────────────────────────────────────────────────
-
-  describe('createNotification', () => {
-    it('creates a notification and returns it', async () => {
-      mockService.createNotification.mockResolvedValue(baseNotif);
-
-      const dto: CreateNotificationDto = {
-        orgId: 'org-1',
-        userId: 'user-1',
-        type: 'alert',
-        title: 'Hello',
-        body: 'World',
-      };
-
-      const result = await controller.createNotification(dto);
-
-      expect(result).toEqual(baseNotif);
-      expect(mockService.createNotification).toHaveBeenCalledWith(
-        expect.objectContaining({ orgId: 'org-1', userId: 'user-1' }),
-      );
-    });
-  });
-
-  // ── PATCH /notifications/:id/read ──────────────────────────────────────────
+  // ── PATCH /notifications/:id/read ─────────────────────────────────────────
 
   describe('markAsRead', () => {
     it('marks the notification and returns the updated record', async () => {
       const updated = { ...baseNotif, readAt: NOW };
       mockService.markAsRead.mockResolvedValue(updated);
 
-      const result = await controller.markAsRead('notif-uuid-1', makeReq());
+      const result = await controller.markAsRead('notif-uuid-1', USER_ID);
 
       expect(result.readAt).toBe(NOW);
       expect(mockService.markAsRead).toHaveBeenCalledWith(
         'notif-uuid-1',
-        'user-1',
+        USER_ID,
       );
-    });
-
-    it('propagates NotFoundException from the service', async () => {
-      mockService.markAsRead.mockRejectedValue(new NotFoundException());
-
-      await expect(
-        controller.markAsRead('ghost-id', makeReq()),
-      ).rejects.toThrow(NotFoundException);
     });
   });
 
-  // ── PATCH /notifications/read ───────────────────────────────────────────────
+  // ── PATCH /organizations/:orgId/notifications/read ────────────────────────
 
   describe('markManyAsRead', () => {
     it('delegates to the service and returns nothing', async () => {
       mockService.markManyAsRead.mockResolvedValue(undefined);
 
       const dto: MarkManyReadDto = { ids: ['notif-1', 'notif-2'] };
-      const result = await controller.markManyAsRead(dto, makeReq());
+      const result = await controller.markManyAsRead(dto, USER_ID);
 
       expect(result).toBeUndefined();
       expect(mockService.markManyAsRead).toHaveBeenCalledWith(
         ['notif-1', 'notif-2'],
-        'user-1',
+        USER_ID,
       );
     });
   });
 
-  // ── DELETE /notifications/:id ───────────────────────────────────────────────
+  // ── DELETE /organizations/:orgId/notifications/:id ────────────────────────
 
   describe('deleteNotification', () => {
     it('delegates to the service', async () => {
       mockService.deleteNotification.mockResolvedValue(undefined);
 
-      await controller.deleteNotification('notif-uuid-1', makeReq());
+      await controller.deleteNotification('notif-uuid-1', USER_ID);
 
       expect(mockService.deleteNotification).toHaveBeenCalledWith(
         'notif-uuid-1',
-        'user-1',
+        USER_ID,
       );
-    });
-
-    it('throws NotFoundException when user is not found in DB (resolveUser line 227)', async () => {
-      // Covers the `if (!user) throw new NotFoundException` branch in resolveUser
-      mockAuthService.findUserByAuth0Id = vi.fn().mockResolvedValue(null);
-
-      await expect(
-        controller.deleteNotification('notif-uuid-1', makeReq()),
-      ).rejects.toThrow(NotFoundException);
     });
   });
 });

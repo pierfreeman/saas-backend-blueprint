@@ -10,6 +10,13 @@ import {
   OrgExportWorkerService,
   OrgExportRequestedEventPayload,
 } from '@libs/org-export';
+import { UserInvitedEmailHandler, UserInvitedPayload } from '@libs/memberships';
+import {
+  BillingEmailHandler,
+  PlanChangedPayload,
+  PaymentSucceededPayload,
+  SubscriptionCancelledPayload,
+} from '@libs/billing';
 import { JobStatus } from '@libs/prisma-business';
 
 /**
@@ -23,6 +30,9 @@ export interface HeavyJobPayload extends Record<string, unknown> {
   userId?: string;
   data: Record<string, unknown>;
 }
+
+export { UserInvitedPayload } from '@libs/memberships';
+export { PlanChangedPayload, PaymentSucceededPayload, SubscriptionCancelledPayload } from '@libs/billing';
 
 /** Redis channel pattern: `job:update:{tenantId}` */
 const jobChannel = (tenantId: string) => `job:update:${tenantId}`;
@@ -48,6 +58,8 @@ export class WorkerController {
     private readonly pubSub: PubSubService,
     private readonly orgDeletionWorker: OrgDeletionWorkerService,
     private readonly orgExportWorker: OrgExportWorkerService,
+    private readonly userInvitedHandler: UserInvitedEmailHandler,
+    private readonly billingEmailHandler: BillingEmailHandler,
   ) {}
 
   /**
@@ -179,5 +191,61 @@ export class WorkerController {
       requestedByUserId,
       requestedAt,
     );
+  }
+
+  /**
+   * Handles USER_INVITED domain events.
+   * Delegates to UserInvitedEmailHandler in libs/memberships.
+   */
+  async handleUserInvited(
+    event: DomainEvent<UserInvitedPayload>,
+  ): Promise<void> {
+    this.logger.log(
+      `[Worker-Compute-A] Received USER_INVITED for ${event.payload.inviteeEmail} in org ${event.payload.organizationId}`,
+    );
+
+    await this.userInvitedHandler.handle(event);
+  }
+
+  /**
+   * Handles SUBSCRIPTION_PLAN_CHANGED domain events.
+   * Delegates to BillingEmailHandler — sends upgrade or downgrade email to org owner.
+   */
+  async handleBillingPlanChanged(
+    event: DomainEvent<PlanChangedPayload>,
+  ): Promise<void> {
+    this.logger.log(
+      `[Worker-Compute-A] Received SUBSCRIPTION_PLAN_CHANGED for org ${event.payload.orgId} (direction: ${event.payload.planChangeDirection})`,
+    );
+
+    await this.billingEmailHandler.handlePlanChanged(event);
+  }
+
+  /**
+   * Handles BILLING_PAYMENT_SUCCEEDED domain events.
+   * Delegates to BillingEmailHandler — sends payment receipt email to org owner.
+   */
+  async handleBillingPaymentSucceeded(
+    event: DomainEvent<PaymentSucceededPayload>,
+  ): Promise<void> {
+    this.logger.log(
+      `[Worker-Compute-A] Received BILLING_PAYMENT_SUCCEEDED for org ${event.payload.orgId} (invoice ${event.payload.invoiceId})`,
+    );
+
+    await this.billingEmailHandler.handlePaymentSucceeded(event);
+  }
+
+  /**
+   * Handles BILLING_SUBSCRIPTION_CANCELLED domain events.
+   * Delegates to BillingEmailHandler — sends cancellation confirmation email to org owner.
+   */
+  async handleBillingSubscriptionCancelled(
+    event: DomainEvent<SubscriptionCancelledPayload>,
+  ): Promise<void> {
+    this.logger.log(
+      `[Worker-Compute-A] Received BILLING_SUBSCRIPTION_CANCELLED for org ${event.payload.orgId}`,
+    );
+
+    await this.billingEmailHandler.handleSubscriptionCancelled(event);
   }
 }

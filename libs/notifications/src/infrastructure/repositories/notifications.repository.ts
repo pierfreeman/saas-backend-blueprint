@@ -65,6 +65,28 @@ export class NotificationsRepository {
     });
   }
 
+  async countUnreadForOrg(userId: string, orgId: string): Promise<number> {
+    return this.prisma.notification.count({
+      where: { userId, orgId, readAt: null },
+    });
+  }
+
+  /**
+   * Return distinct orgIds for the given unread notification IDs.
+   * Used for org-scoped cache invalidation in bulk operations.
+   */
+  async findOrgIdsForUnreadNotifications(
+    ids: string[],
+    userId: string,
+  ): Promise<string[]> {
+    const rows = await this.prisma.notification.findMany({
+      where: { id: { in: ids }, userId, readAt: null },
+      select: { orgId: true },
+      distinct: ['orgId'],
+    });
+    return rows.map((r) => r.orgId);
+  }
+
   /**
    * Find a single unread notification by id + userId. Returns null if not found
    * or already read. Used as a guard before marking as read.

@@ -319,7 +319,7 @@ Are you adding something inside an app (apps/api or apps/worker-a)?
            If you need business logic, create a lib and reference it from the app.
 
 Are you creating a shared library?
-  ├─ Does it wrap a third-party service (Stripe, S3, SendGrid, SQS...)?
+  ├─ Does it wrap a third-party service (Stripe, S3, Resend, SQS...)?
   │    └─ YES → Pattern A (3-layer DDD with port/adapter)
   │
   ├─ Does it own a domain aggregate that is persisted in the database?

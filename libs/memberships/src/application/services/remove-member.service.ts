@@ -1,8 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { MembershipsService } from '@libs/memberships';
 import { UsersService } from '@libs/users';
-import { Auth0ManagementService } from '../auth/auth0-management.service';
-import { PENDING_AUTH0_ID_PREFIX } from '../auth/auth.service';
+import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
+import { Auth0ManagementService } from '@libs/auth/infrastructure/clients/auth0-management.service';
+import { MembershipsService } from './memberships.service';
 
 @Injectable()
 export class RemoveMemberService {

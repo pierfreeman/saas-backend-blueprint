@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { User } from '@libs/prisma-business';
+import { Organization, User } from '@libs/prisma-business';
 import { UserRepository } from '../../infrastructure/repositories/user.repository';
 
 @Injectable()
@@ -40,7 +40,7 @@ export class UsersService {
   async provisionWithPersonalOrg(
     auth0Id: string,
     email: string,
-  ): Promise<User> {
+  ): Promise<{ user: User; organization: Organization }> {
     return this.userRepository.provisionWithPersonalOrg(auth0Id, email);
   }
 

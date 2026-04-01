@@ -15,8 +15,6 @@
 export const FIFO_EVENT_PREFIXES: readonly string[] = [
   'billing.',
   'subscription.',
-  'payment.',
-  'invoice.',
 ] as const;
 
 /**
@@ -32,8 +30,6 @@ export const FIFO_EVENT_PREFIXES: readonly string[] = [
 export const DOMAIN_EVENTS = {
   // Job computation (Standard queue)
   HEAVY_JOB_CREATED: 'heavy.job.created',
-  HEAVY_JOB_COMPLETED: 'heavy.job.completed',
-  HEAVY_JOB_FAILED: 'heavy.job.failed',
 
   // Billing (FIFO queue — strict ordering required)
   BILLING_CHECKOUT_COMPLETED: 'billing.checkout.completed',
@@ -49,8 +45,6 @@ export const DOMAIN_EVENTS = {
 
   // Email / User notifications (Standard queue)
   USER_INVITED: 'user.invited',
-  EXPORT_COMPLETED: 'export.completed',
-  SYSTEM_ALERT_TRIGGERED: 'system.alert.triggered',
 
   // Organization deletion (Standard queue)
   ORG_DELETION_REQUESTED: 'org.deletion.requested',
@@ -64,6 +58,3 @@ export const DOMAIN_EVENTS = {
   ORG_EXPORT_COMPLETED: 'org.export.completed',
   ORG_EXPORT_FAILED: 'org.export.failed',
 } as const;
-
-export type DomainEventType =
-  (typeof DOMAIN_EVENTS)[keyof typeof DOMAIN_EVENTS];

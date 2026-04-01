@@ -321,48 +321,4 @@ describe('MembershipsService', () => {
       expect(result).toBe(false);
     });
   });
-
-  describe('isOwner', () => {
-    it('returns true when user is OWNER', async () => {
-      mockRepo.findByUserAndOrg = vi
-        .fn()
-        .mockResolvedValue({ ...baseMembership, role: MembershipRole.OWNER });
-
-      expect(await service.isOwner('u-1', 'org-1')).toBe(true);
-    });
-
-    it('returns false when user is not OWNER', async () => {
-      mockRepo.findByUserAndOrg = vi
-        .fn()
-        .mockResolvedValue({ ...baseMembership, role: MembershipRole.MEMBER });
-
-      expect(await service.isOwner('u-1', 'org-1')).toBe(false);
-    });
-  });
-
-  describe('isAdmin', () => {
-    it('returns true when user is OWNER', async () => {
-      mockRepo.findByUserAndOrg = vi
-        .fn()
-        .mockResolvedValue({ ...baseMembership, role: MembershipRole.OWNER });
-
-      expect(await service.isAdmin('u-1', 'org-1')).toBe(true);
-    });
-
-    it('returns true when user is ADMIN', async () => {
-      mockRepo.findByUserAndOrg = vi
-        .fn()
-        .mockResolvedValue({ ...baseMembership, role: MembershipRole.ADMIN });
-
-      expect(await service.isAdmin('u-1', 'org-1')).toBe(true);
-    });
-
-    it('returns false when user is MEMBER', async () => {
-      mockRepo.findByUserAndOrg = vi
-        .fn()
-        .mockResolvedValue({ ...baseMembership, role: MembershipRole.MEMBER });
-
-      expect(await service.isAdmin('u-1', 'org-1')).toBe(false);
-    });
-  });
 });

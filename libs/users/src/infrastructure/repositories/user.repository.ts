@@ -1,6 +1,11 @@
+import {
+  MembershipRole,
+  MembershipStatus,
+  Organization,
+  PrismaBusinessService,
+  User,
+} from '@libs/prisma-business';
 import { Injectable } from '@nestjs/common';
-import { PrismaBusinessService } from '@libs/prisma-business';
-import { MembershipRole, MembershipStatus, User } from '@libs/prisma-business';
 
 @Injectable()
 export class UserRepository {
@@ -49,23 +54,22 @@ export class UserRepository {
   async provisionWithPersonalOrg(
     auth0Id: string,
     email: string,
-  ): Promise<User> {
-    const { user } = await this.prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({ data: { auth0Id, email } });
-      const org = await tx.organization.create({
+  ): Promise<{ user: User; organization: Organization }> {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({ data: { auth0Id, email } });
+      const organization = await tx.organization.create({
         data: { name: 'Personal Workspace' },
       });
       await tx.membership.create({
         data: {
-          userId: newUser.id,
-          orgId: org.id,
+          userId: user.id,
+          orgId: organization.id,
           role: MembershipRole.OWNER,
           status: MembershipStatus.ACTIVE,
         },
       });
-      return { user: newUser, org };
+      return { user, organization };
     });
-    return user;
   }
 
   /**

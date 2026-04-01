@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UsersService } from '@libs/users';
+import { EmailService } from '@libs/email';
 import { User } from '@libs/prisma-business';
-import { Auth0ManagementService } from './auth0-management.service';
+import { Auth0ManagementService } from '../../infrastructure/clients/auth0-management.service';
+import { PENDING_AUTH0_ID_PREFIX } from '../../constants';
 
-/** Prefix used for Prisma users created by the invite flow before the
- *  invitee has logged in and obtained a real Auth0 subject claim. */
-export const PENDING_AUTH0_ID_PREFIX = 'pending:';
+export { PENDING_AUTH0_ID_PREFIX };
 
 @Injectable()
 export class AuthService {
@@ -14,6 +14,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly auth0ManagementService: Auth0ManagementService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -118,11 +119,20 @@ export class AuthService {
     );
 
     const resolvedProfile = await this.resolveProfile(auth0Id, profile);
-    const user = await this.usersService.provisionWithPersonalOrg(
-      auth0Id,
-      resolvedEmail,
-    );
+    const { user, organization } =
+      await this.usersService.provisionWithPersonalOrg(auth0Id, resolvedEmail);
     this.logger.log(`Provisioned user ${user.id} with personal org`);
+
+    // Add contact to email provider audience (fire-and-forget)
+    this.emailService.addContact({
+      email: resolvedEmail,
+      firstName: resolvedProfile.firstName,
+      lastName: resolvedProfile.lastName,
+      properties: {
+        org_id: organization.id,
+        org_name: organization.name,
+      },
+    });
 
     if (
       resolvedProfile.firstName ||

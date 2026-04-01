@@ -1,12 +1,11 @@
-import { EventBusService } from '@libs/events';
+import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
-import { StorageService, S3StorageClient } from '@libs/storage';
+import { StorageService } from '@libs/storage';
 import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExportStatus } from '@libs/prisma-business';
 import JSZip from 'jszip';
-import { ORG_EXPORT_EVENT_TYPES } from '../../constants/org-export-event.constants';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
 
 /**
@@ -31,7 +30,6 @@ export class OrgExportWorkerService {
     private readonly storage: StorageService,
     private readonly config: ConfigService,
     private readonly email: EmailService,
-    private readonly s3Client: S3StorageClient,
   ) {
     this.urlExpirationHours = this.config.get<number>(
       'EXPORT_URL_EXPIRATION_HOURS',
@@ -66,7 +64,7 @@ export class OrgExportWorkerService {
 
     // Emit export started event
     await this.eventBus.publish({
-      eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_STARTED,
+      eventType: DOMAIN_EVENTS.ORG_EXPORT_STARTED,
       payload: {
         orgId,
         exportId,
@@ -123,7 +121,7 @@ export class OrgExportWorkerService {
       );
 
       const expirationSeconds = this.urlExpirationHours * 60 * 60;
-      const downloadUrl = await this.s3Client.generatePresignedDownloadUrl(
+      const downloadUrl = await this.storage.generateRawPresignedDownloadUrl(
         storageKey,
         expirationSeconds,
       );
@@ -156,7 +154,7 @@ export class OrgExportWorkerService {
 
       // Emit export completed event
       await this.eventBus.publish({
-        eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_COMPLETED,
+        eventType: DOMAIN_EVENTS.ORG_EXPORT_COMPLETED,
         payload: {
           orgId,
           exportId,
@@ -200,7 +198,7 @@ export class OrgExportWorkerService {
 
       // Emit export failed event
       await this.eventBus.publish({
-        eventType: ORG_EXPORT_EVENT_TYPES.EXPORT_FAILED,
+        eventType: DOMAIN_EVENTS.ORG_EXPORT_FAILED,
         payload: {
           orgId,
           exportId,
@@ -253,6 +251,7 @@ export class OrgExportWorkerService {
       notifications: (raw.notifications as unknown[]).map((n) =>
         this.sanitizeNotification(n),
       ),
+      events: (raw.events as unknown[]).map((e) => this.sanitizeEvent(e)),
       metadata: {
         exportedAt: new Date().toISOString(),
         version: '1.0',
@@ -301,7 +300,7 @@ export class OrgExportWorkerService {
     storageKey: string,
     buffer: Buffer,
   ): Promise<void> {
-    await this.s3Client.putObject(storageKey, buffer, 'application/zip');
+    await this.storage.putRawObject(storageKey, buffer, 'application/zip');
     this.logger.log(`Uploaded export file to ${storageKey}`);
   }
 
@@ -498,8 +497,7 @@ export class OrgExportWorkerService {
       id: string;
       type: string;
       title: string;
-      message: string;
-      isRead: boolean;
+      body: string;
       metadata: unknown;
       createdAt: Date | null;
       readAt: Date | null;
@@ -508,11 +506,45 @@ export class OrgExportWorkerService {
       id: n.id,
       type: n.type,
       title: n.title,
-      message: n.message,
-      isRead: n.isRead,
+      body: n.body,
       metadata: n.metadata,
       createdAt: n.createdAt?.toISOString(),
       readAt: n.readAt?.toISOString(),
+    };
+  }
+
+  private sanitizeEvent(event: unknown): Record<string, unknown> {
+    const e = event as {
+      id: string;
+      title: string;
+      description: string | null;
+      location: string | null;
+      startUtc: Date;
+      endUtc: Date;
+      isAllDay: boolean;
+      eventTimezone: string;
+      rrule: string | null;
+      rruleUntilUtc: Date | null;
+      reminderMinutes: number | null;
+      metadata: unknown;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+    return {
+      id: e.id,
+      title: e.title,
+      description: e.description,
+      location: e.location,
+      startUtc: e.startUtc?.toISOString(),
+      endUtc: e.endUtc?.toISOString(),
+      isAllDay: e.isAllDay,
+      eventTimezone: e.eventTimezone,
+      rrule: e.rrule,
+      rruleUntilUtc: e.rruleUntilUtc?.toISOString() ?? null,
+      reminderMinutes: e.reminderMinutes,
+      metadata: e.metadata,
+      createdAt: e.createdAt?.toISOString(),
+      updatedAt: e.updatedAt?.toISOString(),
     };
   }
 }

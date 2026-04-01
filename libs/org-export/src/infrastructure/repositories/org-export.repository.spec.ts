@@ -49,6 +49,9 @@ function buildMockPrisma() {
     notification: {
       findMany: vi.fn().mockResolvedValue([]),
     },
+    event: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     $transaction: vi.fn(async (cb: (tx: typeof tx) => Promise<void>) => {
       await cb(tx);
     }),
@@ -400,6 +403,7 @@ describe('OrgExportRepository', () => {
       const job = { id: 'j1', orgId: ORG_UUID };
       const file = { id: 'f1', orgId: ORG_UUID };
       const notification = { id: 'n1', orgId: ORG_UUID };
+      const event = { id: 'e1', orgId: ORG_UUID };
 
       mockPrisma.organization.findUnique.mockResolvedValue(org);
       mockPrisma.membership.findMany.mockResolvedValue([membership]);
@@ -407,6 +411,7 @@ describe('OrgExportRepository', () => {
       mockPrisma.job.findMany.mockResolvedValue([job]);
       mockPrisma.file.findMany.mockResolvedValue([file]);
       mockPrisma.notification.findMany.mockResolvedValue([notification]);
+      mockPrisma.event.findMany.mockResolvedValue([event]);
 
       const result = await repo.aggregateOrgData(ORG_UUID);
 
@@ -416,6 +421,7 @@ describe('OrgExportRepository', () => {
       expect(result.jobs).toEqual([job]);
       expect(result.files).toEqual([file]);
       expect(result.notifications).toEqual([notification]);
+      expect(result.events).toEqual([event]);
     });
 
     it('includes user in membership query with correct select', async () => {
@@ -437,5 +443,18 @@ describe('OrgExportRepository', () => {
         },
       });
     });
+
+    it('queries events with deletedAt: null filter ordered by startUtc desc', async () => {
+      mockPrisma.organization.findUnique.mockResolvedValue(null);
+
+      await repo.aggregateOrgData(ORG_UUID);
+
+      expect(mockPrisma.event.findMany).toHaveBeenCalledWith({
+        where: { orgId: ORG_UUID, deletedAt: null },
+        orderBy: { startUtc: 'desc' },
+        take: 500,
+      });
+    });
   });
 });
+

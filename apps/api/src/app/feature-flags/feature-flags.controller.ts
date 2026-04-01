@@ -14,8 +14,8 @@ import {
   ApiParam,
   ApiResponse,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard, OrgScoped } from '@libs/rbac';
+import { JwtAuthGuard, PERMISSIONS } from '@libs/common';
+import { OrgContextGuard, OrgScoped, RBACGuard, RequirePermissions } from '@libs/rbac';
 import {
   FeatureFlagsService,
   OrganizationEntitlements,
@@ -24,7 +24,7 @@ import {
 @ApiTags('Feature Flags')
 @ApiBearerAuth()
 @OrgScoped()
-@UseGuards(JwtAuthGuard, OrgContextGuard)
+@UseGuards(JwtAuthGuard, OrgContextGuard, RBACGuard)
 @Controller('organizations/:orgId/entitlements')
 export class FeatureFlagsController {
   constructor(private readonly featureFlagsService: FeatureFlagsService) {}
@@ -101,6 +101,7 @@ export class FeatureFlagsController {
 
   @Post('invalidate')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions([PERMISSIONS.ORG_MANAGE])
   @ApiOperation({
     summary: 'Invalidate the entitlements cache for an organization',
     description:

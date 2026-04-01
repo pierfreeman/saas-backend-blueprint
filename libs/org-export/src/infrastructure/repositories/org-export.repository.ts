@@ -42,6 +42,7 @@ export type OrgExportData = {
   jobs: unknown[];
   files: unknown[];
   notifications: unknown[];
+  events: unknown[];
 };
 
 /**
@@ -228,6 +229,7 @@ export class OrgExportRepository {
       jobs,
       files,
       notifications,
+      events,
     ] = await Promise.all([
       this.prisma.organization.findUnique({ where: { id: orgId } }),
       this.prisma.membership.findMany({
@@ -257,6 +259,11 @@ export class OrgExportRepository {
         orderBy: { createdAt: 'desc' },
         take: 500,
       }),
+      this.prisma.event.findMany({
+        where: { orgId, deletedAt: null },
+        orderBy: { startUtc: 'desc' },
+        take: 500,
+      }),
     ]);
 
     return {
@@ -266,6 +273,7 @@ export class OrgExportRepository {
       jobs,
       files,
       notifications,
+      events,
     };
   }
 }

@@ -270,7 +270,9 @@ describe('SubscriptionService', () => {
         makeCtx(),
       );
 
-      expect(result).toBe('org-001');
+      expect(result).toEqual(
+        expect.objectContaining({ orgId: 'org-001' }),
+      );
     });
   });
 
@@ -349,6 +351,11 @@ describe('SubscriptionService', () => {
       expect(eventBus.publish).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED,
+          payload: expect.objectContaining({
+            orgId: 'org-001',
+            previousPlanId: expect.anything(),
+            planChangeDirection: expect.any(String),
+          }),
         }),
       );
     });

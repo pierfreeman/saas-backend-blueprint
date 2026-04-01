@@ -4,10 +4,10 @@ import { OrgExportWorkerService } from './org-export-worker.service';
 import { OrgExportRepository } from '../../infrastructure/repositories/org-export.repository';
 import { EventBusService } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
-import { StorageService, S3StorageClient } from '@libs/storage';
+import { StorageService } from '@libs/storage';
 import { EmailService } from '@libs/email';
 import { ExportStatus } from '@libs/prisma-business';
-import { Mock, Mocked, vi } from 'vitest';
+import { Mocked, vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────
 const ORG_UUID = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
@@ -34,6 +34,7 @@ function makeOrgData(overrides = {}) {
     jobs: [],
     files: [],
     notifications: [],
+    events: [],
     ...overrides,
   };
 }
@@ -59,6 +60,10 @@ function buildStorageMock() {
       mimeType: 'application/zip',
       size: BigInt(123456),
     }),
+    generateRawPresignedDownloadUrl: vi
+      .fn()
+      .mockResolvedValue('https://s3.example.com/presigned-url'),
+    putRawObject: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -110,10 +115,6 @@ describe('OrgExportWorkerService', () => {
   let storage: ReturnType<typeof buildStorageMock>;
   let config: ReturnType<typeof buildConfigMock>;
   let email: Mocked<Pick<EmailService, 'sendTransactionalEmail'>>;
-  let s3Client: {
-    putObject: Mock;
-    generatePresignedDownloadUrl: Mock;
-  };
 
   beforeEach(async () => {
     repo = buildRepoMock();
@@ -122,12 +123,6 @@ describe('OrgExportWorkerService', () => {
     storage = buildStorageMock();
     config = buildConfigMock();
     email = { sendTransactionalEmail: vi.fn().mockResolvedValue(undefined) };
-    s3Client = {
-      putObject: vi.fn().mockResolvedValue(undefined),
-      generatePresignedDownloadUrl: vi
-        .fn()
-        .mockResolvedValue('https://s3.example.com/presigned-url'),
-    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -138,7 +133,6 @@ describe('OrgExportWorkerService', () => {
         { provide: StorageService, useValue: storage },
         { provide: ConfigService, useValue: config },
         { provide: EmailService, useValue: email },
-        { provide: S3StorageClient, useValue: s3Client },
       ],
     }).compile();
 
@@ -329,7 +323,6 @@ describe('OrgExportWorkerService', () => {
         storage as any,
         customConfig as any,
         email as any,
-        s3Client as any,
         /* eslint-enable @typescript-eslint/no-explicit-any */
       );
 
@@ -468,6 +461,25 @@ describe('OrgExportWorkerService', () => {
       ).rejects.toThrow('Critical error');
     });
 
+    it('handles non-Error rejection with Unknown error message (line 190 branch)', async () => {
+      repo.aggregateOrgData.mockRejectedValueOnce('plain-string-failure');
+
+      await expect(
+        service.executeExport(
+          ORG_UUID,
+          EXPORT_UUID,
+          JOB_UUID,
+          orgName,
+          USER_UUID,
+          requestedAt,
+        ),
+      ).rejects.toBe('plain-string-failure');
+
+      expect(repo.failExport).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Unknown error' }),
+      );
+    });
+
     it('handles organization not found gracefully', async () => {
       repo.aggregateOrgData.mockResolvedValueOnce({
         organization: null,
@@ -476,6 +488,7 @@ describe('OrgExportWorkerService', () => {
         jobs: [],
         files: [],
         notifications: [],
+        events: [],
       });
 
       await service.executeExport(
@@ -513,6 +526,7 @@ describe('OrgExportWorkerService', () => {
         jobs: [],
         files: [],
         notifications: [],
+        events: [],
       });
 
       await service.executeExport(
@@ -558,6 +572,7 @@ describe('OrgExportWorkerService', () => {
           },
         ],
         notifications: [],
+        events: [],
       });
 
       await service.executeExport(
@@ -601,6 +616,7 @@ describe('OrgExportWorkerService', () => {
         jobs: [],
         files: [],
         notifications: [],
+        events: [],
       });
 
       await service.executeExport(
@@ -635,6 +651,7 @@ describe('OrgExportWorkerService', () => {
         jobs: [],
         files: [],
         notifications: [],
+        events: [],
       });
 
       await service.executeExport(
@@ -672,6 +689,7 @@ describe('OrgExportWorkerService', () => {
         ],
         files: [],
         notifications: [],
+        events: [],
       });
 
       await service.executeExport(
@@ -705,6 +723,7 @@ describe('OrgExportWorkerService', () => {
           },
         ],
         notifications: [],
+        events: [],
       });
 
       await service.executeExport(
@@ -739,6 +758,7 @@ describe('OrgExportWorkerService', () => {
             createdAt: new Date('2026-01-01'),
           },
         ],
+        events: [],
       });
 
       await service.executeExport(
@@ -777,6 +797,7 @@ describe('OrgExportWorkerService', () => {
         jobs: [],
         files: [],
         notifications: [],
+        events: [],
       });
 
       await service.executeExport(
@@ -824,7 +845,80 @@ describe('OrgExportWorkerService', () => {
         jobs: [],
         files: [],
         notifications: [],
+        events: [],
       });
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(repo.completeExport).toHaveBeenCalled();
+    });
+
+    it('sanitizes events with all non-null fields', async () => {
+      repo.aggregateOrgData.mockResolvedValueOnce(
+        makeOrgData({
+          events: [
+            {
+              id: 'event-1',
+              title: 'Team Meeting',
+              description: 'Weekly sync',
+              location: 'Room A',
+              startUtc: new Date('2026-01-01T09:00:00Z'),
+              endUtc: new Date('2026-01-01T10:00:00Z'),
+              isAllDay: false,
+              eventTimezone: 'UTC',
+              rrule: 'FREQ=WEEKLY',
+              rruleUntilUtc: new Date('2026-12-31T23:59:59Z'),
+              reminderMinutes: 15,
+              metadata: { key: 'value' },
+              createdAt: new Date('2026-01-01'),
+              updatedAt: new Date('2026-01-01'),
+            },
+          ],
+        }),
+      );
+
+      await service.executeExport(
+        ORG_UUID,
+        EXPORT_UUID,
+        JOB_UUID,
+        orgName,
+        USER_UUID,
+        requestedAt,
+      );
+
+      expect(repo.completeExport).toHaveBeenCalled();
+    });
+
+    it('sanitizes events with null optional fields (rruleUntilUtc null)', async () => {
+      repo.aggregateOrgData.mockResolvedValueOnce(
+        makeOrgData({
+          events: [
+            {
+              id: 'event-2',
+              title: 'One-time Event',
+              description: null,
+              location: null,
+              startUtc: new Date('2026-02-01T09:00:00Z'),
+              endUtc: new Date('2026-02-01T10:00:00Z'),
+              isAllDay: false,
+              eventTimezone: 'UTC',
+              rrule: null,
+              rruleUntilUtc: null,
+              reminderMinutes: null,
+              metadata: null,
+              createdAt: new Date('2026-01-01'),
+              updatedAt: new Date('2026-01-01'),
+            },
+          ],
+        }),
+      );
 
       await service.executeExport(
         ORG_UUID,

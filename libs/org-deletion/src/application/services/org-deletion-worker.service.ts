@@ -1,14 +1,11 @@
-import { EventBusService } from '@libs/events';
+import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
 import { LegalAuditService } from '@libs/legal-audit';
 import { CacheService } from '@libs/redis';
 import { StorageService } from '@libs/storage';
 import { StripeService } from '@libs/billing';
 import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  DeletionTrigger,
-  ORG_DELETION_EVENT_TYPES,
-} from '../../constants/org-deletion-event.constants';
+import { DeletionTrigger } from '../../interfaces/org-deletion-event.interface';
 import { OrgDeletionRepository } from '../../infrastructure/repositories/org-deletion.repository';
 
 /**
@@ -57,7 +54,7 @@ export class OrgDeletionWorkerService {
 
     // Emit deletion started event
     await this.eventBus.publish({
-      eventType: ORG_DELETION_EVENT_TYPES.DELETION_STARTED,
+      eventType: DOMAIN_EVENTS.ORG_DELETION_STARTED,
       payload: {
         orgId,
         trigger,
@@ -122,7 +119,7 @@ export class OrgDeletionWorkerService {
 
       // Emit deletion completed event
       await this.eventBus.publish({
-        eventType: ORG_DELETION_EVENT_TYPES.DELETION_COMPLETED,
+        eventType: DOMAIN_EVENTS.ORG_DELETION_COMPLETED,
         payload: {
           orgId,
           trigger,
@@ -157,7 +154,7 @@ export class OrgDeletionWorkerService {
 
       // Emit deletion failed event
       await this.eventBus.publish({
-        eventType: ORG_DELETION_EVENT_TYPES.DELETION_FAILED,
+        eventType: DOMAIN_EVENTS.ORG_DELETION_FAILED,
         payload: {
           orgId,
           trigger,

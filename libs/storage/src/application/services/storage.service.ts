@@ -385,4 +385,31 @@ export class StorageService {
         throw new Error(`Unsupported storage provider: ${providerType}`);
     }
   }
+
+  /**
+   * Generate a presigned download URL for a raw storage key.
+   * For use by internal workflows (e.g. org export) that upload files directly
+   * without creating a tracked database record.
+   */
+  async generateRawPresignedDownloadUrl(
+    storageKey: string,
+    expirationSeconds: number,
+  ): Promise<string> {
+    const provider = this.getProvider(this.defaultProvider);
+    return provider.generateDownloadUrl(storageKey, expirationSeconds);
+  }
+
+  /**
+   * Upload a buffer directly to storage.
+   * For use by internal workflows (e.g. org export) that bypass the presigned
+   * upload URL flow.
+   */
+  async putRawObject(
+    storageKey: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    const provider = this.getProvider(this.defaultProvider);
+    await provider.putObject(storageKey, buffer, contentType);
+  }
 }

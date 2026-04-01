@@ -312,4 +312,32 @@ export class StripeService {
       webhookSecret,
     );
   }
+
+  /**
+   * Pings the Stripe API to verify connectivity and the configured key.
+   * Used by health checks.
+   */
+  async checkConnectivity(): Promise<{
+    status: string;
+    responseTime?: number;
+  }> {
+    const apiKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    if (
+      !apiKey ||
+      (!apiKey.startsWith('sk_test_') && !apiKey.startsWith('sk_live_'))
+    ) {
+      return { status: 'misconfigured' };
+    }
+
+    try {
+      const start = Date.now();
+      await this.stripe.accounts.retrieve();
+      return { status: 'ok', responseTime: Date.now() - start };
+    } catch (err) {
+      if (err instanceof Stripe.errors.StripeAuthenticationError) {
+        return { status: 'misconfigured' };
+      }
+      return { status: 'error' };
+    }
+  }
 }

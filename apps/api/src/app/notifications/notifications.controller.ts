@@ -1,21 +1,19 @@
 import {
-  Body,
   Controller,
+  createParamDecorator,
   Delete,
+  ExecutionContext,
   Get,
   HttpCode,
   HttpStatus,
   Logger,
-  NotFoundException,
   Param,
   ParseUUIDPipe,
+  Body,
   Patch,
-  Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -23,42 +21,49 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard, RequestUser } from '@libs/common';
+import { CurrentTenant, JwtAuthGuard } from '@libs/common';
 import { NotificationsService } from '@libs/notifications';
-import { AuthService } from '../auth/auth.service';
-import { CreateNotificationDto } from './dto/create-notification.dto';
+import { OrgContextGuard, RBACGuard } from '@libs/rbac';
 import { MarkManyReadDto } from './dto/mark-many-read.dto';
 import { QueryNotificationsDto } from './dto/query-notifications.dto';
 
-interface AuthenticatedRequest extends Request {
-  user: RequestUser;
-}
+/**
+ * Extracts the resolved DB user UUID from request.user.dbUserId,
+ * set by OrgContextGuard after JWT sub → DB user resolution.
+ */
+const CurrentDbUserId = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): string | undefined => {
+    const request = ctx
+      .switchToHttp()
+      .getRequest<{ user?: { dbUserId?: string } }>();
+    return request.user?.dbUserId;
+  },
+);
 
 /**
  * NotificationsController
  *
- * REST fallback API for in-app notifications.
+ * REST API for reading and managing in-app notifications.
  * All endpoints require a valid JWT bearer token.
  *
- * The primary delivery path for new notifications is WebSocket (`/notifications`
- * namespace). These HTTP endpoints are provided for:
- *   - Initial page load (fetch notification history without WebSocket).
- *   - Mobile / non-persistent clients that cannot maintain a WebSocket.
- *   - Administrative tooling.
+ * Notifications are created internally by application services — there is no
+ * public HTTP endpoint to create them. Clients can only list, mark as read,
+ * and delete their own notifications.
+ *
+ * Org-scoped endpoints (GET /notifications) read the orgId from the query
+ * parameter. User-scoped endpoints (PATCH, DELETE, GET /unread-count) are
+ * scoped only to the authenticated user — no org context is required.
  */
 @ApiTags('Notifications')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, OrgContextGuard, RBACGuard)
 @Controller('notifications')
 export class NotificationsController {
   private readonly logger = new Logger(NotificationsController.name);
 
-  constructor(
-    private readonly notificationsService: NotificationsService,
-    private readonly authService: AuthService,
-  ) {}
+  constructor(private readonly notificationsService: NotificationsService) {}
 
-  // ── GET /notifications ────────────────────────────────────────────────────
+  // ── GET /notifications ───────────────────────────────────────────────────
 
   @Get()
   @ApiOperation({ summary: 'List notifications for the authenticated user' })
@@ -71,22 +76,18 @@ export class NotificationsController {
     description: 'Missing or invalid JWT bearer token.',
   })
   async getNotifications(
-    @Req() req: AuthenticatedRequest,
+    @CurrentDbUserId() userId: string,
+    @CurrentTenant('tenantId') orgId: string,
     @Query() query: QueryNotificationsDto,
   ) {
-    const { id: userId } = await this.resolveUser(req.user.sub);
-    return this.notificationsService.getUserNotifications(
-      userId,
-      query.orgId ?? '',
-      {
-        limit: query.limit,
-        offset: query.offset,
-        unreadOnly: query.unreadOnly,
-      },
-    );
+    return this.notificationsService.getUserNotifications(userId, orgId, {
+      limit: query.limit,
+      offset: query.offset,
+      unreadOnly: query.unreadOnly,
+    });
   }
 
-  // ── GET /notifications/unread-count ───────────────────────────────────────
+  // ── GET /notifications/unread-count ──────────────────────────────────────
 
   @Get('unread-count')
   @ApiOperation({
@@ -101,38 +102,9 @@ export class NotificationsController {
     status: HttpStatus.UNAUTHORIZED,
     description: 'Missing or invalid JWT bearer token.',
   })
-  async getUnreadCount(@Req() req: AuthenticatedRequest) {
-    const { id: userId } = await this.resolveUser(req.user.sub);
+  async getUnreadCount(@CurrentDbUserId() userId: string) {
     const count = await this.notificationsService.getUnreadCount(userId);
     return { count };
-  }
-
-  // ── POST /notifications ───────────────────────────────────────────────────
-
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a notification (internal / admin use)' })
-  @ApiResponse({
-    status: HttpStatus.CREATED,
-    description: 'Notification created.',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Validation failed — missing or invalid request body fields.',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Missing or invalid JWT bearer token.',
-  })
-  async createNotification(@Body() dto: CreateNotificationDto) {
-    return this.notificationsService.createNotification({
-      orgId: dto.orgId,
-      userId: dto.userId,
-      type: dto.type,
-      title: dto.title,
-      body: dto.body,
-      metadata: dto.metadata,
-    });
   }
 
   // ── PATCH /notifications/:id/read ─────────────────────────────────────────
@@ -159,9 +131,8 @@ export class NotificationsController {
   })
   async markAsRead(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: AuthenticatedRequest,
+    @CurrentDbUserId() userId: string,
   ) {
-    const { id: userId } = await this.resolveUser(req.user.sub);
     return this.notificationsService.markAsRead(id, userId);
   }
 
@@ -184,13 +155,12 @@ export class NotificationsController {
   })
   async markManyAsRead(
     @Body() dto: MarkManyReadDto,
-    @Req() req: AuthenticatedRequest,
+    @CurrentDbUserId() userId: string,
   ): Promise<void> {
-    const { id: userId } = await this.resolveUser(req.user.sub);
     await this.notificationsService.markManyAsRead(dto.ids, userId);
   }
 
-  // ── DELETE /notifications/:id ─────────────────────────────────────────────
+  // ── DELETE /notifications/:id ──────────────────────────────────────────────
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -215,16 +185,8 @@ export class NotificationsController {
   })
   async deleteNotification(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: AuthenticatedRequest,
+    @CurrentDbUserId() userId: string,
   ): Promise<void> {
-    const { id: userId } = await this.resolveUser(req.user.sub);
     await this.notificationsService.deleteNotification(id, userId);
-  }
-
-  /** Resolves Auth0 sub → local DB user (mirrors organisations.controller pattern). */
-  private async resolveUser(auth0Id: string): Promise<{ id: string }> {
-    const user = await this.authService.findUserByAuth0Id(auth0Id);
-    if (!user) throw new NotFoundException('User not found');
-    return user;
   }
 }

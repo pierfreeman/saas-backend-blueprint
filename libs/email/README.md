@@ -9,7 +9,7 @@ The `@libs/email` library provides production-ready transactional email capabili
 ### Key Features
 
 - **Event-Driven Architecture**: Emails triggered by domain events, not direct service calls
-- **Multiple Provider Support**: Abstracted provider interface (SendGrid, SMTP)
+- **Multiple Provider Support**: Abstracted provider interface (Resend, SMTP)
 - **Template System**: Handlebars-based templates with data interpolation
 - **Audit Logging**: Automatic logging to activity log and legal audit systems
 - **Fire-and-Forget**: Email failures don't block business transactions
@@ -27,7 +27,7 @@ Event Handler (UserInvitedEmailHandler, ExportCompletedEmailHandler)
     ↓
 EmailService (renders template, validates input)
     ↓
-Email Provider (SendGrid, SMTP)
+Email Provider (Resend, SMTP)
     ↓
 External Email Service
 ```
@@ -67,12 +67,12 @@ Add these to your `.env` file:
 
 ```bash
 # Email Provider Configuration
-EMAIL_PROVIDER=sendgrid                    # 'sendgrid' or 'smtp'
+EMAIL_PROVIDER=resend                     # 'resend' or 'smtp'
 EMAIL_FROM_ADDRESS=noreply@yourdomain.com
 EMAIL_FROM_NAME=Your SaaS Platform
 
-# SendGrid Configuration (if EMAIL_PROVIDER=sendgrid)
-SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxx
+# Resend Configuration (if EMAIL_PROVIDER=resend)
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxx
 
 # SMTP Configuration (if EMAIL_PROVIDER=smtp)
 SMTP_HOST=smtp.example.com
@@ -90,23 +90,24 @@ Environment variables are validated at startup using Joi schemas defined in `lib
 
 ## Email Provider
 
-### SendGrid (Default)
+### Resend (Default)
 
-The SendGrid provider uses the official `@sendgrid/mail` SDK.
+The Resend provider uses the official `resend` SDK.
 
 **Advantages**:
 
-- Simple API
+- Modern, developer-friendly API
 - Built-in deliverability optimization
-- Detailed analytics
+- Detailed analytics and logs
+- React Email template support
 - No server maintenance
 
 **Setup**:
 
-1. Create a SendGrid account at https://sendgrid.com
-2. Generate an API key with "Mail Send" permissions
-3. Add `SENDGRID_API_KEY` to `.env`
-4. Verify sender email/domain in SendGrid dashboard
+1. Create a Resend account at https://resend.com
+2. Generate an API key
+3. Add `RESEND_API_KEY` to `.env`
+4. Verify sender email/domain in Resend dashboard
 
 ### Future Providers
 
@@ -114,7 +115,6 @@ The provider interface allows adding:
 
 - AWS SES
 - Postmark
-- Resend
 - Mailgun
 - Custom SMTP
 
@@ -244,6 +244,65 @@ export class YourService {
   }
 }
 ```
+
+---
+
+## Contact Management
+
+### Overview
+
+The email library supports creating contacts in the email provider's audience for marketing/lifecycle purposes. This is implemented as a **fire-and-forget** operation — failures are logged but never block business flows.
+
+Contact creation is **provider-optional**: only providers that support audience management (e.g., Resend) implement it. SMTP providers silently skip contact operations.
+
+### When Contacts Are Created
+
+Contacts are added automatically during **first-time user provisioning** (`AuthService.provisionNewUser`). The contact includes:
+
+| Field       | Source                       |
+| ----------- | ---------------------------- |
+| `email`     | User's email address         |
+| `firstName` | Auth0 profile (if available) |
+| `lastName`  | Auth0 profile (if available) |
+| `org_id`    | Personal workspace org ID    |
+| `org_name`  | Personal workspace org name  |
+
+### Custom Properties
+
+Resend contacts are created with custom properties (must be pre-defined in the Resend dashboard):
+
+- **`org_id`** — The user's personal workspace organization ID
+- **`org_name`** — The user's personal workspace organization name
+
+### Usage
+
+```typescript
+import { EmailService } from '@libs/email';
+
+@Injectable()
+export class YourService {
+  constructor(private readonly emailService: EmailService) {}
+
+  addUserToAudience(user: User, org: Organization) {
+    this.emailService.addContact({
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      properties: {
+        org_id: org.id,
+        org_name: org.name,
+      },
+    });
+  }
+}
+```
+
+### Provider Support
+
+| Provider | `sendEmail` | `createContact` |
+| -------- | ----------- | --------------- |
+| Resend   | ✅          | ✅              |
+| SMTP     | ✅          | ❌ (skipped)    |
 
 ---
 
@@ -401,7 +460,7 @@ nx test email --coverage
 
 ```
 libs/email/src/lib/
-  providers/sendgrid.provider.spec.ts      # Provider unit tests
+  providers/resend.provider.spec.ts        # Provider unit tests
   templates/template-renderer.service.spec.ts  # Template rendering tests
   email.service.spec.ts                     # Service unit tests
   email.integration.spec.ts                 # Integration tests
@@ -410,20 +469,20 @@ libs/email/src/lib/
 ### Mock Email Sending in Tests
 
 ```typescript
-// Mock SendGrid in your tests
+// Mock Resend in your tests
 const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
-vi.mock('@sendgrid/mail', () => ({
-  __esModule: true,
-  default: { send: mockSend, setApiKey: vi.fn() },
-  send: mockSend,
+vi.mock('resend', () => ({
+  Resend: vi.fn().mockImplementation(() => ({
+    emails: { send: mockSend },
+  })),
 }));
 
-mockSend.mockResolvedValue([{ statusCode: 202 }]);
+mockSend.mockResolvedValue({ data: { id: 'msg-123' }, error: null });
 
 // Verify email was sent
 expect(mockSend).toHaveBeenCalledWith(
   expect.objectContaining({
-    to: 'test@example.com',
+    to: ['test@example.com'],
     subject: 'Test Email',
   }),
 );
@@ -435,11 +494,11 @@ expect(mockSend).toHaveBeenCalledWith(
 
 ### Testing Without Sending Real Emails
 
-**Option 1: Use SendGrid Sandbox Mode**
+**Option 1: Use Resend Test Mode**
 
 ```bash
-# In SendGrid dashboard, enable "sandbox mode"
-# Emails will be accepted but not delivered
+# Use Resend's test API key (emails accepted but not delivered)
+RESEND_API_KEY=re_test_xxxxxxxxxxxx
 ```
 
 **Option 2: Use MailHog (Local SMTP Server)**
@@ -467,13 +526,15 @@ See "Testing" section above.
 
 Before deploying to production:
 
-- [ ] SendGrid API key configured (with "Mail Send" permission)
-- [ ] Sender email/domain verified in SendGrid
+- [ ] Resend API key configured
+- [ ] Sender email/domain verified in Resend
 - [ ] `EMAIL_FROM_ADDRESS` and `EMAIL_FROM_NAME` set
 - [ ] Email templates reviewed for branding consistency
 - [ ] Audit logging tested (check activity log and legal audit tables)
 - [ ] Error monitoring configured (Sentry captures email failures)
-- [ ] Rate limits reviewed (SendGrid free tier: 100 emails/day)
+- [ ] Rate limits reviewed (Resend free tier: 100 emails/day, 3000/month)
+- [ ] Resend audience created with custom properties `org_id` (string) and `org_name` (string)
+- [ ] `RESEND_AUDIENCE_ID` set in environment
 - [ ] Consider SPF, DKIM, DMARC for sender domain
 
 ---
@@ -486,18 +547,18 @@ Before deploying to production:
 
    ```bash
    # Verify environment variables are loaded
-   echo $SENDGRID_API_KEY
+   echo $RESEND_API_KEY
    ```
 
 2. **Check Logs**
 
    ```bash
-   # Look for SendGrid errors in application logs
-   grep "SendGrid" logs/app.log
+   # Look for Resend errors in application logs
+   grep "Resend" logs/app.log
    ```
 
-3. **Verify SendGrid Dashboard**
-   - Check "Activity" tab for delivery status
+3. **Verify Resend Dashboard**
+   - Check "Logs" tab for delivery status
    - Review bounce/block lists
 
 ### Template Not Found Error
@@ -508,15 +569,15 @@ Error: Template not found: my-template.hbs
 
 **Solution**: Ensure template exists at `libs/email/src/lib/templates/my-template.hbs`
 
-### SendGrid API Error: 403 Forbidden
+### Resend API Error: 403 Forbidden
 
 **Cause**: Invalid or missing API key
 
 **Solution**:
 
-- Regenerate API key in SendGrid dashboard
-- Ensure API key has "Mail Send" permission
-- Update `SENDGRID_API_KEY` in `.env`
+- Regenerate API key in the Resend dashboard
+- Ensure the API key has the correct domain permissions
+- Update `RESEND_API_KEY` in `.env`
 
 ---
 
@@ -527,7 +588,7 @@ When adding new email templates or features:
 1. Follow existing patterns (see `user-invite.handler.ts` as reference)
 2. Add comprehensive unit tests (80%+ coverage required)
 3. Update this README with new templates/events
-4. Test locally with MailHog before deploying
+4. Test locally with Resend (or Mailpit for SMTP) before deploying
 
 ---
 
@@ -542,5 +603,5 @@ Proprietary - Part of the SaaS Backend Blueprint
 For issues or questions:
 
 - Check application logs for error details
-- Review SendGrid dashboard for delivery issues
+- Review Resend dashboard for delivery issues
 - Contact the platform team for architecture questions

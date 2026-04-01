@@ -27,6 +27,7 @@ import { WsJwtGuard } from '../guards/ws-jwt.guard';
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   email?: string;
+  activeOrgId?: string;
 }
 
 interface GetAllPayload {
@@ -185,6 +186,12 @@ export class NotificationsGateway
       client.userId = user.id;
       client.email = user.email;
 
+      // Store the active org from the handshake auth for org-scoped operations.
+      const activeOrgId = client.handshake?.auth?.['orgId'] as
+        | string
+        | undefined;
+      client.activeOrgId = activeOrgId;
+
       // Join personal room for direct delivery.
       await client.join(`user:${user.id}`);
 
@@ -200,11 +207,23 @@ export class NotificationsGateway
       sockets.add(client.id);
       this.userSockets.set(user.id, sockets);
 
-      // Emit the current unread count immediately on connect.
-      const unreadCount = await this.notificationsService.getUnreadCount(
-        user.id,
-      );
-      client.emit('notification:unread-count', { count: unreadCount });
+      // Emit the current unread count for the active org immediately on connect.
+      if (activeOrgId) {
+        const unreadCount =
+          await this.notificationsService.getUnreadCountForOrg(
+            user.id,
+            activeOrgId,
+          );
+        client.emit('notification:unread-count', {
+          count: unreadCount,
+          orgId: activeOrgId,
+        });
+      } else {
+        const unreadCount = await this.notificationsService.getUnreadCount(
+          user.id,
+        );
+        client.emit('notification:unread-count', { count: unreadCount });
+      }
 
       this.logger.log(
         `Socket connected: ${client.id} | user: ${user.id} | orgs: ${memberships.length}`,
@@ -268,13 +287,17 @@ export class NotificationsGateway
   ): Promise<void> {
     if (!client.userId || !data?.notificationId) return;
 
-    await this.notificationsService.markAsRead(
+    const notification = await this.notificationsService.markAsRead(
       data.notificationId,
       client.userId,
     );
 
-    const count = await this.notificationsService.getUnreadCount(client.userId);
-    client.emit('notification:unread-count', { count });
+    const orgId = notification.orgId;
+    const count = await this.notificationsService.getUnreadCountForOrg(
+      client.userId,
+      orgId,
+    );
+    client.emit('notification:unread-count', { count, orgId });
   }
 
   /**
@@ -290,7 +313,11 @@ export class NotificationsGateway
     if (!client.userId || !data?.orgId) return;
 
     await this.notificationsService.markAllAsRead(client.userId, data.orgId);
-    client.emit('notification:unread-count', { count: 0 });
+    const count = await this.notificationsService.getUnreadCountForOrg(
+      client.userId,
+      data.orgId,
+    );
+    client.emit('notification:unread-count', { count, orgId: data.orgId });
   }
 
   // ── Redis → Socket.IO bridges ─────────────────────────────────────────────
@@ -305,14 +332,17 @@ export class NotificationsGateway
   private async handleUserNotificationMessage(
     event: RealtimeEvent<NotificationMessage>,
   ): Promise<void> {
-    const { userId } = event.payload;
+    const { userId, orgId } = event.payload;
     this.server.to(`user:${userId}`).emit('notification:new', event.payload);
 
-    // Emit updated unread count for the user
-    const unreadCount = await this.notificationsService.getUnreadCount(userId);
+    // Emit updated org-scoped unread count for the user
+    const unreadCount = await this.notificationsService.getUnreadCountForOrg(
+      userId,
+      orgId,
+    );
     this.server
       .to(`user:${userId}`)
-      .emit('notification:unread-count', { count: unreadCount });
+      .emit('notification:unread-count', { count: unreadCount, orgId });
 
     this.logger.debug(`Forwarded user notification to room user:${userId}`);
   }
@@ -323,11 +353,14 @@ export class NotificationsGateway
     const { userId, orgId } = event.payload;
     this.server.to(`org:${orgId}`).emit('notification:new', event.payload);
 
-    // Emit updated unread count for the specific user who received the notification
-    const unreadCount = await this.notificationsService.getUnreadCount(userId);
+    // Emit updated org-scoped unread count for the specific user
+    const unreadCount = await this.notificationsService.getUnreadCountForOrg(
+      userId,
+      orgId,
+    );
     this.server
       .to(`user:${userId}`)
-      .emit('notification:unread-count', { count: unreadCount });
+      .emit('notification:unread-count', { count: unreadCount, orgId });
 
     this.logger.debug(`Forwarded org notification to room org:${orgId}`);
   }
@@ -335,14 +368,17 @@ export class NotificationsGateway
   private async handleGlobalNotificationMessage(
     event: RealtimeEvent<NotificationMessage>,
   ): Promise<void> {
-    const { userId } = event.payload;
+    const { userId, orgId } = event.payload;
     this.server.emit('notification:new', event.payload);
 
-    // Emit updated unread count for the specific user who received the notification
-    const unreadCount = await this.notificationsService.getUnreadCount(userId);
+    // Emit updated org-scoped unread count for the specific user
+    const unreadCount = await this.notificationsService.getUnreadCountForOrg(
+      userId,
+      orgId,
+    );
     this.server
       .to(`user:${userId}`)
-      .emit('notification:unread-count', { count: unreadCount });
+      .emit('notification:unread-count', { count: unreadCount, orgId });
 
     this.logger.debug('Forwarded global notification to all sockets');
   }

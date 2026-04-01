@@ -1,4 +1,5 @@
 import { CurrentTenant, JwtAuthGuard } from '@libs/common';
+import { OrgContextGuard, OrgScoped, RBACGuard } from '@libs/rbac';
 import {
   Body,
   Controller,
@@ -9,7 +10,6 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -20,16 +20,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Job, JobStatus } from '@libs/prisma-business';
-import { Request } from 'express';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { JobStatusDto } from './dto/job-status.dto';
 import { TasksService } from './tasks.service';
-
-/** Shape of the user object attached to the request by JwtStrategy.validate(). */
-interface RequestUser {
-  sub: string;
-  email: string;
-}
 
 /**
  * Tasks Controller
@@ -37,7 +30,8 @@ interface RequestUser {
  */
 @ApiTags('Tasks')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@OrgScoped()
+@UseGuards(JwtAuthGuard, OrgContextGuard, RBACGuard)
 @Controller('tasks')
 export class TasksController {
   private readonly logger = new Logger(TasksController.name);
@@ -113,17 +107,15 @@ export class TasksController {
   })
   async createHeavyJob(
     @Body() createTaskDto: CreateTaskDto,
-    @Req() req: Request,
-    @CurrentTenant('tenantId') tenantId = 'default',
+    @CurrentTenant('tenantId') orgId: string,
+    @CurrentTenant('userId') userId: string | undefined,
   ) {
-    const userId = (req.user as RequestUser | undefined)?.sub;
-
     this.logger.log(
-      `Creating heavy job | tenant: ${tenantId} | user: ${userId ?? 'system'}`,
+      `Creating heavy job | tenant: ${orgId} | user: ${userId ?? 'system'}`,
     );
 
     const result = await this.tasksService.createHeavyJob(
-      tenantId,
+      orgId,
       createTaskDto,
       userId,
     );
@@ -183,9 +175,9 @@ export class TasksController {
   })
   async getJobStatus(
     @Param('jobId', new ParseUUIDPipe({ version: '4' })) jobId: string,
-    @CurrentTenant('tenantId') tenantId = 'default',
+    @CurrentTenant('tenantId') orgId: string,
   ): Promise<JobStatusDto> {
-    const job: Job = await this.tasksService.findJobById(jobId, tenantId);
+    const job: Job = await this.tasksService.findJobById(jobId, orgId);
 
     return {
       id: job.id,

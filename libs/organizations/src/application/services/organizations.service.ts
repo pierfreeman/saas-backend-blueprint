@@ -115,6 +115,15 @@ export class OrganizationsService {
 
     this.logger.log(`Organization ${id} deleted`);
 
+    this.activityLog.logActivity({
+      orgId: id,
+      actorId: userId ?? 'system',
+      action: 'organization.deleted',
+      entityType: 'organization',
+      entityId: id,
+      metadata: { name: org.name },
+    });
+
     this.legalAudit.recordEvent({
       eventType: 'organization.deleted',
       orgId: id,

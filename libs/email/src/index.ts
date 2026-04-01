@@ -7,7 +7,7 @@ export * from './templates/template-renderer.service';
 
 // Providers
 export * from './providers/email-provider.interface';
-export * from './providers/sendgrid.provider';
+export * from './providers/resend.provider';
 export * from './providers/smtp.provider';
 
 // DTOs

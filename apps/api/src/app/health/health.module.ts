@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { PrismaBusinessModule } from '@libs/prisma-business';
 import { RedisModule } from '@libs/redis';
-import { StripeClient } from '@libs/billing';
+import { BillingModule } from '@libs/billing';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 
 @Module({
-  imports: [PrismaBusinessModule, RedisModule],
+  imports: [PrismaBusinessModule, RedisModule, BillingModule],
   controllers: [HealthController],
-  providers: [HealthService, StripeClient],
+  providers: [HealthService],
 })
 export class HealthModule {}

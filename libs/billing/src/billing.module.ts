@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaBusinessModule } from '@libs/prisma-business';
 import { ActivityLogModule } from '@libs/activity-log';
 import { LegalAuditModule } from '@libs/legal-audit';
+import { EmailModule } from '@libs/email';
 
 // Infrastructure
 import { StripeClient } from './infrastructure/stripe/stripe.client';
@@ -19,6 +20,9 @@ import { SubscriptionCreatedHandler } from './application/event-handlers/subscri
 import { SubscriptionUpdatedHandler } from './application/event-handlers/subscription-updated.handler';
 import { InvoicePaidHandler } from './application/event-handlers/invoice-paid.handler';
 import { InvoiceFailedHandler } from './application/event-handlers/invoice-failed.handler';
+
+// Application — domain event handlers (billing lifecycle emails)
+import { BillingEmailHandler } from './application/event-handlers/billing-email.handler';
 
 /**
  * BillingModule
@@ -40,7 +44,7 @@ import { InvoiceFailedHandler } from './application/event-handlers/invoice-faile
  * ConfigService is injected via the global ConfigModule — no explicit import needed.
  */
 @Module({
-  imports: [PrismaBusinessModule, ActivityLogModule, LegalAuditModule],
+  imports: [PrismaBusinessModule, ActivityLogModule, LegalAuditModule, EmailModule],
   providers: [
     // Infrastructure
     StripeClient,
@@ -58,12 +62,16 @@ import { InvoiceFailedHandler } from './application/event-handlers/invoice-faile
     SubscriptionUpdatedHandler,
     InvoicePaidHandler,
     InvoiceFailedHandler,
+
+    // Application — domain event handlers
+    BillingEmailHandler,
   ],
   exports: [
     BillingService,
     SubscriptionService,
     StripeService,
     WebhookDispatcherService,
+    BillingEmailHandler,
   ],
 })
 export class BillingModule {}

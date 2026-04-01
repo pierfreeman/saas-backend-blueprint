@@ -4,14 +4,13 @@
  * Integration tests for the notifications REST API:
  *   GET    /notifications
  *   GET    /notifications/unread-count
- *   POST   /notifications
  *   PATCH  /notifications/:id/read
  *   PATCH  /notifications/read
  *   DELETE /notifications/:id
  *
  * Verifies:
  *   - Authentication guard rejects unauthenticated and expired-token requests.
- *   - CRUD lifecycle: create → list → mark-read → delete.
+ *   - Full lifecycle: create (via service) → list → mark-read → delete.
  *   - Unread counter increments on create and decrements on mark-read / delete.
  *   - markManyAsRead bulk-updates multiple records and adjusts the counter.
  *   - 404 for operations on non-existent or foreign notifications.
@@ -20,6 +19,10 @@
  *   - Double mark-as-read returns 404 (already read).
  *   - Metadata is persisted and returned correctly.
  *   - Pagination (limit / offset) works correctly.
+ *
+ * NOTE: Notifications are created internally by application services.
+ *       There is no public HTTP endpoint for creating notifications.
+ *       Tests seed notification records using NotificationsService directly.
  */
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
@@ -33,12 +36,14 @@ import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { CacheService } from '@libs/redis';
+import { NotificationsService } from '@libs/notifications';
 
 describe('Notifications (integration)', () => {
   let app: INestApplication;
   let agent: ReturnType<typeof supertest.agent>;
   let prisma: PrismaBusinessService;
   let cache: CacheService;
+  let notificationsService: NotificationsService;
 
   beforeAll(async () => {
     setupNockAuth();
@@ -46,6 +51,7 @@ describe('Notifications (integration)', () => {
     agent = supertest.agent(app.getHttpServer());
     prisma = app.get(PrismaBusinessService);
     cache = app.get(CacheService);
+    notificationsService = app.get(NotificationsService);
     await resetBusinessDb(prisma);
   });
 
@@ -64,11 +70,6 @@ describe('Notifications (integration)', () => {
 
     it('GET /notifications/unread-count returns 401 without a token', async () => {
       const res = await agent.get('/notifications/unread-count');
-      expect(res.status).toBe(401);
-    });
-
-    it('POST /notifications returns 401 without a token', async () => {
-      const res = await agent.post('/notifications').send({});
       expect(res.status).toBe(401);
     });
 
@@ -108,56 +109,6 @@ describe('Notifications (integration)', () => {
     beforeAll(async () => {
       const ctx = await seedFullOrg(prisma);
       token = generateTestToken({ sub: ctx.owner.auth0Id });
-    });
-
-    it('POST /notifications returns 400 when required fields are missing', async () => {
-      const res = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ type: 'alert' }); // missing orgId, userId, title, body
-      expect(res.status).toBe(400);
-    });
-
-    it('POST /notifications returns 400 for invalid UUID in orgId', async () => {
-      const res = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          orgId: 'not-a-uuid',
-          userId: '00000000-0000-0000-0000-000000000001',
-          type: 'alert',
-          title: 'T',
-          body: 'B',
-        });
-      expect(res.status).toBe(400);
-    });
-
-    it('POST /notifications returns 400 for invalid UUID in userId', async () => {
-      const res = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          orgId: '00000000-0000-0000-0000-000000000001',
-          userId: 'not-a-uuid',
-          type: 'alert',
-          title: 'T',
-          body: 'B',
-        });
-      expect(res.status).toBe(400);
-    });
-
-    it('POST /notifications returns 400 when body is empty string', async () => {
-      const res = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          orgId: '00000000-0000-0000-0000-000000000001',
-          userId: '00000000-0000-0000-0000-000000000002',
-          type: 'alert',
-          title: 'T',
-          body: '',
-        });
-      expect(res.status).toBe(400);
     });
 
     it('PATCH /notifications/:id/read returns 400 for non-UUID id', async () => {
@@ -208,21 +159,17 @@ describe('Notifications (integration)', () => {
       const { id: userId } = ctx.owner.user;
       const { id: orgId } = ctx.org;
 
-      // ── POST /notifications — create ───────────────────────────────────────
+      // ── Create notification via service ────────────────────────────────────
 
-      const createRes = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({
-          orgId,
-          userId,
-          type: 'alert',
-          title: 'Welcome',
-          body: 'You have been invited to the organisation.',
-        });
+      const created = await notificationsService.createNotification({
+        orgId,
+        userId,
+        type: 'alert',
+        title: 'Welcome',
+        body: 'You have been invited to the organisation.',
+      });
 
-      expect(createRes.status).toBe(201);
-      expect(createRes.body).toMatchObject({
+      expect(created).toMatchObject({
         orgId,
         userId,
         type: 'alert',
@@ -230,7 +177,7 @@ describe('Notifications (integration)', () => {
         readAt: null,
       });
 
-      const notifId: string = createRes.body.id as string;
+      const notifId: string = created.id;
 
       // ── GET /notifications — list ──────────────────────────────────────────
 
@@ -302,34 +249,37 @@ describe('Notifications (integration)', () => {
   describe('Metadata', () => {
     it('stores and returns arbitrary JSON metadata', async () => {
       const ctx = await seedFullOrg(prisma);
-      const token = generateTestToken({ sub: ctx.owner.auth0Id });
       const { id: userId } = ctx.owner.user;
       const { id: orgId } = ctx.org;
 
       const metadata = { invoiceId: 'inv_abc', amount: 9900 };
 
-      const res = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ orgId, userId, type: 'billing', title: 'Paid', body: 'Invoice paid', metadata });
+      const created = await notificationsService.createNotification({
+        orgId,
+        userId,
+        type: 'billing',
+        title: 'Paid',
+        body: 'Invoice paid',
+        metadata,
+      });
 
-      expect(res.status).toBe(201);
-      expect(res.body.metadata).toEqual(metadata);
+      expect(created.metadata).toEqual(metadata);
     });
 
     it('returns null metadata when not provided', async () => {
       const ctx = await seedFullOrg(prisma);
-      const token = generateTestToken({ sub: ctx.owner.auth0Id });
       const { id: userId } = ctx.owner.user;
       const { id: orgId } = ctx.org;
 
-      const res = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ orgId, userId, type: 'info', title: 'Hi', body: 'No metadata here' });
+      const created = await notificationsService.createNotification({
+        orgId,
+        userId,
+        type: 'info',
+        title: 'Hi',
+        body: 'No metadata here',
+      });
 
-      expect(res.status).toBe(201);
-      expect(res.body.metadata).toBeNull();
+      expect(created.metadata).toBeNull();
     });
   });
 
@@ -350,14 +300,17 @@ describe('Notifications (integration)', () => {
         .set('Authorization', `Bearer ${token}`);
       const before = baseline.body.count as number;
 
-      // Create two notifications.
+      // Create two notifications via the service (increments cache counter).
       const ids: string[] = [];
       for (const title of ['A', 'B']) {
-        const r = await agent
-          .post('/notifications')
-          .set('Authorization', `Bearer ${token}`)
-          .send({ orgId, userId, type: 'x', title, body: '.' });
-        ids.push(r.body.id as string);
+        const n = await notificationsService.createNotification({
+          orgId,
+          userId,
+          type: 'x',
+          title,
+          body: '.',
+        });
+        ids.push(n.id);
       }
 
       const afterCreate = await agent
@@ -384,12 +337,15 @@ describe('Notifications (integration)', () => {
 
       await cache.getClient().del(`notifications:unread:${userId}`);
 
-      const r = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ orgId, userId, type: 'x', title: 'Del me', body: '.' });
+      const created = await notificationsService.createNotification({
+        orgId,
+        userId,
+        type: 'x',
+        title: 'Del me',
+        body: '.',
+      });
 
-      const notifId = r.body.id as string;
+      const notifId = created.id;
 
       const before = (
         await agent
@@ -418,10 +374,13 @@ describe('Notifications (integration)', () => {
 
       // Create two unread notifications, then flush the cache key.
       for (const t of ['X', 'Y']) {
-        await agent
-          .post('/notifications')
-          .set('Authorization', `Bearer ${token}`)
-          .send({ orgId, userId, type: 'x', title: t, body: '.' });
+        await notificationsService.createNotification({
+          orgId,
+          userId,
+          type: 'x',
+          title: t,
+          body: '.',
+        });
       }
 
       await cache.getClient().del(`notifications:unread:${userId}`);
@@ -446,12 +405,14 @@ describe('Notifications (integration)', () => {
 
       const ids: string[] = [];
       for (const title of ['Notif A', 'Notif B']) {
-        const res = await agent
-          .post('/notifications')
-          .set('Authorization', `Bearer ${ownerToken}`)
-          .send({ orgId, userId, type: 'info', title, body: 'Body' });
-
-        ids.push(res.body.id as string);
+        const n = await notificationsService.createNotification({
+          orgId,
+          userId,
+          type: 'info',
+          title,
+          body: 'Body',
+        });
+        ids.push(n.id);
       }
 
       const bulkRes = await agent
@@ -475,39 +436,45 @@ describe('Notifications (integration)', () => {
       const { id: memberId } = ctx.member!.user;
       const { id: orgId } = ctx.org;
 
-      // Owner creates a notification for themselves.
-      const ownerNotif = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({ orgId, userId: ownerId, type: 'x', title: 'Owner notif', body: '.' });
+      // Owner creates a notification for themselves via service.
+      const ownerNotif = await notificationsService.createNotification({
+        orgId,
+        userId: ownerId,
+        type: 'x',
+        title: 'Owner notif',
+        body: '.',
+      });
 
       // Member tries to bulk-mark the owner's notification — should be 204 but not update it.
       const bulkRes = await agent
         .patch('/notifications/read')
         .set('Authorization', `Bearer ${memberToken}`)
-        .send({ ids: [ownerNotif.body.id as string] });
+        .send({ ids: [ownerNotif.id] });
 
       expect(bulkRes.status).toBe(204);
 
       // Owner's notification is still unread.
       const notif = await prisma.notification.findUnique({
-        where: { id: ownerNotif.body.id as string },
+        where: { id: ownerNotif.id },
       });
       expect(notif?.readAt).toBeNull();
 
       // Member's own notification is unaffected.
-      const memberNotif = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${memberToken}`)
-        .send({ orgId, userId: memberId, type: 'x', title: 'Member notif', body: '.' });
+      const memberNotif = await notificationsService.createNotification({
+        orgId,
+        userId: memberId,
+        type: 'x',
+        title: 'Member notif',
+        body: '.',
+      });
 
       await agent
         .patch('/notifications/read')
         .set('Authorization', `Bearer ${memberToken}`)
-        .send({ ids: [memberNotif.body.id as string] });
+        .send({ ids: [memberNotif.id] });
 
       const memberRecord = await prisma.notification.findUnique({
-        where: { id: memberNotif.body.id as string },
+        where: { id: memberNotif.id },
       });
       expect(memberRecord?.readAt).not.toBeNull();
     });
@@ -533,12 +500,15 @@ describe('Notifications (integration)', () => {
       const { id: userId } = ctx.owner.user;
       const { id: orgId } = ctx.org;
 
-      const create = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ orgId, userId, type: 'x', title: 'Once', body: '.' });
+      const created = await notificationsService.createNotification({
+        orgId,
+        userId,
+        type: 'x',
+        title: 'Once',
+        body: '.',
+      });
 
-      const notifId = create.body.id as string;
+      const notifId = created.id;
 
       await agent
         .patch(`/notifications/${notifId}/read`)
@@ -568,19 +538,16 @@ describe('Notifications (integration)', () => {
       const ownerToken = generateTestToken({ sub: ctx.owner.auth0Id });
       const memberToken = generateTestToken({ sub: ctx.member!.auth0Id });
 
-      const createRes = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({
-          orgId: ctx.org.id,
-          userId: ctx.owner.user.id,
-          type: 'alert',
-          title: 'Private',
-          body: 'Owner only',
-        });
+      const created = await notificationsService.createNotification({
+        orgId: ctx.org.id,
+        userId: ctx.owner.user.id,
+        type: 'alert',
+        title: 'Private',
+        body: 'Owner only',
+      });
 
       const res = await agent
-        .delete(`/notifications/${createRes.body.id as string}`)
+        .delete(`/notifications/${created.id}`)
         .set('Authorization', `Bearer ${memberToken}`);
 
       expect(res.status).toBe(404);
@@ -595,18 +562,15 @@ describe('Notifications (integration)', () => {
       const ownerToken = generateTestToken({ sub: ctx.owner.auth0Id });
       const memberToken = generateTestToken({ sub: ctx.member!.auth0Id });
 
-      const createRes = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({
-          orgId: ctx.org.id,
-          userId: ctx.owner.user.id,
-          type: 'alert',
-          title: 'Private',
-          body: 'Owner only',
-        });
+      const created = await notificationsService.createNotification({
+        orgId: ctx.org.id,
+        userId: ctx.owner.user.id,
+        type: 'alert',
+        title: 'Private',
+        body: 'Owner only',
+      });
 
-      const notifId: string = createRes.body.id as string;
+      const notifId: string = created.id;
 
       const res = await agent
         .patch(`/notifications/${notifId}/read`)
@@ -621,16 +585,22 @@ describe('Notifications (integration)', () => {
       const memberToken = generateTestToken({ sub: ctx.member!.auth0Id });
       const { id: orgId } = ctx.org;
 
-      // Create one notification per user.
-      const ownerNotif = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({ orgId, userId: ctx.owner.user.id, type: 'x', title: 'For owner', body: '.' });
+      // Create one notification per user via service.
+      const ownerNotif = await notificationsService.createNotification({
+        orgId,
+        userId: ctx.owner.user.id,
+        type: 'x',
+        title: 'For owner',
+        body: '.',
+      });
 
-      const memberNotif = await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${memberToken}`)
-        .send({ orgId, userId: ctx.member!.user.id, type: 'x', title: 'For member', body: '.' });
+      const memberNotif = await notificationsService.createNotification({
+        orgId,
+        userId: ctx.member!.user.id,
+        type: 'x',
+        title: 'For member',
+        body: '.',
+      });
 
       // Owner's list should contain their own but not member's.
       const ownerList = await agent
@@ -639,8 +609,8 @@ describe('Notifications (integration)', () => {
         .set('Authorization', `Bearer ${ownerToken}`);
 
       const ownerIds = (ownerList.body as Array<{ id: string }>).map((n) => n.id);
-      expect(ownerIds).toContain(ownerNotif.body.id as string);
-      expect(ownerIds).not.toContain(memberNotif.body.id as string);
+      expect(ownerIds).toContain(ownerNotif.id);
+      expect(ownerIds).not.toContain(memberNotif.id);
 
       // Member's list should contain their own but not owner's.
       const memberList = await agent
@@ -649,8 +619,8 @@ describe('Notifications (integration)', () => {
         .set('Authorization', `Bearer ${memberToken}`);
 
       const memberIds = (memberList.body as Array<{ id: string }>).map((n) => n.id);
-      expect(memberIds).toContain(memberNotif.body.id as string);
-      expect(memberIds).not.toContain(ownerNotif.body.id as string);
+      expect(memberIds).toContain(memberNotif.id);
+      expect(memberIds).not.toContain(ownerNotif.id);
     });
   });
 
@@ -663,12 +633,15 @@ describe('Notifications (integration)', () => {
       const { id: userId } = ctx.owner.user;
       const { id: orgId } = ctx.org;
 
-      // Create 5 notifications.
+      // Create 5 notifications via service.
       for (let i = 0; i < 5; i++) {
-        await agent
-          .post('/notifications')
-          .set('Authorization', `Bearer ${ownerToken}`)
-          .send({ orgId, userId, type: 'info', title: `Item ${i}`, body: '.' });
+        await notificationsService.createNotification({
+          orgId,
+          userId,
+          type: 'info',
+          title: `Item ${i}`,
+          body: '.',
+        });
       }
 
       const page1 = await agent
@@ -696,10 +669,13 @@ describe('Notifications (integration)', () => {
       const { id: userId } = ctx.owner.user;
       const { id: orgId } = ctx.org;
 
-      await agent
-        .post('/notifications')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ orgId, userId, type: 'x', title: 'Only one', body: '.' });
+      await notificationsService.createNotification({
+        orgId,
+        userId,
+        type: 'x',
+        title: 'Only one',
+        body: '.',
+      });
 
       const res = await agent
         .get('/notifications')

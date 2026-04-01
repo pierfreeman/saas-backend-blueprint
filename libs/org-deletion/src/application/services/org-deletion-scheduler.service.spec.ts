@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrgDeletionSchedulerService } from './org-deletion-scheduler.service';
 import { OrgDeletionRepository } from '../../infrastructure/repositories/org-deletion.repository';
 import { OrgDeletionService } from './org-deletion.service';
-import { DeletionTrigger } from '../../constants/org-deletion-event.constants';
+import { DeletionTrigger } from '../../interfaces/org-deletion-event.interface';
 import { vi } from 'vitest';
 
 // ─── Valid UUIDs for testing ────────────────────────────────────────────────

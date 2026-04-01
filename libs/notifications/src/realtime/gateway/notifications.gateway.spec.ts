@@ -52,9 +52,10 @@ const mockPubSub = {
 
 const mockNotificationsService = {
   getUserNotifications: vi.fn().mockResolvedValue([]),
-  markAsRead: vi.fn().mockResolvedValue({}),
+  markAsRead: vi.fn().mockResolvedValue({ orgId: 'org-1' }),
   markAllAsRead: vi.fn().mockResolvedValue(undefined),
   getUnreadCount: vi.fn().mockResolvedValue(2),
+  getUnreadCountForOrg: vi.fn().mockResolvedValue(2),
 };
 
 const mockRepo = {
@@ -173,7 +174,7 @@ describe('NotificationsGateway', () => {
       expect(client.disconnect).toHaveBeenCalled();
     });
 
-    it('joins user/org rooms and emits unread count on success', async () => {
+    it('joins user/org rooms and emits org-scoped unread count on success', async () => {
       vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
         sub: 'auth0|user-1',
       });
@@ -189,9 +190,15 @@ describe('NotificationsGateway', () => {
         { orgId: 'org-b' },
       ]);
 
-      mockNotificationsService.getUnreadCount.mockResolvedValue(5);
+      mockNotificationsService.getUnreadCountForOrg.mockResolvedValue(5);
 
-      const client = makeSocket();
+      const client = makeSocket({
+        handshake: {
+          auth: { token: 'Bearer test.token.value', orgId: 'org-a' },
+          query: {},
+          headers: {},
+        },
+      });
       await gateway.handleConnection(client as never);
 
       expect(client.join).toHaveBeenCalledWith('user:user-uuid-1');
@@ -199,8 +206,31 @@ describe('NotificationsGateway', () => {
       expect(client.join).toHaveBeenCalledWith('org:org-b');
       expect(client.emit).toHaveBeenCalledWith('notification:unread-count', {
         count: 5,
+        orgId: 'org-a',
       });
       expect(client.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('emits global unread count when no orgId in handshake', async () => {
+      vi.spyOn(gateway as any, 'verifyToken').mockResolvedValue({
+        sub: 'auth0|user-1',
+      });
+
+      mockRepo.findUserByAuth0Id.mockResolvedValue({
+        id: 'user-uuid-1',
+        email: 'user@test.com',
+        auth0Id: 'auth0|user-1',
+      });
+
+      mockRepo.findActiveOrgMemberships.mockResolvedValue([]);
+      mockNotificationsService.getUnreadCount.mockResolvedValue(3);
+
+      const client = makeSocket();
+      await gateway.handleConnection(client as never);
+
+      expect(client.emit).toHaveBeenCalledWith('notification:unread-count', {
+        count: 3,
+      });
     });
   });
 
@@ -237,8 +267,9 @@ describe('NotificationsGateway', () => {
   // ── handleMarkRead ─────────────────────────────────────────────────────────
 
   describe('handleMarkRead', () => {
-    it('delegates to service and emits updated count', async () => {
-      mockNotificationsService.getUnreadCount.mockResolvedValue(1);
+    it('delegates to service and emits org-scoped updated count', async () => {
+      mockNotificationsService.markAsRead.mockResolvedValue({ orgId: 'org-1' });
+      mockNotificationsService.getUnreadCountForOrg.mockResolvedValue(1);
 
       const client = makeSocket({ userId: 'user-uuid-1' });
       await gateway.handleMarkRead(client as never, {
@@ -249,8 +280,12 @@ describe('NotificationsGateway', () => {
         'notif-1',
         'user-uuid-1',
       );
+      expect(
+        mockNotificationsService.getUnreadCountForOrg,
+      ).toHaveBeenCalledWith('user-uuid-1', 'org-1');
       expect(client.emit).toHaveBeenCalledWith('notification:unread-count', {
         count: 1,
+        orgId: 'org-1',
       });
     });
   });
@@ -258,7 +293,9 @@ describe('NotificationsGateway', () => {
   // ── handleMarkAllRead ──────────────────────────────────────────────────────
 
   describe('handleMarkAllRead', () => {
-    it('delegates to service and emits zero count', async () => {
+    it('delegates to service and emits recalculated org-scoped count', async () => {
+      mockNotificationsService.getUnreadCountForOrg.mockResolvedValue(0);
+
       const client = makeSocket({ userId: 'user-uuid-1' });
       await gateway.handleMarkAllRead(client as never, { orgId: 'org-1' });
 
@@ -266,8 +303,12 @@ describe('NotificationsGateway', () => {
         'user-uuid-1',
         'org-1',
       );
+      expect(
+        mockNotificationsService.getUnreadCountForOrg,
+      ).toHaveBeenCalledWith('user-uuid-1', 'org-1');
       expect(client.emit).toHaveBeenCalledWith('notification:unread-count', {
         count: 0,
+        orgId: 'org-1',
       });
     });
 
@@ -338,75 +379,105 @@ describe('NotificationsGateway', () => {
       },
     });
 
-    it('afterInit invokes subscribeToUserPattern and the callback emits to user room', () => {
-      let capturedHandler: ((e: any) => void) | null = null;
+    it('afterInit invokes subscribeToUserPattern and the callback emits to user room with unread count', async () => {
+      let capturedHandler: ((e: any) => Promise<void>) | null = null;
       mockPubSub.subscribeToUserPattern.mockImplementation(
-        (cb: (e: any) => void) => {
+        (cb: (e: any) => Promise<void>) => {
           capturedHandler = cb;
         },
       );
 
+      const mockEmit = vi.fn();
       const mockServer = {
         adapter: vi.fn(),
-        to: vi.fn().mockReturnThis(),
+        to: vi.fn().mockReturnValue({ emit: mockEmit }),
         emit: vi.fn(),
       } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
+      mockNotificationsService.getUnreadCountForOrg.mockResolvedValue(7);
+
       expect(capturedHandler).not.toBeNull();
-      capturedHandler!(buildEvent());
+      await capturedHandler!(buildEvent());
 
       expect(mockServer.to).toHaveBeenCalledWith('user:user-42');
-      expect((mockServer.to('') as any).emit).toHaveBeenCalledWith(
+      expect(mockEmit).toHaveBeenCalledWith(
         'notification:new',
         expect.objectContaining({ userId: 'user-42' }),
       );
+      expect(
+        mockNotificationsService.getUnreadCountForOrg,
+      ).toHaveBeenCalledWith('user-42', 'org-99');
+      expect(mockEmit).toHaveBeenCalledWith('notification:unread-count', {
+        count: 7,
+        orgId: 'org-99',
+      });
     });
 
-    it('afterInit invokes subscribeToOrgPattern and the callback emits to org room', () => {
-      let capturedHandler: ((e: any) => void) | null = null;
+    it('afterInit invokes subscribeToOrgPattern and the callback emits to org and user rooms with unread count', async () => {
+      let capturedHandler: ((e: any) => Promise<void>) | null = null;
       mockPubSub.subscribeToOrgPattern.mockImplementation(
-        (cb: (e: any) => void) => {
+        (cb: (e: any) => Promise<void>) => {
           capturedHandler = cb;
         },
       );
 
+      const mockEmit = vi.fn();
       const mockServer = {
         adapter: vi.fn(),
-        to: vi.fn().mockReturnThis(),
+        to: vi.fn().mockReturnValue({ emit: mockEmit }),
         emit: vi.fn(),
       } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
-      capturedHandler!(buildEvent({ orgId: 'org-99' }));
+      mockNotificationsService.getUnreadCountForOrg.mockResolvedValue(4);
+
+      await capturedHandler!(buildEvent({ orgId: 'org-99' }));
 
       expect(mockServer.to).toHaveBeenCalledWith('org:org-99');
+      expect(mockEmit).toHaveBeenCalledWith(
+        'notification:new',
+        expect.objectContaining({ orgId: 'org-99' }),
+      );
+      expect(mockServer.to).toHaveBeenCalledWith('user:user-42');
+      expect(mockEmit).toHaveBeenCalledWith('notification:unread-count', {
+        count: 4,
+        orgId: 'org-99',
+      });
     });
 
-    it('afterInit invokes subscribeToGlobal and the callback broadcasts', () => {
-      let capturedHandler: ((e: any) => void) | null = null;
+    it('afterInit invokes subscribeToGlobal and the callback broadcasts with unread count', async () => {
+      let capturedHandler: ((e: any) => Promise<void>) | null = null;
       mockPubSub.subscribeToGlobal.mockImplementation(
-        (cb: (e: any) => void) => {
+        (cb: (e: any) => Promise<void>) => {
           capturedHandler = cb;
         },
       );
 
+      const mockEmit = vi.fn();
       const mockServer = {
         adapter: vi.fn(),
-        to: vi.fn().mockReturnThis(),
+        to: vi.fn().mockReturnValue({ emit: mockEmit }),
         emit: vi.fn(),
       } as unknown as import('socket.io').Server;
       (gateway as any).server = mockServer;
       gateway.afterInit(mockServer);
 
-      capturedHandler!(buildEvent());
+      mockNotificationsService.getUnreadCountForOrg.mockResolvedValue(10);
+
+      await capturedHandler!(buildEvent());
 
       expect(mockServer.emit).toHaveBeenCalledWith(
         'notification:new',
         expect.objectContaining({ userId: 'user-42' }),
       );
+      expect(mockServer.to).toHaveBeenCalledWith('user:user-42');
+      expect(mockEmit).toHaveBeenCalledWith('notification:unread-count', {
+        count: 10,
+        orgId: 'org-99',
+      });
     });
   });
 

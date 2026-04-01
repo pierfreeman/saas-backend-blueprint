@@ -29,11 +29,6 @@ import { UploadPolicyService } from './application/services/upload-policy.servic
     StorageService,
     UploadPolicyService,
   ],
-  exports: [
-    StorageService,
-    UploadPolicyService,
-    StorageRepository,
-    S3StorageClient,
-  ],
+  exports: [StorageService, UploadPolicyService],
 })
 export class StorageModule {}
