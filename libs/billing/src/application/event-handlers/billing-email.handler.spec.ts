@@ -164,6 +164,28 @@ describe('BillingEmailHandler', () => {
       );
     });
 
+    it('uses "N/A" when newPlanId is null', async () => {
+      await handler.handlePlanChanged(
+        makePlanChangedEvent({
+          payload: {
+            orgId: 'org-001',
+            subscriptionId: 'sub_001',
+            status: 'active',
+            cancelAtPeriodEnd: false,
+            previousPlanId: 'price_pro',
+            newPlanId: null,
+            planChangeDirection: 'subscription.updated',
+          },
+        }),
+      );
+
+      expect(emailService.sendTransactionalEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ newPlanId: 'N/A' }),
+        }),
+      );
+    });
+
     it('skips sending when ownerEmail is null', async () => {
       (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockResolvedValue(
         makeOrgMeta({ ownerEmail: null }),
@@ -187,6 +209,16 @@ describe('BillingEmailHandler', () => {
     it('swallows errors from BillingRepository without rethrowing', async () => {
       (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('DB failure'),
+      );
+
+      await expect(
+        handler.handlePlanChanged(makePlanChangedEvent()),
+      ).resolves.toBeUndefined();
+    });
+
+    it('swallows non-Error thrown by BillingRepository without rethrowing', async () => {
+      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockRejectedValue(
+        'plain string failure',
       );
 
       await expect(
@@ -253,6 +285,16 @@ describe('BillingEmailHandler', () => {
         handler.handlePaymentSucceeded(makePaymentSucceededEvent()),
       ).resolves.toBeUndefined();
     });
+
+    it('swallows non-Error thrown by BillingRepository without rethrowing', async () => {
+      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockRejectedValue(
+        'plain string failure',
+      );
+
+      await expect(
+        handler.handlePaymentSucceeded(makePaymentSucceededEvent()),
+      ).resolves.toBeUndefined();
+    });
   });
 
   // ── handleSubscriptionCancelled ───────────────────────────────────────────
@@ -286,6 +328,16 @@ describe('BillingEmailHandler', () => {
     it('swallows errors without rethrowing', async () => {
       (emailService.sendTransactionalEmail as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('timeout'),
+      );
+
+      await expect(
+        handler.handleSubscriptionCancelled(makeCancelledEvent()),
+      ).resolves.toBeUndefined();
+    });
+
+    it('swallows non-Error thrown by BillingRepository without rethrowing', async () => {
+      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockRejectedValue(
+        'plain string failure',
       );
 
       await expect(
