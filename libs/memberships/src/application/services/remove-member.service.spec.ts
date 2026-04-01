@@ -104,6 +104,7 @@ describe('RemoveMemberService', () => {
         'm-1',
         'org-1',
         'actor-id',
+        'user_action',
       );
       expect(mockUsersService.deleteUser).not.toHaveBeenCalled();
       expect(mockAuth0ManagementService.deleteUser).not.toHaveBeenCalled();
@@ -118,6 +119,7 @@ describe('RemoveMemberService', () => {
         'm-1',
         'org-1',
         'actor-id',
+        'user_action',
       );
       expect(mockAuth0ManagementService.deleteUser).toHaveBeenCalledWith(
         'google-oauth2|abc',

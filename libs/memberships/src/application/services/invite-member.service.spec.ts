@@ -103,6 +103,7 @@ describe('InviteMemberService', () => {
         'org-1',
         { userId: existingUser.id, role: MembershipRole.MEMBER },
         inviterUser.id,
+        'user_action',
       );
       // auth0| users can receive a passwordless link
       expect(
@@ -144,6 +145,7 @@ describe('InviteMemberService', () => {
         'org-1',
         { userId: pendingUser.id, role: MembershipRole.MEMBER },
         inviterUser.id,
+        'user_action',
       );
       // Pending user still needs to activate their account via magic link
       expect(
@@ -216,6 +218,7 @@ describe('InviteMemberService', () => {
         'org-1',
         { userId: pendingUser.id, role: MembershipRole.MEMBER },
         inviterUser.id,
+        'user_action',
       );
 
       // Passwordless invite sent via Auth0

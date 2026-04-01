@@ -127,6 +127,7 @@ describe('AdminMembershipsService', () => {
         'org-1',
         { role: MembershipRole.ADMIN },
         'admin-user-1',
+        'admin_action',
       );
       expect(result.role).toBe(MembershipRole.ADMIN);
     });
@@ -150,6 +151,7 @@ describe('AdminMembershipsService', () => {
         MembershipRole.MEMBER,
         'org-1',
         'admin-user-1',
+        'admin_action',
       );
       expect(result.message).toBe('Invitation sent');
     });
@@ -169,6 +171,7 @@ describe('AdminMembershipsService', () => {
         'mem-1',
         'org-1',
         'admin-user-1',
+        'admin_action',
       );
     });
   });

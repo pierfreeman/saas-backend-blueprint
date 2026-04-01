@@ -72,6 +72,38 @@ describe('MembershipsService', () => {
       });
       expect(mockCacheNotifier.invalidate).toHaveBeenCalledWith('u-1', 'org-1');
     });
+
+    it('emits legalAudit event with triggerType user_action by default', async () => {
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(10);
+      mockRepo.countActive = vi.fn().mockResolvedValue(1);
+      mockRepo.create = vi.fn().mockResolvedValue(baseMembership);
+
+      await service.createMembership('org-1', {
+        userId: 'u-1',
+        role: 'MEMBER' as MembershipRole,
+      });
+
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ triggerType: 'user_action' }),
+      );
+    });
+
+    it('emits legalAudit event with triggerType admin_action when passed', async () => {
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(10);
+      mockRepo.countActive = vi.fn().mockResolvedValue(1);
+      mockRepo.create = vi.fn().mockResolvedValue(baseMembership);
+
+      await service.createMembership(
+        'org-1',
+        { userId: 'u-1', role: 'MEMBER' as MembershipRole },
+        undefined,
+        'admin_action',
+      );
+
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ triggerType: 'admin_action' }),
+      );
+    });
   });
 
   describe('createMembership — seat limit enforcement', () => {
@@ -207,6 +239,38 @@ describe('MembershipsService', () => {
       expect(mockCacheNotifier.invalidate).toHaveBeenCalledWith('u-1', 'org-1');
     });
 
+    it('emits legalAudit event with triggerType user_action by default', async () => {
+      const updated = { ...baseMembership, role: 'ADMIN' as MembershipRole };
+      mockRepo.findById = vi.fn().mockResolvedValue(baseMembership);
+      mockRepo.update = vi.fn().mockResolvedValue(updated);
+
+      await service.updateMembership('m-1', 'org-1', {
+        role: 'ADMIN' as MembershipRole,
+      });
+
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ triggerType: 'user_action' }),
+      );
+    });
+
+    it('emits legalAudit event with triggerType admin_action when passed', async () => {
+      const updated = { ...baseMembership, role: 'ADMIN' as MembershipRole };
+      mockRepo.findById = vi.fn().mockResolvedValue(baseMembership);
+      mockRepo.update = vi.fn().mockResolvedValue(updated);
+
+      await service.updateMembership(
+        'm-1',
+        'org-1',
+        { role: 'ADMIN' as MembershipRole },
+        'admin-1',
+        'admin_action',
+      );
+
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ triggerType: 'admin_action' }),
+      );
+    });
+
     it('throws NotFoundException when membership not found', async () => {
       mockRepo.findById = vi.fn().mockResolvedValue(null);
       await expect(
@@ -238,6 +302,17 @@ describe('MembershipsService', () => {
 
       expect(mockRepo.delete).toHaveBeenCalledWith('m-1');
       expect(mockCacheNotifier.invalidate).toHaveBeenCalledWith('u-1', 'org-1');
+    });
+
+    it('emits legalAudit event with triggerType user_action by default', async () => {
+      mockRepo.findById = vi.fn().mockResolvedValue(baseMembership);
+      mockRepo.delete = vi.fn().mockResolvedValue(undefined);
+
+      await service.deleteMembership('m-1', 'org-1');
+
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ triggerType: 'user_action' }),
+      );
     });
 
     it('throws NotFoundException when membership not found', async () => {

@@ -57,6 +57,7 @@ export class MembershipsService {
     orgId: string,
     dto: { userId: string; role: MembershipRole },
     actorUserId?: string,
+    triggerType = 'user_action',
   ): Promise<Membership> {
     await this.checkSeatLimit(orgId);
 
@@ -84,7 +85,7 @@ export class MembershipsService {
     this.legalAudit.recordEvent({
       eventType: 'membership.created',
       orgId,
-      triggerType: 'user',
+      triggerType,
       metadata: {
         membershipId: membership.id,
         targetUserId: dto.userId,
@@ -135,6 +136,7 @@ export class MembershipsService {
     orgId: string,
     dto: { role: MembershipRole },
     actorUserId?: string,
+    triggerType = 'user_action',
   ): Promise<Membership> {
     const membership = await this.repo.findById(id);
 
@@ -164,7 +166,7 @@ export class MembershipsService {
     this.legalAudit.recordEvent({
       eventType: 'membership.role_changed',
       orgId,
-      triggerType: 'user',
+      triggerType,
       metadata: {
         membershipId: id,
         targetUserId: membership.userId,
@@ -181,6 +183,7 @@ export class MembershipsService {
     id: string,
     orgId: string,
     actorUserId?: string,
+    triggerType = 'user_action',
   ): Promise<void> {
     const membership = await this.repo.findById(id);
 
@@ -204,7 +207,7 @@ export class MembershipsService {
     this.legalAudit.recordEvent({
       eventType: 'membership.deleted',
       orgId,
-      triggerType: 'user',
+      triggerType,
       metadata: {
         membershipId: id,
         targetUserId: membership.userId,

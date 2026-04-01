@@ -55,6 +55,7 @@ export class InviteMemberService {
     role: MembershipRole,
     orgId: string,
     inviterUserId: string,
+    triggerType = 'user_action',
   ): Promise<InviteMemberResult> {
     const normalizedEmail = email.toLowerCase();
 
@@ -96,6 +97,7 @@ export class InviteMemberService {
       orgId,
       { userId: user.id, role },
       inviterUserId,
+      triggerType,
     );
 
     // 5. Send passwordless magic-link unless the user is on a social connection.

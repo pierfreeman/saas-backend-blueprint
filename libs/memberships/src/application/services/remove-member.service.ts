@@ -26,6 +26,7 @@ export class RemoveMemberService {
     membershipId: string,
     orgId: string,
     actorUserId?: string,
+    triggerType = 'user_action',
   ): Promise<void> {
     // 1. Fetch BEFORE deletion to capture userId for cleanup check
     const membership = await this.membershipsService.findById(membershipId);
@@ -39,6 +40,7 @@ export class RemoveMemberService {
       membershipId,
       orgId,
       actorUserId,
+      triggerType,
     );
 
     // 3. Check whether the user still belongs to any organization

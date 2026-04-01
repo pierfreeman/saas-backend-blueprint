@@ -69,6 +69,7 @@ export class AdminMembershipsService {
       input.orgId,
       { role: input.newRole },
       input.actorAdminId,
+      'admin_action',
     );
   }
 
@@ -82,6 +83,7 @@ export class AdminMembershipsService {
       input.role,
       input.orgId,
       input.actorAdminId,
+      'admin_action',
     );
   }
 
@@ -95,6 +97,7 @@ export class AdminMembershipsService {
       input.membershipId,
       input.orgId,
       input.actorAdminId,
+      'admin_action',
     );
   }
 
