@@ -187,9 +187,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('skips sending when ownerEmail is null', async () => {
-      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockResolvedValue(
-        makeOrgMeta({ ownerEmail: null }),
-      );
+      (
+        billingRepository.findOrgMeta as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(makeOrgMeta({ ownerEmail: null }));
 
       await handler.handlePlanChanged(makePlanChangedEvent());
 
@@ -197,9 +197,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('swallows errors from EmailService without rethrowing', async () => {
-      (emailService.sendTransactionalEmail as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('SMTP failure'),
-      );
+      (
+        emailService.sendTransactionalEmail as ReturnType<typeof vi.fn>
+      ).mockRejectedValue(new Error('SMTP failure'));
 
       await expect(
         handler.handlePlanChanged(makePlanChangedEvent()),
@@ -207,9 +207,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('swallows errors from BillingRepository without rethrowing', async () => {
-      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('DB failure'),
-      );
+      (
+        billingRepository.findOrgMeta as ReturnType<typeof vi.fn>
+      ).mockRejectedValue(new Error('DB failure'));
 
       await expect(
         handler.handlePlanChanged(makePlanChangedEvent()),
@@ -217,9 +217,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('swallows non-Error thrown by BillingRepository without rethrowing', async () => {
-      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockRejectedValue(
-        'plain string failure',
-      );
+      (
+        billingRepository.findOrgMeta as ReturnType<typeof vi.fn>
+      ).mockRejectedValue('plain string failure');
 
       await expect(
         handler.handlePlanChanged(makePlanChangedEvent()),
@@ -261,15 +261,18 @@ describe('BillingEmailHandler', () => {
 
       expect(emailService.sendTransactionalEmail).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ amountPaid: '99.00', currency: 'EUR' }),
+          data: expect.objectContaining({
+            amountPaid: '99.00',
+            currency: 'EUR',
+          }),
         }),
       );
     });
 
     it('skips sending when ownerEmail is null', async () => {
-      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockResolvedValue(
-        makeOrgMeta({ ownerEmail: null }),
-      );
+      (
+        billingRepository.findOrgMeta as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(makeOrgMeta({ ownerEmail: null }));
 
       await handler.handlePaymentSucceeded(makePaymentSucceededEvent());
 
@@ -277,9 +280,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('swallows errors without rethrowing', async () => {
-      (emailService.sendTransactionalEmail as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('provider down'),
-      );
+      (
+        emailService.sendTransactionalEmail as ReturnType<typeof vi.fn>
+      ).mockRejectedValue(new Error('provider down'));
 
       await expect(
         handler.handlePaymentSucceeded(makePaymentSucceededEvent()),
@@ -287,9 +290,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('swallows non-Error thrown by BillingRepository without rethrowing', async () => {
-      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockRejectedValue(
-        'plain string failure',
-      );
+      (
+        billingRepository.findOrgMeta as ReturnType<typeof vi.fn>
+      ).mockRejectedValue('plain string failure');
 
       await expect(
         handler.handlePaymentSucceeded(makePaymentSucceededEvent()),
@@ -316,9 +319,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('skips sending when ownerEmail is null', async () => {
-      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockResolvedValue(
-        makeOrgMeta({ ownerEmail: null }),
-      );
+      (
+        billingRepository.findOrgMeta as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(makeOrgMeta({ ownerEmail: null }));
 
       await handler.handleSubscriptionCancelled(makeCancelledEvent());
 
@@ -326,9 +329,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('swallows errors without rethrowing', async () => {
-      (emailService.sendTransactionalEmail as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('timeout'),
-      );
+      (
+        emailService.sendTransactionalEmail as ReturnType<typeof vi.fn>
+      ).mockRejectedValue(new Error('timeout'));
 
       await expect(
         handler.handleSubscriptionCancelled(makeCancelledEvent()),
@@ -336,9 +339,9 @@ describe('BillingEmailHandler', () => {
     });
 
     it('swallows non-Error thrown by BillingRepository without rethrowing', async () => {
-      (billingRepository.findOrgMeta as ReturnType<typeof vi.fn>).mockRejectedValue(
-        'plain string failure',
-      );
+      (
+        billingRepository.findOrgMeta as ReturnType<typeof vi.fn>
+      ).mockRejectedValue('plain string failure');
 
       await expect(
         handler.handleSubscriptionCancelled(makeCancelledEvent()),
