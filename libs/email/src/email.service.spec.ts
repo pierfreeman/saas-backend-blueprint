@@ -321,7 +321,7 @@ describe('EmailService', () => {
       'user.@example.com',
       'us..er@example.com',
       'a'.repeat(244) + '@example.com', // overall length > 254
-      'a'.repeat(65) + '@example.com',  // local part > 64 chars
+      'a'.repeat(65) + '@example.com', // local part > 64 chars
     ];
 
     validEmails.forEach((email) => {
@@ -379,6 +379,8 @@ describe('EmailService', () => {
 
       // Should not throw
       service.addContact({ email: 'user@example.com' });
+
+      expect(emailProvider.createContact).toBeUndefined();
     });
 
     it('should handle provider errors gracefully (fire-and-forget)', async () => {
@@ -406,4 +408,3 @@ describe('EmailService', () => {
     });
   });
 });
-

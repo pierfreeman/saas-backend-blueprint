@@ -1,5 +1,20 @@
 import { JwtAuthGuard, PERMISSIONS } from '@libs/common';
 import {
+  InviteMemberResult,
+  InviteMemberService,
+  MembershipsService,
+  RemoveMemberService,
+} from '@libs/memberships';
+import { Membership } from '@libs/prisma-business';
+import {
+  CurrentUserId,
+  OrgContextGuard,
+  OrgScoped,
+  RBACCacheService,
+  RBACGuard,
+  RequirePermissions,
+} from '@libs/rbac';
+import {
   Body,
   Controller,
   Delete,
@@ -18,24 +33,9 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Membership } from '@libs/prisma-business';
-import {
-  OrgScoped,
-  RequirePermissions,
-  OrgContextGuard,
-  RBACGuard,
-  RBACCacheService,
-  CurrentUserId,
-} from '@libs/rbac';
 import { CreateMembershipDto } from './dto/create-membership.dto';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMembershipDto } from './dto/update-membership.dto';
-import { MembershipsService } from '@libs/memberships';
-import {
-  InviteMemberService,
-  InviteMemberResult,
-  RemoveMemberService,
-} from '@libs/memberships';
 
 @ApiTags('Memberships')
 @ApiBearerAuth()
@@ -423,6 +423,11 @@ export class MembershipsController {
     @Body() dto: InviteMemberDto,
     @CurrentUserId() inviterUserId: string,
   ): Promise<InviteMemberResult> {
-    return this.inviteMemberService.invite(dto.email, dto.role, orgId, inviterUserId);
+    return this.inviteMemberService.invite(
+      dto.email,
+      dto.role,
+      orgId,
+      inviterUserId,
+    );
   }
 }
