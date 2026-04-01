@@ -14,6 +14,13 @@
     "emitDecoratorMetadata": true
   },
   "files": [],
-  "include": ["src/**/*.ts"],
-  "references": []
+  "include": [],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "./tsconfig.spec.json"
+    }
+  ]
 }

@@ -12,6 +12,7 @@ export default defineWorkspace([
   'apps/api/vitest.config.ts',
   'apps/worker-a/vitest.config.ts',
   // ── Libraries ──────────────────────────────────────────────────────────────
+  'libs/auth/vitest.config.ts',
   'libs/activity-log/vitest.config.ts',
   'libs/billing/vitest.config.ts',
   'libs/common/vitest.config.ts',
