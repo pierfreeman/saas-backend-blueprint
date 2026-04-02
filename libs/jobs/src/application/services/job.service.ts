@@ -45,18 +45,72 @@ export class JobService {
     return this.jobRepository.findByIdAndOrg(jobId, orgId);
   }
 
-  async markProcessing(jobId: string): Promise<void> {
-    return this.jobRepository.markProcessing(jobId);
+  async markProcessing(
+    jobId: string,
+    orgId?: string,
+    userId?: string,
+  ): Promise<void> {
+    await this.jobRepository.markProcessing(jobId);
+
+    if (orgId) {
+      this.activityLog.logActivity({
+        orgId,
+        actorId: userId ?? 'system',
+        action: 'job.processing',
+        entityType: 'job',
+        entityId: jobId,
+      });
+    }
   }
 
   async markDone(
     jobId: string,
     result: Record<string, unknown>,
+    orgId?: string,
+    userId?: string,
   ): Promise<void> {
-    return this.jobRepository.markDone(jobId, result);
+    await this.jobRepository.markDone(jobId, result);
+
+    if (orgId) {
+      this.activityLog.logActivity({
+        orgId,
+        actorId: userId ?? 'system',
+        action: 'job.completed',
+        entityType: 'job',
+        entityId: jobId,
+      });
+      this.legalAudit.recordEvent({
+        eventType: 'job.completed',
+        orgId,
+        triggerType: 'system',
+        metadata: { jobId, userId: userId ?? null },
+      });
+    }
   }
 
-  async markFailed(jobId: string, error: string): Promise<void> {
-    return this.jobRepository.markFailed(jobId, error);
+  async markFailed(
+    jobId: string,
+    error: string,
+    orgId?: string,
+    userId?: string,
+  ): Promise<void> {
+    await this.jobRepository.markFailed(jobId, error);
+
+    if (orgId) {
+      this.activityLog.logActivity({
+        orgId,
+        actorId: userId ?? 'system',
+        action: 'job.failed',
+        entityType: 'job',
+        entityId: jobId,
+        metadata: { error },
+      });
+      this.legalAudit.recordEvent({
+        eventType: 'job.failed',
+        orgId,
+        triggerType: 'system',
+        metadata: { jobId, error, userId: userId ?? null },
+      });
+    }
   }
 }

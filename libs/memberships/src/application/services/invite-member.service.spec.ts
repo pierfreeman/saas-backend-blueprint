@@ -58,6 +58,14 @@ const mockEventBus = {
   publish: vi.fn().mockResolvedValue(undefined),
 };
 
+const mockActivityLog = {
+  logActivity: vi.fn(),
+};
+
+const mockLegalAudit = {
+  recordEvent: vi.fn(),
+};
+
 function buildService() {
   return new InviteMemberService(
     mockUsersService as never,
@@ -66,6 +74,8 @@ function buildService() {
     mockAuth0ManagementService as never,
     mockConfigService as never,
     mockEventBus as never,
+    mockActivityLog as never,
+    mockLegalAudit as never,
   );
 }
 

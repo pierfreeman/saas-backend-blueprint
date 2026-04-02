@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { UsersService } from '@libs/users';
 import { EmailService } from '@libs/email';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { User } from '@libs/prisma-business';
 import { Auth0ManagementService } from '../../infrastructure/clients/auth0-management.service';
 import { PENDING_AUTH0_ID_PREFIX } from '../../constants';
@@ -15,6 +17,8 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly auth0ManagementService: Auth0ManagementService,
     private readonly emailService: EmailService,
+    private readonly activityLog: ActivityLogService,
+    private readonly legalAudit: LegalAuditService,
   ) {}
 
   /**
@@ -62,7 +66,19 @@ export class AuthService {
       !normalizedEmail.endsWith('@auth0.placeholder')
     ) {
       this.logger.log(`Updating email for user ${existingUser.id}`);
-      return this.usersService.updateEmail(existingUser.id, normalizedEmail);
+      const updated = await this.usersService.updateEmail(
+        existingUser.id,
+        normalizedEmail,
+      );
+
+      this.legalAudit.recordEvent({
+        eventType: 'user.email.updated',
+        userId: existingUser.id,
+        triggerType: 'system',
+        metadata: { previousEmail: existingUser.email },
+      });
+
+      return updated;
     }
     return existingUser;
   }
@@ -96,7 +112,8 @@ export class AuthService {
     auth0Id: string,
     resolvedEmail: string,
   ): Promise<User> {
-    if (userByEmail.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
+    const wasPending = userByEmail.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX);
+    if (wasPending) {
       this.logger.log(
         `Linking invited pending user ${resolvedEmail} to real Auth0 ID ${auth0Id}`,
       );
@@ -106,7 +123,22 @@ export class AuthService {
           `from ${userByEmail.auth0Id} to ${auth0Id}`,
       );
     }
-    return this.usersService.updateAuth0Id(userByEmail.id, auth0Id);
+    const updated = await this.usersService.updateAuth0Id(
+      userByEmail.id,
+      auth0Id,
+    );
+
+    this.legalAudit.recordEvent({
+      eventType: wasPending ? 'user.auth0.linked' : 'user.auth0.relinked',
+      userId: userByEmail.id,
+      triggerType: 'system',
+      metadata: {
+        previousAuth0Id: userByEmail.auth0Id,
+        newAuth0Id: auth0Id,
+      },
+    });
+
+    return updated;
   }
 
   private async provisionNewUser(
@@ -122,6 +154,26 @@ export class AuthService {
     const { user, organization } =
       await this.usersService.provisionWithPersonalOrg(auth0Id, resolvedEmail);
     this.logger.log(`Provisioned user ${user.id} with personal org`);
+
+    this.activityLog.logActivity({
+      orgId: organization.id,
+      actorId: user.id,
+      action: 'user.provisioned',
+      entityType: 'user',
+      entityId: user.id,
+      metadata: { organizationId: organization.id },
+    });
+
+    this.legalAudit.recordEvent({
+      eventType: 'user.provisioned',
+      orgId: organization.id,
+      userId: user.id,
+      triggerType: 'system',
+      metadata: {
+        userId: user.id,
+        organizationId: organization.id,
+      },
+    });
 
     // Add contact to email provider audience (fire-and-forget)
     this.emailService.addContact({
@@ -177,11 +229,30 @@ export class AuthService {
     userId: string,
     data: { firstName?: string; lastName?: string; pictureUrl?: string },
   ): Promise<User> {
-    return this.usersService.updateProfile(userId, data);
+    const updated = await this.usersService.updateProfile(userId, data);
+
+    this.legalAudit.recordEvent({
+      eventType: 'user.profile.updated',
+      userId,
+      triggerType: 'user_action',
+      metadata: {
+        updatedFields: Object.keys(data).filter(
+          (k) => data[k as keyof typeof data] !== undefined,
+        ),
+      },
+    });
+
+    return updated;
   }
 
   async requestPasswordChange(email: string): Promise<void> {
     await this.auth0ManagementService.sendChangePasswordEmail(email);
+
+    this.legalAudit.recordEvent({
+      eventType: 'user.password_change.requested',
+      triggerType: 'user_action',
+      metadata: {},
+    });
   }
 
   async findUserByAuth0Id(auth0Id: string): Promise<User | null> {

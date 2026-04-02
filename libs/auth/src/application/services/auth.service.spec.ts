@@ -1,6 +1,8 @@
 import { AuthService, PENDING_AUTH0_ID_PREFIX } from './auth.service';
 import { UsersService } from '@libs/users';
 import { EmailService } from '@libs/email';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { Auth0ManagementService } from '../../infrastructure/clients/auth0-management.service';
 import { Mock, vi } from 'vitest';
 
@@ -23,6 +25,14 @@ const mockEmailService = {
   addContact: vi.fn(),
 } as unknown as EmailService;
 
+const mockActivityLog = {
+  logActivity: vi.fn(),
+} as unknown as ActivityLogService;
+
+const mockLegalAudit = {
+  recordEvent: vi.fn(),
+} as unknown as LegalAuditService;
+
 const mockOrganization = {
   id: 'org-1',
   name: 'Personal Workspace',
@@ -41,6 +51,8 @@ describe('AuthService', () => {
       mockUsersService,
       mockAuth0ManagementService,
       mockEmailService,
+      mockActivityLog,
+      mockLegalAudit,
     );
   });
 

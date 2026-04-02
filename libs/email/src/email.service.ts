@@ -214,12 +214,23 @@ export class EmailService {
       return;
     }
 
-    this.emailProvider.createContact(input).catch((error) => {
-      this.logger.error(
-        `Failed to add contact ${input.email}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    });
+    this.emailProvider
+      .createContact(input)
+      .then(() => {
+        this.legalAudit.recordEvent({
+          eventType: 'email.contact.added',
+          triggerType: 'system',
+          metadata: {
+            emailHash: this.hashEmail(input.email),
+          },
+        });
+      })
+      .catch((error) => {
+        this.logger.error(
+          `Failed to add contact ${input.email}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      });
   }
 
   /**

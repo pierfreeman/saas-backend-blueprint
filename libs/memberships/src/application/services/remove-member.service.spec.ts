@@ -45,11 +45,21 @@ const mockAuth0ManagementService = {
   deleteUser: vi.fn(),
 };
 
+const mockActivityLog = {
+  logActivity: vi.fn(),
+};
+
+const mockLegalAudit = {
+  recordEvent: vi.fn(),
+};
+
 function buildService(): RemoveMemberService {
   return new RemoveMemberService(
     mockMembershipsService as never,
     mockUsersService as never,
     mockAuth0ManagementService as never,
+    mockActivityLog as never,
+    mockLegalAudit as never,
   );
 }
 

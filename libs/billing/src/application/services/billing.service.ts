@@ -308,10 +308,27 @@ export class BillingService {
     payloadHash: string,
     orgId?: string,
   ): Promise<void> {
-    return this.billingRepository.createBillingEvent(
+    await this.billingRepository.createBillingEvent(
       stripeEventId,
       payloadHash,
       orgId,
     );
+
+    this.legalAudit.recordEvent({
+      eventType: 'billing.event.recorded',
+      orgId,
+      triggerType: 'system',
+      metadata: { stripeEventId, payloadHash },
+    });
+
+    if (orgId) {
+      this.activityLog.logActivity({
+        orgId,
+        action: 'billing.event.recorded',
+        entityType: 'billing_event',
+        entityId: stripeEventId,
+        metadata: { payloadHash },
+      });
+    }
   }
 }

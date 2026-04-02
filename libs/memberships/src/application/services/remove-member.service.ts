@@ -1,5 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { UsersService } from '@libs/users';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
 import { Auth0ManagementService } from '@libs/auth/infrastructure/clients/auth0-management.service';
 import { MembershipsService } from './memberships.service';
@@ -12,6 +14,8 @@ export class RemoveMemberService {
     private readonly membershipsService: MembershipsService,
     private readonly usersService: UsersService,
     private readonly auth0ManagementService: Auth0ManagementService,
+    private readonly activityLog: ActivityLogService,
+    private readonly legalAudit: LegalAuditService,
   ) {}
 
   /**
@@ -63,6 +67,22 @@ export class RemoveMemberService {
       try {
         await this.auth0ManagementService.deleteUser(user.auth0Id);
         this.logger.log(`Deleted Auth0 user ${user.auth0Id}`);
+
+        this.activityLog.logActivity({
+          orgId,
+          actorId: actorUserId,
+          action: 'user.auth0.deleted',
+          entityType: 'user',
+          entityId: userId,
+          metadata: { triggerType },
+        });
+        this.legalAudit.recordEvent({
+          eventType: 'user.auth0.deleted',
+          orgId,
+          userId: actorUserId,
+          triggerType: triggerType as string,
+          metadata: { deletedUserId: userId },
+        });
       } catch (err) {
         this.logger.warn(
           `Could not delete Auth0 user ${user.auth0Id} — manual cleanup may be required. ` +
@@ -74,5 +94,21 @@ export class RemoveMemberService {
     // Delete the Prisma user record (cascades any leftover memberships)
     await this.usersService.deleteUser(userId);
     this.logger.log(`Deleted Prisma user ${userId}`);
+
+    this.activityLog.logActivity({
+      orgId,
+      actorId: actorUserId,
+      action: 'user.deleted',
+      entityType: 'user',
+      entityId: userId,
+      metadata: { triggerType },
+    });
+    this.legalAudit.recordEvent({
+      eventType: 'user.deleted',
+      orgId,
+      userId: actorUserId,
+      triggerType: triggerType as string,
+      metadata: { deletedUserId: userId },
+    });
   }
 }

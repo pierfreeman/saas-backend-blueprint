@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MembershipRole } from '@libs/prisma-business';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { MembershipsService } from './memberships.service';
 import { OrganizationsService } from '@libs/organizations';
 import { UsersService } from '@libs/users';
@@ -48,6 +50,8 @@ export class InviteMemberService {
     private readonly auth0ManagementService: Auth0ManagementService,
     private readonly configService: ConfigService,
     private readonly eventBus: EventBusService,
+    private readonly activityLog: ActivityLogService,
+    private readonly legalAudit: LegalAuditService,
   ) {}
 
   async invite(
@@ -79,6 +83,22 @@ export class InviteMemberService {
         `${PENDING_AUTH0_ID_PREFIX}${randomUUID()}`,
         normalizedEmail,
       );
+
+      this.activityLog.logActivity({
+        orgId,
+        actorId: inviterUserId,
+        action: 'user.created.pending',
+        entityType: 'user',
+        entityId: user.id,
+        metadata: { email: normalizedEmail, triggerType },
+      });
+      this.legalAudit.recordEvent({
+        eventType: 'user.created.pending',
+        orgId,
+        userId: inviterUserId,
+        triggerType: triggerType as string,
+        metadata: { createdUserId: user.id },
+      });
     }
 
     // 3. Guard: prevent duplicate membership

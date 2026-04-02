@@ -4,6 +4,8 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { UsersModule } from '@libs/users';
 import { EmailModule } from '@libs/email';
+import { ActivityLogModule } from '@libs/activity-log';
+import { LegalAuditModule } from '@libs/legal-audit';
 import { JwtStrategy } from './jwt.strategy';
 import { AuthService } from './application/services/auth.service';
 import { Auth0ManagementService } from './infrastructure/clients/auth0-management.service';
@@ -13,6 +15,8 @@ import { Auth0ManagementService } from './infrastructure/clients/auth0-managemen
     UsersModule,
     ConfigModule,
     EmailModule,
+    ActivityLogModule,
+    LegalAuditModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({}),
   ],
