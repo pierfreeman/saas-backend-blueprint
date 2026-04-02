@@ -10,6 +10,7 @@ import { AdminMembershipsController } from './admin-memberships.controller';
 import { AdminBillingController } from './admin-billing.controller';
 import { AdminActivityLogController } from './admin-activity-log.controller';
 import { AdminEntitlementsController } from './admin-entitlements.controller';
+import { AdminFeatureFlagsController } from './admin-feature-flags.controller';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AdminEntitlementsController } from './admin-entitlements.controller';
     AdminBillingController,
     AdminActivityLogController,
     AdminEntitlementsController,
+    AdminFeatureFlagsController,
   ],
 })
 export class AdminModule {}

@@ -1,10 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { NotFoundException } from '@nestjs/common';
 import { AdminEntitlementsService } from './admin-entitlements.service';
 import { FeatureFlagsService } from '@libs/feature-flags';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import type { OrganizationEntitlements } from '@libs/feature-flags';
+import type {
+  OrganizationEntitlements,
+  EntitlementOverrideRecord,
+} from '@libs/feature-flags';
 
 const mockEntitlements: OrganizationEntitlements = {
   organizationId: 'org-1',
@@ -19,11 +23,26 @@ const mockEntitlements: OrganizationEntitlements = {
   storageLimitBytes: 5 * 1024 * 1024 * 1024,
 };
 
+const mockOverrideRecord: EntitlementOverrideRecord = {
+  id: 'override-1',
+  orgId: 'org-1',
+  key: 'ssoEnabled',
+  value: true,
+  reason: 'Enterprise trial',
+  expiresAt: null,
+  createdBy: 'admin-1',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
 describe('AdminEntitlementsService', () => {
   let service: AdminEntitlementsService;
   const mockFeatureFlagsService = {
     getEntitlements: vi.fn(),
     invalidateEntitlements: vi.fn(),
+    listOverrides: vi.fn(),
+    setOverride: vi.fn(),
+    deleteOverride: vi.fn(),
   };
 
   const mockActivityLog = {
@@ -96,6 +115,106 @@ describe('AdminEntitlementsService', () => {
           orgId: 'org-1',
         }),
       );
+    });
+  });
+
+  // ── listOverrides ──────────────────────────────────────────────────────────
+
+  describe('listOverrides', () => {
+    it('delegates to FeatureFlagsService.listOverrides', async () => {
+      mockFeatureFlagsService.listOverrides.mockResolvedValue([
+        mockOverrideRecord,
+      ]);
+
+      const result = await service.listOverrides('org-1');
+
+      expect(mockFeatureFlagsService.listOverrides).toHaveBeenCalledWith(
+        'org-1',
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].key).toBe('ssoEnabled');
+    });
+
+    it('returns empty array when no overrides exist', async () => {
+      mockFeatureFlagsService.listOverrides.mockResolvedValue([]);
+
+      const result = await service.listOverrides('org-1');
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ── setOverride ───────────────────────────────────────────────────────────
+
+  describe('setOverride', () => {
+    it('delegates to FeatureFlagsService.setOverride with createdBy and fires dual audit', async () => {
+      mockFeatureFlagsService.setOverride.mockResolvedValue(mockOverrideRecord);
+
+      const result = await service.setOverride(
+        'org-1',
+        { key: 'ssoEnabled', value: true, reason: 'Enterprise trial' },
+        'admin-1',
+      );
+
+      expect(mockFeatureFlagsService.setOverride).toHaveBeenCalledWith(
+        'org-1',
+        expect.objectContaining({
+          key: 'ssoEnabled',
+          value: true,
+          reason: 'Enterprise trial',
+          createdBy: 'admin-1',
+        }),
+      );
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'entitlements.override.set',
+          orgId: 'org-1',
+          actorId: 'admin-1',
+        }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'entitlements.override.set',
+          orgId: 'org-1',
+        }),
+      );
+      expect(result.value).toBe(true);
+    });
+  });
+
+  // ── deleteOverride ────────────────────────────────────────────────────────
+
+  describe('deleteOverride', () => {
+    it('delegates to FeatureFlagsService.deleteOverride and fires dual audit', async () => {
+      mockFeatureFlagsService.deleteOverride.mockResolvedValue(undefined);
+
+      await service.deleteOverride('org-1', 'ssoEnabled', 'admin-1');
+
+      expect(mockFeatureFlagsService.deleteOverride).toHaveBeenCalledWith(
+        'org-1',
+        'ssoEnabled',
+      );
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'entitlements.override.deleted' }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'entitlements.override.deleted',
+          orgId: 'org-1',
+        }),
+      );
+    });
+
+    it('propagates NotFoundException from FeatureFlagsService.deleteOverride', async () => {
+      mockFeatureFlagsService.deleteOverride.mockRejectedValue(
+        new NotFoundException(
+          `No entitlement override found for key 'ssoEnabled'`,
+        ),
+      );
+
+      await expect(
+        service.deleteOverride('org-1', 'ssoEnabled', 'admin-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

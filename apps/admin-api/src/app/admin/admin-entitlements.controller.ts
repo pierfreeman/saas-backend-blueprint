@@ -1,5 +1,8 @@
 import { AdminEntitlementsService } from '@libs/admin/entitlements';
-import type { OrganizationEntitlements } from '@libs/admin/entitlements';
+import type {
+  OrganizationEntitlements,
+  EntitlementOverrideRecord,
+} from '@libs/admin/entitlements';
 import { JwtAuthGuard } from '@libs/common';
 import { SystemAdminGuard, CurrentAdminUserId } from '@libs/admin/auth';
 import {
@@ -38,6 +41,21 @@ export class AdminEntitlementsController {
     @Param('orgId') orgId: string,
   ): Promise<OrganizationEntitlements> {
     return this.adminEntitlementsService.getEntitlements(orgId);
+  }
+
+  @Get('overrides')
+  @ApiOperation({
+    summary: 'List all entitlement overrides for an organization (admin)',
+  })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Override records returned (including expired).',
+  })
+  listOverrides(
+    @Param('orgId') orgId: string,
+  ): Promise<EntitlementOverrideRecord[]> {
+    return this.adminEntitlementsService.listOverrides(orgId);
   }
 
   @Post('invalidate')

@@ -1,9 +1,11 @@
 import { MembershipRole, OrganizationStatus } from '@libs/prisma-business';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsDateString,
   IsEmail,
   IsEnum,
   IsInt,
+  IsDefined,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -179,4 +181,54 @@ export class AdminAllActivityQueryDto extends AdminActivityQueryDto {
   @IsOptional()
   @IsString()
   orgId?: string;
+}
+
+// ── Feature flag overrides ────────────────────────────────────────────────────
+
+/** Valid PlanEntitlements keys that can be overridden. */
+export const OVERRIDE_KEYS = [
+  'advancedAnalytics',
+  'customReports',
+  'apiAccess',
+  'ssoEnabled',
+  'prioritySupport',
+  'maxSeats',
+  'storageLimitBytes',
+] as const;
+
+export class SetFeatureFlagOverrideDto {
+  @ApiProperty({
+    description:
+      'Feature flag key to override. Must be a valid PlanEntitlements key.',
+    example: 'ssoEnabled',
+    enum: OVERRIDE_KEYS,
+  })
+  @IsString()
+  @IsNotEmpty()
+  key!: string;
+
+  @ApiProperty({
+    description:
+      'Override value. Use boolean for feature flags, number for limits.',
+    example: true,
+  })
+  @IsDefined()
+  value!: boolean | number;
+
+  @ApiProperty({
+    description: 'Mandatory reason for this override (for audit trail).',
+    example: 'Enterprise trial arrangement — Acme Corp',
+  })
+  @IsString()
+  @IsNotEmpty()
+  reason!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional expiry (ISO 8601). If set, override is automatically ignored after this date.',
+    example: '2026-06-01T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 }

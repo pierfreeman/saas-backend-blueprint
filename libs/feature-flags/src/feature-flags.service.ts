@@ -7,6 +7,27 @@ import {
   PlanEntitlements,
   OrganizationEntitlements,
 } from './interfaces/entitlements.interface';
+import { EntitlementOverrideRepository } from './infrastructure/repositories/entitlement-override.repository';
+
+export interface EntitlementOverrideRecord {
+  id: string;
+  orgId: string;
+  key: string;
+  value: boolean | number;
+  reason: string;
+  expiresAt: Date | null;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SetOverrideParams {
+  key: string;
+  value: boolean | number;
+  reason: string;
+  expiresAt?: string;
+  createdBy?: string;
+}
 
 type PlanTier = 'FREE' | 'PRO' | 'ENTERPRISE';
 type LimitKey = 'maxTeams' | 'maxPlayers' | 'maxCoaches';
@@ -86,6 +107,7 @@ export class FeatureFlagsService implements OnModuleInit {
     private readonly billingService: BillingService,
     private readonly cache: CacheService,
     private readonly localTransport: LocalTransport,
+    private readonly overrideRepository: EntitlementOverrideRepository,
   ) {}
 
   /**
@@ -134,17 +156,31 @@ export class FeatureFlagsService implements OnModuleInit {
       ? this.resolvePlanTier(org?.planId ?? null)
       : 'FREE';
 
-    // TODO(future): apply per-org admin overrides before caching.
-    // Fetch a `FeatureFlagOverride[]` from the DB (keyed by orgId + featureKey)
-    // and merge them on top of `PLAN_ENTITLEMENTS[tier]` so individual flags
-    // can be toggled from a backoffice admin panel at runtime without a code
-    // deploy. Requires a new Prisma model (e.g. `FeatureFlagOverride`) and an
-    // admin endpoint: PATCH /admin/organizations/:orgId/feature-flags.
+    // Apply per-org admin overrides on top of plan defaults.
+    // Overrides are stored in EntitlementOverride table and layered at read time.
+    // Expired overrides (expiresAt < now) are ignored.
+    const activeOverrides =
+      await this.overrideRepository.findActiveByOrg(orgId);
+
+    const overridePatch: Record<string, boolean | number> = {};
+    for (const override of activeOverrides) {
+      try {
+        overridePatch[override.key] = JSON.parse(override.value) as
+          | boolean
+          | number;
+      } catch {
+        this.logger.warn(
+          `Failed to parse override value for key '${override.key}' on org ${orgId}`,
+        );
+      }
+    }
+
     const entitlements: OrganizationEntitlements = {
       organizationId: orgId,
       plan: tier,
       subscriptionStatus: billingStatus,
       ...PLAN_ENTITLEMENTS[tier],
+      ...overridePatch,
     };
 
     await this.cache.set(cacheKey, entitlements, this.cacheTtl);
@@ -215,6 +251,47 @@ export class FeatureFlagsService implements OnModuleInit {
   async invalidateEntitlements(orgId: string): Promise<void> {
     const cacheKey = `${this.cacheKeyPrefix}${orgId}`;
     await this.cache.del(cacheKey);
+  }
+
+  /**
+   * Returns all override records (including expired) for an organization.
+   * The raw DB values are parsed from JSON strings to boolean | number.
+   */
+  async listOverrides(orgId: string): Promise<EntitlementOverrideRecord[]> {
+    const rows = await this.overrideRepository.findAllByOrg(orgId);
+    return rows.map((r) => ({
+      ...r,
+      value: JSON.parse(r.value) as boolean | number,
+    }));
+  }
+
+  /**
+   * Creates or updates a single entitlement override for an organization.
+   * Invalidates the entitlements cache so the change takes effect immediately.
+   */
+  async setOverride(
+    orgId: string,
+    params: SetOverrideParams,
+  ): Promise<EntitlementOverrideRecord> {
+    const row = await this.overrideRepository.upsert(orgId, {
+      key: params.key,
+      value: JSON.stringify(params.value),
+      reason: params.reason,
+      expiresAt: params.expiresAt ? new Date(params.expiresAt) : null,
+      createdBy: params.createdBy ?? '',
+    });
+    await this.invalidateEntitlements(orgId);
+    return { ...row, value: params.value };
+  }
+
+  /**
+   * Removes a single entitlement override for an organization.
+   * Throws NotFoundException if the key does not exist.
+   * Invalidates the entitlements cache so the plan default is restored immediately.
+   */
+  async deleteOverride(orgId: string, key: string): Promise<void> {
+    await this.overrideRepository.delete(orgId, key);
+    await this.invalidateEntitlements(orgId);
   }
 
   /**

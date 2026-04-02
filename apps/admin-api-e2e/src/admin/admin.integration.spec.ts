@@ -15,6 +15,9 @@
  *  - POST /admin/organizations/:orgId/billing/portal    — portal URL
  *  - GET  /admin/organizations/:orgId/entitlements      — entitlements
  *  - POST /admin/organizations/:orgId/entitlements/invalidate — cache bust
+ *  - PATCH /admin/organizations/:orgId/feature-flags            — set override
+ *  - DELETE /admin/organizations/:orgId/feature-flags/:key      — delete override
+ *  - GET  /admin/organizations/:orgId/entitlements/overrides    — list overrides
  *  - GET  /admin/activity-log            — cross-tenant activity
  *  - GET  /admin/organizations/:orgId/activity-log      — org activity
  */
@@ -316,6 +319,134 @@ describe('Admin Backoffice API (integration)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.message).toMatch(/invalidated/i);
+    });
+  });
+
+  // ─── PATCH /admin/organizations/:orgId/feature-flags ─────────────────────
+
+  describe('PATCH /admin/organizations/:orgId/feature-flags', () => {
+    it('returns 200 and the created override record', async () => {
+      const res = await agent
+        .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          key: 'ssoEnabled',
+          value: true,
+          reason: 'Integration test trial',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.key).toBe('ssoEnabled');
+      expect(res.body.value).toBe(true);
+      expect(res.body.reason).toBe('Integration test trial');
+    });
+
+    it('updates an existing override (upsert)', async () => {
+      // First set
+      await agent
+        .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ key: 'maxSeats', value: 50, reason: 'Volume deal' });
+
+      // Then update
+      const res = await agent
+        .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ key: 'maxSeats', value: 100, reason: 'Extended deal' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.value).toBe(100);
+    });
+
+    it('returns 400 when key is missing', async () => {
+      const res = await agent
+        .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ value: true, reason: 'Missing key' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when reason is missing', async () => {
+      const res = await agent
+        .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ key: 'ssoEnabled', value: true });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 401 without token', async () => {
+      const res = await agent
+        .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
+        .send({ key: 'ssoEnabled', value: true, reason: 'Test' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 403 for non-admin users', async () => {
+      const res = await agent
+        .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
+        .set('Authorization', `Bearer ${regularToken}`)
+        .send({ key: 'ssoEnabled', value: true, reason: 'Test' });
+
+      expect(res.status).toBe(403);
+    });
+  });
+
+  // ─── GET /admin/organizations/:orgId/entitlements/overrides ──────────────
+
+  describe('GET /admin/organizations/:orgId/entitlements/overrides', () => {
+    it('returns 200 with an array of overrides (may be empty)', async () => {
+      const res = await agent
+        .get(`/admin/organizations/${tenantOrgId}/entitlements/overrides`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+
+    it('reflects the ssoEnabled override already set', async () => {
+      const res = await agent
+        .get(`/admin/organizations/${tenantOrgId}/entitlements/overrides`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const ssoOverride = res.body.find(
+        (o: { key: string }) => o.key === 'ssoEnabled',
+      );
+      expect(ssoOverride).toBeDefined();
+    });
+  });
+
+  // ─── DELETE /admin/organizations/:orgId/feature-flags/:key ───────────────
+
+  describe('DELETE /admin/organizations/:orgId/feature-flags/:key', () => {
+    it('returns 204 and removes the override', async () => {
+      // Set override first
+      await agent
+        .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ key: 'customReports', value: true, reason: 'Test delete' });
+
+      // Then delete
+      const res = await agent
+        .delete(
+          `/admin/organizations/${tenantOrgId}/feature-flags/customReports`,
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(204);
+    });
+
+    it('returns 404 when override does not exist', async () => {
+      const res = await agent
+        .delete(
+          `/admin/organizations/${tenantOrgId}/feature-flags/nonExistentKey`,
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
     });
   });
 

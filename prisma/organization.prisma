@@ -87,6 +87,7 @@ model Organization {
   billingEvents          BillingEvent[]
   subscriptionSnapshots  SubscriptionSnapshot[]
   files                  File[]
+  entitlementOverrides   EntitlementOverride[]
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   /// Supports filtering organizations by lifecycle status (e.g. list all SUSPENDED orgs).

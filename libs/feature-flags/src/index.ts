@@ -1,5 +1,9 @@
 export { FeatureFlagsModule } from './feature-flags.module';
-export { FeatureFlagsService } from './feature-flags.service';
+export {
+  FeatureFlagsService,
+  EntitlementOverrideRecord,
+  SetOverrideParams,
+} from './feature-flags.service';
 export {
   FeatureGuard,
   RequireFeature,
