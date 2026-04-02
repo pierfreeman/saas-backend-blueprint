@@ -79,3 +79,7 @@ Thumbs.db
 # Prisma generated clients (v7 - output outside node_modules)
 libs/prisma-business/src/generated/
 libs/prisma-legal/src/generated/
+
+.nx/polygraph
+.claude/worktrees
+.claude/settings.local.json
