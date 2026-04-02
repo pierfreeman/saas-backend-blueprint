@@ -6,6 +6,7 @@ import { UsersModule } from '@libs/users';
 import { EmailModule } from '@libs/email';
 import { ActivityLogModule } from '@libs/activity-log';
 import { LegalAuditModule } from '@libs/legal-audit';
+import { MembershipsModule } from '@libs/memberships';
 import { JwtStrategy } from './jwt.strategy';
 import { AuthService } from './application/services/auth.service';
 import { Auth0ManagementService } from './infrastructure/clients/auth0-management.service';
@@ -17,6 +18,7 @@ import { Auth0ManagementService } from './infrastructure/clients/auth0-managemen
     EmailModule,
     ActivityLogModule,
     LegalAuditModule,
+    MembershipsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({}),
   ],

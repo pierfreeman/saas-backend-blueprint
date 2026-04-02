@@ -25,8 +25,16 @@ export class MembershipsRepository {
     userId: string;
     orgId: string;
     role: MembershipRole;
+    status?: MembershipStatus;
   }): Promise<Membership> {
     return this.prisma.membership.create({ data });
+  }
+
+  async activateByUserId(userId: string): Promise<void> {
+    await this.prisma.membership.updateMany({
+      where: { userId, status: MembershipStatus.INVITED },
+      data: { status: MembershipStatus.ACTIVE },
+    });
   }
 
   async findByOrg(orgId: string): Promise<(Membership & { user: User })[]> {
@@ -60,7 +68,7 @@ export class MembershipsRepository {
 
   async update(
     id: string,
-    data: { role: MembershipRole },
+    data: { role?: MembershipRole; status?: MembershipStatus },
   ): Promise<Membership> {
     return this.prisma.membership.update({ where: { id }, data });
   }

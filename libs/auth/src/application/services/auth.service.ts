@@ -3,6 +3,7 @@ import { UsersService } from '@libs/users';
 import { EmailService } from '@libs/email';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
+import { MembershipsService } from '@libs/memberships';
 import { User } from '@libs/prisma-business';
 import { Auth0ManagementService } from '../../infrastructure/clients/auth0-management.service';
 import { PENDING_AUTH0_ID_PREFIX } from '../../constants';
@@ -19,6 +20,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly activityLog: ActivityLogService,
     private readonly legalAudit: LegalAuditService,
+    private readonly membershipsService: MembershipsService,
   ) {}
 
   /**
@@ -127,6 +129,10 @@ export class AuthService {
       userByEmail.id,
       auth0Id,
     );
+
+    if (wasPending) {
+      await this.membershipsService.activateInvitedMemberships(userByEmail.id);
+    }
 
     this.legalAudit.recordEvent({
       eventType: wasPending ? 'user.auth0.linked' : 'user.auth0.relinked',

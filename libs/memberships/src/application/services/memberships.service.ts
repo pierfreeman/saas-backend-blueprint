@@ -11,6 +11,7 @@ import { LegalAuditService } from '@libs/legal-audit';
 import {
   Membership,
   MembershipRole,
+  MembershipStatus,
   Organization,
   User,
 } from '@libs/prisma-business';
@@ -55,7 +56,7 @@ export class MembershipsService {
 
   async createMembership(
     orgId: string,
-    dto: { userId: string; role: MembershipRole },
+    dto: { userId: string; role: MembershipRole; status?: MembershipStatus },
     actorUserId?: string,
     triggerType = 'user_action',
   ): Promise<Membership> {
@@ -69,6 +70,7 @@ export class MembershipsService {
       userId: dto.userId,
       orgId,
       role: dto.role,
+      ...(dto.status ? { status: dto.status } : {}),
     });
 
     await this.cacheNotifier?.invalidate(dto.userId, orgId);
@@ -116,6 +118,11 @@ export class MembershipsService {
     orgId: string,
   ): Promise<Membership | null> {
     return this.repo.findByUserAndOrg(userId, orgId);
+  }
+
+  async activateInvitedMemberships(userId: string): Promise<void> {
+    await this.repo.activateByUserId(userId);
+    this.logger.log(`Activated INVITED memberships for user ${userId}`);
   }
 
   async getMembershipOrThrow(

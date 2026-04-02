@@ -112,10 +112,13 @@ export class InviteMemberService {
       );
     }
 
-    // 4. Create membership
+    // 4. Create membership — INVITED only for new/pending users (no real Auth0 ID yet).
+    //    Existing users already have an Auth0 account so their membership is immediately
+    //    usable; marking them INVITED would leave them stuck on a badge they can never clear.
+    const isPendingUser = user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX);
     await this.membershipsService.createMembership(
       orgId,
-      { userId: user.id, role },
+      { userId: user.id, role, status: isPendingUser ? 'INVITED' : 'ACTIVE' },
       inviterUserId,
       triggerType,
     );

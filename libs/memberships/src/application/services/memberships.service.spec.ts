@@ -26,6 +26,7 @@ const mockRepo = {
   findByUserAndOrg: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
+  activateByUserId: vi.fn(),
 } as unknown as MembershipsRepository;
 
 const baseMembership = {
@@ -71,6 +72,31 @@ describe('MembershipsService', () => {
         role: 'MEMBER',
       });
       expect(mockCacheNotifier.invalidate).toHaveBeenCalledWith('u-1', 'org-1');
+    });
+
+    it('passes INVITED status to the repository when provided', async () => {
+      (mockSeatLimitProvider.getMaxSeats as Mock).mockResolvedValue(10);
+      mockRepo.countActive = vi.fn().mockResolvedValue(1);
+      const invitedMembership = {
+        ...baseMembership,
+        status: 'INVITED' as MembershipStatus,
+      };
+      mockRepo.create = vi.fn().mockResolvedValue(invitedMembership);
+      mockCacheNotifier.invalidate = vi.fn().mockResolvedValue(undefined);
+
+      const result = await service.createMembership('org-1', {
+        userId: 'u-1',
+        role: 'MEMBER' as MembershipRole,
+        status: 'INVITED' as MembershipStatus,
+      });
+
+      expect(result).toBe(invitedMembership);
+      expect(mockRepo.create).toHaveBeenCalledWith({
+        userId: 'u-1',
+        orgId: 'org-1',
+        role: 'MEMBER',
+        status: 'INVITED',
+      });
     });
 
     it('emits legalAudit event with triggerType user_action by default', async () => {
@@ -394,6 +420,16 @@ describe('MembershipsService', () => {
       ]);
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe('activateInvitedMemberships', () => {
+    it('delegates to repo.activateByUserId', async () => {
+      mockRepo.activateByUserId = vi.fn().mockResolvedValue(undefined);
+
+      await service.activateInvitedMemberships('u-1');
+
+      expect(mockRepo.activateByUserId).toHaveBeenCalledWith('u-1');
     });
   });
 });

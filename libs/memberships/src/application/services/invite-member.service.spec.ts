@@ -111,7 +111,11 @@ describe('InviteMemberService', () => {
       expect(mockUsersService.createUser).not.toHaveBeenCalled();
       expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
         'org-1',
-        { userId: existingUser.id, role: MembershipRole.MEMBER },
+        {
+          userId: existingUser.id,
+          role: MembershipRole.MEMBER,
+          status: 'ACTIVE',
+        },
         inviterUser.id,
         'user_action',
       );
@@ -153,7 +157,11 @@ describe('InviteMemberService', () => {
       expect(mockUsersService.createUser).not.toHaveBeenCalled();
       expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
         'org-1',
-        { userId: pendingUser.id, role: MembershipRole.MEMBER },
+        {
+          userId: pendingUser.id,
+          role: MembershipRole.MEMBER,
+          status: 'INVITED',
+        },
         inviterUser.id,
         'user_action',
       );
@@ -185,7 +193,17 @@ describe('InviteMemberService', () => {
 
       expect(result).toEqual({ message: 'Invitation sent successfully.' });
       expect(mockUsersService.createUser).not.toHaveBeenCalled();
-      expect(mockMembershipsService.createMembership).toHaveBeenCalled();
+      // Existing social user gets ACTIVE immediately (already has a real Auth0 ID)
+      expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
+        'org-1',
+        {
+          userId: socialUser.id,
+          role: MembershipRole.MEMBER,
+          status: 'ACTIVE',
+        },
+        inviterUser.id,
+        'user_action',
+      );
       // Social-connection users cannot receive a passwordless link (Auth0 rejects with 400)
       expect(
         mockAuth0ManagementService.sendPasswordlessLink,
@@ -226,7 +244,11 @@ describe('InviteMemberService', () => {
       // Membership created for the pending user
       expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
         'org-1',
-        { userId: pendingUser.id, role: MembershipRole.MEMBER },
+        {
+          userId: pendingUser.id,
+          role: MembershipRole.MEMBER,
+          status: 'INVITED',
+        },
         inviterUser.id,
         'user_action',
       );

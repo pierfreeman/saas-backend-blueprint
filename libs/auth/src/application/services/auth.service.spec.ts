@@ -3,6 +3,7 @@ import { UsersService } from '@libs/users';
 import { EmailService } from '@libs/email';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
+import { MembershipsService } from '@libs/memberships';
 import { Auth0ManagementService } from '../../infrastructure/clients/auth0-management.service';
 import { Mock, vi } from 'vitest';
 
@@ -33,6 +34,10 @@ const mockLegalAudit = {
   recordEvent: vi.fn(),
 } as unknown as LegalAuditService;
 
+const mockMembershipsService = {
+  activateInvitedMemberships: vi.fn(),
+} as unknown as MembershipsService;
+
 const mockOrganization = {
   id: 'org-1',
   name: 'Personal Workspace',
@@ -53,6 +58,7 @@ describe('AuthService', () => {
       mockEmailService,
       mockActivityLog,
       mockLegalAudit,
+      mockMembershipsService,
     );
   });
 
@@ -761,6 +767,53 @@ describe('AuthService', () => {
       await expect(
         service.requestPasswordChange('alice@example.com'),
       ).rejects.toThrow('Auth0 error');
+    });
+  });
+
+  describe('syncUser — INVITED membership activation on first login', () => {
+    it('activates INVITED memberships when a pending user links their real Auth0 ID', async () => {
+      const pending = {
+        id: 'u-pending',
+        auth0Id: `${PENDING_AUTH0_ID_PREFIX}some-uuid`,
+        email: 'invited@example.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const linked = { ...pending, auth0Id: 'auth0|real' };
+
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(pending);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(linked);
+      (
+        mockMembershipsService.activateInvitedMemberships as Mock
+      ).mockResolvedValue(undefined);
+
+      await service.syncUser('auth0|real', 'invited@example.com');
+
+      expect(
+        mockMembershipsService.activateInvitedMemberships,
+      ).toHaveBeenCalledWith('u-pending');
+    });
+
+    it('does NOT activate memberships when relinking a non-pending user (Auth0 account link fallback)', async () => {
+      const existingOtp = {
+        id: 'u-otp',
+        auth0Id: 'email|otp-old',
+        email: 'otp@example.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const relinked = { ...existingOtp, auth0Id: 'google-oauth2|new' };
+
+      (mockUsersService.findByAuth0Id as Mock).mockResolvedValue(null);
+      (mockUsersService.findByEmail as Mock).mockResolvedValue(existingOtp);
+      (mockUsersService.updateAuth0Id as Mock).mockResolvedValue(relinked);
+
+      await service.syncUser('google-oauth2|new', 'otp@example.com');
+
+      expect(
+        mockMembershipsService.activateInvitedMemberships,
+      ).not.toHaveBeenCalled();
     });
   });
 });
