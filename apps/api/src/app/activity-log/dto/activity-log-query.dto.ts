@@ -53,12 +53,12 @@ export class ActivityLogQueryDto {
   @IsDateString()
   toDate?: string;
 
-  @ApiProperty({ required: false, minimum: 1, maximum: 100 })
+  @ApiProperty({ required: false, minimum: 1, maximum: 500 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(500)
   limit?: number;
 
   @ApiProperty({ required: false, minimum: 0 })
