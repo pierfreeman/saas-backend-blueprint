@@ -203,6 +203,8 @@ Default host ports: business DB → `5432`, legal audit DB → `5434`, Redis →
 cp .env.example .env
 ```
 
+The defaults in `.env.example` work out of the box for local development, including pre-configured LocalStack SQS URLs.
+
 #### Required variables
 
 | Variable                   | Example                                                      | Description                              |
@@ -216,37 +218,37 @@ cp .env.example .env
 
 #### Optional variables
 
-| Variable                      | Default                 | Description                                                         |
-| ----------------------------- | ----------------------- | ------------------------------------------------------------------- |
-| `PORT`                        | `3000`                  | HTTP port the API listens on                                        |
-| `NODE_ENV`                    | `development`           | Runtime environment                                                 |
-| `EVENT_BUS_TRANSPORT`         | `local`                 | `local` (EventEmitter) or `sqs`                                     |
-| `SQS_STANDARD_QUEUE_URL`      | —                       | Required when `EVENT_BUS_TRANSPORT=sqs`                             |
-| `SQS_FIFO_QUEUE_URL`          | —                       | Required when `EVENT_BUS_TRANSPORT=sqs` (must end in `.fifo`)       |
-| `SQS_ENDPOINT_URL`            | —                       | LocalStack endpoint, e.g. `http://localhost:4566`                   |
-| `STRIPE_SECRET_KEY`           | —                       | Stripe secret key                                                   |
-| `STRIPE_WEBHOOK_SECRET`       | —                       | Stripe webhook signing secret (`whsec_…`)                           |
-| `STRIPE_PRICE_ID_PRO`         | —                       | Stripe Price ID → PRO tier                                          |
-| `STRIPE_PRICE_ID_ENTERPRISE`  | —                       | Stripe Price ID → ENTERPRISE tier                                   |
-| `EMAIL_PROVIDER`              | `resend`                | Email provider: `resend` or `smtp`                                  |
-| `EMAIL_FROM_ADDRESS`          | —                       | Sender email address                                                |
-| `EMAIL_FROM_NAME`             | —                       | Sender display name                                                 |
-| `RESEND_API_KEY`              | —                       | Resend API key (required when `EMAIL_PROVIDER=resend`)              |
-| `SMTP_HOST`                   | —                       | SMTP host (required when `EMAIL_PROVIDER=smtp`)                     |
-| `SENTRY_DSN`                  | —                       | Sentry project DSN                                                  |
-| `CORS_ALLOWED_ORIGINS`        | _(all in dev)_          | Comma-separated allowed origins (required in production)            |
-| `RATE_LIMIT_MAX_PER_IP`       | `100`                   | Rate limit requests per window per IP                               |
-| `BRUTE_FORCE_MAX_ATTEMPTS`    | `5`                     | Auth failures before IP lockout                                     |
-| `AWS_REGION`                  | `us-east-1`             | AWS region for S3                                                   |
-| `AWS_ACCESS_KEY_ID`           | —                       | AWS access key (use `test` for LocalStack)                          |
-| `AWS_SECRET_ACCESS_KEY`       | —                       | AWS secret key (use `test` for LocalStack)                          |
-| `AWS_S3_BUCKET`               | —                       | S3 bucket name                                                      |
-| `AWS_S3_ENDPOINT`             | —                       | Override endpoint, e.g. `http://localhost:4566` (LocalStack)        |
-| `EXPORT_URL_EXPIRATION_HOURS` | `24`                    | Signed export download URL lifetime (hours)                         |
-| `AUTH0_M2M_CLIENT_ID`         | —                       | Auth0 M2M application Client ID — required for email invites        |
-| `AUTH0_M2M_CLIENT_SECRET`     | —                       | Auth0 M2M application Client Secret — required for email invites    |
-| `AUTH0_SPA_CLIENT_ID`         | —                       | Auth0 SPA application Client ID — required for passwordless invites |
-| `FRONTEND_BASE_URL`           | `http://localhost:4200` | Frontend base URL embedded in invite emails                         |
+| Variable                      | Default                 | Description                                                                          |
+| ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| `PORT`                        | `3000`                  | HTTP port the API listens on                                                         |
+| `NODE_ENV`                    | `development`           | Runtime environment                                                                  |
+| `EVENT_BUS_TRANSPORT`         | `local`                 | `local` (EventEmitter) or `sqs`                                                      |
+| `SQS_STANDARD_QUEUE_URL`      | _(LocalStack)_          | Required when `EVENT_BUS_TRANSPORT=sqs`. Pre-filled for LocalStack in `.env.example` |
+| `SQS_FIFO_QUEUE_URL`          | _(LocalStack)_          | Required when `EVENT_BUS_TRANSPORT=sqs` (must end in `.fifo`)                        |
+| `SQS_ENDPOINT_URL`            | `http://localhost:4566` | LocalStack endpoint (leave empty for real AWS)                                       |
+| `STRIPE_SECRET_KEY`           | —                       | Stripe secret key                                                                    |
+| `STRIPE_WEBHOOK_SECRET`       | —                       | Stripe webhook signing secret (`whsec_…`)                                            |
+| `STRIPE_PRICE_ID_PRO`         | —                       | Stripe Price ID → PRO tier                                                           |
+| `STRIPE_PRICE_ID_ENTERPRISE`  | —                       | Stripe Price ID → ENTERPRISE tier                                                    |
+| `EMAIL_PROVIDER`              | `resend`                | Email provider: `resend` or `smtp`                                                   |
+| `EMAIL_FROM_ADDRESS`          | —                       | Sender email address                                                                 |
+| `EMAIL_FROM_NAME`             | —                       | Sender display name                                                                  |
+| `RESEND_API_KEY`              | —                       | Resend API key (required when `EMAIL_PROVIDER=resend`)                               |
+| `SMTP_HOST`                   | —                       | SMTP host (required when `EMAIL_PROVIDER=smtp`)                                      |
+| `SENTRY_DSN`                  | —                       | Sentry project DSN                                                                   |
+| `CORS_ALLOWED_ORIGINS`        | _(all in dev)_          | Comma-separated allowed origins (required in production)                             |
+| `RATE_LIMIT_MAX_PER_IP`       | `100`                   | Rate limit requests per window per IP                                                |
+| `BRUTE_FORCE_MAX_ATTEMPTS`    | `5`                     | Auth failures before IP lockout                                                      |
+| `AWS_REGION`                  | `us-east-1`             | AWS region for S3                                                                    |
+| `AWS_ACCESS_KEY_ID`           | —                       | AWS access key (use `test` for LocalStack)                                           |
+| `AWS_SECRET_ACCESS_KEY`       | —                       | AWS secret key (use `test` for LocalStack)                                           |
+| `AWS_S3_BUCKET`               | —                       | S3 bucket name                                                                       |
+| `AWS_S3_ENDPOINT`             | —                       | Override endpoint, e.g. `http://localhost:4566` (LocalStack)                         |
+| `EXPORT_URL_EXPIRATION_HOURS` | `24`                    | Signed export download URL lifetime (hours)                                          |
+| `AUTH0_M2M_CLIENT_ID`         | —                       | Auth0 M2M application Client ID — required for email invites                         |
+| `AUTH0_M2M_CLIENT_SECRET`     | —                       | Auth0 M2M application Client Secret — required for email invites                     |
+| `AUTH0_SPA_CLIENT_ID`         | —                       | Auth0 SPA application Client ID — required for passwordless invites                  |
+| `FRONTEND_BASE_URL`           | `http://localhost:4200` | Frontend base URL embedded in invite emails                                          |
 
 For the complete variable list for each subsystem, see the relevant library README.
 
@@ -277,11 +279,16 @@ npx prisma migrate dev --config prisma.config.legal.ts --name add-audit-field
 # All three apps in one terminal (recommended)
 npm run dev
 
+# Kill zombie processes from a previous crashed run
+npm run dev:kill
+
 # Or individually
 npx nx serve api        # HTTP API on :3000
 npx nx serve admin-api  # Admin API on :3001
 npx nx serve worker-a   # Background worker (polls SQS)
 ```
+
+> **Port assignment:** `api` listens on `PORT` (default `3000`). `admin-api` reads `ADMIN_API_PORT` first (default `3001`), falling back to `PORT`. Both are set in `.env`.
 
 ---
 
