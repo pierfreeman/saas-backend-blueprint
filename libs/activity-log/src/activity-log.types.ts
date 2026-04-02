@@ -50,6 +50,8 @@ export interface ActivityLogQueryOptions {
   actions?: string[];
   /** Filter by entityType (e.g. 'Organization', 'Membership'). */
   entityType?: string;
+  /** Filter by actor user UUID. */
+  actorId?: string;
   /** ISO datetime lower bound (inclusive). */
   fromDate?: Date;
   /** ISO datetime upper bound (inclusive). */

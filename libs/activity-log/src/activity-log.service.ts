@@ -100,6 +100,7 @@ export class ActivityLogService {
       action,
       actions,
       entityType,
+      actorId,
       fromDate,
       toDate,
     } = options;
@@ -115,6 +116,7 @@ export class ActivityLogService {
       orgId,
       ...actionFilter,
       ...(entityType ? { entityType } : {}),
+      ...(actorId ? { actorId } : {}),
       ...(fromDate || toDate
         ? { createdAt: { gte: fromDate, lte: toDate } }
         : {}),

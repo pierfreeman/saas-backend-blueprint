@@ -76,6 +76,7 @@ export class ActivityLogController {
             .filter(Boolean)
         : undefined,
       entityType: query.entityType || undefined,
+      actorId: query.actorId || undefined,
       fromDate: query.fromDate ? new Date(query.fromDate) : undefined,
       toDate: query.toDate ? new Date(query.toDate) : undefined,
     });

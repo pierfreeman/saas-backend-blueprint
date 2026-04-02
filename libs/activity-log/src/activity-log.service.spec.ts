@@ -137,7 +137,10 @@ describe('ActivityLogService', () => {
       prisma.activityLog.findMany.mockResolvedValueOnce([]);
       prisma.activityLog.count.mockResolvedValueOnce(50);
 
-      const result = await service.findByOrg(ORG_UUID, { limit: 10, offset: 20 });
+      const result = await service.findByOrg(ORG_UUID, {
+        limit: 10,
+        offset: 20,
+      });
 
       expect(result.limit).toBe(10);
       expect(result.offset).toBe(20);
@@ -168,6 +171,26 @@ describe('ActivityLogService', () => {
       expect(where.createdAt).toEqual({ gte: fromDate, lte: toDate });
     });
 
+    it('applies actorId filter when provided', async () => {
+      prisma.activityLog.findMany.mockResolvedValueOnce([]);
+      prisma.activityLog.count.mockResolvedValueOnce(0);
+
+      await service.findByOrg(ORG_UUID, { actorId: ACTOR_UUID });
+
+      const where = prisma.activityLog.findMany.mock.calls[0][0].where;
+      expect(where.actorId).toBe(ACTOR_UUID);
+    });
+
+    it('does not include actorId in where clause when not provided', async () => {
+      prisma.activityLog.findMany.mockResolvedValueOnce([]);
+      prisma.activityLog.count.mockResolvedValueOnce(0);
+
+      await service.findByOrg(ORG_UUID);
+
+      const where = prisma.activityLog.findMany.mock.calls[0][0].where;
+      expect(where.actorId).toBeUndefined();
+    });
+
     it('returns an empty logs array when no records exist', async () => {
       const result = await service.findByOrg(ORG_UUID);
       expect(result.logs).toEqual([]);
@@ -185,15 +208,11 @@ describe('ActivityLogService', () => {
       expect(service.toNullableUuid(input)).toBe(expected);
     });
 
-    it.each([
-      ['not-a-uuid'],
-      [''],
-      ['   '],
-      [null],
-      [undefined],
-      [123],
-    ])('returns null for invalid input %p', (input) => {
-      expect(service.toNullableUuid(input)).toBeNull();
-    });
+    it.each([['not-a-uuid'], [''], ['   '], [null], [undefined], [123]])(
+      'returns null for invalid input %p',
+      (input) => {
+        expect(service.toNullableUuid(input)).toBeNull();
+      },
+    );
   });
 });

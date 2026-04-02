@@ -35,6 +35,14 @@ export class ActivityLogQueryDto {
   @IsString()
   entityType?: string;
 
+  @ApiProperty({
+    required: false,
+    description: 'Filter by actor user UUID',
+  })
+  @IsOptional()
+  @IsString()
+  actorId?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsDateString()
