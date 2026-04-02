@@ -323,14 +323,14 @@ The admin backoffice libraries live under `libs/admin/` as a logical namespace. 
 
 > **Admin libs never import tenant-scoped guards or the `OrgContextGuard`. They bypass normal tenant isolation entirely and operate across all organizations. Access is gated exclusively by `SystemAdminGuard`.**
 
-| Library               | Pattern | Responsibility                                       |
-| --------------------- | ------- | ---------------------------------------------------- |
-| `admin/auth`          | D       | `SystemAdminGuard`, `CurrentAdminUserId` decorator   |
-| `admin/organizations` | B       | List all orgs + Customer 360 detail view             |
-| `admin/memberships`   | B       | List / invite / change-role / remove across any org  |
-| `admin/billing`       | B       | Billing overview + Stripe portal delegation          |
-| `admin/activity-log`  | B       | Per-org and cross-org activity log queries           |
-| `admin/entitlements`  | E       | Read / invalidate plan entitlement cache for any org |
+| Library               | Pattern | Responsibility                                                                                                                                     |
+| --------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin/auth`          | D       | `SystemAdminGuard`, `CurrentAdminUserId` decorator                                                                                                 |
+| `admin/organizations` | B       | List all orgs + Customer 360 detail view                                                                                                           |
+| `admin/memberships`   | B       | List / invite / change-role / remove across any org                                                                                                |
+| `admin/billing`       | B       | Billing overview + Stripe portal delegation                                                                                                        |
+| `admin/activity-log`  | B       | Per-org and cross-org activity log queries                                                                                                         |
+| `admin/entitlements`  | E       | Read effective entitlements, set / delete per-org overrides (reason, expiry, audit trail), resolve `createdBy` UUID to user name, invalidate cache |
 
 The `isSystemAdmin` flag on `User` is the single gate. It is **never written by the Auth0 login flow** — only by `scripts/promote-admin.mjs`. See `SystemAdminGuard` in `libs/admin/auth` and the root README for the full admin portal reference.
 
@@ -717,7 +717,7 @@ Expected baseline: 0 errors. The 110 pre-existing `@typescript-eslint/no-non-nul
 
 ## 8. Running the project locally
 
-**Prerequisites:** Docker, Node.js ≥ 20.19.0, `pnpm` (or `npm`).
+**Prerequisites:** Docker, Node.js ≥ 20.19.0, `npx` (or `npm`).
 
 ```bash
 # Start infrastructure (Postgres, Redis, LocalStack/SQS)

@@ -7,8 +7,13 @@ import {
 } from '@libs/feature-flags';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
+import { UsersService } from '@libs/users';
 
 export type { EntitlementOverrideRecord, SetOverrideParams };
+
+export interface EntitlementOverrideWithActor extends EntitlementOverrideRecord {
+  createdByName: string;
+}
 
 @Injectable()
 export class AdminEntitlementsService {
@@ -16,6 +21,7 @@ export class AdminEntitlementsService {
     private readonly featureFlagsService: FeatureFlagsService,
     private readonly activityLog: ActivityLogService,
     private readonly legalAudit: LegalAuditService,
+    private readonly usersService: UsersService,
   ) {}
 
   getEntitlements(orgId: string): Promise<OrganizationEntitlements> {
@@ -41,8 +47,29 @@ export class AdminEntitlementsService {
     });
   }
 
-  async listOverrides(orgId: string): Promise<EntitlementOverrideRecord[]> {
-    return this.featureFlagsService.listOverrides(orgId);
+  async listOverrides(orgId: string): Promise<EntitlementOverrideWithActor[]> {
+    const records = await this.featureFlagsService.listOverrides(orgId);
+
+    const uniqueIds = [
+      ...new Set(records.map((r) => r.createdBy).filter(Boolean)),
+    ];
+    const users = await Promise.all(
+      uniqueIds.map((id) => this.usersService.findById(id)),
+    );
+    const userMap = new Map(
+      users
+        .filter((u): u is NonNullable<typeof u> => u !== null)
+        .map((u) => [u.id, u]),
+    );
+
+    return records.map((r) => {
+      const user = userMap.get(r.createdBy);
+      const createdByName = user
+        ? [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+          user.email
+        : r.createdBy;
+      return { ...r, createdByName };
+    });
   }
 
   async setOverride(

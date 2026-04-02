@@ -1,7 +1,7 @@
 import { AdminEntitlementsService } from '@libs/admin/entitlements';
 import type {
   OrganizationEntitlements,
-  EntitlementOverrideRecord,
+  EntitlementOverrideWithActor,
 } from '@libs/admin/entitlements';
 import { JwtAuthGuard } from '@libs/common';
 import { SystemAdminGuard, CurrentAdminUserId } from '@libs/admin/auth';
@@ -54,7 +54,7 @@ export class AdminEntitlementsController {
   })
   listOverrides(
     @Param('orgId') orgId: string,
-  ): Promise<EntitlementOverrideRecord[]> {
+  ): Promise<EntitlementOverrideWithActor[]> {
     return this.adminEntitlementsService.listOverrides(orgId);
   }
 

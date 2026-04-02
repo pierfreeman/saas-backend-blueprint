@@ -37,7 +37,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 - 🗄️ S3 file storage — presigned upload/download URLs, per-org isolation, quota enforcement, cleanup scheduler
 - 🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
 - 📊 Structured observability — JSON logging, Sentry, Prometheus/Datadog stubs
-- 🛠️ Admin backoffice portal — system-admin gate (`isSystemAdmin` user flag), Customer 360 org view, cross-org member management, billing oversight, activity log, entitlement cache invalidation
+- 🛠️ Admin backoffice portal — system-admin gate (`isSystemAdmin` user flag), Customer 360 org view, cross-org member management, billing oversight, activity log, per-org entitlement overrides (set / delete with reason, expiry, and dual audit trail), entitlement cache invalidation
 
 ---
 
@@ -46,7 +46,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 From a fresh clone (~2 minutes):
 
 ```sh
-pnpm install
+npm install
 
 # Start infrastructure
 docker compose up -d postgres postgres-legal redis
@@ -142,23 +142,23 @@ prisma-legal/
 
 ### Business
 
-| Feature       | Library                                               | Description                                                                                                                                                                                                                       |
-| ------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                                                                                                                                      |
-| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning                                                                                                                        |
-| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                                                                                                                                         |
-| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                                                                                                                                                     |
-| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                                                                                                                                                    |
-| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                                                                       |
-| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                                                                     |
-| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; Resend/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                                                                         |
-| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                                                                                |
-| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                                                                       |
-| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                                                                               |
-| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration                                                                                                                              |
-| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                                                                                                                                             |
-| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), calendar range queries, event reminder notifications (cron sweep every 5 min)                                                  |
-| Admin portal  | `libs/admin/*`                                        | System-admin backoffice: org list/detail, member management, billing oversight, activity log, entitlement cache invalidation. Guard: `SystemAdminGuard` (`isSystemAdmin` DB flag). Promote users via `scripts/promote-admin.mjs`. |
+| Feature       | Library                                               | Description                                                                                                                                                                                                                                                                                                                 |
+| ------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                                                                                                                                                                                                                                |
+| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning                                                                                                                                                                                                                  |
+| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                                                                                                                                                                                                                                   |
+| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                                                                                                                                                                                                                                               |
+| Feature flags | [`@libs/feature-flags`](libs/feature-flags/README.md) | Plan-based entitlements with Redis cache and route-level `FeatureGuard`; per-org overrides stored in DB, applied at runtime, invalidated by admin                                                                                                                                                                           |
+| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                                                                                                                                                                 |
+| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                                                                                                                                                               |
+| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; Resend/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                                                                                                                                                                   |
+| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                                                                                                                                                                          |
+| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                                                                                                                                                                 |
+| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                                                                                                                                                                         |
+| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration                                                                                                                                                                                                                        |
+| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                                                                                                                                                                                                                                       |
+| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), calendar range queries, event reminder notifications (cron sweep every 5 min)                                                                                                                                            |
+| Admin portal  | `libs/admin/*`                                        | System-admin backoffice: org list/detail, member management, billing oversight, activity log, per-org entitlement overrides (set / delete / expire; `createdBy` resolved to user name), entitlement cache invalidation. Guard: `SystemAdminGuard` (`isSystemAdmin` DB flag). Promote users via `scripts/promote-admin.mjs`. |
 
 ### Architectural
 
@@ -177,7 +177,7 @@ prisma-legal/
 
 - Node.js ≥ 20.19.0 (LTS recommended)
 - Docker & Docker Compose v2
-- `pnpm`
+- `npm`
 - An Auth0 tenant (see [Authentication](#authentication))
 
 ---
@@ -187,7 +187,7 @@ prisma-legal/
 ### 1. Install dependencies
 
 ```sh
-pnpm install
+npm install
 ```
 
 ### 2. Start infrastructure
