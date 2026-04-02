@@ -32,7 +32,6 @@ import { RBACModule } from '@libs/rbac';
 import { StorageAppModule } from './storage/storage-app.module';
 import { TasksModule } from './tasks/tasks.module';
 import { PlanningAppModule } from './planning/planning-app.module';
-import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -57,7 +56,6 @@ import { AdminModule } from './admin/admin.module';
     NotificationsAppModule,
     StorageAppModule,
     PlanningAppModule,
-    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -153,6 +153,36 @@ services:
       localstack:
         condition: service_healthy
 
+  # ─── Admin API ────────────────────────────────────────────────────────────────
+  admin-api:
+    build:
+      context: .
+      dockerfile: apps/admin-api/Dockerfile
+      target: production
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '${ADMIN_API_PORT:-3001}:3001'
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
+      LEGAL_AUDIT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres-legal:5432/${POSTGRES_LEGAL_DB:-saas_legal_audit}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # --- Tighter rate limiting for admin endpoints ---
+      RATE_LIMIT_MAX_PER_IP: 20
+      RATE_LIMIT_MAX_PER_USER: 50
+      RATE_LIMIT_TTL: 60
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      migrate-legal:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   # ─── Worker A ────────────────────────────────────────────────────────────────
   worker-a:
     build:

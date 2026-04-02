@@ -2,8 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { UsersService } from '@libs/users';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
-import { Auth0ManagementService } from '@libs/auth/infrastructure/clients/auth0-management.service';
+import { PENDING_USER_PREFIX, IIdentityProvider } from '@libs/common';
 import { MembershipsService } from './memberships.service';
 
 @Injectable()
@@ -13,7 +12,7 @@ export class RemoveMemberService {
   constructor(
     private readonly membershipsService: MembershipsService,
     private readonly usersService: UsersService,
-    private readonly auth0ManagementService: Auth0ManagementService,
+    private readonly identityProvider: IIdentityProvider,
     private readonly activityLog: ActivityLogService,
     private readonly legalAudit: LegalAuditService,
   ) {}
@@ -59,13 +58,13 @@ export class RemoveMemberService {
     if (!user) return;
 
     // Delete Auth0 user first (best-effort; non-fatal if it fails)
-    if (user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
+    if (user.auth0Id.startsWith(PENDING_USER_PREFIX)) {
       this.logger.log(
         `Skipping Auth0 deletion for pending user ${userId} (never logged in)`,
       );
     } else {
       try {
-        await this.auth0ManagementService.deleteUser(user.auth0Id);
+        await this.identityProvider.deleteUser(user.auth0Id);
         this.logger.log(`Deleted Auth0 user ${user.auth0Id}`);
 
         this.activityLog.logActivity({

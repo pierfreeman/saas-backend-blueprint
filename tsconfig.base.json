@@ -18,11 +18,11 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@libs/auth": [
-        "libs/auth/src/index.ts"
+      "@libs/auth0": [
+        "libs/auth0/src/index.ts"
       ],
-      "@libs/auth/*": [
-        "libs/auth/src/*"
+      "@libs/auth0/*": [
+        "libs/auth0/src/*"
       ],
       "@libs/prisma-business": [
         "libs/prisma-business/src/index.ts"
@@ -101,6 +101,12 @@
       ],
       "@apps/api/*": [
         "apps/api/src/*"
+      ],
+      "@apps/admin-api": [
+        "apps/admin-api/src"
+      ],
+      "@apps/admin-api/*": [
+        "apps/admin-api/src/*"
       ],
       "@libs/observability": [
         "libs/observability/src/index.ts"

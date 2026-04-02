@@ -22,7 +22,7 @@ import {
 import { Organization, MembershipRole } from '@libs/prisma-business';
 import { OrgDeletionService, DeletionTrigger } from '@libs/org-deletion';
 import { OrgExportService } from '@libs/org-export';
-import { AuthService } from '@libs/auth';
+import { AuthService } from '@libs/auth0';
 import { CurrentUser } from '../auth/current-user.decorator';
 import {
   OrgScoped,

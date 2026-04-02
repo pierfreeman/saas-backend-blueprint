@@ -219,10 +219,6 @@ const config = new DocumentBuilder()
   .addTag('Storage', 'File upload and management endpoints')
   .addTag('Tasks', 'Task management and job status endpoints')
   .addTag('Planning', 'Event and calendar management endpoints')
-  .addTag(
-    'Admin',
-    'System administration endpoints (requires system-admin access)',
-  )
   .build();
 
 const document = SwaggerModule.createDocument(app, config);

@@ -16,7 +16,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { AuthService } from '@libs/auth';
+import { AuthService } from '@libs/auth0';
 import { CurrentUser } from './current-user.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 

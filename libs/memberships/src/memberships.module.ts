@@ -6,7 +6,6 @@ import { LegalAuditModule } from '@libs/legal-audit';
 import { EmailModule } from '@libs/email';
 import { UsersModule } from '@libs/users';
 import { OrganizationsModule } from '@libs/organizations';
-import { Auth0ManagementService } from '@libs/auth/infrastructure/clients/auth0-management.service';
 import { EventsModule } from '@libs/events';
 import { MembershipsService } from './application/services/memberships.service';
 import { MembershipsRepository } from './infrastructure/repositories/memberships.repository';
@@ -29,7 +28,6 @@ import { RemoveMemberService } from './application/services/remove-member.servic
     MembershipsRepository,
     MembershipsService,
     UserInvitedEmailHandler,
-    Auth0ManagementService,
     InviteMemberService,
     RemoveMemberService,
   ],
