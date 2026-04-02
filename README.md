@@ -6,20 +6,20 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 
 ## Tech stack
 
-| Concern            | Choice                                               |
-| ------------------ | ---------------------------------------------------- |
-| Framework          | NestJS (TypeScript)                                  |
-| Monorepo           | Nx                                                   |
-| ORM / migrations   | Prisma 7 (ESM, driver adapter)                       |
-| Databases          | PostgreSQL × 2 (business DB + legal audit DB)        |
-| Cache / pub-sub    | Redis (ioredis)                                      |
-| Authentication     | Auth0 — JWT RS256, JWKS endpoint                     |
-| Billing            | Stripe (checkout, portal, webhooks)                  |
-| Event system       | EventEmitter2 (local) / AWS SQS (production)         |
-| Background workers | NestJS standalone app, long-polls SQS Standard queue |
-| Real-time          | Socket.IO with Redis adapter (multi-pod)             |
-| File storage       | AWS S3 (presigned URLs, multi-tenant isolation)      |
-| Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles |
+| Concern            | Choice                                                             |
+| ------------------ | ------------------------------------------------------------------ |
+| Framework          | NestJS (TypeScript)                                                |
+| Monorepo           | Nx                                                                 |
+| ORM / migrations   | Prisma 7 (ESM, driver adapter)                                     |
+| Databases          | PostgreSQL × 2 (business DB + legal audit DB)                      |
+| Cache / pub-sub    | Redis (ioredis)                                                    |
+| Authentication     | Auth0 — JWT RS256, JWKS endpoint                                   |
+| Billing            | Stripe (checkout, portal, webhooks)                                |
+| Event system       | EventEmitter2 (local) / AWS SQS (production)                       |
+| Background workers | NestJS standalone app, long-polls SQS Standard queue               |
+| Real-time          | Socket.IO with Redis adapter (multi-pod)                           |
+| File storage       | AWS S3 (presigned URLs, multi-tenant isolation)                    |
+| Containerisation   | Docker Compose (dev + prod + test), unified multi-stage Dockerfile |
 
 ## Features
 
@@ -48,25 +48,21 @@ From a fresh clone (~2 minutes):
 ```sh
 npm install
 
-# Start infrastructure
-docker compose up -d postgres postgres-legal redis
-
-# Configure environment (defaults work out of the box for local dev)
+# Copy environment file (defaults work out of the box)
 cp .env.example .env
 
-# Generate Prisma clients
-npx prisma generate
-npx prisma generate --config prisma.config.legal.ts
+# Start infrastructure (Postgres ×2, Redis, LocalStack, Mailpit)
+npm run dev:infra
 
-# Run all migrations
-npx prisma migrate dev
-npx prisma migrate dev --config prisma.config.legal.ts
+# Run migrations (once per fresh DB, then only after schema changes)
+npm run dev:migrate
 
-# Start the API
-npx nx serve api
+# Start all apps with hot reload
+npm run dev
 ```
 
-API: `http://localhost:3000` — Swagger docs: `http://localhost:3000/docs`
+API: `http://localhost:3000` — Swagger: `http://localhost:3000/docs`  
+Admin API: `http://localhost:3001` — Admin Swagger: `http://localhost:3001/docs`
 
 ---
 
@@ -124,15 +120,16 @@ prisma-legal/
 
 ### Infrastructure
 
-| Service               | Image                                    | Default port |
-| --------------------- | ---------------------------------------- | ------------ |
-| PostgreSQL (business) | `postgres:17-alpine`                     | `5432`       |
-| PostgreSQL (legal)    | `postgres:17-alpine`                     | `5433`       |
-| Redis                 | `redis:7-alpine`                         | `6379`       |
-| LocalStack (S3, SQS)  | `localstack/localstack:3`                | `4566`       |
-| API                   | built from `apps/api/Dockerfile`         | `3000`       |
-| Worker A              | built from `apps/worker-a/Dockerfile`    | —            |
-| Migrate               | built from `apps/api/Dockerfile.migrate` | —            |
+| Service               | Image                                               | Default port |
+| --------------------- | --------------------------------------------------- | ------------ |
+| PostgreSQL (business) | `postgres:17-alpine`                                | `5432`       |
+| PostgreSQL (legal)    | `postgres:17-alpine`                                | `5433`       |
+| Redis                 | `redis:7-alpine`                                    | `6379`       |
+| LocalStack (S3, SQS)  | `localstack/localstack:3`                           | `4566`       |
+| API                   | built from root `Dockerfile` (`APP_NAME=api`)       | `3000`       |
+| Admin API             | built from root `Dockerfile` (`APP_NAME=admin-api`) | `3001`       |
+| Worker A              | built from root `Dockerfile` (`APP_NAME=worker-a`)  | —            |
+| Migrate               | `migrate` stage of root `Dockerfile`                | —            |
 
 **Two-database design:** The business DB holds domain models (User, Organization, Membership, ActivityLog, Job). The legal audit DB holds append-only AuditEvents for compliance. The two databases are deliberately isolated — compliance logs survive even if the business database is wiped.
 
@@ -193,10 +190,12 @@ npm install
 ### 2. Start infrastructure
 
 ```sh
-docker compose up -d postgres postgres-legal redis
+npm run dev:infra
 ```
 
-Default host ports: business DB → `5432`, legal audit DB → `5433`, Redis → `6379`.
+Starts Postgres × 2, Redis, LocalStack (S3 + SQS), and Mailpit via `docker-compose.dev.yml`. App services run on the host — no Docker rebuild needed on code changes.
+
+Default host ports: business DB → `5432`, legal audit DB → `5434`, Redis → `6380`, LocalStack → `4566`, Mailpit SMTP → `1025`, Mailpit UI → `8025`.
 
 ### 3. Configure environment
 
@@ -254,49 +253,71 @@ For the complete variable list for each subsystem, see the relevant library READ
 ### 4. Generate Prisma clients
 
 ```sh
-# Business database (prisma.config.ts auto-detected):
-npx prisma generate
-
-# Legal audit database:
-npx prisma generate --config prisma.config.legal.ts
+npm run prisma:generate
 ```
 
-Clients are generated into `libs/prisma-business/src/generated/prisma/` and `libs/prisma-legal/src/generated/prisma/`. These directories are gitignored — run `generate` after every schema change and after a fresh clone.
+Generates both clients (business + legal) in one command. Clients output to `libs/prisma-business/src/generated/prisma/` and `libs/prisma-legal/src/generated/prisma/`. These directories are gitignored — also runs automatically via `postinstall`.
 
 ### 5. Run database migrations
 
 ```sh
-# Business database (prisma.config.ts auto-detected):
-npx prisma migrate dev
-
-# Legal audit database:
-npx prisma migrate dev --config prisma.config.legal.ts
+npm run dev:migrate
 ```
 
-Append `--name <description>` to create a named migration.
+Runs `prisma migrate dev` for both databases. Append `--name <description>` when calling Prisma directly:
+
+```sh
+npx prisma migrate dev --name add-user-field
+npx prisma migrate dev --config prisma.config.legal.ts --name add-audit-field
+```
 
 ### 6. Serve applications
 
 ```sh
-npx nx serve api       # HTTP API on :3000
-npx nx serve worker-a  # background worker (polls SQS)
+# All three apps in one terminal (recommended)
+npm run dev
+
+# Or individually
+npx nx serve api        # HTTP API on :3000
+npx nx serve admin-api  # Admin API on :3001
+npx nx serve worker-a   # Background worker (polls SQS)
 ```
 
 ---
 
-## Docker (full stack)
+## Docker
+
+### Local development (no rebuilds on code changes)
 
 ```sh
+# Start infrastructure only
+npm run dev:infra
+
+# Run apps on the host with hot reload
+npm run dev
+
+# Stop infrastructure
+npm run dev:infra:down
+```
+
+### Production-like full stack
+
+```sh
+# Build and start everything (uses unified root Dockerfile)
 docker compose up --build
+
+# Rebuild a single service
+docker compose build api
+docker compose build admin-api
+docker compose build worker-a
+
+# Or build standalone images
+npm run docker:build:api
+npm run docker:build:admin-api
+npm run docker:build:worker-a
 ```
 
-Starts Postgres × 2, Redis, runs migrations (`Dockerfile.migrate`), then starts the API and workers. The migrate image and app images are built separately — schema changes don't rebuild the app, and code changes don't rebuild the migrator.
-
-```sh
-# Rebuild and restart a single service without touching the migrator
-docker compose up -d --no-deps --build api
-docker compose up -d --no-deps --build worker-a
-```
+The unified `Dockerfile` at the repo root uses multi-stage builds with BuildKit cache mounts. Changing source code only re-runs the `build` stage — `npm ci` and Prisma generation stay cached unless `package-lock.json` or schema files change.
 
 ---
 
@@ -488,9 +509,8 @@ npx prisma studio --config prisma.config.legal.ts   # legal audit DB
 When you modify any `.prisma` file under `prisma/` or `prisma-legal/schema.prisma`:
 
 ```sh
-# Re-generate the affected client
-npx prisma generate
-npx prisma generate --config prisma.config.legal.ts
+# Re-generate both clients
+npm run prisma:generate
 
 # Then create a migration
 npx prisma migrate dev --name <description>

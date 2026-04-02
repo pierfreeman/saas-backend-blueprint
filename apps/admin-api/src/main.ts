@@ -174,7 +174,10 @@ SwaggerModule.setup('docs', app, document);
 // ── Shutdown hooks ────────────────────────────────────────────────────────────
 app.enableShutdownHooks();
 
-const port = configService.get<number>('app.port') ?? 3001;
+const port = Number.parseInt(
+  process.env['ADMIN_API_PORT'] ?? process.env['PORT'] ?? '3001',
+  10,
+);
 await app.listen(port);
 
 const logger = app.get(ObservabilityLoggerService);

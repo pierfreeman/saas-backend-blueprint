@@ -10,9 +10,10 @@ import {
   OrgExportWorkerService,
   OrgExportRequestedEventPayload,
 } from '@libs/org-export';
-import { UserInvitedEmailHandler, UserInvitedPayload } from '@libs/memberships';
-import {
-  BillingEmailHandler,
+import { UserInvitedEmailHandler } from '@libs/memberships';
+import type { UserInvitedPayload } from '@libs/memberships';
+import { BillingEmailHandler } from '@libs/billing';
+import type {
   PlanChangedPayload,
   PaymentSucceededPayload,
   SubscriptionCancelledPayload,

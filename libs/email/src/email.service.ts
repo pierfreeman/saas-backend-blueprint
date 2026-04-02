@@ -2,9 +2,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import {
+import { EMAIL_PROVIDER } from './providers/email-provider.interface';
+import type {
   EmailProvider,
-  EMAIL_PROVIDER,
   CreateContactInput,
 } from './providers/email-provider.interface';
 import { TemplateRendererService } from './templates/template-renderer.service';

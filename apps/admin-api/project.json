@@ -56,10 +56,13 @@
       },
       "configurations": {
         "development": {
-          "buildTarget": "admin-api:build:development"
+          "buildTarget": "admin-api:build:development",
+          "inspect": false,
+          "runtimeArgs": ["--inspect=localhost:9230"]
         },
         "production": {
-          "buildTarget": "admin-api:build:production"
+          "buildTarget": "admin-api:build:production",
+          "inspect": false
         }
       }
     },

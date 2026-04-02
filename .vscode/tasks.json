@@ -4,9 +4,9 @@
     {
       "label": "Docker: Start infra only",
       "type": "shell",
-      // Starts all infra services but NOT api/worker-a — so you can run those
-      // locally via nx serve and attach the VSCode debugger.
-      "command": "docker compose up mailpit postgres postgres-legal redis localstack migrate migrate-legal --wait",
+      // Starts all infra services (postgres, redis, localstack, mailpit) via
+      // docker-compose.dev.yml — apps run locally via nx serve.
+      "command": "docker compose -f docker-compose.dev.yml up -d",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -20,8 +20,18 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".",
-          "endsPattern": "migrate.*exited with code 0|migrate-legal.*exited with code 0"
+          "endsPattern": "Started|Running"
         }
+      }
+    },
+    {
+      "label": "Docker: Run migrations",
+      "type": "shell",
+      "command": "npx prisma migrate dev && npx prisma migrate dev --config prisma.config.legal.ts",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
       }
     }
   ]

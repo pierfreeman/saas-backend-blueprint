@@ -16,14 +16,10 @@ import {
   User,
 } from '@libs/prisma-business';
 import { MembershipsRepository } from '../../infrastructure/repositories/memberships.repository';
-import {
-  IMembershipCacheNotifier,
-  MEMBERSHIP_CACHE_NOTIFIER,
-} from '../../membership-cache-notifier.token';
-import {
-  ISeatLimitProvider,
-  SEAT_LIMIT_PROVIDER,
-} from '../../seat-limit-provider.token';
+import { MEMBERSHIP_CACHE_NOTIFIER } from '../../membership-cache-notifier.token';
+import type { IMembershipCacheNotifier } from '../../membership-cache-notifier.token';
+import { SEAT_LIMIT_PROVIDER } from '../../seat-limit-provider.token';
+import type { ISeatLimitProvider } from '../../seat-limit-provider.token';
 
 @Injectable()
 export class MembershipsService {
