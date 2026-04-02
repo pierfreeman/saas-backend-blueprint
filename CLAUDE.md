@@ -35,7 +35,7 @@ Pairs with [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + M
 | Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles      |
 | Testing            | Vitest 4 (unit + integration)                             |
 | Observability      | Structured JSON logging, Sentry, Prometheus/Datadog stubs |
-| Package manager    | pnpm                                                      |
+| Package manager    | npx                                                       |
 
 ---
 
@@ -151,7 +151,7 @@ Both are fire-and-forget (non-blocking).
 
 ```sh
 # Install
-pnpm install
+npm install
 
 # Infrastructure
 docker compose up -d postgres postgres-legal redis
@@ -227,7 +227,7 @@ Infra: PostgreSQL × 2, Redis, SQS (AWS), S3 (AWS).
 
 - For navigating/exploring the workspace, invoke the `nx-workspace` skill first - it has patterns for querying projects, targets, and dependencies
 - When running tasks (for example build, lint, test, e2e, etc.), always prefer running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`) instead of using the underlying tooling directly
-- Prefix nx commands with the workspace's package manager (e.g., `pnpm nx build`, `npm exec nx test`) - avoids using globally installed CLI
+- Prefix nx commands with the workspace's package manager (e.g., `npx nx build`, `npm exec nx test`) - avoids using globally installed CLI
 - You have access to the Nx MCP server and its tools, use them to help the user
 - For Nx plugin best practices, check `node_modules/@nx/<plugin>/PLUGIN.md`. Not all plugins have this file - proceed without it if unavailable.
 - NEVER guess CLI flags - always check nx_docs or `--help` first when unsure
