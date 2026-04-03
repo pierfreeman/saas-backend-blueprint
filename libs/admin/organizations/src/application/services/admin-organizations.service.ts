@@ -4,8 +4,10 @@ import type {
   BillingStatus,
   OrganizationStatus,
 } from '@libs/prisma-business';
+import { MembershipRole } from '@libs/prisma-business';
 import { ActivityLogService } from '@libs/activity-log';
 import { FeatureFlagsService } from '@libs/feature-flags';
+import { InviteMemberService } from '@libs/memberships';
 import { AdminOrganizationsRepository } from '../../infrastructure/repositories/admin-organizations.repository';
 import type {
   AdminOrganizationDetail,
@@ -26,6 +28,7 @@ export class AdminOrganizationsService {
     private readonly repository: AdminOrganizationsRepository,
     private readonly activityLog: ActivityLogService,
     private readonly featureFlags: FeatureFlagsService,
+    private readonly inviteMemberService: InviteMemberService,
   ) {}
 
   /**
@@ -100,6 +103,49 @@ export class AdminOrganizationsService {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Synchronously provisions a new enterprise organization:
+   * creates the org, sets the plan tier, and sends an ownership invite to
+   * the specified email address. Returns the new org as a list item.
+   */
+  async provisionOrganization(
+    dto: { name: string; ownerEmail: string; plan?: string },
+    actorAdminId: string,
+  ): Promise<AdminOrganizationListItem> {
+    const org = await this.repository.createOrg(dto.name);
+
+    if (dto.plan) {
+      await this.repository.updatePlanId(org.id, dto.plan);
+    }
+
+    await this.inviteMemberService.invite(
+      dto.ownerEmail,
+      MembershipRole.OWNER,
+      org.id,
+      actorAdminId,
+      'admin_action',
+    );
+
+    this.activityLog.logActivity({
+      orgId: org.id,
+      actorId: actorAdminId,
+      action: 'organization.provisioned',
+      entityType: 'organization',
+      entityId: org.id,
+      metadata: {
+        name: dto.name,
+        ownerEmail: dto.ownerEmail,
+        plan: dto.plan ?? null,
+      },
+    });
+
+    return this.toListItem({
+      ...org,
+      planId: dto.plan ?? org.planId,
+      _count: { memberships: 1 },
+    });
+  }
 
   private toListItem(
     org: Organization & { _count: { memberships: number } },

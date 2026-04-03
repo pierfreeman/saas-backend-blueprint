@@ -9,10 +9,12 @@ bypassing the tenant isolation enforced for regular users.
 
 ## Operations
 
-| Method                                   | Description                                                                                    |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `listOrganizations(filters, pagination)` | Paginated org list — search by name, filter by `OrgStatus`, sort by `createdAt` DESC           |
-| `getOrganizationDetail(orgId)`           | Customer 360 — billing snapshot, membership count, recent activity (last 5), plan entitlements |
+| Method                                   | Description                                                                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `listOrganizations(filters, pagination)` | Paginated org list — search by name, filter by `OrgStatus`, sort by `createdAt` DESC                                                  |
+| `getOrganizationDetail(orgId)`           | Customer 360 — billing snapshot, membership count, recent activity (last 5), plan entitlements                                        |
+| `searchOrganizations(query)`             | Lightweight name search returning id + name pairs (used by dropdowns and autocomplete)                                                |
+| `provisionOrganization(dto, adminId)`    | Enterprise provisioning: create org → optionally assign plan → invite owner via `InviteMemberService` → dual audit (activity + legal) |
 
 ## Org detail shape
 
@@ -34,6 +36,8 @@ bypassing the tenant isolation enforced for regular users.
 | `AdminOrganizationListItem`         | DTO type                       |
 | `AdminOrganizationDetail`           | DTO type                       |
 | `PaginatedAdminOrganizationsResult` | Paginated list DTO             |
+| `ListOrganizationsFilters`          | Filter params DTO              |
+| `ListOrganizationsPagination`       | Pagination params DTO          |
 
 ## Pattern
 

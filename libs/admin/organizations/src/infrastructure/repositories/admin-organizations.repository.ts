@@ -41,6 +41,17 @@ export class AdminOrganizationsRepository {
     });
   }
 
+  async createOrg(name: string): Promise<Organization> {
+    return this.prisma.organization.create({ data: { name } });
+  }
+
+  async updatePlanId(orgId: string, planId: string): Promise<void> {
+    await this.prisma.organization.update({
+      where: { id: orgId },
+      data: { planId },
+    });
+  }
+
   private buildWhereClause(filters: {
     search?: string;
     status?: OrganizationStatus;

@@ -411,20 +411,24 @@ The flag is **never written by the Auth0 login flow** — it can only be set via
 
 ### Admin API endpoints (all under `/admin`, require `isSystemAdmin`)
 
-| Method   | Path                                                  | Description                                                                                   |
-| -------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `GET`    | `/admin/organizations`                                | List all orgs — search, status filter, pagination                                             |
-| `GET`    | `/admin/organizations/:orgId`                         | Org detail (Customer 360) — membership count, billing snapshot, recent activity, entitlements |
-| `GET`    | `/admin/organizations/:orgId/members`                 | Paginated member list for an org                                                              |
-| `POST`   | `/admin/organizations/:orgId/members/invite`          | Invite a new member to any org                                                                |
-| `PATCH`  | `/admin/organizations/:orgId/members/:memberId/role`  | Change a member's role                                                                        |
-| `DELETE` | `/admin/organizations/:orgId/members/:memberId`       | Remove a member                                                                               |
-| `GET`    | `/admin/organizations/:orgId/billing`                 | Billing overview (Stripe status, plan, period)                                                |
-| `POST`   | `/admin/organizations/:orgId/billing/portal`          | Generate a Stripe portal URL for any org                                                      |
-| `GET`    | `/admin/organizations/:orgId/activity`                | Paginated activity log scoped to an org                                                       |
-| `GET`    | `/admin/activity`                                     | Cross-org activity log — optional org/action/date filters                                     |
-| `GET`    | `/admin/organizations/:orgId/entitlements`            | Read plan entitlements for an org                                                             |
-| `POST`   | `/admin/organizations/:orgId/entitlements/invalidate` | Flush entitlement Redis cache for an org                                                      |
+| Method   | Path                                                     | Description                                                                                   |
+| -------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `POST`   | `/admin/organizations`                                   | Provision an enterprise org — create org, optionally assign plan, invite owner                |
+| `GET`    | `/admin/organizations`                                   | List all orgs — search, status filter, pagination                                             |
+| `GET`    | `/admin/organizations/:orgId`                            | Org detail (Customer 360) — membership count, billing snapshot, recent activity, entitlements |
+| `GET`    | `/admin/organizations/:orgId/memberships`                | Paginated member list for an org                                                              |
+| `POST`   | `/admin/organizations/:orgId/memberships`                | Invite a new member to any org                                                                |
+| `PATCH`  | `/admin/organizations/:orgId/memberships/:memberId/role` | Change a member's role                                                                        |
+| `DELETE` | `/admin/organizations/:orgId/memberships/:memberId`      | Remove a member                                                                               |
+| `GET`    | `/admin/organizations/:orgId/billing`                    | Billing overview (Stripe status, plan, period)                                                |
+| `POST`   | `/admin/organizations/:orgId/billing/portal`             | Generate a Stripe portal URL for any org                                                      |
+| `GET`    | `/admin/organizations/:orgId/activity-log`               | Paginated activity log scoped to an org                                                       |
+| `GET`    | `/admin/activity-log`                                    | Cross-org activity log — optional org/action/date filters                                     |
+| `GET`    | `/admin/organizations/:orgId/entitlements`               | Read plan entitlements for an org                                                             |
+| `GET`    | `/admin/organizations/:orgId/entitlements/overrides`     | List all entitlement overrides (active + expired) with `createdByName`                        |
+| `POST`   | `/admin/organizations/:orgId/entitlements/invalidate`    | Flush entitlement Redis cache for an org                                                      |
+| `PATCH`  | `/admin/organizations/:orgId/feature-flags`              | Create or update an entitlement override (`key`, `value`, `reason`, `expiresAt?`)             |
+| `DELETE` | `/admin/organizations/:orgId/feature-flags/:key`         | Delete an entitlement override by key                                                         |
 
 ### Library layout
 
@@ -433,9 +437,9 @@ libs/admin/
   auth/           — SystemAdminGuard, CurrentAdminUserId decorator, AdminAuthModule
   activity-log/   — AdminActivityLogService: per-org and cross-org log queries
   billing/        — AdminBillingService: billing overview + Stripe portal delegation
-  entitlements/   — AdminEntitlementsService: read/invalidate plan entitlements
+  entitlements/   — AdminEntitlementsService: read/invalidate entitlements + override CRUD (set/delete/list with createdByName)
   memberships/    — AdminMembershipsService: list, invite, change-role, remove
-  organizations/  — AdminOrganizationsService: list all orgs + Customer 360 detail
+  organizations/  — AdminOrganizationsService: list all orgs + Customer 360 detail + enterprise provisioning
 ```
 
 ---

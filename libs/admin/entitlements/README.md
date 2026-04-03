@@ -10,19 +10,23 @@ and force-invalidate the cache when needed (e.g. after a manual plan change).
 
 ## Operations
 
-| Method                   | Description                                                                       |
-| ------------------------ | --------------------------------------------------------------------------------- |
-| `getEntitlements(orgId)` | Returns `OrganizationEntitlements` (plan flags, seat/storage limits)              |
-| `invalidateCache(orgId)` | Flushes the Redis entitlement cache for the org; next request re-computes from DB |
+| Method                                 | Description                                                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `getEntitlements(orgId)`               | Returns `OrganizationEntitlements` (plan flags, seat/storage limits)                                           |
+| `invalidateCache(orgId, actorId?)`     | Flushes the Redis entitlement cache for the org; next request re-computes from DB                              |
+| `listOverrides(orgId)`                 | Returns all active and expired overrides for an org, with `createdByName` resolved from `UsersService`         |
+| `setOverride(orgId, dto, actorId?)`    | Creates or updates an override (`key`, `value`, `reason`, optional `expiresAt`); invalidates cache; dual audit |
+| `deleteOverride(orgId, key, actorId?)` | Removes an override by key; invalidates cache; dual audit                                                      |
 
 ## Exports
 
-| Symbol                     | Description                            |
-| -------------------------- | -------------------------------------- |
-| `AdminEntitlementsModule`  | Import in the admin app module         |
-| `AdminEntitlementsService` | Application service                    |
-| `OrganizationEntitlements` | Re-exported from `@libs/feature-flags` |
+| Symbol                         | Description                                                  |
+| ------------------------------ | ------------------------------------------------------------ |
+| `AdminEntitlementsModule`      | Import in the admin app module                               |
+| `AdminEntitlementsService`     | Application service                                          |
+| `OrganizationEntitlements`     | Re-exported from `@libs/feature-flags`                       |
+| `EntitlementOverrideWithActor` | Override record enriched with resolved `createdByName` field |
 
 ## Pattern
 
-Pattern E (flat — single module + service, no repository).
+Pattern E (flat — single module + service, no repository). Delegates all persistence to `FeatureFlagsService` (`@libs/feature-flags`).

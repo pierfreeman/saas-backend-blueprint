@@ -58,7 +58,7 @@ export class AdminEntitlementsService {
     );
     const userMap = new Map(
       users
-        .filter((u): u is NonNullable<typeof u> => u !== null)
+        .filter((u): u is NonNullable<typeof u> => u != null)
         .map((u) => [u.id, u]),
     );
 

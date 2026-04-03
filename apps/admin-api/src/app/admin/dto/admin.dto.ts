@@ -17,6 +17,36 @@ import { Transform, Type } from 'class-transformer';
 
 // ── Organizations ─────────────────────────────────────────────────────────────
 
+export const PLAN_TIERS = ['FREE', 'PRO', 'ENTERPRISE'] as const;
+export type PlanTier = (typeof PLAN_TIERS)[number];
+
+export class AdminProvisionOrgDto {
+  @ApiProperty({
+    description: 'Name of the new organization',
+    example: 'Acme Corp',
+  })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiProperty({
+    description: 'Email address of the user to assign as OWNER',
+    example: 'owner@acme.com',
+  })
+  @IsEmail()
+  @IsNotEmpty()
+  ownerEmail!: string;
+
+  @ApiPropertyOptional({
+    description: 'Plan tier to assign (defaults to FREE)',
+    enum: PLAN_TIERS,
+    example: 'PRO',
+  })
+  @IsOptional()
+  @IsEnum(PLAN_TIERS)
+  plan?: PlanTier;
+}
+
 export class ListOrganizationsQueryDto {
   @ApiPropertyOptional({ description: 'Search by name or exact org ID' })
   @IsOptional()

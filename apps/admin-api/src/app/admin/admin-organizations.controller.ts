@@ -1,15 +1,20 @@
 import { SystemAdminGuard } from '@libs/admin/auth';
+import { CurrentAdminUserId } from '@libs/admin/auth';
 import {
   AdminOrganizationDetail,
+  AdminOrganizationListItem,
   AdminOrganizationsService,
   PaginatedAdminOrganizationsResult,
 } from '@libs/admin/organizations';
 import { JwtAuthGuard } from '@libs/common';
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
   HttpStatus,
   Param,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -20,7 +25,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { ListOrganizationsQueryDto } from './dto/admin.dto';
+import {
+  AdminProvisionOrgDto,
+  ListOrganizationsQueryDto,
+} from './dto/admin.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -28,6 +36,20 @@ import { ListOrganizationsQueryDto } from './dto/admin.dto';
 @Controller('admin/organizations')
 export class AdminOrganizationsController {
   constructor(private readonly adminOrgsService: AdminOrganizationsService) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Provision a new enterprise organization (admin)' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Organization provisioned and owner invited.',
+  })
+  provisionOrganization(
+    @Body() dto: AdminProvisionOrgDto,
+    @CurrentAdminUserId() actorAdminId: string,
+  ): Promise<AdminOrganizationListItem> {
+    return this.adminOrgsService.provisionOrganization(dto, actorAdminId);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List all organizations (admin)' })

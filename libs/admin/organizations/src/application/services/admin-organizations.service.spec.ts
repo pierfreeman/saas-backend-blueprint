@@ -1,10 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
-import { OrganizationStatus, BillingStatus } from '@libs/prisma-business';
+import {
+  OrganizationStatus,
+  BillingStatus,
+  MembershipRole,
+} from '@libs/prisma-business';
 import { AdminOrganizationsService } from './admin-organizations.service';
 import { AdminOrganizationsRepository } from '../../infrastructure/repositories/admin-organizations.repository';
 import { ActivityLogService } from '@libs/activity-log';
 import { FeatureFlagsService } from '@libs/feature-flags';
+import { InviteMemberService } from '@libs/memberships';
 
 const mockOrg = {
   id: 'org-1',
@@ -65,14 +70,21 @@ describe('AdminOrganizationsService', () => {
   const mockRepository = {
     findAll: vi.fn(),
     findByIdWithMemberCount: vi.fn(),
+    createOrg: vi.fn(),
+    updatePlanId: vi.fn(),
   };
 
   const mockActivityLog = {
     findByOrg: vi.fn(),
+    logActivity: vi.fn(),
   };
 
   const mockFeatureFlags = {
     getEntitlements: vi.fn(),
+  };
+
+  const mockInviteMember = {
+    invite: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -84,6 +96,7 @@ describe('AdminOrganizationsService', () => {
         { provide: AdminOrganizationsRepository, useValue: mockRepository },
         { provide: ActivityLogService, useValue: mockActivityLog },
         { provide: FeatureFlagsService, useValue: mockFeatureFlags },
+        { provide: InviteMemberService, useValue: mockInviteMember },
       ],
     }).compile();
 
@@ -188,6 +201,61 @@ describe('AdminOrganizationsService', () => {
         { search: 'test' },
         { limit: 10, offset: 0 },
       );
+    });
+  });
+
+  describe('provisionOrganization', () => {
+    const newOrg = {
+      ...mockOrg,
+      id: 'org-new',
+      name: 'Startup Inc',
+      planId: null,
+      _count: { memberships: 0 },
+    };
+
+    it('creates org, updates planId, invites owner, logs activity', async () => {
+      mockRepository.createOrg.mockResolvedValue(newOrg);
+      mockRepository.updatePlanId.mockResolvedValue(undefined);
+      mockInviteMember.invite.mockResolvedValue({ userId: 'user-new' });
+
+      const result = await service.provisionOrganization(
+        { name: 'Startup Inc', ownerEmail: 'ceo@startup.com', plan: 'PRO' },
+        'admin-user-1',
+      );
+
+      expect(mockRepository.createOrg).toHaveBeenCalledWith('Startup Inc');
+      expect(mockRepository.updatePlanId).toHaveBeenCalledWith(
+        'org-new',
+        'PRO',
+      );
+      expect(mockInviteMember.invite).toHaveBeenCalledWith(
+        'ceo@startup.com',
+        MembershipRole.OWNER,
+        'org-new',
+        'admin-user-1',
+        'admin_action',
+      );
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'organization.provisioned',
+          orgId: 'org-new',
+        }),
+      );
+      expect(result.id).toBe('org-new');
+      expect(result.planId).toBe('PRO');
+      expect(result.membersCount).toBe(1);
+    });
+
+    it('skips updatePlanId when plan is not provided', async () => {
+      mockRepository.createOrg.mockResolvedValue(newOrg);
+      mockInviteMember.invite.mockResolvedValue({ userId: 'user-new' });
+
+      await service.provisionOrganization(
+        { name: 'Startup Inc', ownerEmail: 'ceo@startup.com' },
+        'admin-user-1',
+      );
+
+      expect(mockRepository.updatePlanId).not.toHaveBeenCalled();
     });
   });
 });

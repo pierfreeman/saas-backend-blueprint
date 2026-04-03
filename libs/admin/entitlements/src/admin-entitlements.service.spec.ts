@@ -5,6 +5,7 @@ import { AdminEntitlementsService } from './admin-entitlements.service';
 import { FeatureFlagsService } from '@libs/feature-flags';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
+import { UsersService } from '@libs/users';
 import type {
   OrganizationEntitlements,
   EntitlementOverrideRecord,
@@ -53,6 +54,10 @@ describe('AdminEntitlementsService', () => {
     recordEvent: vi.fn(),
   };
 
+  const mockUsersService = {
+    findById: vi.fn(),
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -61,6 +66,7 @@ describe('AdminEntitlementsService', () => {
         { provide: FeatureFlagsService, useValue: mockFeatureFlagsService },
         { provide: ActivityLogService, useValue: mockActivityLog },
         { provide: LegalAuditService, useValue: mockLegalAudit },
+        { provide: UsersService, useValue: mockUsersService },
       ],
     }).compile();
 
@@ -125,6 +131,12 @@ describe('AdminEntitlementsService', () => {
       mockFeatureFlagsService.listOverrides.mockResolvedValue([
         mockOverrideRecord,
       ]);
+      mockUsersService.findById.mockResolvedValue({
+        id: 'admin-1',
+        firstName: 'Alice',
+        lastName: 'Smith',
+        email: 'alice@example.com',
+      });
 
       const result = await service.listOverrides('org-1');
 
