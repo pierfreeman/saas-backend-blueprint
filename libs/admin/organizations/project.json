@@ -1,0 +1,29 @@
+{
+  "name": "admin-organizations",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/admin/organizations/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:admin"],
+  "// targets": "to see all targets run: nx show project admin-organizations --web",
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/admin/organizations"],
+      "options": {
+        "configFile": "libs/admin/organizations/vitest.config.ts",
+        "passWithNoTests": true
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/admin/organizations/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

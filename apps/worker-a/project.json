@@ -55,10 +55,13 @@
       },
       "configurations": {
         "development": {
-          "buildTarget": "worker-a:build:development"
+          "buildTarget": "worker-a:build:development",
+          "inspect": false,
+          "runtimeArgs": ["--inspect=localhost:9231"]
         },
         "production": {
-          "buildTarget": "worker-a:build:production"
+          "buildTarget": "worker-a:build:production",
+          "inspect": false
         }
       }
     },

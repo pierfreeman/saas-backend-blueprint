@@ -18,7 +18,7 @@
  *   - Pending-only user (never logged in): skips Auth0 delete, cleans Prisma record
  *   - Multi-org user: preserves Prisma record and Auth0 account
  *
- * Auth0 Management calls (sendPasswordlessLink, deleteUser) are verified via
+ * Auth0 Management calls (sendInviteLink, deleteUser) are verified via
  * vi.spyOn — the Auth0 domain in .env.test (test.auth0.local) is unreachable
  * in CI. JWKS for JWT verification is intercepted by the nock-auth helper.
  */
@@ -36,7 +36,7 @@ import {
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { MembershipRole } from '@libs/prisma-business';
-import { Auth0ManagementService } from '@libs/auth';
+import { IIdentityProvider } from '@libs/common';
 
 /** Unique suffix to avoid collisions between tests. */
 function uid(): string {
@@ -52,14 +52,14 @@ describe('Invite & Remove Member (integration)', () => {
   let app: INestApplication;
   let agent: ReturnType<typeof supertest.agent>;
   let prisma: PrismaBusinessService;
-  let auth0Service: Auth0ManagementService;
+  let auth0Service: IIdentityProvider;
 
   beforeAll(async () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
     prisma = app.get(PrismaBusinessService);
-    auth0Service = app.get(Auth0ManagementService);
+    auth0Service = app.get(IIdentityProvider);
     await resetBusinessDb(prisma);
   });
 
@@ -77,10 +77,10 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `new-user-${uid()}@test.local`;
 
       // AUTH0_SPA_CLIENT_ID is set in .env.test; AUTH0_M2M_CLIENT_ID is empty.
-      // Spy verifies the service called sendPasswordlessLink with the right args.
+      // Spy verifies the service called sendInviteLink with the right args.
       // The unit tests for Auth0ManagementService cover the actual HTTP payload.
       const passwordlessSpy = vi
-        .spyOn(auth0Service, 'sendPasswordlessLink')
+        .spyOn(auth0Service, 'sendInviteLink')
         .mockResolvedValue(undefined);
 
       const res = await agent
@@ -94,7 +94,7 @@ describe('Invite & Remove Member (integration)', () => {
         message: 'Invitation sent successfully.',
       });
 
-      // Auth0: sendPasswordlessLink was called with correct email and redirect URI
+      // Auth0: sendInviteLink was called with correct email and redirect URI
       expect(passwordlessSpy).toHaveBeenCalledWith(
         email,
         EXPECTED_REDIRECT_URI,
@@ -122,7 +122,7 @@ describe('Invite & Remove Member (integration)', () => {
       });
 
       const passwordlessSpy = vi
-        .spyOn(auth0Service, 'sendPasswordlessLink')
+        .spyOn(auth0Service, 'sendInviteLink')
         .mockResolvedValue(undefined);
 
       const res = await agent
@@ -133,7 +133,7 @@ describe('Invite & Remove Member (integration)', () => {
 
       expect(res.status).toBe(201);
 
-      // sendPasswordlessLink called with the existing user's email
+      // sendInviteLink called with the existing user's email
       expect(passwordlessSpy).toHaveBeenCalledWith(
         existingUser.email,
         EXPECTED_REDIRECT_URI,
@@ -202,9 +202,7 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `link-flow-${uid()}@test.local`;
 
       // Step 1: invite creates the pending:uuid record
-      vi.spyOn(auth0Service, 'sendPasswordlessLink').mockResolvedValue(
-        undefined,
-      );
+      vi.spyOn(auth0Service, 'sendInviteLink').mockResolvedValue(undefined);
       const inviteRes = await agent
         .post(`/organizations/${ctx.org.id}/memberships/invite`)
         .set('Authorization', `Bearer ${ownerToken}`)
@@ -295,9 +293,7 @@ describe('Invite & Remove Member (integration)', () => {
       const email = `pending-remove-${uid()}@test.local`;
 
       // Invite creates the pending:uuid record
-      vi.spyOn(auth0Service, 'sendPasswordlessLink').mockResolvedValue(
-        undefined,
-      );
+      vi.spyOn(auth0Service, 'sendInviteLink').mockResolvedValue(undefined);
       await agent
         .post(`/organizations/${ctx.org.id}/memberships/invite`)
         .set('Authorization', `Bearer ${ownerToken}`)

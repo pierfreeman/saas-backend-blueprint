@@ -100,7 +100,11 @@ export class NotificationsService implements OnModuleDestroy {
       eventType: 'notification.created',
       orgId: input.orgId,
       triggerType: 'system',
-      metadata: { notificationId: notification.id, userId: input.userId, type: input.type },
+      metadata: {
+        notificationId: notification.id,
+        userId: input.userId,
+        type: input.type,
+      },
     });
 
     return notification;
@@ -215,6 +219,14 @@ export class NotificationsService implements OnModuleDestroy {
 
     await this.pubSub.publishUserNotification(userId, this.toMessage(updated));
 
+    this.activityLog.logActivity({
+      orgId: existing.orgId,
+      actorId: userId,
+      action: 'notification.read',
+      entityType: 'notification',
+      entityId: id,
+    });
+
     return updated;
   }
 
@@ -238,6 +250,16 @@ export class NotificationsService implements OnModuleDestroy {
       for (const orgId of orgIds) {
         await this.cache.getClient().del(UNREAD_ORG_CACHE_KEY(userId, orgId));
       }
+
+      for (const orgId of orgIds) {
+        this.activityLog.logActivity({
+          orgId,
+          actorId: userId,
+          action: 'notification.batch_read',
+          entityType: 'notification',
+          metadata: { count, notificationIds: ids },
+        });
+      }
     }
   }
 
@@ -249,6 +271,13 @@ export class NotificationsService implements OnModuleDestroy {
     await this.repo.markAllAsRead(userId, orgId);
     await this.cache.getClient().del(UNREAD_CACHE_KEY(userId));
     await this.cache.getClient().del(UNREAD_ORG_CACHE_KEY(userId, orgId));
+
+    this.activityLog.logActivity({
+      orgId,
+      actorId: userId,
+      action: 'notification.all_read',
+      entityType: 'notification',
+    });
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────

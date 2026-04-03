@@ -87,6 +87,40 @@ describe('JobService', () => {
     });
   });
 
+  // ── delete ────────────────────────────────────────────────────────────────
+
+  describe('delete', () => {
+    it('delegates to repository', async () => {
+      await service.delete('job-1');
+      expect(mockRepo.delete).toHaveBeenCalledWith('job-1');
+    });
+  });
+
+  // ── markProcessing ────────────────────────────────────────────────────────
+
+  describe('markProcessing', () => {
+    it('delegates to repository', async () => {
+      await service.markProcessing('job-1');
+      expect(mockRepo.markProcessing).toHaveBeenCalledWith('job-1');
+    });
+
+    it('fires activityLog when orgId is provided', async () => {
+      await service.markProcessing('job-1', 'org-1', 'user-1');
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'job.processing',
+          orgId: 'org-1',
+          entityId: 'job-1',
+        }),
+      );
+    });
+
+    it('skips activityLog when orgId is not provided', async () => {
+      await service.markProcessing('job-1');
+      expect(mockActivityLog.logActivity).not.toHaveBeenCalled();
+    });
+  });
+
   // ── findByIdAndOrg ────────────────────────────────────────────────────────
 
   describe('findByIdAndOrg', () => {
@@ -106,6 +140,29 @@ describe('JobService', () => {
       await service.markDone('job-1', { result: true });
       expect(mockRepo.markDone).toHaveBeenCalledWith('job-1', { result: true });
     });
+
+    it('fires activityLog and legalAudit when orgId is provided', async () => {
+      await service.markDone('job-1', { result: true }, 'org-1', 'user-1');
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'job.completed',
+          orgId: 'org-1',
+          entityId: 'job-1',
+        }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'job.completed',
+          orgId: 'org-1',
+        }),
+      );
+    });
+
+    it('skips audit when orgId is not provided', async () => {
+      await service.markDone('job-1', { result: true });
+      expect(mockActivityLog.logActivity).not.toHaveBeenCalled();
+      expect(mockLegalAudit.recordEvent).not.toHaveBeenCalled();
+    });
   });
 
   // ── markFailed ────────────────────────────────────────────────────────────
@@ -114,6 +171,30 @@ describe('JobService', () => {
     it('delegates to repository', async () => {
       await service.markFailed('job-1', 'timeout');
       expect(mockRepo.markFailed).toHaveBeenCalledWith('job-1', 'timeout');
+    });
+
+    it('fires activityLog and legalAudit when orgId is provided', async () => {
+      await service.markFailed('job-1', 'timeout', 'org-1', 'user-1');
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'job.failed',
+          orgId: 'org-1',
+          entityId: 'job-1',
+          metadata: { error: 'timeout' },
+        }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'job.failed',
+          orgId: 'org-1',
+        }),
+      );
+    });
+
+    it('skips audit when orgId is not provided', async () => {
+      await service.markFailed('job-1', 'timeout');
+      expect(mockActivityLog.logActivity).not.toHaveBeenCalled();
+      expect(mockLegalAudit.recordEvent).not.toHaveBeenCalled();
     });
   });
 });

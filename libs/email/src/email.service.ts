@@ -2,9 +2,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import {
+import { EMAIL_PROVIDER } from './providers/email-provider.interface';
+import type {
   EmailProvider,
-  EMAIL_PROVIDER,
   CreateContactInput,
 } from './providers/email-provider.interface';
 import { TemplateRendererService } from './templates/template-renderer.service';
@@ -214,12 +214,23 @@ export class EmailService {
       return;
     }
 
-    this.emailProvider.createContact(input).catch((error) => {
-      this.logger.error(
-        `Failed to add contact ${input.email}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    });
+    this.emailProvider
+      .createContact(input)
+      .then(() => {
+        this.legalAudit.recordEvent({
+          eventType: 'email.contact.added',
+          triggerType: 'system',
+          metadata: {
+            emailHash: this.hashEmail(input.email),
+          },
+        });
+      })
+      .catch((error) => {
+        this.logger.error(
+          `Failed to add contact ${input.email}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      });
   }
 
   /**

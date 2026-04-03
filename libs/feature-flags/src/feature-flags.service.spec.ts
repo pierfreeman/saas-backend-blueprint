@@ -4,6 +4,7 @@ import { CacheService } from '@libs/redis';
 import { LocalTransport, DOMAIN_EVENTS } from '@libs/events';
 import { BillingStatus } from '@libs/prisma-business';
 import { OrganizationEntitlements } from './interfaces/entitlements.interface';
+import { EntitlementOverrideRepository } from './infrastructure/repositories/entitlement-override.repository';
 import { Mock, vi } from 'vitest';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -38,12 +39,28 @@ const makeCache = (cached?: OrganizationEntitlements | null) =>
 
 const makeTransport = () => ({ on: vi.fn() }) as unknown as LocalTransport;
 
+const makeOverrideRepo = (
+  overrides: { findActiveByOrg?: ReturnType<typeof vi.fn> } = {},
+) =>
+  ({
+    findActiveByOrg: overrides.findActiveByOrg ?? vi.fn().mockResolvedValue([]),
+    findAllByOrg: vi.fn().mockResolvedValue([]),
+    upsert: vi.fn(),
+    delete: vi.fn(),
+  }) as unknown as EntitlementOverrideRepository;
+
 function buildService(
   billingService: BillingService,
   cache: CacheService,
   transport: LocalTransport,
+  overrideRepo: EntitlementOverrideRepository = makeOverrideRepo(),
 ): FeatureFlagsService {
-  return new FeatureFlagsService(billingService, cache, transport);
+  return new FeatureFlagsService(
+    billingService,
+    cache,
+    transport,
+    overrideRepo,
+  );
 }
 
 // ─── Suite ────────────────────────────────────────────────────────────────────
@@ -544,6 +561,72 @@ describe('FeatureFlagsService', () => {
       );
 
       expect(await service.getMaxSeats(ORG_ID)).toBe(999999);
+    });
+  });
+
+  // ─── override logic ────────────────────────────────────────────────────────
+
+  describe('getEntitlements() — admin overrides', () => {
+    it('applies a boolean override on top of plan defaults', async () => {
+      const overrideRepo = makeOverrideRepo({
+        findActiveByOrg: vi
+          .fn()
+          .mockResolvedValue([
+            { key: 'ssoEnabled', value: 'true', expiresAt: null },
+          ]),
+      });
+      const service = buildService(
+        makeBillingService({}), // FREE plan
+        makeCache(),
+        makeTransport(),
+        overrideRepo,
+      );
+
+      const result = await service.getEntitlements(ORG_ID);
+
+      // FREE plan default is false; override makes it true
+      expect(result.ssoEnabled).toBe(true);
+      expect(result.plan).toBe('FREE');
+    });
+
+    it('applies a numeric override on top of plan defaults', async () => {
+      const overrideRepo = makeOverrideRepo({
+        findActiveByOrg: vi
+          .fn()
+          .mockResolvedValue([
+            { key: 'maxSeats', value: '25', expiresAt: null },
+          ]),
+      });
+      const service = buildService(
+        makeBillingService({}),
+        makeCache(),
+        makeTransport(),
+        overrideRepo,
+      );
+
+      const result = await service.getEntitlements(ORG_ID);
+
+      expect(result.maxSeats).toBe(25);
+    });
+
+    it('ignores a malformed override value without crashing', async () => {
+      const overrideRepo = makeOverrideRepo({
+        findActiveByOrg: vi
+          .fn()
+          .mockResolvedValue([
+            { key: 'advancedAnalytics', value: 'not-json{', expiresAt: null },
+          ]),
+      });
+      const service = buildService(
+        makeBillingService({}),
+        makeCache(),
+        makeTransport(),
+        overrideRepo,
+      );
+
+      // Should not throw and should return the default FREE value
+      const result = await service.getEntitlements(ORG_ID);
+      expect(result.advancedAnalytics).toBe(false);
     });
   });
 

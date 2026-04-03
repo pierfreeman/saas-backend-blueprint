@@ -12,6 +12,7 @@ export * from './guards/rbac.guard';
 
 // Decorators
 export * from './decorators/org-scoped.decorator';
+export * from './decorators/allow-suspended.decorator';
 export * from './decorators/rbac-context.decorator';
 export * from './decorators/require-permissions.decorator';
 export * from './decorators/require-role.decorator';

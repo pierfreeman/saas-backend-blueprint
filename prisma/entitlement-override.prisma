@@ -1,0 +1,34 @@
+// ============================================================================
+// ENTITLEMENT OVERRIDE MODEL
+// Per-org admin overrides layered on top of plan defaults.
+// Never modifies plan defaults — overrides are applied at read time.
+// ============================================================================
+
+model EntitlementOverride {
+  /// Internal UUID.
+  id        String    @id @default(uuid()) @db.Uuid
+  /// The organization this override applies to.
+  orgId     String    @map("org_id") @db.Uuid
+  /// Feature flag key (e.g. advancedAnalytics, maxSeats). Must match a PlanEntitlements key.
+  key       String
+  /// JSON-encoded value (boolean or number, e.g. "true", "10").
+  value     String
+  /// Mandatory reason for transparency and audit compliance.
+  reason    String
+  /// Optional expiry. If set and past, the override is ignored at read time.
+  expiresAt DateTime? @map("expires_at")
+  /// Admin user ID who created or last updated this override.
+  createdBy String    @map("created_by") @db.Uuid
+  /// Timestamp of creation.
+  createdAt DateTime  @default(now()) @map("created_at")
+  /// Timestamp of last update.
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  /// One override per (org, key) pair.
+  @@unique([orgId, key])
+  @@index([orgId])
+  @@map("entitlement_overrides")
+  @@schema("public")
+}

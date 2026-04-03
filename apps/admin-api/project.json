@@ -1,0 +1,90 @@
+{
+  "name": "admin-api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/admin-api/src",
+  "projectType": "application",
+  "tags": ["type:app"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/apps/admin-api"],
+      "options": {
+        "command": "webpack-cli build",
+        "args": [],
+        "env": { "NODE_ENV": "production" },
+        "cwd": "apps/admin-api"
+      },
+      "configurations": {
+        "development": {
+          "env": { "NODE_ENV": "development" }
+        }
+      }
+    },
+    "prune-lockfile": {
+      "dependsOn": ["build"],
+      "cache": true,
+      "executor": "@nx/js:prune-lockfile",
+      "outputs": [
+        "{workspaceRoot}/dist/apps/admin-api/package.json",
+        "{workspaceRoot}/dist/apps/admin-api/package-lock.json"
+      ],
+      "options": {
+        "buildTarget": "build"
+      }
+    },
+    "copy-workspace-modules": {
+      "dependsOn": ["build"],
+      "cache": true,
+      "outputs": ["{workspaceRoot}/dist/apps/admin-api/workspace_modules"],
+      "executor": "@nx/js:copy-workspace-modules",
+      "options": {
+        "buildTarget": "build"
+      }
+    },
+    "prune": {
+      "dependsOn": ["prune-lockfile", "copy-workspace-modules"],
+      "executor": "nx:noop"
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "admin-api:build",
+        "runBuildTargetDependencies": false
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "admin-api:build:development",
+          "inspect": false,
+          "runtimeArgs": ["--inspect=localhost:9230"]
+        },
+        "production": {
+          "buildTarget": "admin-api:build:production",
+          "inspect": false
+        }
+      }
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/apps/admin-api"],
+      "options": {
+        "configFile": "apps/admin-api/vitest.config.ts",
+        "passWithNoTests": true
+      }
+    },
+    "docker:build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker build -f apps/admin-api/Dockerfile -t admin-api:latest ."
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project apps/admin-api/tsconfig.app.json --noEmit"
+      }
+    }
+  }
+}

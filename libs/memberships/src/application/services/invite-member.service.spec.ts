@@ -1,7 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { InviteMemberService } from './invite-member.service';
-import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
+import { PENDING_USER_PREFIX } from '@libs/common';
 import { vi } from 'vitest';
 
 const baseMembership = {
@@ -28,7 +28,7 @@ const existingUser = {
 const pendingUser = {
   id: 'u-new',
   email: 'newbie@example.com',
-  auth0Id: `${PENDING_AUTH0_ID_PREFIX}some-uuid`,
+  auth0Id: `${PENDING_USER_PREFIX}some-uuid`,
 };
 
 const mockUsersService = {
@@ -46,8 +46,8 @@ const mockOrganizationsService = {
   findById: vi.fn(),
 };
 
-const mockAuth0ManagementService = {
-  sendPasswordlessLink: vi.fn(),
+const mockIdentityProvider = {
+  sendInviteLink: vi.fn(),
 };
 
 const mockConfigService = {
@@ -58,14 +58,24 @@ const mockEventBus = {
   publish: vi.fn().mockResolvedValue(undefined),
 };
 
+const mockActivityLog = {
+  logActivity: vi.fn(),
+};
+
+const mockLegalAudit = {
+  recordEvent: vi.fn(),
+};
+
 function buildService() {
   return new InviteMemberService(
     mockUsersService as never,
     mockMembershipsService as never,
     mockOrganizationsService as never,
-    mockAuth0ManagementService as never,
+    mockIdentityProvider as never,
     mockConfigService as never,
     mockEventBus as never,
+    mockActivityLog as never,
+    mockLegalAudit as never,
   );
 }
 
@@ -81,9 +91,7 @@ describe('InviteMemberService', () => {
     mockUsersService.findById.mockResolvedValue(inviterUser);
     mockMembershipsService.findByUserAndOrg.mockResolvedValue(null);
     mockMembershipsService.createMembership.mockResolvedValue(baseMembership);
-    mockAuth0ManagementService.sendPasswordlessLink.mockResolvedValue(
-      undefined,
-    );
+    mockIdentityProvider.sendInviteLink.mockResolvedValue(undefined);
   });
 
   describe('invite — existing user (database / auth0| connection)', () => {
@@ -101,13 +109,16 @@ describe('InviteMemberService', () => {
       expect(mockUsersService.createUser).not.toHaveBeenCalled();
       expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
         'org-1',
-        { userId: existingUser.id, role: MembershipRole.MEMBER },
+        {
+          userId: existingUser.id,
+          role: MembershipRole.MEMBER,
+          status: 'ACTIVE',
+        },
         inviterUser.id,
+        'user_action',
       );
       // auth0| users can receive a passwordless link
-      expect(
-        mockAuth0ManagementService.sendPasswordlessLink,
-      ).toHaveBeenCalledWith(
+      expect(mockIdentityProvider.sendInviteLink).toHaveBeenCalledWith(
         existingUser.email,
         'http://localhost:4200/auth/callback',
       );
@@ -142,13 +153,16 @@ describe('InviteMemberService', () => {
       expect(mockUsersService.createUser).not.toHaveBeenCalled();
       expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
         'org-1',
-        { userId: pendingUser.id, role: MembershipRole.MEMBER },
+        {
+          userId: pendingUser.id,
+          role: MembershipRole.MEMBER,
+          status: 'INVITED',
+        },
         inviterUser.id,
+        'user_action',
       );
       // Pending user still needs to activate their account via magic link
-      expect(
-        mockAuth0ManagementService.sendPasswordlessLink,
-      ).toHaveBeenCalledWith(
+      expect(mockIdentityProvider.sendInviteLink).toHaveBeenCalledWith(
         pendingUser.email,
         'http://localhost:4200/auth/callback',
       );
@@ -173,11 +187,19 @@ describe('InviteMemberService', () => {
 
       expect(result).toEqual({ message: 'Invitation sent successfully.' });
       expect(mockUsersService.createUser).not.toHaveBeenCalled();
-      expect(mockMembershipsService.createMembership).toHaveBeenCalled();
+      // Existing social user gets ACTIVE immediately (already has a real Auth0 ID)
+      expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
+        'org-1',
+        {
+          userId: socialUser.id,
+          role: MembershipRole.MEMBER,
+          status: 'ACTIVE',
+        },
+        inviterUser.id,
+        'user_action',
+      );
       // Social-connection users cannot receive a passwordless link (Auth0 rejects with 400)
-      expect(
-        mockAuth0ManagementService.sendPasswordlessLink,
-      ).not.toHaveBeenCalled();
+      expect(mockIdentityProvider.sendInviteLink).not.toHaveBeenCalled();
 
       // USER_INVITED event is still published for social users
       expect(mockEventBus.publish).toHaveBeenCalledWith(
@@ -207,21 +229,24 @@ describe('InviteMemberService', () => {
 
       // Must create a pending Prisma record (no Auth0 pre-creation)
       expect(mockUsersService.createUser).toHaveBeenCalledWith(
-        expect.stringMatching(new RegExp(`^${PENDING_AUTH0_ID_PREFIX}`)),
+        expect.stringMatching(new RegExp(`^${PENDING_USER_PREFIX}`)),
         pendingUser.email,
       );
 
       // Membership created for the pending user
       expect(mockMembershipsService.createMembership).toHaveBeenCalledWith(
         'org-1',
-        { userId: pendingUser.id, role: MembershipRole.MEMBER },
+        {
+          userId: pendingUser.id,
+          role: MembershipRole.MEMBER,
+          status: 'INVITED',
+        },
         inviterUser.id,
+        'user_action',
       );
 
       // Passwordless invite sent via Auth0
-      expect(
-        mockAuth0ManagementService.sendPasswordlessLink,
-      ).toHaveBeenCalledWith(
+      expect(mockIdentityProvider.sendInviteLink).toHaveBeenCalledWith(
         pendingUser.email,
         'http://localhost:4200/auth/callback',
       );
@@ -282,7 +307,7 @@ describe('InviteMemberService', () => {
       );
       // Pending user must be stored with normalized address
       expect(mockUsersService.createUser).toHaveBeenCalledWith(
-        expect.stringMatching(new RegExp(`^${PENDING_AUTH0_ID_PREFIX}`)),
+        expect.stringMatching(new RegExp(`^${PENDING_USER_PREFIX}`)),
         'newbie@example.com',
       );
     });

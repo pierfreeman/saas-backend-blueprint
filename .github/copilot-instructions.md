@@ -96,7 +96,7 @@ Every CUD: `activityLog.logActivity()` + `legalAudit.recordEvent()` (fire-and-fo
 ## Commands
 
 ```sh
-pnpm install
+npm install
 docker compose up -d postgres postgres-legal redis
 npx prisma generate && npx prisma generate --config prisma.config.legal.ts
 npx prisma migrate dev && npx prisma migrate dev --config prisma.config.legal.ts

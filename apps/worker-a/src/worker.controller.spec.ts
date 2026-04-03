@@ -80,9 +80,15 @@ describe('WorkerController', () => {
     (mockJobRepo.markFailed as Mock).mockResolvedValue(undefined);
     (mockPubSub.publish as Mock).mockResolvedValue(undefined);
     (mockUserInvitedHandler.handle as Mock).mockResolvedValue(undefined);
-    (mockBillingEmailHandler.handlePlanChanged as Mock).mockResolvedValue(undefined);
-    (mockBillingEmailHandler.handlePaymentSucceeded as Mock).mockResolvedValue(undefined);
-    (mockBillingEmailHandler.handleSubscriptionCancelled as Mock).mockResolvedValue(undefined);
+    (mockBillingEmailHandler.handlePlanChanged as Mock).mockResolvedValue(
+      undefined,
+    );
+    (mockBillingEmailHandler.handlePaymentSucceeded as Mock).mockResolvedValue(
+      undefined,
+    );
+    (
+      mockBillingEmailHandler.handleSubscriptionCancelled as Mock
+    ).mockResolvedValue(undefined);
     controller = new WorkerController(
       mockJobRepo,
       mockPubSub,
@@ -98,10 +104,16 @@ describe('WorkerController', () => {
       const event = makeEvent();
       await controller.handleHeavyJobCreated(event);
 
-      expect(mockJobRepo.markProcessing).toHaveBeenCalledWith('job_001');
+      expect(mockJobRepo.markProcessing).toHaveBeenCalledWith(
+        'job_001',
+        'org-1',
+        'user-1',
+      );
       expect(mockJobRepo.markDone).toHaveBeenCalledWith(
         'job_001',
         expect.objectContaining({ processed: true, jobId: 'job_001' }),
+        'org-1',
+        'user-1',
       );
     });
     it('publishes a PROCESSING message to Redis before work starts', async () => {
@@ -145,6 +157,8 @@ describe('WorkerController', () => {
       expect(mockJobRepo.markFailed).toHaveBeenCalledWith(
         'job_001',
         'computation failed',
+        'org-1',
+        'user-1',
       );
 
       const publishCalls = (mockPubSub.publish as Mock).mock.calls;
@@ -156,7 +170,11 @@ describe('WorkerController', () => {
 
     it('increments the attempts counter on PROCESSING transition', async () => {
       await controller.handleHeavyJobCreated(makeEvent());
-      expect(mockJobRepo.markProcessing).toHaveBeenCalledWith('job_001');
+      expect(mockJobRepo.markProcessing).toHaveBeenCalledWith(
+        'job_001',
+        'org-1',
+        'user-1',
+      );
     });
 
     it('includes userId=undefined in publish when payload has no userId', async () => {
@@ -194,6 +212,8 @@ describe('WorkerController', () => {
       expect(mockJobRepo.markFailed).toHaveBeenCalledWith(
         'job_001',
         'Unknown error',
+        'org-1',
+        'user-1',
       );
 
       const failedPublish = (mockPubSub.publish as Mock).mock.calls[1][1];
@@ -383,7 +403,9 @@ describe('WorkerController', () => {
       const event = makePlanChangedEvent();
       await controller.handleBillingPlanChanged(event);
 
-      expect(mockBillingEmailHandler.handlePlanChanged).toHaveBeenCalledWith(event);
+      expect(mockBillingEmailHandler.handlePlanChanged).toHaveBeenCalledWith(
+        event,
+      );
     });
   });
 
@@ -408,7 +430,9 @@ describe('WorkerController', () => {
       const event = makePaymentEvent();
       await controller.handleBillingPaymentSucceeded(event);
 
-      expect(mockBillingEmailHandler.handlePaymentSucceeded).toHaveBeenCalledWith(event);
+      expect(
+        mockBillingEmailHandler.handlePaymentSucceeded,
+      ).toHaveBeenCalledWith(event);
     });
   });
 
@@ -433,7 +457,9 @@ describe('WorkerController', () => {
       const event = makeCancelEvent();
       await controller.handleBillingSubscriptionCancelled(event);
 
-      expect(mockBillingEmailHandler.handleSubscriptionCancelled).toHaveBeenCalledWith(event);
+      expect(
+        mockBillingEmailHandler.handleSubscriptionCancelled,
+      ).toHaveBeenCalledWith(event);
     });
   });
 });

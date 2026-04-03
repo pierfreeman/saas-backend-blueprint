@@ -18,11 +18,11 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@libs/auth": [
-        "libs/auth/src/index.ts"
+      "@libs/auth0": [
+        "libs/auth0/src/index.ts"
       ],
-      "@libs/auth/*": [
-        "libs/auth/src/*"
+      "@libs/auth0/*": [
+        "libs/auth0/src/*"
       ],
       "@libs/prisma-business": [
         "libs/prisma-business/src/index.ts"
@@ -102,6 +102,12 @@
       "@apps/api/*": [
         "apps/api/src/*"
       ],
+      "@apps/admin-api": [
+        "apps/admin-api/src"
+      ],
+      "@apps/admin-api/*": [
+        "apps/admin-api/src/*"
+      ],
       "@libs/observability": [
         "libs/observability/src/index.ts"
       ],
@@ -179,6 +185,24 @@
       ],
       "@libs/planning/*": [
         "libs/planning/src/*"
+      ],
+      "@libs/admin/auth": [
+        "libs/admin/auth/src/index.ts"
+      ],
+      "@libs/admin/organizations": [
+        "libs/admin/organizations/src/index.ts"
+      ],
+      "@libs/admin/memberships": [
+        "libs/admin/memberships/src/index.ts"
+      ],
+      "@libs/admin/billing": [
+        "libs/admin/billing/src/index.ts"
+      ],
+      "@libs/admin/activity-log": [
+        "libs/admin/activity-log/src/index.ts"
+      ],
+      "@libs/admin/entitlements": [
+        "libs/admin/entitlements/src/index.ts"
       ]
     }
   },

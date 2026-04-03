@@ -12,6 +12,7 @@ const mockPrisma = {
     findMany: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
     delete: vi.fn(),
   },
 } as unknown as PrismaBusinessService;
@@ -89,6 +90,33 @@ describe('MembershipsRepository', () => {
       expect(result).toBe(baseMembership);
       expect(mockPrisma.membership.create).toHaveBeenCalledWith({
         data: { userId: 'u-1', orgId: 'org-1', role: MembershipRole.MEMBER },
+      });
+    });
+
+    it('creates a membership with INVITED status when provided', async () => {
+      const invitedMembership = {
+        ...baseMembership,
+        status: MembershipStatus.INVITED,
+      };
+      mockPrisma.membership.create = vi
+        .fn()
+        .mockResolvedValue(invitedMembership);
+
+      const result = await repo.create({
+        userId: 'u-1',
+        orgId: 'org-1',
+        role: MembershipRole.MEMBER,
+        status: MembershipStatus.INVITED,
+      });
+
+      expect(result).toBe(invitedMembership);
+      expect(mockPrisma.membership.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'u-1',
+          orgId: 'org-1',
+          role: MembershipRole.MEMBER,
+          status: MembershipStatus.INVITED,
+        },
       });
     });
   });
@@ -208,6 +236,37 @@ describe('MembershipsRepository', () => {
 
       expect(mockPrisma.membership.delete).toHaveBeenCalledWith({
         where: { id: 'm-1' },
+      });
+    });
+  });
+
+  // ── activateByUserId ────────────────────────────────────────────────────────
+
+  describe('activateByUserId', () => {
+    it('updates all INVITED memberships to ACTIVE for the user', async () => {
+      mockPrisma.membership.updateMany = vi
+        .fn()
+        .mockResolvedValue({ count: 2 });
+
+      await repo.activateByUserId('u-1');
+
+      expect(mockPrisma.membership.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u-1', status: MembershipStatus.INVITED },
+        data: { status: MembershipStatus.ACTIVE },
+      });
+    });
+
+    it('is a no-op when the user has no INVITED memberships', async () => {
+      mockPrisma.membership.updateMany = vi
+        .fn()
+        .mockResolvedValue({ count: 0 });
+
+      await expect(
+        repo.activateByUserId('u-no-invites'),
+      ).resolves.toBeUndefined();
+      expect(mockPrisma.membership.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u-no-invites', status: MembershipStatus.INVITED },
+        data: { status: MembershipStatus.ACTIVE },
       });
     });
   });

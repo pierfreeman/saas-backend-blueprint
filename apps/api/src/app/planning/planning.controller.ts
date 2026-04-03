@@ -30,6 +30,7 @@ import {
   RBACGuard,
   RequirePermissions,
 } from '@libs/rbac';
+import { FeatureGuard, RequireFeature } from '@libs/feature-flags';
 import { Membership } from '@libs/prisma-business';
 import { PlanningService } from '@libs/planning';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -155,6 +156,8 @@ export class PlanningController {
   // ── Conflicts (overlap query for current user) ───────────────────────────
 
   @Get('conflicts')
+  @UseGuards(FeatureGuard)
+  @RequireFeature('advancedAnalytics')
   @RequirePermissions([PERMISSIONS.ORG_READ])
   @ApiOperation({
     summary: 'List conflicts for the authenticated user',
@@ -172,6 +175,11 @@ export class PlanningController {
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid date range or range exceeds 365 days.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Insufficient permissions or advancedAnalytics not enabled for this organisation.',
   })
   async conflicts(
     @Param('orgId') orgId: string,

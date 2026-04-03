@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@libs/prisma-business';
 import { RemoveMemberService } from './remove-member.service';
-import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
+import { PENDING_USER_PREFIX } from '@libs/common';
 import { vi } from 'vitest';
 
 const baseMembership = {
@@ -24,7 +24,7 @@ const realUser = {
 
 const pendingUser = {
   id: 'u-1',
-  auth0Id: `${PENDING_AUTH0_ID_PREFIX}some-uuid`,
+  auth0Id: `${PENDING_USER_PREFIX}some-uuid`,
   email: 'invited@example.com',
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -41,15 +41,25 @@ const mockUsersService = {
   deleteUser: vi.fn(),
 };
 
-const mockAuth0ManagementService = {
+const mockIdentityProvider = {
   deleteUser: vi.fn(),
+};
+
+const mockActivityLog = {
+  logActivity: vi.fn(),
+};
+
+const mockLegalAudit = {
+  recordEvent: vi.fn(),
 };
 
 function buildService(): RemoveMemberService {
   return new RemoveMemberService(
     mockMembershipsService as never,
     mockUsersService as never,
-    mockAuth0ManagementService as never,
+    mockIdentityProvider as never,
+    mockActivityLog as never,
+    mockLegalAudit as never,
   );
 }
 
@@ -66,7 +76,7 @@ describe('RemoveMemberService', () => {
     mockMembershipsService.findByUser.mockResolvedValue([]);
     mockUsersService.findById.mockResolvedValue(realUser);
     mockUsersService.deleteUser.mockResolvedValue(undefined);
-    mockAuth0ManagementService.deleteUser.mockResolvedValue(undefined);
+    mockIdentityProvider.deleteUser.mockResolvedValue(undefined);
   });
 
   describe('membership not found', () => {
@@ -104,9 +114,10 @@ describe('RemoveMemberService', () => {
         'm-1',
         'org-1',
         'actor-id',
+        'user_action',
       );
       expect(mockUsersService.deleteUser).not.toHaveBeenCalled();
-      expect(mockAuth0ManagementService.deleteUser).not.toHaveBeenCalled();
+      expect(mockIdentityProvider.deleteUser).not.toHaveBeenCalled();
     });
   });
 
@@ -118,8 +129,9 @@ describe('RemoveMemberService', () => {
         'm-1',
         'org-1',
         'actor-id',
+        'user_action',
       );
-      expect(mockAuth0ManagementService.deleteUser).toHaveBeenCalledWith(
+      expect(mockIdentityProvider.deleteUser).toHaveBeenCalledWith(
         'google-oauth2|abc',
       );
       expect(mockUsersService.deleteUser).toHaveBeenCalledWith('u-1');
@@ -130,12 +142,12 @@ describe('RemoveMemberService', () => {
 
       await service.remove('m-1', 'org-1', 'actor-id');
 
-      expect(mockAuth0ManagementService.deleteUser).not.toHaveBeenCalled();
+      expect(mockIdentityProvider.deleteUser).not.toHaveBeenCalled();
       expect(mockUsersService.deleteUser).toHaveBeenCalledWith('u-1');
     });
 
     it('still deletes Prisma user even when Auth0 deletion fails (best-effort)', async () => {
-      mockAuth0ManagementService.deleteUser.mockRejectedValue(
+      mockIdentityProvider.deleteUser.mockRejectedValue(
         new Error('Auth0 network error'),
       );
 
@@ -150,15 +162,13 @@ describe('RemoveMemberService', () => {
 
       await service.remove('m-1', 'org-1');
 
-      expect(mockAuth0ManagementService.deleteUser).not.toHaveBeenCalled();
+      expect(mockIdentityProvider.deleteUser).not.toHaveBeenCalled();
       expect(mockUsersService.deleteUser).not.toHaveBeenCalled();
     });
 
     it('still deletes Prisma user when Auth0 deletion throws a non-Error value (line 63 branch)', async () => {
       // Covers `err instanceof Error ? err.message : String(err)` when err is not an Error
-      mockAuth0ManagementService.deleteUser.mockRejectedValue(
-        'plain-string-error',
-      );
+      mockIdentityProvider.deleteUser.mockRejectedValue('plain-string-error');
 
       await service.remove('m-1', 'org-1', 'actor-id');
 

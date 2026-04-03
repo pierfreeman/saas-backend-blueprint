@@ -72,6 +72,10 @@ describe('OrgContextGuard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: org is ACTIVE — individual tests override as needed.
+    mockOrgsService.findById = vi
+      .fn()
+      .mockResolvedValue({ id: ORG_ID, status: 'ACTIVE' });
     guard = new OrgContextGuard(
       mockReflector,
       mockUsersService,
@@ -166,7 +170,11 @@ describe('OrgContextGuard', () => {
       // This prevents PATCH /notifications/:id/read from mapping the notification id to an org.
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
 
       const request = makeRequest({ params: { id: ORG_ID } });
@@ -287,7 +295,11 @@ describe('OrgContextGuard', () => {
     it('throws BadRequestException when route is @OrgScoped but no orgId provided', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(true);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
 
       const request = makeRequest();
@@ -302,7 +314,11 @@ describe('OrgContextGuard', () => {
     it('passes through (returns true) when no orgId and route is not @OrgScoped', async () => {
       mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
 
-      const dbUser = { id: USER_ID, email: 'test@example.com', auth0Id: AUTH0_ID };
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
       mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
 
       const request = makeRequest();
@@ -501,6 +517,41 @@ describe('OrgContextGuard', () => {
       const result = await guard.canActivate(ctx);
 
       expect(result).toBe(true);
+    });
+
+    it('throws ForbiddenException when org is SUSPENDED', async () => {
+      mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
+
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
+      const membership = {
+        id: 'membership-1',
+        userId: USER_ID,
+        orgId: ORG_ID,
+        role: 'MEMBER',
+        status: MembershipStatus.ACTIVE,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
+      mockOrgsService.findById = vi
+        .fn()
+        .mockResolvedValue({ id: ORG_ID, status: 'SUSPENDED' });
+
+      const request = makeRequest({ params: { orgId: ORG_ID } });
+      const ctx = makeContext(request);
+
+      await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        'Organization is suspended',
+      );
     });
   });
 

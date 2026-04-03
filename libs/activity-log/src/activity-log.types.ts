@@ -46,6 +46,12 @@ export interface ActivityLogQueryOptions {
   offset?: number;
   /** Filter by exact action or action prefix (prefix match via startsWith). */
   action?: string;
+  /** Filter by one or more specific action strings (exact match, OR logic). Takes precedence over action. */
+  actions?: string[];
+  /** Filter by entityType (e.g. 'Organization', 'Membership'). */
+  entityType?: string;
+  /** Filter by actor user UUID. */
+  actorId?: string;
   /** ISO datetime lower bound (inclusive). */
   fromDate?: Date;
   /** ISO datetime upper bound (inclusive). */
