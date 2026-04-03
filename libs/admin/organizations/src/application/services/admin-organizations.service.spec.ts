@@ -9,6 +9,7 @@ import { AdminOrganizationsService } from './admin-organizations.service';
 import { AdminOrganizationsRepository } from '../../infrastructure/repositories/admin-organizations.repository';
 import { ActivityLogService } from '@libs/activity-log';
 import { FeatureFlagsService } from '@libs/feature-flags';
+import { LegalAuditService } from '@libs/legal-audit';
 import { InviteMemberService } from '@libs/memberships';
 
 const mockOrg = {
@@ -72,6 +73,7 @@ describe('AdminOrganizationsService', () => {
     findByIdWithMemberCount: vi.fn(),
     createOrg: vi.fn(),
     updatePlanId: vi.fn(),
+    updateStatus: vi.fn(),
   };
 
   const mockActivityLog = {
@@ -81,6 +83,11 @@ describe('AdminOrganizationsService', () => {
 
   const mockFeatureFlags = {
     getEntitlements: vi.fn(),
+    invalidateEntitlements: vi.fn(),
+  };
+
+  const mockLegalAudit = {
+    recordEvent: vi.fn(),
   };
 
   const mockInviteMember = {
@@ -96,6 +103,7 @@ describe('AdminOrganizationsService', () => {
         { provide: AdminOrganizationsRepository, useValue: mockRepository },
         { provide: ActivityLogService, useValue: mockActivityLog },
         { provide: FeatureFlagsService, useValue: mockFeatureFlags },
+        { provide: LegalAuditService, useValue: mockLegalAudit },
         { provide: InviteMemberService, useValue: mockInviteMember },
       ],
     }).compile();
@@ -241,6 +249,13 @@ describe('AdminOrganizationsService', () => {
           orgId: 'org-new',
         }),
       );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'organization.provisioned',
+          orgId: 'org-new',
+          triggerType: 'admin_action',
+        }),
+      );
       expect(result.id).toBe('org-new');
       expect(result.planId).toBe('PRO');
       expect(result.membersCount).toBe(1);
@@ -256,6 +271,103 @@ describe('AdminOrganizationsService', () => {
       );
 
       expect(mockRepository.updatePlanId).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setOrgStatus', () => {
+    const suspendedOrg = { ...mockOrg, status: OrganizationStatus.SUSPENDED };
+
+    it('throws NotFoundException when org does not exist', async () => {
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(null);
+
+      await expect(
+        service.setOrgStatus(
+          'missing',
+          OrganizationStatus.SUSPENDED,
+          undefined,
+          'admin-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('suspends org, invalidates cache, and logs activity', async () => {
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(mockOrg);
+      mockRepository.updateStatus.mockResolvedValue(suspendedOrg);
+      mockFeatureFlags.invalidateEntitlements.mockResolvedValue(undefined);
+
+      const result = await service.setOrgStatus(
+        'org-1',
+        OrganizationStatus.SUSPENDED,
+        'Policy violation',
+        'admin-1',
+      );
+
+      expect(mockRepository.updateStatus).toHaveBeenCalledWith(
+        'org-1',
+        OrganizationStatus.SUSPENDED,
+      );
+      expect(mockFeatureFlags.invalidateEntitlements).toHaveBeenCalledWith(
+        'org-1',
+      );
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'organization.suspended',
+          orgId: 'org-1',
+          metadata: expect.objectContaining({
+            status: OrganizationStatus.SUSPENDED,
+            reason: 'Policy violation',
+          }),
+        }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'organization.suspended',
+          orgId: 'org-1',
+          triggerType: 'admin_action',
+          metadata: expect.objectContaining({
+            status: OrganizationStatus.SUSPENDED,
+            reason: 'Policy violation',
+          }),
+        }),
+      );
+      expect(result.status).toBe(OrganizationStatus.SUSPENDED);
+    });
+
+    it('reactivates org, invalidates cache, and logs reactivated action', async () => {
+      const reactivatedOrg = { ...mockOrg, status: OrganizationStatus.ACTIVE };
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(suspendedOrg);
+      mockRepository.updateStatus.mockResolvedValue(reactivatedOrg);
+      mockFeatureFlags.invalidateEntitlements.mockResolvedValue(undefined);
+
+      await service.setOrgStatus(
+        'org-1',
+        OrganizationStatus.ACTIVE,
+        undefined,
+        'admin-1',
+      );
+
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'organization.reactivated' }),
+      );
+    });
+
+    it('stores null reason when reason is not provided', async () => {
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(mockOrg);
+      mockRepository.updateStatus.mockResolvedValue(suspendedOrg);
+      mockFeatureFlags.invalidateEntitlements.mockResolvedValue(undefined);
+
+      await service.setOrgStatus(
+        'org-1',
+        OrganizationStatus.SUSPENDED,
+        undefined,
+        'admin-1',
+      );
+
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ reason: null }),
+        }),
+      );
     });
   });
 });

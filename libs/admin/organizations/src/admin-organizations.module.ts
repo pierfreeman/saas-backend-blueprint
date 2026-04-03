@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaBusinessModule } from '@libs/prisma-business';
 import { ActivityLogModule } from '@libs/activity-log';
 import { FeatureFlagsModule } from '@libs/feature-flags';
+import { LegalAuditModule } from '@libs/legal-audit';
 import { MembershipsModule } from '@libs/memberships';
 import { AdminOrganizationsRepository } from './infrastructure/repositories/admin-organizations.repository';
 import { AdminOrganizationsService } from './application/services/admin-organizations.service';
@@ -11,6 +12,7 @@ import { AdminOrganizationsService } from './application/services/admin-organiza
     PrismaBusinessModule,
     ActivityLogModule,
     FeatureFlagsModule,
+    LegalAuditModule,
     MembershipsModule,
   ],
   providers: [AdminOrganizationsRepository, AdminOrganizationsService],

@@ -1,12 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type {
-  Organization,
-  BillingStatus,
-  OrganizationStatus,
-} from '@libs/prisma-business';
-import { MembershipRole } from '@libs/prisma-business';
+import type { Organization, BillingStatus } from '@libs/prisma-business';
+import { MembershipRole, OrganizationStatus } from '@libs/prisma-business';
 import { ActivityLogService } from '@libs/activity-log';
 import { FeatureFlagsService } from '@libs/feature-flags';
+import { LegalAuditService } from '@libs/legal-audit';
 import { InviteMemberService } from '@libs/memberships';
 import { AdminOrganizationsRepository } from '../../infrastructure/repositories/admin-organizations.repository';
 import type {
@@ -28,6 +25,7 @@ export class AdminOrganizationsService {
     private readonly repository: AdminOrganizationsRepository,
     private readonly activityLog: ActivityLogService,
     private readonly featureFlags: FeatureFlagsService,
+    private readonly legalAudit: LegalAuditService,
     private readonly inviteMemberService: InviteMemberService,
   ) {}
 
@@ -102,6 +100,53 @@ export class AdminOrganizationsService {
     return items.map((org) => this.toListItem(org));
   }
 
+  /**
+   * Sets the lifecycle status of an organization (suspend or reactivate).
+   * Invalidates the feature-flags cache so suspended orgs stop serving entitlements.
+   *
+   * @throws NotFoundException if no organization with the given ID exists.
+   */
+  async setOrgStatus(
+    orgId: string,
+    status: OrganizationStatus,
+    reason: string | undefined,
+    actorAdminId: string,
+  ): Promise<AdminOrganizationListItem> {
+    const existing = await this.repository.findByIdWithMemberCount(orgId);
+    if (!existing) {
+      throw new NotFoundException(`Organization ${orgId} not found`);
+    }
+
+    const updated = await this.repository.updateStatus(orgId, status);
+
+    // Always invalidate the entitlements cache so the new status is reflected
+    // immediately — important when suspending (block access) and reactivating.
+    await this.featureFlags.invalidateEntitlements(orgId);
+
+    const action =
+      status === OrganizationStatus.SUSPENDED
+        ? 'organization.suspended'
+        : 'organization.reactivated';
+
+    this.activityLog.logActivity({
+      orgId,
+      actorId: actorAdminId,
+      action,
+      entityType: 'organization',
+      entityId: orgId,
+      metadata: { status, reason: reason ?? null },
+    });
+
+    this.legalAudit.recordEvent({
+      eventType: action,
+      orgId,
+      triggerType: 'admin_action',
+      metadata: { status, reason: reason ?? null, actorAdminId },
+    });
+
+    return this.toListItem(updated);
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   /**
@@ -137,6 +182,18 @@ export class AdminOrganizationsService {
         name: dto.name,
         ownerEmail: dto.ownerEmail,
         plan: dto.plan ?? null,
+      },
+    });
+
+    this.legalAudit.recordEvent({
+      eventType: 'organization.provisioned',
+      orgId: org.id,
+      triggerType: 'admin_action',
+      metadata: {
+        name: dto.name,
+        ownerEmail: dto.ownerEmail,
+        plan: dto.plan ?? null,
+        actorAdminId,
       },
     });
 

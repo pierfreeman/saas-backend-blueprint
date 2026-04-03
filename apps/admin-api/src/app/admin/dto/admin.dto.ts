@@ -47,6 +47,25 @@ export class AdminProvisionOrgDto {
   plan?: PlanTier;
 }
 
+export class AdminSetOrgStatusDto {
+  @ApiProperty({
+    enum: OrganizationStatus,
+    description: 'New organization lifecycle status',
+    example: OrganizationStatus.SUSPENDED,
+  })
+  @IsEnum(OrganizationStatus)
+  status!: OrganizationStatus;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional reason for the status change (e.g. policy violation)',
+    example: 'Unpaid invoices after 60-day grace period',
+  })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
 export class ListOrganizationsQueryDto {
   @ApiPropertyOptional({ description: 'Search by name or exact org ID' })
   @IsOptional()

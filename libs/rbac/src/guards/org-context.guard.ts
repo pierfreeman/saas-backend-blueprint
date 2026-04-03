@@ -20,7 +20,7 @@ import { MembershipsService } from '@libs/memberships';
 import { OrganizationsService } from '@libs/organizations';
 import { RequestUser, TenantRequest } from '@libs/common';
 import { ORG_SCOPED_KEY } from '../decorators/org-scoped.decorator';
-import { MembershipStatus } from '@libs/prisma-business';
+import { MembershipStatus, OrganizationStatus } from '@libs/prisma-business';
 
 export interface RequestWithOrgContext extends Request, TenantRequest {
   user: RequestUser & { dbUserId?: string };
@@ -133,6 +133,12 @@ export class OrgContextGuard implements CanActivate {
       throw new ForbiddenException(
         `Membership is ${membership.status.toLowerCase()}`,
       );
+    }
+
+    // Block access when the organization is suspended
+    const org = await this.orgsService.findById(orgId);
+    if (org.status === OrganizationStatus.SUSPENDED) {
+      throw new ForbiddenException('Organization is suspended');
     }
 
     // Inject context into the request

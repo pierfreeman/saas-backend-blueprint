@@ -14,6 +14,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -27,6 +28,7 @@ import {
 } from '@nestjs/swagger';
 import {
   AdminProvisionOrgDto,
+  AdminSetOrgStatusDto,
   ListOrganizationsQueryDto,
 } from './dto/admin.dto';
 
@@ -82,5 +84,30 @@ export class AdminOrganizationsController {
     @Param('orgId') orgId: string,
   ): Promise<AdminOrganizationDetail> {
     return this.adminOrgsService.getOrganizationDetail(orgId);
+  }
+
+  @Patch(':orgId/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Suspend or reactivate an organization (admin)' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Organization status updated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Organization not found.',
+  })
+  setOrgStatus(
+    @Param('orgId') orgId: string,
+    @Body() dto: AdminSetOrgStatusDto,
+    @CurrentAdminUserId() actorAdminId: string,
+  ): Promise<AdminOrganizationListItem> {
+    return this.adminOrgsService.setOrgStatus(
+      orgId,
+      dto.status,
+      dto.reason,
+      actorAdminId,
+    );
   }
 }

@@ -52,6 +52,17 @@ export class AdminOrganizationsRepository {
     });
   }
 
+  async updateStatus(
+    orgId: string,
+    status: OrganizationStatus,
+  ): Promise<OrgWithMemberCount> {
+    return this.prisma.organization.update({
+      where: { id: orgId },
+      data: { status },
+      include: { _count: { select: { memberships: true } } },
+    });
+  }
+
   private buildWhereClause(filters: {
     search?: string;
     status?: OrganizationStatus;
