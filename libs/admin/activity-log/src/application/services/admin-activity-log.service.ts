@@ -22,7 +22,13 @@ export class AdminActivityLogService {
     orgId: string,
     query: GetOrgActivityQuery = {},
   ): Promise<PaginatedAdminActivityResult> {
-    return this.activityLog.findByOrg(orgId, query);
+    const result = await this.activityLog.findByOrg(orgId, query);
+    return {
+      items: result.logs,
+      total: result.total,
+      limit: result.limit,
+      offset: result.offset,
+    };
   }
 
   /**

@@ -58,8 +58,8 @@ describe('AdminActivityLogRepository', () => {
       expect(result.total).toBe(1);
       expect(result.offset).toBe(0);
       expect(result.limit).toBe(100);
-      expect(result.logs).toHaveLength(1);
-      expect(result.logs[0]).toMatchObject({
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toMatchObject({
         id: 'log-1',
         orgId: 'org-1',
         actorId: 'user-1',
@@ -170,7 +170,7 @@ describe('AdminActivityLogRepository', () => {
 
       const result = await repository.findAll({});
 
-      expect(result.logs[0]).toEqual({
+      expect(result.items[0]).toEqual({
         id: log.id,
         orgId: log.orgId,
         actorId: log.actorId,
@@ -189,7 +189,7 @@ describe('AdminActivityLogRepository', () => {
 
       const result = await repository.findAll({});
 
-      expect(result.logs).toEqual([]);
+      expect(result.items).toEqual([]);
       expect(result.total).toBe(0);
     });
   });

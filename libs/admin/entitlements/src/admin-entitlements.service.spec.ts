@@ -6,6 +6,7 @@ import { FeatureFlagsService } from '@libs/feature-flags';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { UsersService } from '@libs/users';
+import { OrganizationsService } from '@libs/organizations';
 import type {
   OrganizationEntitlements,
   EntitlementOverrideRecord,
@@ -58,6 +59,10 @@ describe('AdminEntitlementsService', () => {
     findById: vi.fn(),
   };
 
+  const mockOrganizationsService = {
+    findById: vi.fn(),
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -67,6 +72,7 @@ describe('AdminEntitlementsService', () => {
         { provide: ActivityLogService, useValue: mockActivityLog },
         { provide: LegalAuditService, useValue: mockLegalAudit },
         { provide: UsersService, useValue: mockUsersService },
+        { provide: OrganizationsService, useValue: mockOrganizationsService },
       ],
     }).compile();
 
@@ -75,16 +81,29 @@ describe('AdminEntitlementsService', () => {
 
   describe('getEntitlements', () => {
     it('delegates to FeatureFlagsService.getEntitlements', async () => {
+      mockOrganizationsService.findById.mockResolvedValue({ id: 'org-1' });
       mockFeatureFlagsService.getEntitlements.mockResolvedValue(
         mockEntitlements,
       );
 
       const result = await service.getEntitlements('org-1');
 
+      expect(mockOrganizationsService.findById).toHaveBeenCalledWith('org-1');
       expect(mockFeatureFlagsService.getEntitlements).toHaveBeenCalledWith(
         'org-1',
       );
       expect(result).toEqual(mockEntitlements);
+    });
+
+    it('throws NotFoundException when org does not exist', async () => {
+      mockOrganizationsService.findById.mockRejectedValue(
+        new NotFoundException('Organization org-none not found'),
+      );
+
+      await expect(service.getEntitlements('org-none')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockFeatureFlagsService.getEntitlements).not.toHaveBeenCalled();
     });
   });
 

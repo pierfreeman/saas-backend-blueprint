@@ -129,7 +129,7 @@ describe('Planning Events (integration)', () => {
     let token: string;
 
     beforeAll(async () => {
-      const ctx = await seedFullOrg(prisma);
+      const ctx = await seedFullOrg(prisma, { plan: 'PRO' });
       orgId = ctx.org.id;
       token = generateTestToken({ sub: ctx.owner.auth0Id });
     });
@@ -279,7 +279,10 @@ describe('Planning Events (integration)', () => {
     let createdEventId: string;
 
     beforeAll(async () => {
-      const ctx = await seedFullOrg(prisma, { withReadOnly: true });
+      const ctx = await seedFullOrg(prisma, {
+        withReadOnly: true,
+        plan: 'PRO',
+      });
       orgId = ctx.org.id;
       const readOnly = ctx.readOnly;
       if (!readOnly) throw new Error('Expected readOnly member in test org');
@@ -384,7 +387,7 @@ describe('Planning Events (integration)', () => {
 
   describe('Conflicts', () => {
     it('returns overlapping occurrences where current user is creator or attendee', async () => {
-      const ctx = await seedFullOrg(prisma, { withMember: true });
+      const ctx = await seedFullOrg(prisma, { withMember: true, plan: 'PRO' });
       if (!ctx.member) throw new Error('Expected member in seeded org');
       const orgId = ctx.org.id;
       const ownerToken = generateTestToken({ sub: ctx.owner.auth0Id });

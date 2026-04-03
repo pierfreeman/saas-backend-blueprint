@@ -20,6 +20,7 @@ import { MembershipsService } from '@libs/memberships';
 import { OrganizationsService } from '@libs/organizations';
 import { RequestUser, TenantRequest } from '@libs/common';
 import { ORG_SCOPED_KEY } from '../decorators/org-scoped.decorator';
+import { ALLOW_SUSPENDED_KEY } from '../decorators/allow-suspended.decorator';
 import { MembershipStatus, OrganizationStatus } from '@libs/prisma-business';
 
 export interface RequestWithOrgContext extends Request, TenantRequest {
@@ -65,6 +66,11 @@ export class OrgContextGuard implements CanActivate {
 
     const isOrgScoped = this.reflector.getAllAndOverride<boolean>(
       ORG_SCOPED_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    const allowSuspended = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_SUSPENDED_KEY,
       [context.getHandler(), context.getClass()],
     );
 
@@ -135,10 +141,13 @@ export class OrgContextGuard implements CanActivate {
       );
     }
 
-    // Block access when the organization is suspended
-    const org = await this.orgsService.findById(orgId);
-    if (org.status === OrganizationStatus.SUSPENDED) {
-      throw new ForbiddenException('Organization is suspended');
+    // Block access when the organization is suspended, unless the endpoint
+    // explicitly opts out with @AllowSuspended() (e.g. GDPR export/deletion).
+    if (!allowSuspended) {
+      const org = await this.orgsService.findById(orgId);
+      if (org.status === OrganizationStatus.SUSPENDED) {
+        throw new ForbiddenException('Organization is suspended');
+      }
     }
 
     // Inject context into the request

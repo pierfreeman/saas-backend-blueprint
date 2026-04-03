@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { BillingStatus } from '@libs/prisma-business';
 import { BillingService } from '@libs/billing';
 import { AdminBillingRepository } from '../../infrastructure/repositories/admin-billing.repository';
@@ -43,9 +47,19 @@ export class AdminBillingService {
    * the redirect URL. Allows the admin to manage subscriptions on behalf of
    * the tenant without logging in as a tenant user.
    *
-   * @throws NotFoundException (propagated from BillingService) if org not found.
+   * @throws NotFoundException if org not found.
+   * @throws BadRequestException if org has no Stripe customer ID.
    */
   async getPortalUrl(input: GetPortalUrlInput): Promise<{ url: string }> {
+    const org = await this.repository.findOrgBillingFields(input.orgId);
+    if (!org) {
+      throw new NotFoundException(`Organization ${input.orgId} not found`);
+    }
+    if (!org.stripeCustomerId) {
+      throw new BadRequestException(
+        `Organization ${input.orgId} has no Stripe customer ID`,
+      );
+    }
     return this.billingService.createPortalSession(
       input.orgId,
       input.returnUrl,

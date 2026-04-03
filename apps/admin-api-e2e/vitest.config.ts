@@ -16,10 +16,17 @@ const workspaceRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 export default defineConfig({
   resolve: {
     alias: [
+      // Nested lib packages: @libs/admin/auth → libs/admin/auth/src/index.ts
+      {
+        find: /^@libs\/([^/]+)\/([^/]+)$/,
+        replacement: resolve(workspaceRoot, 'libs/$1/$2/src/index.ts'),
+      },
+      // Top-level lib packages: @libs/activity-log → libs/activity-log/src/index.ts
       {
         find: /^@libs\/([^/]+)$/,
         replacement: resolve(workspaceRoot, 'libs/$1/src/index.ts'),
       },
+      // Sub-path in top-level lib: @libs/activity-log/services/foo
       {
         find: /^@libs\/([^/]+)\/(.+)$/,
         replacement: resolve(workspaceRoot, 'libs/$1/src/$2'),

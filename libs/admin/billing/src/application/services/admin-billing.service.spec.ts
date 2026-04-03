@@ -86,7 +86,10 @@ describe('AdminBillingService', () => {
   });
 
   describe('getPortalUrl', () => {
-    it('delegates to BillingService.createPortalSession', async () => {
+    it('delegates to BillingService.createPortalSession when org has Stripe customer', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(
+        mockOrgBillingFields,
+      );
       mockBillingService.createPortalSession.mockResolvedValue({
         url: 'https://billing.stripe.com/session/abc',
       });
@@ -103,6 +106,35 @@ describe('AdminBillingService', () => {
         'admin-user-1',
       );
       expect(result.url).toContain('stripe.com');
+    });
+
+    it('throws NotFoundException when org does not exist', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(null);
+
+      await expect(
+        service.getPortalUrl({
+          orgId: 'missing-id',
+          returnUrl: 'https://app.example.com',
+          actorAdminId: 'admin-1',
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockBillingService.createPortalSession).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when org has no Stripe customer ID', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue({
+        ...mockOrgBillingFields,
+        stripeCustomerId: null,
+      });
+
+      await expect(
+        service.getPortalUrl({
+          orgId: 'org-1',
+          returnUrl: 'https://app.example.com',
+          actorAdminId: 'admin-1',
+        }),
+      ).rejects.toThrow('no Stripe customer ID');
+      expect(mockBillingService.createPortalSession).not.toHaveBeenCalled();
     });
   });
 });

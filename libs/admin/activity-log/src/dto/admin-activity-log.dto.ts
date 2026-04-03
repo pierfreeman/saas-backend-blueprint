@@ -22,7 +22,7 @@ export interface GetAllActivityQuery extends GetOrgActivityQuery {
 // ── Response shapes ──────────────────────────────────────────────────────────
 
 export interface PaginatedAdminActivityResult {
-  logs: ActivityLogRecord[];
+  items: ActivityLogRecord[];
   total: number;
   limit: number;
   offset: number;

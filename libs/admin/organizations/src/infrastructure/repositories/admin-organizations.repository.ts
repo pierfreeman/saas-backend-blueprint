@@ -6,6 +6,9 @@ import {
 } from '@libs/prisma-business';
 import { PrismaBusinessService } from '@libs/prisma-business';
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type OrgWithMemberCount = Organization & { _count: { memberships: number } };
 
 @Injectable()
@@ -71,9 +74,10 @@ export class AdminOrganizationsRepository {
 
     if (filters.search) {
       const trimmed = filters.search.trim();
+      const isUuid = UUID_REGEX.test(trimmed);
       where.OR = [
         { name: { contains: trimmed, mode: 'insensitive' } },
-        { id: trimmed },
+        ...(isUuid ? [{ id: trimmed }] : []),
       ];
     }
 

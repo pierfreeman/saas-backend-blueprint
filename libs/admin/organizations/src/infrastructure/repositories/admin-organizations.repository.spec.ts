@@ -89,7 +89,7 @@ describe('AdminOrganizationsRepository', () => {
       );
     });
 
-    it('builds OR clause when search filter is provided', async () => {
+    it('builds OR clause with only name filter when search is not a UUID', async () => {
       mockPrisma.organization.findMany.mockResolvedValue([]);
       mockPrisma.organization.count.mockResolvedValue(0);
 
@@ -101,9 +101,25 @@ describe('AdminOrganizationsRepository', () => {
       expect(mockPrisma.organization.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
+            OR: [{ name: { contains: 'Acme', mode: 'insensitive' } }],
+          }),
+        }),
+      );
+    });
+
+    it('builds OR clause with name and id filters when search is a valid UUID', async () => {
+      mockPrisma.organization.findMany.mockResolvedValue([]);
+      mockPrisma.organization.count.mockResolvedValue(0);
+
+      const uuid = 'a1b2c3d4-e5f6-4789-ab01-cd2345ef6789';
+      await repository.findAll({ search: uuid }, { limit: 20, offset: 0 });
+
+      expect(mockPrisma.organization.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
             OR: [
-              { name: { contains: 'Acme', mode: 'insensitive' } },
-              { id: 'Acme' },
+              { name: { contains: uuid, mode: 'insensitive' } },
+              { id: uuid },
             ],
           }),
         }),

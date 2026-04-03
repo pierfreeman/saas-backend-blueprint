@@ -16,10 +16,8 @@ export class AdminActivityLogRepository {
    * When `orgId` is provided, scopes to that org; otherwise returns logs from
    * all organizations (for the global admin feed).
    */
-  async findAll(
-    query: GetAllActivityQuery,
-  ): Promise<{
-    logs: ActivityLogRecord[];
+  async findAll(query: GetAllActivityQuery): Promise<{
+    items: ActivityLogRecord[];
     total: number;
     limit: number;
     offset: number;
@@ -45,7 +43,7 @@ export class AdminActivityLogRepository {
       this.prisma.activityLog.count({ where }),
     ]);
 
-    return { logs: rows.map(this.toRecord), total, limit, offset };
+    return { items: rows.map(this.toRecord), total, limit, offset };
   }
 
   private toRecord(log: ActivityLog): ActivityLogRecord {

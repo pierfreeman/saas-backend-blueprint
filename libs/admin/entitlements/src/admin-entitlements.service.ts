@@ -8,6 +8,7 @@ import {
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { UsersService } from '@libs/users';
+import { OrganizationsService } from '@libs/organizations';
 
 export type { EntitlementOverrideRecord, SetOverrideParams };
 
@@ -22,9 +23,12 @@ export class AdminEntitlementsService {
     private readonly activityLog: ActivityLogService,
     private readonly legalAudit: LegalAuditService,
     private readonly usersService: UsersService,
+    private readonly organizationsService: OrganizationsService,
   ) {}
 
-  getEntitlements(orgId: string): Promise<OrganizationEntitlements> {
+  async getEntitlements(orgId: string): Promise<OrganizationEntitlements> {
+    // Throws NotFoundException if org does not exist.
+    await this.organizationsService.findById(orgId);
     return this.featureFlagsService.getEntitlements(orgId);
   }
 

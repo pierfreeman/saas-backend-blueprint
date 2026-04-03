@@ -63,7 +63,7 @@ describe('AdminActivityLogService', () => {
         action: 'membership.',
       });
       expect(result.total).toBe(1);
-      expect(result.logs[0].orgId).toBe('org-1');
+      expect(result.items[0].orgId).toBe('org-1');
     });
 
     it('uses empty options when none provided', async () => {
@@ -77,7 +77,12 @@ describe('AdminActivityLogService', () => {
 
   describe('getAllActivity', () => {
     it('delegates to repository.findAll for cross-org query', async () => {
-      mockRepository.findAll.mockResolvedValue(paginatedResult);
+      mockRepository.findAll.mockResolvedValue({
+        items: [mockLog],
+        total: 1,
+        limit: 100,
+        offset: 0,
+      });
 
       const result = await service.getAllActivity({
         orgId: 'org-1',
@@ -90,14 +95,15 @@ describe('AdminActivityLogService', () => {
         limit: 50,
         offset: 10,
       });
-      expect(result.logs).toHaveLength(1);
+      expect(result.items).toHaveLength(1);
     });
 
     it('passes empty query when no filters provided', async () => {
       mockRepository.findAll.mockResolvedValue({
-        ...paginatedResult,
+        items: [],
         total: 0,
-        logs: [],
+        limit: 100,
+        offset: 0,
       });
 
       await service.getAllActivity();

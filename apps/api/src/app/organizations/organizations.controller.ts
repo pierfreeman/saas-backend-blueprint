@@ -30,6 +30,7 @@ import {
   RequireRole,
   OrgContextGuard,
   RBACGuard,
+  AllowSuspended,
 } from '@libs/rbac';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
@@ -288,6 +289,7 @@ export class OrganizationsController {
   @Post(':id/delete')
   @HttpCode(HttpStatus.ACCEPTED)
   @OrgScoped()
+  @AllowSuspended()
   @UseGuards(OrgContextGuard, RBACGuard)
   @RequireRole(MembershipRole.OWNER)
   @ApiOperation({
@@ -362,6 +364,7 @@ export class OrganizationsController {
   @Post(':id/export')
   @HttpCode(HttpStatus.ACCEPTED)
   @OrgScoped()
+  @AllowSuspended()
   @UseGuards(OrgContextGuard, RBACGuard)
   @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
   @ApiOperation({
@@ -423,6 +426,7 @@ export class OrganizationsController {
 
   @Get(':id/exports/:exportId')
   @OrgScoped()
+  @AllowSuspended()
   @UseGuards(OrgContextGuard, RBACGuard)
   @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
   @ApiOperation({
@@ -466,6 +470,7 @@ export class OrganizationsController {
 
   @Get(':id/exports')
   @OrgScoped()
+  @AllowSuspended()
   @UseGuards(OrgContextGuard, RBACGuard)
   @RequireRole(MembershipRole.OWNER, MembershipRole.ADMIN)
   @ApiOperation({
