@@ -164,6 +164,24 @@ describe('AdminOrganizationsService', () => {
       expect(result.stripeCustomerId).toBe('cus_abc');
     });
 
+    it('returns null for nullable stripe fields when org has no billing data', async () => {
+      const orgNoBilling = {
+        ...mockOrg,
+        stripeCustomerId: null,
+        subscriptionId: null,
+        subscriptionPeriodEnd: null,
+      };
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(orgNoBilling);
+      mockActivityLog.findByOrg.mockResolvedValue(mockActivity);
+      mockFeatureFlags.getEntitlements.mockResolvedValue(mockEntitlements);
+
+      const result = await service.getOrganizationDetail('org-1');
+
+      expect(result.stripeCustomerId).toBeNull();
+      expect(result.subscriptionId).toBeNull();
+      expect(result.subscriptionPeriodEnd).toBeNull();
+    });
+
     it('throws NotFoundException when org does not exist', async () => {
       mockRepository.findByIdWithMemberCount.mockResolvedValue(null);
 
