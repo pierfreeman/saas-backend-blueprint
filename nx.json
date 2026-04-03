@@ -39,6 +39,7 @@
       "exclude": [
         "apps/saas-backend-e2e/**/*",
         "apps/api-e2e/**/*",
+        "apps/admin-api-e2e/**/*",
         "apps/lambda-a-e2e/**/*",
         "apps/worker-a-e2e/**/*"
       ]

@@ -145,6 +145,20 @@ jobs:
           EVENT_BUS_TRANSPORT: local
           PORT: '0'
 
+      - name: E2E — admin-api-e2e
+        run: npx nx e2e admin-api-e2e --coverage
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6380
+          REDIS_PASSWORD: ''
+          AUTH0_DOMAIN: test.auth0.local
+          AUTH0_AUDIENCE: https://api.test.local
+          EVENT_BUS_TRANSPORT: local
+          PORT: '0'
+
       - name: E2E — worker-a-e2e
         run: npx nx e2e worker-a-e2e --coverage
         env:
