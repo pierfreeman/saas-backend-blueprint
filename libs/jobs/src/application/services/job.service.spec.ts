@@ -87,6 +87,40 @@ describe('JobService', () => {
     });
   });
 
+  // ── delete ────────────────────────────────────────────────────────────────
+
+  describe('delete', () => {
+    it('delegates to repository', async () => {
+      await service.delete('job-1');
+      expect(mockRepo.delete).toHaveBeenCalledWith('job-1');
+    });
+  });
+
+  // ── markProcessing ────────────────────────────────────────────────────────
+
+  describe('markProcessing', () => {
+    it('delegates to repository', async () => {
+      await service.markProcessing('job-1');
+      expect(mockRepo.markProcessing).toHaveBeenCalledWith('job-1');
+    });
+
+    it('fires activityLog when orgId is provided', async () => {
+      await service.markProcessing('job-1', 'org-1', 'user-1');
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'job.processing',
+          orgId: 'org-1',
+          entityId: 'job-1',
+        }),
+      );
+    });
+
+    it('skips activityLog when orgId is not provided', async () => {
+      await service.markProcessing('job-1');
+      expect(mockActivityLog.logActivity).not.toHaveBeenCalled();
+    });
+  });
+
   // ── findByIdAndOrg ────────────────────────────────────────────────────────
 
   describe('findByIdAndOrg', () => {
