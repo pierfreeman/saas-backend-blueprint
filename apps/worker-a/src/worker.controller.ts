@@ -32,8 +32,8 @@ export interface HeavyJobPayload extends Record<string, unknown> {
   data: Record<string, unknown>;
 }
 
-export { UserInvitedPayload } from '@libs/memberships';
-export {
+export type { UserInvitedPayload } from '@libs/memberships';
+export type {
   PlanChangedPayload,
   PaymentSucceededPayload,
   SubscriptionCancelledPayload,
