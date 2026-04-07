@@ -153,4 +153,8 @@ export class OrgExportService {
   async listExports(orgId: string, limit = 10, offset = 0) {
     return this.repo.findExportsByOrg(orgId, limit, offset);
   }
+
+  async countExports(orgId: string): Promise<number> {
+    return this.repo.countByOrg(orgId);
+  }
 }

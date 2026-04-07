@@ -329,3 +329,30 @@ export class SetFeatureFlagOverrideDto {
   @IsDateString()
   expiresAt?: string;
 }
+
+// ── Exports ───────────────────────────────────────────────────────────────────
+
+export class AdminListExportsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Max results (1–100)',
+    example: 10,
+    default: 10,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 10;
+
+  @ApiPropertyOptional({
+    description: 'Skip N items for pagination',
+    example: 0,
+    default: 0,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number = 0;
+}
