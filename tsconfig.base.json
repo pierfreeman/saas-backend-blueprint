@@ -203,6 +203,9 @@
       ],
       "@libs/admin/entitlements": [
         "libs/admin/entitlements/src/index.ts"
+      ],
+      "@libs/admin/jobs": [
+        "libs/admin/jobs/src/index.ts"
       ]
     }
   },

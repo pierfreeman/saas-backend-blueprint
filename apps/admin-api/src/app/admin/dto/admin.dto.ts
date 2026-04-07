@@ -1,4 +1,8 @@
-import { MembershipRole, OrganizationStatus } from '@libs/prisma-business';
+import {
+  JobStatus,
+  MembershipRole,
+  OrganizationStatus,
+} from '@libs/prisma-business';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
@@ -230,6 +234,50 @@ export class AdminAllActivityQueryDto extends AdminActivityQueryDto {
   @IsOptional()
   @IsString()
   orgId?: string;
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────────
+
+export class AdminListJobsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Max results (1–200)',
+    example: 50,
+    default: 50,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'Skip N items for pagination',
+    example: 0,
+    default: 0,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
+
+  @ApiPropertyOptional({
+    enum: JobStatus,
+    description: 'Filter by job status',
+    example: JobStatus.FAILED,
+  })
+  @IsOptional()
+  @IsEnum(JobStatus)
+  status?: JobStatus;
+
+  @ApiPropertyOptional({
+    description: 'Filter by job type (exact match)',
+    example: 'ORG_EXPORT',
+  })
+  @IsOptional()
+  @IsString()
+  type?: string;
 }
 
 // ── Feature flag overrides ────────────────────────────────────────────────────

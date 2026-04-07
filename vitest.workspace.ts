@@ -38,6 +38,7 @@ export default defineWorkspace([
   'libs/admin/billing/vitest.config.ts',
   'libs/admin/activity-log/vitest.config.ts',
   'libs/admin/entitlements/vitest.config.ts',
+  'libs/admin/jobs/vitest.config.ts',
   'libs/redis/vitest.config.ts',
   'libs/security/vitest.config.ts',
   'libs/storage/vitest.config.ts',
