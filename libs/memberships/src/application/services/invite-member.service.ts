@@ -7,12 +7,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MembershipRole } from '@libs/prisma-business';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 import { MembershipsService } from './memberships.service';
 import { OrganizationsService } from '@libs/organizations';
 import { UsersService } from '@libs/users';
 import { EventBusService, DOMAIN_EVENTS } from '@libs/events';
-import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
-import { Auth0ManagementService } from '@libs/auth/infrastructure/clients/auth0-management.service';
+import { PENDING_USER_PREFIX, IIdentityProvider } from '@libs/common';
 
 export interface InviteMemberResult {
   message: string;
@@ -45,9 +46,11 @@ export class InviteMemberService {
     private readonly usersService: UsersService,
     private readonly membershipsService: MembershipsService,
     private readonly organizationsService: OrganizationsService,
-    private readonly auth0ManagementService: Auth0ManagementService,
+    private readonly identityProvider: IIdentityProvider,
     private readonly configService: ConfigService,
     private readonly eventBus: EventBusService,
+    private readonly activityLog: ActivityLogService,
+    private readonly legalAudit: LegalAuditService,
   ) {}
 
   async invite(
@@ -55,6 +58,7 @@ export class InviteMemberService {
     role: MembershipRole,
     orgId: string,
     inviterUserId: string,
+    triggerType = 'user_action',
   ): Promise<InviteMemberResult> {
     const normalizedEmail = email.toLowerCase();
 
@@ -75,9 +79,25 @@ export class InviteMemberService {
       // Create a placeholder Prisma record. The auth0Id is replaced with the
       // real Auth0 sub on the user's first login (see AuthService.syncUser).
       user = await this.usersService.createUser(
-        `${PENDING_AUTH0_ID_PREFIX}${randomUUID()}`,
+        `${PENDING_USER_PREFIX}${randomUUID()}`,
         normalizedEmail,
       );
+
+      this.activityLog.logActivity({
+        orgId,
+        actorId: inviterUserId,
+        action: 'user.created.pending',
+        entityType: 'user',
+        entityId: user.id,
+        metadata: { email: normalizedEmail, triggerType },
+      });
+      this.legalAudit.recordEvent({
+        eventType: 'user.created.pending',
+        orgId,
+        userId: inviterUserId,
+        triggerType,
+        metadata: { createdUserId: user.id },
+      });
     }
 
     // 3. Guard: prevent duplicate membership
@@ -91,11 +111,15 @@ export class InviteMemberService {
       );
     }
 
-    // 4. Create membership
+    // 4. Create membership — INVITED only for new/pending users (no real Auth0 ID yet).
+    //    Existing users already have an Auth0 account so their membership is immediately
+    //    usable; marking them INVITED would leave them stuck on a badge they can never clear.
+    const isPendingUser = user.auth0Id.startsWith(PENDING_USER_PREFIX);
     await this.membershipsService.createMembership(
       orgId,
-      { userId: user.id, role },
+      { userId: user.id, role, status: isPendingUser ? 'INVITED' : 'ACTIVE' },
       inviterUserId,
+      triggerType,
     );
 
     // 5. Send passwordless magic-link unless the user is on a social connection.
@@ -103,7 +127,7 @@ export class InviteMemberService {
     //    passwordless link — Auth0 returns 400 (connection mismatch) for them.
     //    New/pending users and database-connection users (auth0|) can.
     const isSocialConnection =
-      !user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX) &&
+      !user.auth0Id.startsWith(PENDING_USER_PREFIX) &&
       !user.auth0Id.startsWith('auth0|');
 
     const baseUrl =
@@ -114,7 +138,7 @@ export class InviteMemberService {
       const redirectUri = `${baseUrl}/auth/callback`;
 
       try {
-        await this.auth0ManagementService.sendPasswordlessLink(
+        await this.identityProvider.sendInviteLink(
           normalizedEmail,
           redirectUri,
         );

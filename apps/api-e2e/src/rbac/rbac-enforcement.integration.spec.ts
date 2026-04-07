@@ -18,7 +18,7 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { bootstrapTestApp } from '../support/app-bootstrap';
-import { setupNockAuth, teardownNockAuth } from '../support/nock-auth';
+import { setupNockAuth, teardownNockAuth } from '@test/support/nock-auth';
 import { generateTestToken } from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';

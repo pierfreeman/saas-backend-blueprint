@@ -1,0 +1,156 @@
+# ─── docker-compose.dev.yml ───────────────────────────────────────────────────
+# Local development: infrastructure only.  App services run on the host via
+# `npx nx serve <app>` for instant reload — no image rebuilds.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d          # start infra
+#   npx nx serve api                                         # start API (host)
+#   npx nx serve admin-api                                   # start admin-api
+#   npx nx serve worker-a                                    # start worker
+#
+# Migrations (on-demand, not automatic):
+#   npx prisma migrate dev                                   # business DB
+#   npx prisma migrate dev --config prisma.config.legal.ts   # legal DB
+#
+# Or via the migrate containers:
+#   docker compose -f docker-compose.dev.yml run --rm migrate
+#   docker compose -f docker-compose.dev.yml run --rm migrate-legal
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ─── Mailpit (local email catcher) ──────────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # Web UI
+
+  # ─── PostgreSQL (Business DB) ──────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-saas_backend}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-saas_backend}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── PostgreSQL (Legal Audit DB) ──────────────────────────────────────────
+  postgres-legal:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_LEGAL_DB:-saas_legal_audit}
+    ports:
+      - '${POSTGRES_LEGAL_PORT:-5434}:5432'
+    volumes:
+      - postgres_legal_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_LEGAL_DB:-saas_legal_audit}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '${REDIS_HOST_PORT:-6380}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── LocalStack (SQS, S3) ──────────────────────────────────────────────────
+  localstack:
+    image: localstack/localstack:3
+    restart: unless-stopped
+    ports:
+      - '4566:4566'
+    environment:
+      SERVICES: sqs,s3
+      DEFAULT_REGION: us-east-1
+      PERSISTENCE: 0
+    volumes:
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/01-init.sh:ro
+      - localstack_data:/var/lib/localstack
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4566/_localstack/health']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  # ─── Stripe CLI (webhook forwarder — dev only) ─────────────────────────────
+  stripe-cli:
+    image: stripe/stripe-cli
+    command: >
+      listen
+      --forward-to http://host.docker.internal:3000/billing/webhook
+      --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,invoice.payment_succeeded,invoice.payment_failed
+    environment:
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_DEVICE_NAME: saas-local
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    restart: on-failure
+    profiles:
+      - stripe
+
+  # ─── Migrate (on-demand, not automatic) ────────────────────────────────────
+  # Run manually:  docker compose -f docker-compose.dev.yml run --rm migrate
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+    restart: on-failure
+
+  migrate-legal:
+    build:
+      context: .
+      target: migrate
+    command: npx prisma migrate deploy --config prisma.config.legal.ts
+    environment:
+      LEGAL_AUDIT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres-legal:5432/${POSTGRES_LEGAL_DB:-saas_legal_audit}
+    depends_on:
+      postgres-legal:
+        condition: service_healthy
+    profiles:
+      - migrate
+    restart: on-failure
+
+volumes:
+  postgres_data:
+  postgres_legal_data:
+  redis_data:
+  localstack_data:

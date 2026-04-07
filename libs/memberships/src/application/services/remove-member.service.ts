@@ -1,7 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { UsersService } from '@libs/users';
-import { PENDING_AUTH0_ID_PREFIX } from '@libs/auth/constants';
-import { Auth0ManagementService } from '@libs/auth/infrastructure/clients/auth0-management.service';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
+import { PENDING_USER_PREFIX, IIdentityProvider } from '@libs/common';
 import { MembershipsService } from './memberships.service';
 
 @Injectable()
@@ -11,7 +12,9 @@ export class RemoveMemberService {
   constructor(
     private readonly membershipsService: MembershipsService,
     private readonly usersService: UsersService,
-    private readonly auth0ManagementService: Auth0ManagementService,
+    private readonly identityProvider: IIdentityProvider,
+    private readonly activityLog: ActivityLogService,
+    private readonly legalAudit: LegalAuditService,
   ) {}
 
   /**
@@ -26,6 +29,7 @@ export class RemoveMemberService {
     membershipId: string,
     orgId: string,
     actorUserId?: string,
+    triggerType = 'user_action',
   ): Promise<void> {
     // 1. Fetch BEFORE deletion to capture userId for cleanup check
     const membership = await this.membershipsService.findById(membershipId);
@@ -39,6 +43,7 @@ export class RemoveMemberService {
       membershipId,
       orgId,
       actorUserId,
+      triggerType,
     );
 
     // 3. Check whether the user still belongs to any organization
@@ -53,14 +58,30 @@ export class RemoveMemberService {
     if (!user) return;
 
     // Delete Auth0 user first (best-effort; non-fatal if it fails)
-    if (user.auth0Id.startsWith(PENDING_AUTH0_ID_PREFIX)) {
+    if (user.auth0Id.startsWith(PENDING_USER_PREFIX)) {
       this.logger.log(
         `Skipping Auth0 deletion for pending user ${userId} (never logged in)`,
       );
     } else {
       try {
-        await this.auth0ManagementService.deleteUser(user.auth0Id);
+        await this.identityProvider.deleteUser(user.auth0Id);
         this.logger.log(`Deleted Auth0 user ${user.auth0Id}`);
+
+        this.activityLog.logActivity({
+          orgId,
+          actorId: actorUserId,
+          action: 'user.auth0.deleted',
+          entityType: 'user',
+          entityId: userId,
+          metadata: { triggerType },
+        });
+        this.legalAudit.recordEvent({
+          eventType: 'user.auth0.deleted',
+          orgId,
+          userId: actorUserId,
+          triggerType,
+          metadata: { deletedUserId: userId },
+        });
       } catch (err) {
         this.logger.warn(
           `Could not delete Auth0 user ${user.auth0Id} — manual cleanup may be required. ` +
@@ -72,5 +93,21 @@ export class RemoveMemberService {
     // Delete the Prisma user record (cascades any leftover memberships)
     await this.usersService.deleteUser(userId);
     this.logger.log(`Deleted Prisma user ${userId}`);
+
+    this.activityLog.logActivity({
+      orgId,
+      actorId: actorUserId,
+      action: 'user.deleted',
+      entityType: 'user',
+      entityId: userId,
+      metadata: { triggerType },
+    });
+    this.legalAudit.recordEvent({
+      eventType: 'user.deleted',
+      orgId,
+      userId: actorUserId,
+      triggerType,
+      metadata: { deletedUserId: userId },
+    });
   }
 }

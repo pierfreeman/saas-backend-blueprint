@@ -8,6 +8,7 @@ import { OrgDeletionModule } from '@libs/org-deletion';
 import { OrgExportModule } from '@libs/org-export';
 import { MembershipsModule } from '@libs/memberships';
 import { BillingModule } from '@libs/billing';
+import { Auth0Module } from '@libs/auth0';
 import { WorkerController } from './worker.controller';
 import { SqsConsumerService } from './sqs-consumer.service';
 
@@ -25,6 +26,7 @@ import { SqsConsumerService } from './sqs-consumer.service';
     EventsModule,
     OrgDeletionModule,
     OrgExportModule,
+    Auth0Module,
     MembershipsModule,
     BillingModule,
   ],

@@ -1,0 +1,28 @@
+{
+  "name": "admin-entitlements",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/admin/entitlements/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:admin"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/admin/entitlements"],
+      "options": {
+        "configFile": "libs/admin/entitlements/vitest.config.ts",
+        "passWithNoTests": true
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/admin/entitlements/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

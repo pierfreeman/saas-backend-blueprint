@@ -30,9 +30,17 @@ saas-backend-blueprint/
 │   ├── worker-a/      ← SQS async job worker
 │   └── worker-a-e2e/
 ├── libs/              ← All shared domain and infrastructure libraries
+│   ├── admin/         ← System-admin backoffice (Pattern D / B subdirectory)
+│   │   ├── auth/            ← SystemAdminGuard + CurrentAdminUserId decorator
+│   │   ├── activity-log/    ← Cross-org + per-org log queries
+│   │   ├── billing/         ← Billing overview + Stripe portal delegation
+│   │   ├── entitlements/    ← Read / invalidate plan entitlement cache
+│   │   ├── memberships/     ← List / invite / change-role / remove across all orgs
+│   │   └── organizations/   ← List all orgs + Customer 360 detail
+│   └── ...            ← all other domain libs
 ├── prisma/
 │   ├── schema.prisma        ← Business DB: generator + datasource only
-│   ├── user.prisma          ← User model
+│   ├── user.prisma          ← User model (incl. isSystemAdmin flag)
 │   ├── organization.prisma  ← Organization, enums
 │   ├── membership.prisma    ← Membership, enums
 │   ├── activity-log.prisma  ← ActivityLog
@@ -43,7 +51,7 @@ saas-backend-blueprint/
 │   └── planning.prisma      ← Event, EventAttendee, EventException, enums
 ├── prisma-legal/
 │   └── schema.prisma        ← Legal audit DB (separate connection)
-└── scripts/           ← LocalStack + migration helpers
+└── scripts/           ← LocalStack + migration helpers (incl. promote-admin.mjs)
 ```
 
 **Stack:** Nx · NestJS · TypeScript · Prisma · PostgreSQL · Redis · SQS (LocalStack in dev).
@@ -309,6 +317,25 @@ export class MembershipsController {
 
 ---
 
+### The `libs/admin/` sub-namespace
+
+The admin backoffice libraries live under `libs/admin/` as a logical namespace. They follow the same pattern rules as any other lib, but they all share one additional constraint:
+
+> **Admin libs never import tenant-scoped guards or the `OrgContextGuard`. They bypass normal tenant isolation entirely and operate across all organizations. Access is gated exclusively by `SystemAdminGuard`.**
+
+| Library               | Pattern | Responsibility                                                                                                                                     |
+| --------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin/auth`          | D       | `SystemAdminGuard`, `CurrentAdminUserId` decorator                                                                                                 |
+| `admin/organizations` | B       | List all orgs + Customer 360 detail view                                                                                                           |
+| `admin/memberships`   | B       | List / invite / change-role / remove across any org                                                                                                |
+| `admin/billing`       | B       | Billing overview + Stripe portal delegation                                                                                                        |
+| `admin/activity-log`  | B       | Per-org and cross-org activity log queries                                                                                                         |
+| `admin/entitlements`  | E       | Read effective entitlements, set / delete per-org overrides (reason, expiry, audit trail), resolve `createdBy` UUID to user name, invalidate cache |
+
+The `isSystemAdmin` flag on `User` is the single gate. It is **never written by the Auth0 login flow** — only by `scripts/promote-admin.mjs`. See `SystemAdminGuard` in `libs/admin/auth` and the root README for the full admin portal reference.
+
+---
+
 ## 3. Decision tree: which pattern to use?
 
 Follow this decision tree top-to-bottom:
@@ -542,11 +569,14 @@ Import lib modules in your `app.module.ts`:
 export class AppModule {}
 ```
 
-### Step 4 — Add Dockerfile and Nx project config
+### Step 4 — Add to Nx project config
 
-Copy the structure from `apps/worker-a/Dockerfile` as a reference for async workers, or `apps/api/Dockerfile` for HTTP servers.
+Create `project.json` following the existing apps as a template. The unified `Dockerfile` at the repo root supports any app via `--build-arg APP_NAME=<name>` — no per-app Dockerfile needed.
 
-Register the app in `nx.json` and create `project.json` following the existing apps as a template.
+For the `serve` target, follow the pattern in existing `project.json` files:
+
+- Use `"inspect": false` with `"runtimeArgs": ["--inspect=localhost:<port>"]` for debugger port assignment (the `inspect` field only accepts `"inspect"` | `"inspect-brk"` | `boolean` — not a host:port string).
+- Set app-specific ports via a dedicated env var (e.g. `ADMIN_API_PORT`) read in `main.ts`, not via the executor `env` option (which is not in the `@nx/js:node` schema).
 
 ---
 
@@ -690,36 +720,41 @@ Expected baseline: 0 errors. The 110 pre-existing `@typescript-eslint/no-non-nul
 
 ## 8. Running the project locally
 
-**Prerequisites:** Docker, Node.js ≥ 20.19.0, `pnpm` (or `npm`).
+**Prerequisites:** Docker, Node.js ≥ 20.19.0, `npx` (or `npm`).
 
 ```bash
-# Start infrastructure (Postgres, Redis, LocalStack/SQS)
-docker compose up -d postgres postgres-legal redis
+# Start infrastructure (Postgres ×2, Redis, LocalStack/SQS, Mailpit)
+npm run dev:infra
 
 # Install dependencies
 npm install
 
 # Generate Prisma clients (required on first clone and after schema changes)
-npx prisma generate
-npx prisma generate --config prisma.config.legal.ts
+npm run prisma:generate
 
 # Run database migrations
-npx prisma migrate dev
-npx prisma migrate dev --config prisma.config.legal.ts
+npm run dev:migrate
 
-# Start the API in development mode
-npx nx serve api
+# Start all apps in development mode (hot reload)
+npm run dev
 
-# Start the worker in development mode
-npx nx serve worker-a
+# Kill zombie processes from a previous crashed run before restarting
+npm run dev:kill && npm run dev
 ```
+
+> **Port assignment:** `api` → `:3000` (reads `PORT`). `admin-api` → `:3001` (reads `ADMIN_API_PORT` then `PORT`). Both are set in `.env`.
+
+> **SQS / LocalStack:** `.env` ships pre-configured with LocalStack URLs (`SQS_ENDPOINT_URL=http://localhost:4566`, `SQS_STANDARD_QUEUE_URL=http://sqs.us-east-1.localhost.localstack.cloud:4566/...`). For real AWS, empty `SQS_ENDPOINT_URL` and update `SQS_STANDARD_QUEUE_URL`.
+
+> **Debugger ports:** `api` → `9229`, `admin-api` → `9230`, `worker-a` → `9231`. Attach via `.vscode/launch.json` configs.
 
 **Integration / e2e tests:**
 
 ```bash
-docker compose -f docker-compose.test.yml up -d
-npx nx test api-e2e
-npx nx test worker-a-e2e
+npm run test:infra:up
+npm run test:migrate
+npm run test:integration
+npm run test:infra:down
 ```
 
 ---
@@ -728,17 +763,18 @@ npx nx test worker-a-e2e
 
 The following patterns existed in earlier versions of this codebase and have been deliberately eliminated. Do not reintroduce them.
 
-| Anti-pattern                                    | Example                                                                  | Why it is wrong                                                                  |
-| ----------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Importing a foreign repository                  | `RBACService` → `MembershipsRepository`                                  | Bypasses the domain boundary; couples RBAC internals to the Memberships schema   |
-| Exporting a repository from a module or barrel  | `exports: [MembershipsRepository]`                                       | Invites consumers to bypass the application service layer                        |
-| Zero-value application service wrapper          | Service with one method that calls a single other method, adding nothing | Indirection without encapsulation; delete it and use an honest exception instead |
-| Business logic services in `apps/`              | `apps/api/src/app/rbac/services/rbac.service.ts`                         | Not reusable; couples logic to one HTTP server                                   |
-| Domain event handlers in HTTP layer             | `apps/api/.../memberships/event-handlers/`                               | Email delivery is a domain concern, not an HTTP concern                          |
-| App service bypassing a lib's application layer | `FeatureFlagsService` → `BillingRepository`                              | Couples feature flag logic to Billing schema details                             |
-| Orphaned dead code after lib extraction         | Files remaining in `apps/api/src/app/rbac/` after RBAC was extracted     | Increases cognitive load; always delete replaced files                           |
-| Guard injecting a foreign repository            | `OrgContextGuard` → `UserRepository`                                     | Couples a reusable guard to one lib's infrastructure                             |
-| Worker injecting a repository directly          | `WorkerController` → `JobRepository`                                     | The worker should use `JobService`; repositories are private                     |
+| Anti-pattern                                           | Example                                                                  | Why it is wrong                                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Importing a foreign repository                         | `RBACService` → `MembershipsRepository`                                  | Bypasses the domain boundary; couples RBAC internals to the Memberships schema   |
+| Exporting a repository from a module or barrel         | `exports: [MembershipsRepository]`                                       | Invites consumers to bypass the application service layer                        |
+| Zero-value application service wrapper                 | Service with one method that calls a single other method, adding nothing | Indirection without encapsulation; delete it and use an honest exception instead |
+| Business logic services in `apps/`                     | `apps/api/src/app/rbac/services/rbac.service.ts`                         | Not reusable; couples logic to one HTTP server                                   |
+| Domain event handlers in HTTP layer                    | `apps/api/.../memberships/event-handlers/`                               | Email delivery is a domain concern, not an HTTP concern                          |
+| App service bypassing a lib's application layer        | `FeatureFlagsService` → `BillingRepository`                              | Couples feature flag logic to Billing schema details                             |
+| Orphaned dead code after lib extraction                | Files remaining in `apps/api/src/app/rbac/` after RBAC was extracted     | Increases cognitive load; always delete replaced files                           |
+| Guard injecting a foreign repository                   | `OrgContextGuard` → `UserRepository`                                     | Couples a reusable guard to one lib's infrastructure                             |
+| Worker injecting a repository directly                 | `WorkerController` → `JobRepository`                                     | The worker should use `JobService`; repositories are private                     |
+| TypeScript interfaces exported/imported without `type` | `export { IMyInterface }` / `import { IMyInterface }`                    | Webpack cannot trace runtime-erased types; use `export type` / `import type`     |
 
 ---
 
@@ -756,3 +792,5 @@ Use this when opening a PR for a new library or app:
 - [ ] No `tests/` or `__tests__/` directories created
 - [ ] `npx nx run-many --target=test --all` passes with 0 failures
 - [ ] `npx nx run-many --target=lint --all` passes with 0 errors
+- [ ] TypeScript interfaces are exported/imported with `export type` / `import type` — not bare `export` / `import`
+- [ ] `npm run dev` starts all 3 apps without port conflicts or schema validation errors

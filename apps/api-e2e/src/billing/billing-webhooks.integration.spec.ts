@@ -22,7 +22,7 @@ import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import Stripe from 'stripe';
 import { bootstrapTestApp } from '../support/app-bootstrap';
-import { setupNockAuth, teardownNockAuth } from '../support/nock-auth';
+import { setupNockAuth, teardownNockAuth } from '@test/support/nock-auth';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 import { BillingStatus } from '@libs/prisma-business';

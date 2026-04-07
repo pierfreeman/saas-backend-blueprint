@@ -11,18 +11,15 @@ import { LegalAuditService } from '@libs/legal-audit';
 import {
   Membership,
   MembershipRole,
+  MembershipStatus,
   Organization,
   User,
 } from '@libs/prisma-business';
 import { MembershipsRepository } from '../../infrastructure/repositories/memberships.repository';
-import {
-  IMembershipCacheNotifier,
-  MEMBERSHIP_CACHE_NOTIFIER,
-} from '../../membership-cache-notifier.token';
-import {
-  ISeatLimitProvider,
-  SEAT_LIMIT_PROVIDER,
-} from '../../seat-limit-provider.token';
+import { MEMBERSHIP_CACHE_NOTIFIER } from '../../membership-cache-notifier.token';
+import type { IMembershipCacheNotifier } from '../../membership-cache-notifier.token';
+import { SEAT_LIMIT_PROVIDER } from '../../seat-limit-provider.token';
+import type { ISeatLimitProvider } from '../../seat-limit-provider.token';
 
 @Injectable()
 export class MembershipsService {
@@ -55,8 +52,9 @@ export class MembershipsService {
 
   async createMembership(
     orgId: string,
-    dto: { userId: string; role: MembershipRole },
+    dto: { userId: string; role: MembershipRole; status?: MembershipStatus },
     actorUserId?: string,
+    triggerType = 'user_action',
   ): Promise<Membership> {
     await this.checkSeatLimit(orgId);
 
@@ -68,6 +66,7 @@ export class MembershipsService {
       userId: dto.userId,
       orgId,
       role: dto.role,
+      ...(dto.status ? { status: dto.status } : {}),
     });
 
     await this.cacheNotifier?.invalidate(dto.userId, orgId);
@@ -84,7 +83,7 @@ export class MembershipsService {
     this.legalAudit.recordEvent({
       eventType: 'membership.created',
       orgId,
-      triggerType: 'user',
+      triggerType,
       metadata: {
         membershipId: membership.id,
         targetUserId: dto.userId,
@@ -117,6 +116,11 @@ export class MembershipsService {
     return this.repo.findByUserAndOrg(userId, orgId);
   }
 
+  async activateInvitedMemberships(userId: string): Promise<void> {
+    await this.repo.activateByUserId(userId);
+    this.logger.log(`Activated INVITED memberships for user ${userId}`);
+  }
+
   async getMembershipOrThrow(
     userId: string,
     orgId: string,
@@ -135,6 +139,7 @@ export class MembershipsService {
     orgId: string,
     dto: { role: MembershipRole },
     actorUserId?: string,
+    triggerType = 'user_action',
   ): Promise<Membership> {
     const membership = await this.repo.findById(id);
 
@@ -164,7 +169,7 @@ export class MembershipsService {
     this.legalAudit.recordEvent({
       eventType: 'membership.role_changed',
       orgId,
-      triggerType: 'user',
+      triggerType,
       metadata: {
         membershipId: id,
         targetUserId: membership.userId,
@@ -181,6 +186,7 @@ export class MembershipsService {
     id: string,
     orgId: string,
     actorUserId?: string,
+    triggerType = 'user_action',
   ): Promise<void> {
     const membership = await this.repo.findById(id);
 
@@ -204,7 +210,7 @@ export class MembershipsService {
     this.legalAudit.recordEvent({
       eventType: 'membership.deleted',
       orgId,
-      triggerType: 'user',
+      triggerType,
       metadata: {
         membershipId: id,
         targetUserId: membership.userId,

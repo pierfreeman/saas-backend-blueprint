@@ -19,3 +19,6 @@ export * from './tenant/tenant.module';
 
 // Filters
 export * from './filters/all-exceptions.filter';
+
+// Identity provider port (canonical location — implemented in @libs/auth0)
+export * from './identity/identity-provider.interface';

@@ -1,0 +1,17 @@
+{
+  "name": "admin-api-e2e",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "implicitDependencies": ["admin-api"],
+  "tags": ["type:e2e"],
+  "targets": {
+    "e2e": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/integration/apps/admin-api-e2e"],
+      "options": {
+        "configFile": "apps/admin-api-e2e/vitest.config.ts",
+        "passWithNoTests": true
+      }
+    }
+  }
+}

@@ -94,11 +94,29 @@ export class ActivityLogService {
     orgId: string,
     options: ActivityLogQueryOptions = {},
   ): Promise<PaginatedActivityLogResult> {
-    const { limit = 100, offset = 0, action, fromDate, toDate } = options;
+    const {
+      limit = 100,
+      offset = 0,
+      action,
+      actions,
+      entityType,
+      actorId,
+      fromDate,
+      toDate,
+    } = options;
+
+    let actionFilter: Prisma.ActivityLogWhereInput = {};
+    if (actions && actions.length > 0) {
+      actionFilter = { action: { in: actions } };
+    } else if (action) {
+      actionFilter = { action: { startsWith: action } };
+    }
 
     const where: Prisma.ActivityLogWhereInput = {
       orgId,
-      ...(action ? { action: { startsWith: action } } : {}),
+      ...actionFilter,
+      ...(entityType ? { entityType } : {}),
+      ...(actorId ? { actorId } : {}),
       ...(fromDate || toDate
         ? { createdAt: { gte: fromDate, lte: toDate } }
         : {}),

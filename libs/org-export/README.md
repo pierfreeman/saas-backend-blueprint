@@ -72,7 +72,8 @@ Orchestrates export requests from the API layer.
 
 - `requestExport(orgId, userId)` — Create export + job, emit event
 - `getExport(exportId, orgId)` — Retrieve export status
-- `listExports(orgId, limit, offset)` — List all exports for org
+- `listExports(orgId, limit, offset)` — List all exports for org (returns `OrgExport[]`)
+- `countExports(orgId)` — Count all exports for org (used by admin paginated endpoint)
 
 ---
 
@@ -101,17 +102,27 @@ Manages export lifecycle with scheduled tasks (daily at 3 AM).
 
 ## API Endpoints
 
-### Request Export
+### Request Export (tenant)
 
 `POST /organizations/:id/export` (OWNER/ADMIN only)
 
-### Get Export Status
+### Get Export Status (tenant)
 
 `GET /organizations/:id/exports/:exportId`
 
-### List Exports
+### List Exports (tenant)
 
 `GET /organizations/:id/exports`
+
+### Admin endpoints
+
+| Method | Endpoint                                        | Description                                             |
+| ------ | ----------------------------------------------- | ------------------------------------------------------- |
+| `POST` | `/admin/organizations/:orgId/exports`           | Trigger export on behalf of org (202 Accepted)          |
+| `GET`  | `/admin/organizations/:orgId/exports`           | Paginated export list `{ items, total, limit, offset }` |
+| `GET`  | `/admin/organizations/:orgId/exports/:exportId` | Single export detail                                    |
+
+> `fileSize` (Prisma `BigInt`) is serialized to `string \| null` at the admin service layer before reaching the HTTP response.
 
 ---
 

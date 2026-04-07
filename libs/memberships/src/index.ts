@@ -5,11 +5,7 @@ export type { InviteMemberResult } from './application/services/invite-member.se
 export { RemoveMemberService } from './application/services/remove-member.service';
 export { UserInvitedEmailHandler } from './application/event-handlers/user-invited-email.handler';
 export type { UserInvitedPayload } from './application/event-handlers/user-invited-email.handler';
-export {
-  MEMBERSHIP_CACHE_NOTIFIER,
-  IMembershipCacheNotifier,
-} from './membership-cache-notifier.token';
-export {
-  SEAT_LIMIT_PROVIDER,
-  ISeatLimitProvider,
-} from './seat-limit-provider.token';
+export { MEMBERSHIP_CACHE_NOTIFIER } from './membership-cache-notifier.token';
+export type { IMembershipCacheNotifier } from './membership-cache-notifier.token';
+export { SEAT_LIMIT_PROVIDER } from './seat-limit-provider.token';
+export type { ISeatLimitProvider } from './seat-limit-provider.token';

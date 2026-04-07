@@ -10,9 +10,10 @@ import { defineWorkspace } from 'vitest/config';
 export default defineWorkspace([
   // ── Apps ───────────────────────────────────────────────────────────────────
   'apps/api/vitest.config.ts',
+  'apps/admin-api/vitest.config.ts',
   'apps/worker-a/vitest.config.ts',
   // ── Libraries ──────────────────────────────────────────────────────────────
-  'libs/auth/vitest.config.ts',
+  'libs/auth0/vitest.config.ts',
   'libs/activity-log/vitest.config.ts',
   'libs/billing/vitest.config.ts',
   'libs/common/vitest.config.ts',
@@ -31,6 +32,13 @@ export default defineWorkspace([
   'libs/prisma-business/vitest.config.ts',
   'libs/prisma-legal/vitest.config.ts',
   'libs/rbac/vitest.config.ts',
+  'libs/admin/auth/vitest.config.ts',
+  'libs/admin/organizations/vitest.config.ts',
+  'libs/admin/memberships/vitest.config.ts',
+  'libs/admin/billing/vitest.config.ts',
+  'libs/admin/activity-log/vitest.config.ts',
+  'libs/admin/entitlements/vitest.config.ts',
+  'libs/admin/jobs/vitest.config.ts',
   'libs/redis/vitest.config.ts',
   'libs/security/vitest.config.ts',
   'libs/storage/vitest.config.ts',

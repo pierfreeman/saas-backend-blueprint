@@ -491,4 +491,76 @@ describe('StripeService', () => {
       await expect(service.deleteCustomer('cus_001')).resolves.not.toThrow();
     });
   });
+
+  // ─── updateSubscriptionPlan ───────────────────────────────────────────────
+
+  describe('updateSubscriptionPlan', () => {
+    it('retrieves subscription, then updates with new price and proration', async () => {
+      const mockSub = { items: { data: [{ id: 'si_001' }] } };
+      const updatedSub = { id: 'sub_001', status: 'active' };
+      mockStripeInstance.subscriptions.retrieve.mockResolvedValue(mockSub);
+      mockStripeInstance.subscriptions.update.mockResolvedValue(updatedSub);
+
+      await service.updateSubscriptionPlan('sub_001', 'price_pro');
+
+      expect(mockStripeInstance.subscriptions.retrieve).toHaveBeenCalledWith(
+        'sub_001',
+      );
+      expect(mockStripeInstance.subscriptions.update).toHaveBeenCalledWith(
+        'sub_001',
+        {
+          items: [{ id: 'si_001', price: 'price_pro' }],
+          proration_behavior: 'create_prorations',
+        },
+      );
+    });
+
+    it('throws InternalServerErrorException when subscription has no items', async () => {
+      mockStripeInstance.subscriptions.retrieve.mockResolvedValue({
+        items: { data: [] },
+      });
+
+      await expect(
+        service.updateSubscriptionPlan('sub_001', 'price_pro'),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('throws InternalServerErrorException on Stripe API failure', async () => {
+      mockStripeInstance.subscriptions.retrieve.mockRejectedValue(
+        new Error('stripe error'),
+      );
+
+      await expect(
+        service.updateSubscriptionPlan('sub_001', 'price_pro'),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  // ─── extendTrial ─────────────────────────────────────────────────────────
+
+  describe('extendTrial', () => {
+    it('updates subscription trial_end with unix timestamp', async () => {
+      const trialEnd = new Date('2025-12-31T00:00:00.000Z');
+      mockStripeInstance.subscriptions.update.mockResolvedValue({
+        id: 'sub_001',
+      });
+
+      await service.extendTrial('sub_001', trialEnd);
+
+      expect(mockStripeInstance.subscriptions.update).toHaveBeenCalledWith(
+        'sub_001',
+        { trial_end: Math.floor(trialEnd.getTime() / 1000) },
+      );
+    });
+
+    it('throws InternalServerErrorException on Stripe API failure', async () => {
+      mockStripeInstance.subscriptions.update.mockRejectedValue(
+        new Error('stripe error'),
+      );
+
+      await expect(service.extendTrial('sub_001', new Date())).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+  });
 });

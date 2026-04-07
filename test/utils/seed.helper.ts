@@ -86,6 +86,12 @@ export interface SeedFullOrgOptions {
   withReadOnly?: boolean;
   /** Org name override. */
   orgName?: string;
+  /**
+   * Plan tier to activate for the org. When set, also sets billingStatus=ACTIVE.
+   * Uses STRIPE_PRICE_ID_PRO / STRIPE_PRICE_ID_ENTERPRISE from env.
+   * Default: FREE (no planId, no billingStatus).
+   */
+  plan?: 'PRO' | 'ENTERPRISE';
 }
 
 /**
@@ -97,6 +103,21 @@ export async function seedFullOrg(
   options: SeedFullOrgOptions = {},
 ): Promise<TestOrgContext> {
   const org = await createTestOrg(prisma, options.orgName);
+
+  if (options.plan) {
+    const planIdEnvKey =
+      options.plan === 'PRO'
+        ? 'STRIPE_PRICE_ID_PRO'
+        : 'STRIPE_PRICE_ID_ENTERPRISE';
+    const planId =
+      process.env[planIdEnvKey] ?? `price_test_${options.plan.toLowerCase()}`;
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { planId, billingStatus: 'ACTIVE' },
+    });
+    (org as any).planId = planId;
+    (org as any).billingStatus = 'ACTIVE';
+  }
 
   // OWNER
   const ownerAuth0Id = `auth0|owner-${shortId()}`;

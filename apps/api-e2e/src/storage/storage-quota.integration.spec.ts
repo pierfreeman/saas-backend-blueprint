@@ -22,7 +22,7 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { bootstrapTestApp } from '../support/app-bootstrap';
-import { setupNockAuth, teardownNockAuth } from '../support/nock-auth';
+import { setupNockAuth, teardownNockAuth } from '@test/support/nock-auth';
 import { generateTestToken } from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
@@ -34,8 +34,8 @@ const PRO_PRICE_ID = process.env['STRIPE_PRICE_ID_PRO'] ?? 'price_test_pro';
 const ENTERPRISE_PRICE_ID =
   process.env['STRIPE_PRICE_ID_ENTERPRISE'] ?? 'price_test_enterprise';
 
-// Free plan storage limit in bytes: Math.round(0.1 * 1024^3) = 107374182
-const FREE_PLAN_STORAGE_LIMIT_BYTES = Math.round(0.1 * 1024 * 1024 * 1024);
+// Free plan storage limit in bytes: 100 MiB (matches feature-flags.service.ts)
+const FREE_PLAN_STORAGE_LIMIT_BYTES = 100 * 1024 * 1024;
 const PRO_PLAN_STORAGE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024;
 const ENTERPRISE_PLAN_STORAGE_LIMIT_BYTES = 50 * 1024 * 1024 * 1024;
 

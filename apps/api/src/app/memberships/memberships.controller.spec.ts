@@ -105,15 +105,21 @@ describe('MembershipsController', () => {
         .fn()
         .mockResolvedValue(updated);
 
-      const result = await controller.update('org-1', 'm-1', {
-        role: 'ADMIN' as MembershipRole,
-      });
+      const result = await controller.update(
+        'org-1',
+        'm-1',
+        {
+          role: 'ADMIN' as MembershipRole,
+        },
+        undefined,
+      );
 
       expect(result).toBe(updated);
       expect(mockMembershipsService.updateMembership).toHaveBeenCalledWith(
         'm-1',
         'org-1',
         { role: 'ADMIN' },
+        undefined,
       );
     });
 
@@ -123,7 +129,12 @@ describe('MembershipsController', () => {
         .mockRejectedValue(new NotFoundException('Membership not found'));
 
       await expect(
-        controller.update('org-1', 'm-x', { role: 'ADMIN' as MembershipRole }),
+        controller.update(
+          'org-1',
+          'm-x',
+          { role: 'ADMIN' as MembershipRole },
+          undefined,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -188,6 +199,142 @@ describe('MembershipsController', () => {
       await expect(
         controller.invite('org-1', inviteDto, inviterUserId),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('update() with CurrentUserId', () => {
+    it('passes the inviterUserId to updateMembership', async () => {
+      const updated = { ...baseMembership, role: 'ADMIN' as MembershipRole };
+      mockMembershipsService.updateMembership = vi
+        .fn()
+        .mockResolvedValue(updated);
+
+      const result = await controller.update(
+        'org-1',
+        'm-1',
+        { role: 'ADMIN' as MembershipRole },
+        'inviter-user-id',
+      );
+
+      expect(result).toBe(updated);
+      expect(mockMembershipsService.updateMembership).toHaveBeenCalledWith(
+        'm-1',
+        'org-1',
+        { role: 'ADMIN' },
+        'inviter-user-id',
+      );
+      expect(mockRBACCacheService.invalidate).toHaveBeenCalledWith(
+        baseMembership.userId,
+        baseMembership.orgId,
+      );
+    });
+
+    it('invalidates RBAC cache after successful update', async () => {
+      const updated = { ...baseMembership, role: 'ADMIN' as MembershipRole };
+      mockMembershipsService.updateMembership = vi
+        .fn()
+        .mockResolvedValue(updated);
+
+      await controller.update(
+        'org-1',
+        'm-1',
+        { role: 'ADMIN' as MembershipRole },
+        'inviter-user-id',
+      );
+
+      expect(mockRBACCacheService.invalidate).toHaveBeenCalledWith(
+        updated.userId,
+        updated.orgId,
+      );
+    });
+  });
+
+  describe('invite() with CurrentUserId', () => {
+    const inviteDto = {
+      email: 'bob@example.com',
+      role: 'MEMBER' as MembershipRole,
+    };
+
+    it('passes the inviterUserId to InviteMemberService.invite', async () => {
+      const expected = { message: 'Invitation sent successfully.' };
+      mockInviteMemberService.invite = vi.fn().mockResolvedValue(expected);
+
+      const result = await controller.invite(
+        'org-1',
+        inviteDto,
+        'inviter-user-db-id',
+      );
+
+      expect(result).toBe(expected);
+      expect(mockInviteMemberService.invite).toHaveBeenCalledWith(
+        inviteDto.email,
+        inviteDto.role,
+        'org-1',
+        'inviter-user-db-id',
+      );
+    });
+
+    it('returns success message from InviteMemberService', async () => {
+      const expected = { message: 'Invitation sent successfully.' };
+      mockInviteMemberService.invite = vi.fn().mockResolvedValue(expected);
+
+      const result = await controller.invite('org-1', inviteDto, 'inviter-id');
+
+      expect(result).toEqual(expected);
+    });
+
+    it('propagates errors from InviteMemberService', async () => {
+      mockInviteMemberService.invite = vi
+        .fn()
+        .mockRejectedValue(
+          new ConflictException(
+            'bob@example.com is already a member of this organization.',
+          ),
+        );
+
+      await expect(
+        controller.invite('org-1', inviteDto, 'inviter-id'),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('delete() with CurrentUserId', () => {
+    it('passes actorUserId to RemoveMemberService.remove', async () => {
+      mockRemoveMemberService.remove = vi.fn().mockResolvedValue(undefined);
+
+      await controller.delete('org-1', 'm-1', 'actor-user-id');
+
+      expect(mockRemoveMemberService.remove).toHaveBeenCalledWith(
+        'm-1',
+        'org-1',
+        'actor-user-id',
+      );
+    });
+
+    it('invalidates entire org RBAC cache after removal', async () => {
+      mockRemoveMemberService.remove = vi.fn().mockResolvedValue(undefined);
+
+      await controller.delete('org-1', 'm-1', 'actor-user-id');
+
+      expect(mockRBACCacheService.invalidateOrg).toHaveBeenCalledWith('org-1');
+    });
+
+    it('returns success message with expected format', async () => {
+      mockRemoveMemberService.remove = vi.fn().mockResolvedValue(undefined);
+
+      const result = await controller.delete('org-1', 'm-1', 'actor-user-id');
+
+      expect(result).toEqual({ message: 'Membership deleted successfully' });
+    });
+
+    it('propagates errors from RemoveMemberService', async () => {
+      mockRemoveMemberService.remove = vi
+        .fn()
+        .mockRejectedValue(new NotFoundException('Membership not found'));
+
+      await expect(
+        controller.delete('org-1', 'm-x', 'actor-user-id'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

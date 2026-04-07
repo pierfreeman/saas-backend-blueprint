@@ -6,7 +6,7 @@ import databaseConfig from './database.config';
 import redisConfig from './redis.config';
 import storageConfig from './storage.config';
 import emailConfig from './email.config';
-import observabilityConfig from '../../observability/src/config/observability.config';
+import { observabilityConfig } from '@libs/observability';
 import { envValidationSchema } from './env.validation';
 
 /**

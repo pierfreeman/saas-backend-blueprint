@@ -16,7 +16,7 @@ export interface LegalAuditEvent {
   actorRole?: string | null;
   /**
    * Describes what triggered the event.
-   * Use one of: 'user_action' | 'system' | 'api' | 'scheduler'
+   * Use one of: 'user_action' | 'admin_action' | 'system' | 'api' | 'scheduler'
    */
   triggerType?: string | null;
   /**

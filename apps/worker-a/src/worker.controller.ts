@@ -10,9 +10,10 @@ import {
   OrgExportWorkerService,
   OrgExportRequestedEventPayload,
 } from '@libs/org-export';
-import { UserInvitedEmailHandler, UserInvitedPayload } from '@libs/memberships';
-import {
-  BillingEmailHandler,
+import { UserInvitedEmailHandler } from '@libs/memberships';
+import type { UserInvitedPayload } from '@libs/memberships';
+import { BillingEmailHandler } from '@libs/billing';
+import type {
   PlanChangedPayload,
   PaymentSucceededPayload,
   SubscriptionCancelledPayload,
@@ -31,8 +32,12 @@ export interface HeavyJobPayload extends Record<string, unknown> {
   data: Record<string, unknown>;
 }
 
-export { UserInvitedPayload } from '@libs/memberships';
-export { PlanChangedPayload, PaymentSucceededPayload, SubscriptionCancelledPayload } from '@libs/billing';
+export type { UserInvitedPayload } from '@libs/memberships';
+export type {
+  PlanChangedPayload,
+  PaymentSucceededPayload,
+  SubscriptionCancelledPayload,
+} from '@libs/billing';
 
 /** Redis channel pattern: `job:update:{tenantId}` */
 const jobChannel = (tenantId: string) => `job:update:${tenantId}`;
@@ -76,7 +81,7 @@ export class WorkerController {
     );
 
     // ── PENDING → PROCESSING ─────────────────────────────────────────────
-    await this.jobRepo.markProcessing(jobId);
+    await this.jobRepo.markProcessing(jobId, tenantId, userId);
 
     await this.pubSub.publish(jobChannel(tenantId), {
       jobId,
@@ -92,7 +97,7 @@ export class WorkerController {
       const result = await this.doWork(event.payload);
 
       // ── PROCESSING → DONE ─────────────────────────────────────────────
-      await this.jobRepo.markDone(jobId, result);
+      await this.jobRepo.markDone(jobId, result, tenantId, userId);
 
       await this.pubSub.publish(jobChannel(tenantId), {
         jobId,
@@ -108,7 +113,7 @@ export class WorkerController {
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       // ── PROCESSING → FAILED ───────────────────────────────────────────
-      await this.jobRepo.markFailed(jobId, message);
+      await this.jobRepo.markFailed(jobId, message, tenantId, userId);
 
       await this.pubSub.publish(jobChannel(tenantId), {
         jobId,

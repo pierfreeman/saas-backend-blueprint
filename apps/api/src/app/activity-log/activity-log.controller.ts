@@ -16,7 +16,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { OrgScoped, RequirePermissions, OrgContextGuard, RBACGuard } from '@libs/rbac';
+import {
+  OrgScoped,
+  RequirePermissions,
+  OrgContextGuard,
+  RBACGuard,
+} from '@libs/rbac';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 
 @ApiTags('Activity Log')
@@ -64,6 +69,14 @@ export class ActivityLogController {
       limit: effectiveLimit,
       offset: effectiveOffset,
       action: query.action || undefined,
+      actions: query.actions
+        ? query.actions
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined,
+      entityType: query.entityType || undefined,
+      actorId: query.actorId || undefined,
       fromDate: query.fromDate ? new Date(query.fromDate) : undefined,
       toDate: query.toDate ? new Date(query.toDate) : undefined,
     });

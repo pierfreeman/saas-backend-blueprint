@@ -1,0 +1,187 @@
+import { CurrentAdminUserId, SystemAdminGuard } from '@libs/admin/auth';
+import {
+  AdminOrganizationDetail,
+  AdminOrganizationListItem,
+  AdminOrganizationsService,
+  PaginatedAdminOrganizationsResult,
+} from '@libs/admin/organizations';
+import { JwtAuthGuard } from '@libs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
+  AdminListExportsQueryDto,
+  AdminProvisionOrgDto,
+  AdminSetOrgStatusDto,
+  ListOrganizationsQueryDto,
+} from './dto/admin.dto';
+
+@ApiTags('Admin')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, SystemAdminGuard)
+@Controller('admin/organizations')
+export class AdminOrganizationsController {
+  constructor(private readonly adminOrgsService: AdminOrganizationsService) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Provision a new enterprise organization (admin)' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Organization provisioned and owner invited.',
+  })
+  provisionOrganization(
+    @Body() dto: AdminProvisionOrgDto,
+    @CurrentAdminUserId() actorAdminId: string,
+  ): Promise<AdminOrganizationListItem> {
+    return this.adminOrgsService.provisionOrganization(dto, actorAdminId);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List all organizations (admin)' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Paginated list of organizations.',
+  })
+  listOrganizations(
+    @Query() query: ListOrganizationsQueryDto,
+  ): Promise<PaginatedAdminOrganizationsResult> {
+    const { search, status, limit = 20, offset = 0 } = query;
+    return this.adminOrgsService.listOrganizations(
+      { search, status },
+      { limit, offset },
+    );
+  }
+
+  @Get(':orgId')
+  @ApiOperation({ summary: 'Get organization detail / Customer 360 (admin)' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Full organization detail.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Organization not found.',
+  })
+  getOrganizationDetail(
+    @Param('orgId') orgId: string,
+  ): Promise<AdminOrganizationDetail> {
+    return this.adminOrgsService.getOrganizationDetail(orgId);
+  }
+
+  @Patch(':orgId/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Suspend or reactivate an organization (admin)' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Organization status updated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Organization not found.',
+  })
+  setOrgStatus(
+    @Param('orgId') orgId: string,
+    @Body() dto: AdminSetOrgStatusDto,
+    @CurrentAdminUserId() actorAdminId: string,
+  ): Promise<AdminOrganizationListItem> {
+    return this.adminOrgsService.setOrgStatus(
+      orgId,
+      dto.status,
+      dto.reason,
+      actorAdminId,
+    );
+  }
+
+  // ── Exports ────────────────────────────────────────────────────────────────
+
+  @Post(':orgId/exports')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Trigger a GDPR data export for an organization (admin)',
+  })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Export job queued.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Organization not found.',
+  })
+  triggerExport(
+    @Param('orgId') orgId: string,
+    @CurrentAdminUserId() actorAdminId: string,
+  ): Promise<{ exportId: string }> {
+    return this.adminOrgsService.requestExport(orgId, actorAdminId);
+  }
+
+  @Get(':orgId/exports')
+  @ApiOperation({ summary: 'List GDPR exports for an organization (admin)' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Paginated list of exports.',
+  })
+  listExports(
+    @Param('orgId') orgId: string,
+    @Query() query: AdminListExportsQueryDto,
+  ) {
+    return this.adminOrgsService.listExports(orgId, query.limit, query.offset);
+  }
+
+  @Get(':orgId/exports/:exportId')
+  @ApiOperation({ summary: 'Get a single GDPR export record (admin)' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiParam({ name: 'exportId', description: 'Export UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Export record.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Export not found.',
+  })
+  getExport(
+    @Param('orgId') orgId: string,
+    @Param('exportId') exportId: string,
+  ) {
+    return this.adminOrgsService.getExport(exportId, orgId);
+  }
+
+  // ── Storage ────────────────────────────────────────────────────────────────
+
+  @Get(':orgId/storage')
+  @ApiOperation({
+    summary: 'Get storage usage stats for an organization (admin)',
+  })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description:
+      'Storage usage: total confirmed bytes (as string) and file count.',
+  })
+  getStorageStats(
+    @Param('orgId') orgId: string,
+  ): Promise<{ totalBytes: string; fileCount: number }> {
+    return this.adminOrgsService.getStorageStats(orgId);
+  }
+}

@@ -1,20 +1,57 @@
+# ─── Dependencies & build artifacts ───────────────────────────────────────────
 node_modules
 dist
 apps/*/dist
-.nx/cache
-.nx/workspace-data
 tmp
+
+# ─── Nx cache (rebuilt inside Docker) ─────────────────────────────────────────
+.nx
+
+# ─── Test / coverage ─────────────────────────────────────────────────────────
 coverage
+**/*.spec.ts
+**/*.test.ts
+**/vitest.config.*
+**/vitest.workspace.*
+
+# ─── Git ──────────────────────────────────────────────────────────────────────
 .git
 .gitignore
-README.md
-.env
-.env.*
+.gitattributes
+
+# ─── IDE / editor ─────────────────────────────────────────────────────────────
 .vscode
 .idea
-npm-debug.log
-*.log
 *.swp
 *.swo
 *~
 .DS_Store
+
+# ─── Docker (prevent recursive COPY) ─────────────────────────────────────────
+docker-compose*.yml
+Dockerfile
+apps/*/Dockerfile*
+
+# ─── CI / docs / config not needed at build time ─────────────────────────────
+.github
+.claude
+.copilot
+.scannerwork
+.sonarlint
+.editorconfig
+.prettierrc
+.prettierignore
+sonar-project.properties
+README.md
+CONTRIBUTING.md
+AGENTS.md
+CLAUDE.md
+eslint.config.mjs
+
+# ─── Env files — secrets must come via runtime env vars, not baked in ────────
+.env
+.env.*
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+npm-debug.log
+*.log

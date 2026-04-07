@@ -6,20 +6,20 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 
 ## Tech stack
 
-| Concern            | Choice                                               |
-| ------------------ | ---------------------------------------------------- |
-| Framework          | NestJS (TypeScript)                                  |
-| Monorepo           | Nx                                                   |
-| ORM / migrations   | Prisma 7 (ESM, driver adapter)                       |
-| Databases          | PostgreSQL × 2 (business DB + legal audit DB)        |
-| Cache / pub-sub    | Redis (ioredis)                                      |
-| Authentication     | Auth0 — JWT RS256, JWKS endpoint                     |
-| Billing            | Stripe (checkout, portal, webhooks)                  |
-| Event system       | EventEmitter2 (local) / AWS SQS (production)         |
-| Background workers | NestJS standalone app, long-polls SQS Standard queue |
-| Real-time          | Socket.IO with Redis adapter (multi-pod)             |
-| File storage       | AWS S3 (presigned URLs, multi-tenant isolation)      |
-| Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles |
+| Concern            | Choice                                                             |
+| ------------------ | ------------------------------------------------------------------ |
+| Framework          | NestJS (TypeScript)                                                |
+| Monorepo           | Nx                                                                 |
+| ORM / migrations   | Prisma 7 (ESM, driver adapter)                                     |
+| Databases          | PostgreSQL × 2 (business DB + legal audit DB)                      |
+| Cache / pub-sub    | Redis (ioredis)                                                    |
+| Authentication     | Auth0 — JWT RS256, JWKS endpoint                                   |
+| Billing            | Stripe (checkout, portal, webhooks)                                |
+| Event system       | EventEmitter2 (local) / AWS SQS (production)                       |
+| Background workers | NestJS standalone app, long-polls SQS Standard queue               |
+| Real-time          | Socket.IO with Redis adapter (multi-pod)                           |
+| File storage       | AWS S3 (presigned URLs, multi-tenant isolation)                    |
+| Containerisation   | Docker Compose (dev + prod + test), unified multi-stage Dockerfile |
 
 ## Features
 
@@ -37,6 +37,7 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 - 🗄️ S3 file storage — presigned upload/download URLs, per-org isolation, quota enforcement, cleanup scheduler
 - 🛡️ Defence-in-depth security — rate limiting, brute-force lockout, Helmet, CORS, IP filtering, CSRF
 - 📊 Structured observability — JSON logging, Sentry, Prometheus/Datadog stubs
+- 🛠️ Admin backoffice portal — system-admin gate (`isSystemAdmin` user flag), Customer 360 org view, cross-org member management, billing oversight with Stripe plan change + trial extension, activity log, per-org entitlement overrides (set / delete with reason, expiry, and dual audit trail), entitlement cache invalidation, per-org storage quota override
 
 ---
 
@@ -45,27 +46,23 @@ Production-ready multi-tenant SaaS backend built as an [Nx](https://nx.dev) mono
 From a fresh clone (~2 minutes):
 
 ```sh
-pnpm install
+npm install
 
-# Start infrastructure
-docker compose up -d postgres postgres-legal redis
-
-# Configure environment (defaults work out of the box for local dev)
+# Copy environment file (defaults work out of the box)
 cp .env.example .env
 
-# Generate Prisma clients
-npx prisma generate
-npx prisma generate --config prisma.config.legal.ts
+# Start infrastructure (Postgres ×2, Redis, LocalStack, Mailpit)
+npm run dev:infra
 
-# Run all migrations
-npx prisma migrate dev
-npx prisma migrate dev --config prisma.config.legal.ts
+# Run migrations (once per fresh DB, then only after schema changes)
+npm run dev:migrate
 
-# Start the API
-npx nx serve api
+# Start all apps with hot reload
+npm run dev
 ```
 
-API: `http://localhost:3000` — Swagger docs: `http://localhost:3000/docs`
+API: `http://localhost:3000` — Swagger: `http://localhost:3000/docs`  
+Admin API: `http://localhost:3001` — Admin Swagger: `http://localhost:3001/docs`
 
 ---
 
@@ -80,6 +77,13 @@ apps/
 
 libs/
   activity-log    — Tenant-visible operational event log (business DB)
+  admin/
+    auth          — SystemAdminGuard + CurrentAdminUserId decorator (system-admin gate)
+    activity-log  — Cross-org and per-org activity log queries for backoffice
+    billing       — Read billing overviews + open Stripe portal on behalf of any org
+    entitlements  — Read / invalidate plan entitlements for any org
+    memberships   — List, invite, change-role, remove members across any org
+    organizations — List all orgs with filters, detail view (Customer 360)
   billing         — Stripe subscription management (checkout, portal, webhooks)
   common          — Shared RBAC constants, tenant context, exception filter
   config          — NestJS ConfigModule wrappers with Joi validation
@@ -116,15 +120,16 @@ prisma-legal/
 
 ### Infrastructure
 
-| Service               | Image                                    | Default port |
-| --------------------- | ---------------------------------------- | ------------ |
-| PostgreSQL (business) | `postgres:17-alpine`                     | `5432`       |
-| PostgreSQL (legal)    | `postgres:17-alpine`                     | `5433`       |
-| Redis                 | `redis:7-alpine`                         | `6379`       |
-| LocalStack (S3, SQS)  | `localstack/localstack:3`                | `4566`       |
-| API                   | built from `apps/api/Dockerfile`         | `3000`       |
-| Worker A              | built from `apps/worker-a/Dockerfile`    | —            |
-| Migrate               | built from `apps/api/Dockerfile.migrate` | —            |
+| Service               | Image                                               | Default port |
+| --------------------- | --------------------------------------------------- | ------------ |
+| PostgreSQL (business) | `postgres:17-alpine`                                | `5432`       |
+| PostgreSQL (legal)    | `postgres:17-alpine`                                | `5433`       |
+| Redis                 | `redis:7-alpine`                                    | `6379`       |
+| LocalStack (S3, SQS)  | `localstack/localstack:3`                           | `4566`       |
+| API                   | built from root `Dockerfile` (`APP_NAME=api`)       | `3000`       |
+| Admin API             | built from root `Dockerfile` (`APP_NAME=admin-api`) | `3001`       |
+| Worker A              | built from root `Dockerfile` (`APP_NAME=worker-a`)  | —            |
+| Migrate               | `migrate` stage of root `Dockerfile`                | —            |
 
 **Two-database design:** The business DB holds domain models (User, Organization, Membership, ActivityLog, Job). The legal audit DB holds append-only AuditEvents for compliance. The two databases are deliberately isolated — compliance logs survive even if the business database is wiped.
 
@@ -134,22 +139,23 @@ prisma-legal/
 
 ### Business
 
-| Feature       | Library                                               | Description                                                                                                                                                                      |
-| ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                                                                                     |
-| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning                                                                       |
-| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                                                                                        |
-| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                                                                                                    |
-| Feature flags | `apps/api/feature-flags`                              | Plan-based entitlements with Redis cache and route-level guard                                                                                                                   |
-| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                      |
-| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                    |
-| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; Resend/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                        |
-| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                               |
-| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                      |
-| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                              |
-| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration                                                                             |
-| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                                                                                            |
-| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), calendar range queries, event reminder notifications (cron sweep every 5 min) |
+| Feature       | Library                                               | Description                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Multi-tenancy | [`@libs/common`](libs/common/README.md)               | `x-tenant-id` header → request-scoped `TenantContextService`                                                                                                                                                                                                                                                                                                                                              |
+| Auth          | `apps/api`                                            | Auth0 RS256 JWT validation via JWKS; first-call user upsert + personal org + OWNER membership provisioning                                                                                                                                                                                                                                                                                                |
+| RBAC          | [`@libs/common`](libs/common/README.md)               | Static role hierarchy: OWNER > ADMIN > MEMBER > READ_ONLY                                                                                                                                                                                                                                                                                                                                                 |
+| Billing       | [`@libs/billing`](libs/billing/README.md)             | Stripe checkout, customer portal, subscription sync, webhooks                                                                                                                                                                                                                                                                                                                                             |
+| Feature flags | [`@libs/feature-flags`](libs/feature-flags/README.md) | Plan-based entitlements with Redis cache and route-level `FeatureGuard`; per-org overrides stored in DB, applied at runtime, invalidated by admin                                                                                                                                                                                                                                                         |
+| Async jobs    | [`@libs/events`](libs/events/README.md)               | Create-then-enqueue pattern; real-time status via WebSocket                                                                                                                                                                                                                                                                                                                                               |
+| Notifications | [`@libs/notifications`](libs/notifications/README.md) | Socket.IO namespace `/notifications`, Redis pub/sub, REST API                                                                                                                                                                                                                                                                                                                                             |
+| Email         | [`@libs/email`](libs/email/README.md)                 | Event-driven transactional email; Resend/SMTP providers; Handlebars templates; fire-and-forget with audit                                                                                                                                                                                                                                                                                                 |
+| Activity log  | [`@libs/activity-log`](libs/activity-log/README.md)   | Tenant-visible event log, queryable by ADMIN/OWNER                                                                                                                                                                                                                                                                                                                                                        |
+| Legal audit   | [`@libs/legal-audit`](libs/legal-audit/README.md)     | Immutable compliance trail, ISO 27001 / GDPR, no public API                                                                                                                                                                                                                                                                                                                                               |
+| Org deletion  | [`@libs/org-deletion`](libs/org-deletion/README.md)   | GDPR-compliant org deletion, configurable retention periods, async worker, legal audit preservation                                                                                                                                                                                                                                                                                                       |
+| Org export    | [`@libs/org-export`](libs/org-export/README.md)       | GDPR data portability — async JSON+gzip export, presigned download URLs (24 h), automatic expiration                                                                                                                                                                                                                                                                                                      |
+| File storage  | [`@libs/storage`](libs/storage/README.md)             | Presigned S3 upload/download, per-org isolation, quota enforcement, cleanup scheduler                                                                                                                                                                                                                                                                                                                     |
+| Planning      | [`@libs/planning`](libs/planning/README.md)           | RFC 5545 recurring events, RSVP, per-occurrence exceptions, series splitting (This and Following), calendar range queries, event reminder notifications (cron sweep every 5 min)                                                                                                                                                                                                                          |
+| Admin portal  | `libs/admin/*`                                        | System-admin backoffice: org list/detail, member management, billing oversight (plan change, trial extension, Stripe portal), activity log, per-org entitlement overrides (set / delete / expire; `createdBy` resolved to user name), entitlement cache invalidation, per-org storage quota override. Guard: `SystemAdminGuard` (`isSystemAdmin` DB flag). Promote users via `scripts/promote-admin.mjs`. |
 
 ### Architectural
 
@@ -168,7 +174,7 @@ prisma-legal/
 
 - Node.js ≥ 20.19.0 (LTS recommended)
 - Docker & Docker Compose v2
-- `pnpm`
+- `npm`
 - An Auth0 tenant (see [Authentication](#authentication))
 
 ---
@@ -178,22 +184,26 @@ prisma-legal/
 ### 1. Install dependencies
 
 ```sh
-pnpm install
+npm install
 ```
 
 ### 2. Start infrastructure
 
 ```sh
-docker compose up -d postgres postgres-legal redis
+npm run dev:infra
 ```
 
-Default host ports: business DB → `5432`, legal audit DB → `5433`, Redis → `6379`.
+Starts Postgres × 2, Redis, LocalStack (S3 + SQS), and Mailpit via `docker-compose.dev.yml`. App services run on the host — no Docker rebuild needed on code changes.
+
+Default host ports: business DB → `5432`, legal audit DB → `5434`, Redis → `6380`, LocalStack → `4566`, Mailpit SMTP → `1025`, Mailpit UI → `8025`.
 
 ### 3. Configure environment
 
 ```sh
 cp .env.example .env
 ```
+
+The defaults in `.env.example` work out of the box for local development, including pre-configured LocalStack SQS URLs.
 
 #### Required variables
 
@@ -208,86 +218,113 @@ cp .env.example .env
 
 #### Optional variables
 
-| Variable                      | Default                 | Description                                                         |
-| ----------------------------- | ----------------------- | ------------------------------------------------------------------- |
-| `PORT`                        | `3000`                  | HTTP port the API listens on                                        |
-| `NODE_ENV`                    | `development`           | Runtime environment                                                 |
-| `EVENT_BUS_TRANSPORT`         | `local`                 | `local` (EventEmitter) or `sqs`                                     |
-| `SQS_STANDARD_QUEUE_URL`      | —                       | Required when `EVENT_BUS_TRANSPORT=sqs`                             |
-| `SQS_FIFO_QUEUE_URL`          | —                       | Required when `EVENT_BUS_TRANSPORT=sqs` (must end in `.fifo`)       |
-| `SQS_ENDPOINT_URL`            | —                       | LocalStack endpoint, e.g. `http://localhost:4566`                   |
-| `STRIPE_SECRET_KEY`           | —                       | Stripe secret key                                                   |
-| `STRIPE_WEBHOOK_SECRET`       | —                       | Stripe webhook signing secret (`whsec_…`)                           |
-| `STRIPE_PRICE_ID_PRO`         | —                       | Stripe Price ID → PRO tier                                          |
-| `STRIPE_PRICE_ID_ENTERPRISE`  | —                       | Stripe Price ID → ENTERPRISE tier                                   |
-| `EMAIL_PROVIDER`              | `resend`                | Email provider: `resend` or `smtp`                                  |
-| `EMAIL_FROM_ADDRESS`          | —                       | Sender email address                                                |
-| `EMAIL_FROM_NAME`             | —                       | Sender display name                                                 |
-| `RESEND_API_KEY`              | —                       | Resend API key (required when `EMAIL_PROVIDER=resend`)              |
-| `SMTP_HOST`                   | —                       | SMTP host (required when `EMAIL_PROVIDER=smtp`)                     |
-| `SENTRY_DSN`                  | —                       | Sentry project DSN                                                  |
-| `CORS_ALLOWED_ORIGINS`        | _(all in dev)_          | Comma-separated allowed origins (required in production)            |
-| `RATE_LIMIT_MAX_PER_IP`       | `100`                   | Rate limit requests per window per IP                               |
-| `BRUTE_FORCE_MAX_ATTEMPTS`    | `5`                     | Auth failures before IP lockout                                     |
-| `AWS_REGION`                  | `us-east-1`             | AWS region for S3                                                   |
-| `AWS_ACCESS_KEY_ID`           | —                       | AWS access key (use `test` for LocalStack)                          |
-| `AWS_SECRET_ACCESS_KEY`       | —                       | AWS secret key (use `test` for LocalStack)                          |
-| `AWS_S3_BUCKET`               | —                       | S3 bucket name                                                      |
-| `AWS_S3_ENDPOINT`             | —                       | Override endpoint, e.g. `http://localhost:4566` (LocalStack)        |
-| `EXPORT_URL_EXPIRATION_HOURS` | `24`                    | Signed export download URL lifetime (hours)                         |
-| `AUTH0_M2M_CLIENT_ID`         | —                       | Auth0 M2M application Client ID — required for email invites        |
-| `AUTH0_M2M_CLIENT_SECRET`     | —                       | Auth0 M2M application Client Secret — required for email invites    |
-| `AUTH0_SPA_CLIENT_ID`         | —                       | Auth0 SPA application Client ID — required for passwordless invites |
-| `FRONTEND_BASE_URL`           | `http://localhost:4200` | Frontend base URL embedded in invite emails                         |
+| Variable                      | Default                 | Description                                                                          |
+| ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| `PORT`                        | `3000`                  | HTTP port the API listens on                                                         |
+| `NODE_ENV`                    | `development`           | Runtime environment                                                                  |
+| `EVENT_BUS_TRANSPORT`         | `local`                 | `local` (EventEmitter) or `sqs`                                                      |
+| `SQS_STANDARD_QUEUE_URL`      | _(LocalStack)_          | Required when `EVENT_BUS_TRANSPORT=sqs`. Pre-filled for LocalStack in `.env.example` |
+| `SQS_FIFO_QUEUE_URL`          | _(LocalStack)_          | Required when `EVENT_BUS_TRANSPORT=sqs` (must end in `.fifo`)                        |
+| `SQS_ENDPOINT_URL`            | `http://localhost:4566` | LocalStack endpoint (leave empty for real AWS)                                       |
+| `STRIPE_SECRET_KEY`           | —                       | Stripe secret key                                                                    |
+| `STRIPE_WEBHOOK_SECRET`       | —                       | Stripe webhook signing secret (`whsec_…`)                                            |
+| `STRIPE_PRICE_ID_PRO`         | —                       | Stripe Price ID → PRO tier                                                           |
+| `STRIPE_PRICE_ID_ENTERPRISE`  | —                       | Stripe Price ID → ENTERPRISE tier                                                    |
+| `EMAIL_PROVIDER`              | `resend`                | Email provider: `resend` or `smtp`                                                   |
+| `EMAIL_FROM_ADDRESS`          | —                       | Sender email address                                                                 |
+| `EMAIL_FROM_NAME`             | —                       | Sender display name                                                                  |
+| `RESEND_API_KEY`              | —                       | Resend API key (required when `EMAIL_PROVIDER=resend`)                               |
+| `SMTP_HOST`                   | —                       | SMTP host (required when `EMAIL_PROVIDER=smtp`)                                      |
+| `SENTRY_DSN`                  | —                       | Sentry project DSN                                                                   |
+| `CORS_ALLOWED_ORIGINS`        | _(all in dev)_          | Comma-separated allowed origins (required in production)                             |
+| `RATE_LIMIT_MAX_PER_IP`       | `100`                   | Rate limit requests per window per IP                                                |
+| `BRUTE_FORCE_MAX_ATTEMPTS`    | `5`                     | Auth failures before IP lockout                                                      |
+| `AWS_REGION`                  | `us-east-1`             | AWS region for S3                                                                    |
+| `AWS_ACCESS_KEY_ID`           | —                       | AWS access key (use `test` for LocalStack)                                           |
+| `AWS_SECRET_ACCESS_KEY`       | —                       | AWS secret key (use `test` for LocalStack)                                           |
+| `AWS_S3_BUCKET`               | —                       | S3 bucket name                                                                       |
+| `AWS_S3_ENDPOINT`             | —                       | Override endpoint, e.g. `http://localhost:4566` (LocalStack)                         |
+| `EXPORT_URL_EXPIRATION_HOURS` | `24`                    | Signed export download URL lifetime (hours)                                          |
+| `AUTH0_M2M_CLIENT_ID`         | —                       | Auth0 M2M application Client ID — required for email invites                         |
+| `AUTH0_M2M_CLIENT_SECRET`     | —                       | Auth0 M2M application Client Secret — required for email invites                     |
+| `AUTH0_SPA_CLIENT_ID`         | —                       | Auth0 SPA application Client ID — required for passwordless invites                  |
+| `FRONTEND_BASE_URL`           | `http://localhost:4200` | Frontend base URL embedded in invite emails                                          |
 
 For the complete variable list for each subsystem, see the relevant library README.
 
 ### 4. Generate Prisma clients
 
 ```sh
-# Business database (prisma.config.ts auto-detected):
-npx prisma generate
-
-# Legal audit database:
-npx prisma generate --config prisma.config.legal.ts
+npm run prisma:generate
 ```
 
-Clients are generated into `libs/prisma-business/src/generated/prisma/` and `libs/prisma-legal/src/generated/prisma/`. These directories are gitignored — run `generate` after every schema change and after a fresh clone.
+Generates both clients (business + legal) in one command. Clients output to `libs/prisma-business/src/generated/prisma/` and `libs/prisma-legal/src/generated/prisma/`. These directories are gitignored — also runs automatically via `postinstall`.
 
 ### 5. Run database migrations
 
 ```sh
-# Business database (prisma.config.ts auto-detected):
-npx prisma migrate dev
-
-# Legal audit database:
-npx prisma migrate dev --config prisma.config.legal.ts
+npm run dev:migrate
 ```
 
-Append `--name <description>` to create a named migration.
+Runs `prisma migrate dev` for both databases. Append `--name <description>` when calling Prisma directly:
+
+```sh
+npx prisma migrate dev --name add-user-field
+npx prisma migrate dev --config prisma.config.legal.ts --name add-audit-field
+```
 
 ### 6. Serve applications
 
 ```sh
-npx nx serve api       # HTTP API on :3000
-npx nx serve worker-a  # background worker (polls SQS)
+# All three apps in one terminal (recommended)
+npm run dev
+
+# Kill zombie processes from a previous crashed run
+npm run dev:kill
+
+# Or individually
+npx nx serve api        # HTTP API on :3000
+npx nx serve admin-api  # Admin API on :3001
+npx nx serve worker-a   # Background worker (polls SQS)
 ```
+
+> **Port assignment:** `api` listens on `PORT` (default `3000`). `admin-api` reads `ADMIN_API_PORT` first (default `3001`), falling back to `PORT`. Both are set in `.env`.
 
 ---
 
-## Docker (full stack)
+## Docker
+
+### Local development (no rebuilds on code changes)
 
 ```sh
+# Start infrastructure only
+npm run dev:infra
+
+# Run apps on the host with hot reload
+npm run dev
+
+# Stop infrastructure
+npm run dev:infra:down
+```
+
+### Production-like full stack
+
+```sh
+# Build and start everything (uses unified root Dockerfile)
 docker compose up --build
+
+# Rebuild a single service
+docker compose build api
+docker compose build admin-api
+docker compose build worker-a
+
+# Or build standalone images
+npm run docker:build:api
+npm run docker:build:admin-api
+npm run docker:build:worker-a
 ```
 
-Starts Postgres × 2, Redis, runs migrations (`Dockerfile.migrate`), then starts the API and workers. The migrate image and app images are built separately — schema changes don't rebuild the app, and code changes don't rebuild the migrator.
-
-```sh
-# Rebuild and restart a single service without touching the migrator
-docker compose up -d --no-deps --build api
-docker compose up -d --no-deps --build worker-a
-```
+The unified `Dockerfile` at the repo root uses multi-stage builds with BuildKit cache mounts. Changing source code only re-runs the `build` stage — `npm ci` and Prisma generation stay cached unless `package-lock.json` or schema files change.
 
 ---
 
@@ -346,7 +383,66 @@ See [`@libs/common`](libs/common/README.md) for RBAC helpers and tenant context 
 
 ---
 
-## Async jobs
+## Admin backoffice portal
+
+A separate role (`isSystemAdmin` on the `User` model) gates access to the `/admin` API prefix. System admins bypass the tenant-scoped RBAC entirely — they operate across all organizations.
+
+### Guard pipeline for admin routes
+
+```
+JwtAuthGuard → SystemAdminGuard
+```
+
+`SystemAdminGuard` (in `@libs/admin/auth`) looks up the user in the DB by `auth0Id` and verifies `isSystemAdmin === true`. Any user without this flag receives `403 Forbidden`.
+
+### Promoting / demoting users
+
+```sh
+# Grant system-admin access
+node scripts/promote-admin.mjs --email user@example.com
+
+# Revoke system-admin access
+node scripts/promote-admin.mjs --email user@example.com --revoke
+```
+
+The script reads `DATABASE_URL` from `.env` and executes a direct SQL `UPDATE` — no Prisma client build step required.
+
+The flag is **never written by the Auth0 login flow** — it can only be set via this script.
+
+### Admin API endpoints (all under `/admin`, require `isSystemAdmin`)
+
+| Method   | Path                                                     | Description                                                                                   |
+| -------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `POST`   | `/admin/organizations`                                   | Provision an enterprise org — create org, optionally assign plan, invite owner                |
+| `GET`    | `/admin/organizations`                                   | List all orgs — search, status filter, pagination                                             |
+| `GET`    | `/admin/organizations/:orgId`                            | Org detail (Customer 360) — membership count, billing snapshot, recent activity, entitlements |
+| `GET`    | `/admin/organizations/:orgId/memberships`                | Paginated member list for an org                                                              |
+| `POST`   | `/admin/organizations/:orgId/memberships`                | Invite a new member to any org                                                                |
+| `PATCH`  | `/admin/organizations/:orgId/memberships/:memberId/role` | Change a member's role                                                                        |
+| `DELETE` | `/admin/organizations/:orgId/memberships/:memberId`      | Remove a member                                                                               |
+| `GET`    | `/admin/organizations/:orgId/billing`                    | Billing overview (Stripe status, plan, period)                                                |
+| `POST`   | `/admin/organizations/:orgId/billing/portal`             | Generate a Stripe portal URL for any org                                                      |
+| `GET`    | `/admin/organizations/:orgId/activity-log`               | Paginated activity log scoped to an org                                                       |
+| `GET`    | `/admin/activity-log`                                    | Cross-org activity log — optional org/action/date filters                                     |
+| `GET`    | `/admin/organizations/:orgId/entitlements`               | Read plan entitlements for an org                                                             |
+| `GET`    | `/admin/organizations/:orgId/entitlements/overrides`     | List all entitlement overrides (active + expired) with `createdByName`                        |
+| `POST`   | `/admin/organizations/:orgId/entitlements/invalidate`    | Flush entitlement Redis cache for an org                                                      |
+| `PATCH`  | `/admin/organizations/:orgId/feature-flags`              | Create or update an entitlement override (`key`, `value`, `reason`, `expiresAt?`)             |
+| `DELETE` | `/admin/organizations/:orgId/feature-flags/:key`         | Delete an entitlement override by key                                                         |
+
+### Library layout
+
+```
+libs/admin/
+  auth/           — SystemAdminGuard, CurrentAdminUserId decorator, AdminAuthModule
+  activity-log/   — AdminActivityLogService: per-org and cross-org log queries
+  billing/        — AdminBillingService: billing overview + Stripe portal delegation
+  entitlements/   — AdminEntitlementsService: read/invalidate entitlements + override CRUD (set/delete/list with createdByName)
+  memberships/    — AdminMembershipsService: list, invite, change-role, remove
+  organizations/  — AdminOrganizationsService: list all orgs + Customer 360 detail + enterprise provisioning
+```
+
+---
 
 Jobs follow a create-then-enqueue pattern so every job is immediately queryable:
 
@@ -424,9 +520,8 @@ npx prisma studio --config prisma.config.legal.ts   # legal audit DB
 When you modify any `.prisma` file under `prisma/` or `prisma-legal/schema.prisma`:
 
 ```sh
-# Re-generate the affected client
-npx prisma generate
-npx prisma generate --config prisma.config.legal.ts
+# Re-generate both clients
+npm run prisma:generate
 
 # Then create a migration
 npx prisma migrate dev --name <description>

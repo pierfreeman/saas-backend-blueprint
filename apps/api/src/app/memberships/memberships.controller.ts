@@ -310,11 +310,13 @@ export class MembershipsController {
     @Param('orgId') orgId: string,
     @Param('id') id: string,
     @Body() dto: UpdateMembershipDto,
+    @CurrentUserId() inviterUserId: string,
   ): Promise<Membership> {
     const membership = await this.membershipsService.updateMembership(
       id,
       orgId,
       dto,
+      inviterUserId,
     );
     await this.rbacCacheService.invalidate(membership.userId, membership.orgId);
     return membership;

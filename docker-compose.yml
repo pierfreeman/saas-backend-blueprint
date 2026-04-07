@@ -89,7 +89,7 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile.migrate
+      target: migrate
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
     depends_on:
@@ -101,7 +101,7 @@ services:
   migrate-legal:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile.migrate
+      target: migrate
     command: npx prisma migrate deploy --config prisma.config.legal.ts
     environment:
       LEGAL_AUDIT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres-legal:5432/${POSTGRES_LEGAL_DB:-saas_legal_audit}
@@ -114,13 +114,13 @@ services:
   api:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
-      target: production
+      target: runtime
+      args:
+        APP_NAME: api
     restart: unless-stopped
     env_file: .env
     ports:
       - '${API_PORT:-3000}:3000'
-      - '9229:9229' # Expose debug port
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
@@ -153,12 +153,44 @@ services:
       localstack:
         condition: service_healthy
 
+  # ─── Admin API ────────────────────────────────────────────────────────────────
+  admin-api:
+    build:
+      context: .
+      target: runtime
+      args:
+        APP_NAME: admin-api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '${ADMIN_API_PORT:-3001}:3001'
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
+      LEGAL_AUDIT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres-legal:5432/${POSTGRES_LEGAL_DB:-saas_legal_audit}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # --- Tighter rate limiting for admin endpoints ---
+      RATE_LIMIT_MAX_PER_IP: 20
+      RATE_LIMIT_MAX_PER_USER: 50
+      RATE_LIMIT_TTL: 60
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      migrate-legal:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   # ─── Worker A ────────────────────────────────────────────────────────────────
   worker-a:
     build:
       context: .
-      dockerfile: apps/worker-a/Dockerfile
-      target: production
+      target: runtime
+      args:
+        APP_NAME: worker-a
     restart: unless-stopped
     env_file: .env
     environment:

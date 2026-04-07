@@ -3,43 +3,10 @@
   "configurations": [
     {
       "type": "node",
-      "request": "launch",
-      "name": "Debug saas-backend with Nx",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": [
-        "nx",
-        "serve",
-        "saas-backend"
-      ],
-      "env": {
-        "NODE_OPTIONS": "--inspect=9229"
-      },
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "sourceMaps": true,
-      "outFiles": [
-        "${workspaceFolder}/dist/apps/saas-backend/**/*.(m|c|)js",
-        "!**/node_modules/**"
-      ]
-    },
-    {
-      "type": "node",
-      "request": "launch",
-      "name": "Debug api with Nx",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": [
-        "nx",
-        "serve",
-        "api"
-      ],
-      "env": {
-        "NODE_OPTIONS": "--inspect=9230"
-      },
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "request": "attach",
+      "name": "Attach: api (9229)",
+      "port": 9229,
+      "restart": true,
       "skipFiles": [
         "<node_internals>/**"
       ],
@@ -51,43 +18,25 @@
     },
     {
       "type": "node",
-      "request": "launch",
-      "name": "Debug lambda-a with Nx",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": [
-        "nx",
-        "serve",
-        "lambda-a"
-      ],
-      "env": {
-        "NODE_OPTIONS": "--inspect=9231"
-      },
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "request": "attach",
+      "name": "Attach: admin-api (9230)",
+      "port": 9230,
+      "restart": true,
       "skipFiles": [
         "<node_internals>/**"
       ],
       "sourceMaps": true,
       "outFiles": [
-        "${workspaceFolder}/dist/apps/lambda-a/**/*.(m|c|)js",
+        "${workspaceFolder}/dist/apps/admin-api/**/*.(m|c|)js",
         "!**/node_modules/**"
       ]
     },
     {
       "type": "node",
-      "request": "launch",
-      "name": "Debug worker-a with Nx",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": [
-        "nx",
-        "serve",
-        "worker-a"
-      ],
-      "env": {
-        "NODE_OPTIONS": "--inspect=9232"
-      },
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "request": "attach",
+      "name": "Attach: worker-a (9231)",
+      "port": 9231,
+      "restart": true,
       "skipFiles": [
         "<node_internals>/**"
       ],
@@ -100,14 +49,12 @@
   ],
   "compounds": [
     {
-      // Starts infra (docker-compose without api/worker-a), then launches
-      // api via nx serve with the debugger attached.
-      // Make sure your .env has DATABASE_URL/REDIS_HOST pointing to localhost.
-      "name": "Infra + Debug api",
+      "name": "Attach: all",
       "configurations": [
-        "Debug api with Nx"
+        "Attach: api (9229)",
+        "Attach: admin-api (9230)",
+        "Attach: worker-a (9231)"
       ],
-      "preLaunchTask": "Docker: Start infra only",
       "stopAll": true
     }
   ]

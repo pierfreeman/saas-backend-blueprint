@@ -475,6 +475,23 @@ export class PlanningService {
         });
     }
 
+    this.activityLog.logActivity({
+      orgId,
+      actorId: actorUserId,
+      action: 'planning.event.rsvp',
+      entityType: 'event',
+      entityId: eventId,
+      metadata: { status, originalStartUtc: originalStartUtc ?? null },
+    });
+
+    this.legalAudit.recordEvent({
+      eventType: 'planning.event.rsvp',
+      orgId,
+      userId: actorUserId,
+      triggerType: 'user',
+      metadata: { eventId, status },
+    });
+
     return attendee;
   }
 

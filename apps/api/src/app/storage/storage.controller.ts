@@ -442,7 +442,10 @@ export class StorageController {
    * Both lookups run in parallel to minimize latency.
    *
    * The plan tier comes from FeatureFlagsService (Redis-cached) and the
-   * orgStorageLimit comes from the billing record (DB, rarely needed).
+   * orgStorageLimit comes from, in descending priority:
+   *   1. billing.storageLimit  — per-org DB override (e.g. enterprise custom deal)
+   *   2. entitlements.storageLimitBytes — entitlement override set via admin backoffice
+   *   3. null — let UploadPolicyService fall back to plan-tier config defaults
    */
   async #resolveOrgPlan(
     orgId: string,
@@ -454,7 +457,14 @@ export class StorageController {
 
     const planType: PlanType = this.#mapPlanType(entitlements.plan);
 
-    return { planType, orgStorageLimit: billing?.storageLimit ?? null };
+    // Billing DB column takes precedence; fall back to entitlement override if set.
+    const orgStorageLimit: bigint | null =
+      billing?.storageLimit ??
+      (entitlements.storageLimitBytes == null
+        ? null
+        : BigInt(entitlements.storageLimitBytes));
+
+    return { planType, orgStorageLimit };
   }
 
   /**
