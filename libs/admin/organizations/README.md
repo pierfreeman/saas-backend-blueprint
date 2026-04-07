@@ -19,6 +19,7 @@ bypassing the tenant isolation enforced for regular users.
 | `requestExport(orgId, actorAdminId)`                | Delegates to `OrgExportService.requestExport()`. Returns `{ exportId }`. Creates an `OrgExport` record + job, emits `org.export.requested` event for `worker-a` to process.                                 |
 | `listExports(orgId, limit, offset)`                 | Returns paginated `{ items, total, limit, offset }` of `OrgExport` records. `fileSize` is serialized to `string                                                                                             | null` (BigInt safe for JSON). |
 | `getExport(exportId, orgId)`                        | Returns a single `OrgExport` record, `fileSize` serialized to `string                                                                                                                                       | null`.                        |
+| `getStorageStats(orgId)`                            | Returns `{ totalBytes: string; fileCount: number }` — total confirmed file bytes (BigInt serialized to string) and file count. Delegates to `StorageService.getStorageStats()`.                             |
 
 ## Org detail shape
 
