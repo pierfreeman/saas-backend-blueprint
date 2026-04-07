@@ -218,6 +218,28 @@ describe('AdminOrganizationsService', () => {
       });
       expect(mockFeatureFlags.getEntitlements).toHaveBeenCalledWith('org-1');
     });
+
+    it('includes deletion fields in the response', async () => {
+      const scheduledAt = new Date('2025-06-01');
+      const orgWithDeletion = {
+        ...mockOrg,
+        status: OrganizationStatus.PENDING_DELETION,
+        deletionRequestedAt: new Date('2025-05-01'),
+        deletionScheduledAt: scheduledAt,
+        deletionCompletedAt: null,
+        retentionPeriodDays: 30,
+      };
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(orgWithDeletion);
+      mockActivityLog.findByOrg.mockResolvedValue(mockActivity);
+      mockFeatureFlags.getEntitlements.mockResolvedValue(mockEntitlements);
+
+      const result = await service.getOrganizationDetail('org-1');
+
+      expect(result.deletionRequestedAt).toEqual(new Date('2025-05-01'));
+      expect(result.deletionScheduledAt).toEqual(scheduledAt);
+      expect(result.deletionCompletedAt).toBeNull();
+      expect(result.retentionPeriodDays).toBe(30);
+    });
   });
 
   describe('searchOrganizations', () => {

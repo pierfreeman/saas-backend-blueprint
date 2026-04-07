@@ -85,6 +85,10 @@ export class AdminOrganizationsService {
       cancelAtPeriodEnd: org.cancelAtPeriodEnd,
       recentActivity: recentActivityResult.logs,
       entitlements,
+      deletionRequestedAt: org.deletionRequestedAt ?? null,
+      deletionScheduledAt: org.deletionScheduledAt ?? null,
+      deletionCompletedAt: org.deletionCompletedAt ?? null,
+      retentionPeriodDays: org.retentionPeriodDays ?? null,
     };
   }
 

@@ -44,4 +44,9 @@ export interface AdminOrganizationDetail extends AdminOrganizationListItem {
   cancelAtPeriodEnd: boolean;
   recentActivity: ActivityLogRecord[];
   entitlements: OrganizationEntitlements;
+  // ── Deletion fields ──────────────────────────────────────────────────────
+  deletionRequestedAt: Date | null;
+  deletionScheduledAt: Date | null;
+  deletionCompletedAt: Date | null;
+  retentionPeriodDays: number | null;
 }
