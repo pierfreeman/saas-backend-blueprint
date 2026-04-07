@@ -12,6 +12,7 @@ import { FeatureFlagsService } from '@libs/feature-flags';
 import { LegalAuditService } from '@libs/legal-audit';
 import { InviteMemberService } from '@libs/memberships';
 import { OrgExportService } from '@libs/org-export';
+import { StorageService } from '@libs/storage';
 
 const mockOrg = {
   id: 'org-1',
@@ -102,6 +103,10 @@ describe('AdminOrganizationsService', () => {
     getExport: vi.fn(),
   };
 
+  const mockStorageService = {
+    getStorageStats: vi.fn(),
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
 
@@ -114,6 +119,7 @@ describe('AdminOrganizationsService', () => {
         { provide: LegalAuditService, useValue: mockLegalAudit },
         { provide: InviteMemberService, useValue: mockInviteMember },
         { provide: OrgExportService, useValue: mockOrgExport },
+        { provide: StorageService, useValue: mockStorageService },
       ],
     }).compile();
 
@@ -472,6 +478,18 @@ describe('AdminOrganizationsService', () => {
       await expect(service.getExport('export-1', 'org-1')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('getStorageStats', () => {
+    it('delegates to StorageService and returns the result', async () => {
+      const stats = { totalBytes: '10485760', fileCount: 5 };
+      mockStorageService.getStorageStats.mockResolvedValue(stats);
+
+      const result = await service.getStorageStats('org-1');
+
+      expect(mockStorageService.getStorageStats).toHaveBeenCalledWith('org-1');
+      expect(result).toEqual(stats);
     });
   });
 });

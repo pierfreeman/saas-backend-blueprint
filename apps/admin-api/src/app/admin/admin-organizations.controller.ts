@@ -167,4 +167,22 @@ export class AdminOrganizationsController {
   ) {
     return this.adminOrgsService.getExport(exportId, orgId);
   }
+
+  // ── Storage ────────────────────────────────────────────────────────────────
+
+  @Get(':orgId/storage')
+  @ApiOperation({
+    summary: 'Get storage usage stats for an organization (admin)',
+  })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description:
+      'Storage usage: total confirmed bytes (as string) and file count.',
+  })
+  getStorageStats(
+    @Param('orgId') orgId: string,
+  ): Promise<{ totalBytes: string; fileCount: number }> {
+    return this.adminOrgsService.getStorageStats(orgId);
+  }
 }

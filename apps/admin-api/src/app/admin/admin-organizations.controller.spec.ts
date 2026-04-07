@@ -142,4 +142,20 @@ describe('AdminOrganizationsController', () => {
       );
     });
   });
+
+  describe('getStorageStats()', () => {
+    it('delegates to service with orgId', async () => {
+      const mockStats = { totalBytes: '5242880', fileCount: 2 };
+      mockAdminOrgsService.getStorageStats = vi
+        .fn()
+        .mockResolvedValue(mockStats);
+
+      const result = await controller.getStorageStats('org-1');
+
+      expect(result).toBe(mockStats);
+      expect(mockAdminOrgsService.getStorageStats).toHaveBeenCalledWith(
+        'org-1',
+      );
+    });
+  });
 });

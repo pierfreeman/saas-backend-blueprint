@@ -6,6 +6,7 @@ import { FeatureFlagsService } from '@libs/feature-flags';
 import { LegalAuditService } from '@libs/legal-audit';
 import { InviteMemberService } from '@libs/memberships';
 import { OrgExportService } from '@libs/org-export';
+import { StorageService } from '@libs/storage';
 import { AdminOrganizationsRepository } from '../../infrastructure/repositories/admin-organizations.repository';
 import type {
   AdminOrganizationDetail,
@@ -29,6 +30,7 @@ export class AdminOrganizationsService {
     private readonly legalAudit: LegalAuditService,
     private readonly inviteMemberService: InviteMemberService,
     private readonly orgExportService: OrgExportService,
+    private readonly storageService: StorageService,
   ) {}
 
   /**
@@ -228,6 +230,12 @@ export class AdminOrganizationsService {
   async getExport(exportId: string, orgId: string) {
     const record = await this.orgExportService.getExport(exportId, orgId);
     return this.serializeExport(record);
+  }
+
+  async getStorageStats(
+    orgId: string,
+  ): Promise<{ totalBytes: string; fileCount: number }> {
+    return this.storageService.getStorageStats(orgId);
   }
 
   private serializeExport<T extends { fileSize: bigint | null }>(record: T) {
