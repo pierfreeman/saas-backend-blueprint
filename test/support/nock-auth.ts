@@ -8,7 +8,7 @@
  * JWKS payload built from the test RSA public key (`test/keys/test-public.pem`).
  *
  * Usage (in each test file's beforeAll):
- *   import { setupNockAuth, teardownNockAuth } from '../support/nock-auth';
+ *   import { setupNockAuth, teardownNockAuth } from '@test/support/nock-auth';
  *
  *   beforeAll(() => setupNockAuth());
  *   afterAll(() => teardownNockAuth());
@@ -27,7 +27,7 @@ export const TEST_JWKS_URI = `https://${TEST_DOMAIN}/.well-known/jwks.json`;
 
 function buildTestJwks(): object {
   const publicPem = fs.readFileSync(
-    path.join(__dirname, '../../../../test/keys/test-public.pem'),
+    path.join(__dirname, '../keys/test-public.pem'),
     'utf8',
   );
 
