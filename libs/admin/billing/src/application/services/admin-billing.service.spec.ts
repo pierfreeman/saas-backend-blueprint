@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BillingStatus } from '@libs/prisma-business';
 import { AdminBillingService } from './admin-billing.service';
 import { AdminBillingRepository } from '../../infrastructure/repositories/admin-billing.repository';
-import { BillingService } from '@libs/billing';
+import { BillingService, StripeService } from '@libs/billing';
+import { ActivityLogService } from '@libs/activity-log';
+import { LegalAuditService } from '@libs/legal-audit';
 
 const mockOrgBillingFields = {
   id: 'org-1',
@@ -28,6 +30,14 @@ describe('AdminBillingService', () => {
     createPortalSession: vi.fn(),
   };
 
+  const mockStripeService = {
+    updateSubscriptionPlan: vi.fn(),
+    extendTrial: vi.fn(),
+  };
+
+  const mockActivityLog = { logActivity: vi.fn() };
+  const mockLegalAudit = { recordEvent: vi.fn() };
+
   beforeEach(async () => {
     vi.clearAllMocks();
 
@@ -36,6 +46,9 @@ describe('AdminBillingService', () => {
         AdminBillingService,
         { provide: AdminBillingRepository, useValue: mockRepository },
         { provide: BillingService, useValue: mockBillingService },
+        { provide: StripeService, useValue: mockStripeService },
+        { provide: ActivityLogService, useValue: mockActivityLog },
+        { provide: LegalAuditService, useValue: mockLegalAudit },
       ],
     }).compile();
 
@@ -135,6 +148,144 @@ describe('AdminBillingService', () => {
         }),
       ).rejects.toThrow('no Stripe customer ID');
       expect(mockBillingService.createPortalSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('changePlan', () => {
+    it('calls updateSubscriptionPlan with the new price ID', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(
+        mockOrgBillingFields,
+      );
+      mockStripeService.updateSubscriptionPlan.mockResolvedValue(undefined);
+
+      await service.changePlan(
+        'org-1',
+        'price_enterprise',
+        'admin-1',
+        'Upgrade deal',
+      );
+
+      expect(mockStripeService.updateSubscriptionPlan).toHaveBeenCalledWith(
+        'sub_xyz',
+        'price_enterprise',
+      );
+    });
+
+    it('logs activity and legal audit on success', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(
+        mockOrgBillingFields,
+      );
+      mockStripeService.updateSubscriptionPlan.mockResolvedValue(undefined);
+
+      await service.changePlan(
+        'org-1',
+        'price_enterprise',
+        'admin-1',
+        'Upgrade',
+      );
+
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'billing.plan.changed',
+          orgId: 'org-1',
+          metadata: expect.objectContaining({ newPriceId: 'price_enterprise' }),
+        }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'billing.plan.changed',
+          triggerType: 'admin_action',
+        }),
+      );
+    });
+
+    it('throws NotFoundException when org does not exist', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(null);
+
+      await expect(
+        service.changePlan('missing', 'price_pro', 'admin-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when org has no subscription', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue({
+        ...mockOrgBillingFields,
+        subscriptionId: null,
+      });
+
+      await expect(
+        service.changePlan('org-1', 'price_pro', 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('extendTrial', () => {
+    const trialingOrg = {
+      ...mockOrgBillingFields,
+      billingStatus: BillingStatus.TRIALING,
+    };
+
+    it('calls extendTrial on StripeService with correct args', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(trialingOrg);
+      mockStripeService.extendTrial.mockResolvedValue(undefined);
+      const trialEnd = new Date('2025-12-31');
+
+      await service.extendTrial('org-1', trialEnd, 'admin-1');
+
+      expect(mockStripeService.extendTrial).toHaveBeenCalledWith(
+        'sub_xyz',
+        trialEnd,
+      );
+    });
+
+    it('logs activity and legal audit on success', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(trialingOrg);
+      mockStripeService.extendTrial.mockResolvedValue(undefined);
+      const trialEnd = new Date('2025-12-31');
+
+      await service.extendTrial('org-1', trialEnd, 'admin-1');
+
+      expect(mockActivityLog.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'billing.trial.extended',
+          orgId: 'org-1',
+        }),
+      );
+      expect(mockLegalAudit.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'billing.trial.extended',
+          triggerType: 'admin_action',
+        }),
+      );
+    });
+
+    it('throws NotFoundException when org does not exist', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(null);
+
+      await expect(
+        service.extendTrial('missing', new Date(), 'admin-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when org has no subscription', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue({
+        ...trialingOrg,
+        subscriptionId: null,
+      });
+
+      await expect(
+        service.extendTrial('org-1', new Date(), 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when org is not TRIALING', async () => {
+      mockRepository.findOrgBillingFields.mockResolvedValue(
+        mockOrgBillingFields,
+      ); // ACTIVE
+
+      await expect(
+        service.extendTrial('org-1', new Date(), 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

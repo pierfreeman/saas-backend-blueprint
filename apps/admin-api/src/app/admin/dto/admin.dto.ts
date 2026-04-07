@@ -175,6 +175,35 @@ export class AdminGetPortalUrlDto {
   returnUrl!: string;
 }
 
+export class AdminChangePlanDto {
+  @ApiProperty({
+    description:
+      'Stripe Price ID of the target plan (e.g. price_enterprise_monthly)',
+    example: 'price_1NwZZv2eZvKYlo2C4hzLriU3',
+  })
+  @IsString()
+  @IsNotEmpty()
+  priceId!: string;
+
+  @ApiPropertyOptional({
+    description: 'Internal reason for the plan change (for audit trail).',
+    example: 'Enterprise upgrade negotiated by sales',
+  })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class AdminExtendTrialDto {
+  @ApiProperty({
+    description: 'New trial end date (ISO 8601). Must be in the future.',
+    example: '2025-12-31T23:59:59.000Z',
+  })
+  @IsDateString()
+  @IsNotEmpty()
+  trialEnd!: string;
+}
+
 // ── Activity log ──────────────────────────────────────────────────────────────
 
 export class AdminActivityQueryDto {
