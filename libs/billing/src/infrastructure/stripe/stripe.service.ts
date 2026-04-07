@@ -340,4 +340,84 @@ export class StripeService {
       return { status: 'error' };
     }
   }
+
+  /**
+   * Changes the price (plan) of an existing Stripe subscription.
+   * Replaces the first subscription item with the new price ID.
+   * Stripe fires customer.subscription.updated → SubscriptionUpdatedHandler syncs local state.
+   *
+   * @param subscriptionId - Stripe subscription ID (sub_xxx)
+   * @param newPriceId - Target Stripe Price ID (price_xxx)
+   */
+  async updateSubscriptionPlan(
+    subscriptionId: string,
+    newPriceId: string,
+  ): Promise<Stripe.Subscription> {
+    try {
+      // Retrieve the subscription to get the current item ID
+      const sub = await this.withRetry(
+        'retrieveSubscriptionForPlanChange',
+        () => this.stripe.subscriptions.retrieve(subscriptionId),
+      );
+
+      const itemId = sub.items.data[0]?.id;
+      if (!itemId) {
+        throw new InternalServerErrorException(
+          `Subscription ${subscriptionId} has no items`,
+        );
+      }
+
+      const updated = await this.withRetry('updateSubscriptionPlan', () =>
+        this.stripe.subscriptions.update(subscriptionId, {
+          items: [{ id: itemId, price: newPriceId }],
+          proration_behavior: 'create_prorations',
+        }),
+      );
+
+      this.logger.debug(
+        `Stripe subscription ${subscriptionId} plan changed to ${newPriceId}`,
+      );
+      return updated;
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
+      this.logger.error(
+        `Failed to update subscription plan ${subscriptionId}`,
+        err,
+      );
+      throw new InternalServerErrorException(
+        'Failed to update subscription plan',
+      );
+    }
+  }
+
+  /**
+   * Extends (or sets) the trial end date on a Stripe subscription.
+   * Stripe fires customer.subscription.updated → SubscriptionUpdatedHandler syncs local state.
+   *
+   * @param subscriptionId - Stripe subscription ID (sub_xxx)
+   * @param trialEnd - New trial end date
+   */
+  async extendTrial(
+    subscriptionId: string,
+    trialEnd: Date,
+  ): Promise<Stripe.Subscription> {
+    try {
+      const trialEndUnix = Math.floor(trialEnd.getTime() / 1000);
+      const updated = await this.withRetry('extendTrial', () =>
+        this.stripe.subscriptions.update(subscriptionId, {
+          trial_end: trialEndUnix,
+        }),
+      );
+      this.logger.debug(
+        `Stripe subscription ${subscriptionId} trial extended to ${trialEnd.toISOString()}`,
+      );
+      return updated;
+    } catch (err) {
+      this.logger.error(
+        `Failed to extend trial for subscription ${subscriptionId}`,
+        err,
+      );
+      throw new InternalServerErrorException('Failed to extend trial');
+    }
+  }
 }

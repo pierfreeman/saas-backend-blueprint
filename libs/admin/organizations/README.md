@@ -10,12 +10,16 @@ bypassing the tenant isolation enforced for regular users.
 ## Operations
 
 | Method                                              | Description                                                                                                                                                                                                 |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | `listOrganizations(filters, pagination)`            | Paginated org list — search by name, filter by `OrgStatus`, sort by `createdAt` DESC                                                                                                                        |
 | `getOrganizationDetail(orgId)`                      | Customer 360 — billing snapshot, membership count, recent activity (last 5), plan entitlements                                                                                                              |
 | `searchOrganizations(query)`                        | Lightweight name search returning id + name pairs (used by dropdowns and autocomplete)                                                                                                                      |
 | `provisionOrganization(dto, adminId)`               | Enterprise provisioning: create org → optionally assign plan → invite owner via `InviteMemberService` → dual audit (activity + legal)                                                                       |
 | `setOrgStatus(orgId, status, reason, actorAdminId)` | Suspend or reactivate an organization. Invalidates the entitlements cache immediately so suspended orgs stop receiving entitlement responses. Dual audit (activity + legal) with actor and reason recorded. |
+| `requestExport(orgId, actorAdminId)`                | Delegates to `OrgExportService.requestExport()`. Returns `{ exportId }`. Creates an `OrgExport` record + job, emits `org.export.requested` event for `worker-a` to process.                                 |
+| `listExports(orgId, limit, offset)`                 | Returns paginated `{ items, total, limit, offset }` of `OrgExport` records. `fileSize` is serialized to `string                                                                                             | null` (BigInt safe for JSON). |
+| `getExport(exportId, orgId)`                        | Returns a single `OrgExport` record, `fileSize` serialized to `string                                                                                                                                       | null`.                        |
+| `getStorageStats(orgId)`                            | Returns `{ totalBytes: string; fileCount: number }` — total confirmed file bytes (BigInt serialized to string) and file count. Delegates to `StorageService.getStorageStats()`.                             |
 
 ## Org detail shape
 
@@ -23,8 +27,13 @@ bypassing the tenant isolation enforced for regular users.
 {
   id, name, status, billingStatus, planId, membersCount, createdAt,
   stripeCustomerId, subscriptionId, subscriptionPeriodEnd, cancelAtPeriodEnd,
-  recentActivity: ActivityLogRecord[],   // last 5 events
+  recentActivity: ActivityLogRecord[],    // last 5 events
   entitlements: OrganizationEntitlements, // Redis-cached plan flags
+  // deletion lifecycle (null when no deletion has been requested)
+  deletionRequestedAt: Date | null,
+  deletionScheduledAt: Date | null,
+  deletionCompletedAt: Date | null,
+  retentionPeriodDays: number | null,
 }
 ```
 

@@ -29,6 +29,7 @@ import {
 import {
   AdminProvisionOrgDto,
   AdminSetOrgStatusDto,
+  AdminListExportsQueryDto,
   ListOrganizationsQueryDto,
 } from './dto/admin.dto';
 
@@ -109,5 +110,79 @@ export class AdminOrganizationsController {
       dto.reason,
       actorAdminId,
     );
+  }
+
+  // ── Exports ────────────────────────────────────────────────────────────────
+
+  @Post(':orgId/exports')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Trigger a GDPR data export for an organization (admin)',
+  })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Export job queued.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Organization not found.',
+  })
+  triggerExport(
+    @Param('orgId') orgId: string,
+    @CurrentAdminUserId() actorAdminId: string,
+  ): Promise<{ exportId: string }> {
+    return this.adminOrgsService.requestExport(orgId, actorAdminId);
+  }
+
+  @Get(':orgId/exports')
+  @ApiOperation({ summary: 'List GDPR exports for an organization (admin)' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Paginated list of exports.',
+  })
+  listExports(
+    @Param('orgId') orgId: string,
+    @Query() query: AdminListExportsQueryDto,
+  ) {
+    return this.adminOrgsService.listExports(orgId, query.limit, query.offset);
+  }
+
+  @Get(':orgId/exports/:exportId')
+  @ApiOperation({ summary: 'Get a single GDPR export record (admin)' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiParam({ name: 'exportId', description: 'Export UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Export record.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Export not found.',
+  })
+  getExport(
+    @Param('orgId') orgId: string,
+    @Param('exportId') exportId: string,
+  ) {
+    return this.adminOrgsService.getExport(exportId, orgId);
+  }
+
+  // ── Storage ────────────────────────────────────────────────────────────────
+
+  @Get(':orgId/storage')
+  @ApiOperation({
+    summary: 'Get storage usage stats for an organization (admin)',
+  })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description:
+      'Storage usage: total confirmed bytes (as string) and file count.',
+  })
+  getStorageStats(
+    @Param('orgId') orgId: string,
+  ): Promise<{ totalBytes: string; fileCount: number }> {
+    return this.adminOrgsService.getStorageStats(orgId);
   }
 }

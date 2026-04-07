@@ -86,6 +86,10 @@ export class OrgExportRepository {
     });
   }
 
+  async countByOrg(orgId: string): Promise<number> {
+    return this.prisma.orgExport.count({ where: { orgId } });
+  }
+
   /**
    * Find exports whose signed URLs have expired. Used by the scheduler.
    */

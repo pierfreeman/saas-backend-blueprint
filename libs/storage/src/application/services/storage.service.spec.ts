@@ -44,6 +44,7 @@ describe('StorageService', () => {
       findByOrg: vi.fn(),
       findByPrefix: vi.fn(),
       markExpired: vi.fn(),
+      getStorageUsage: vi.fn(),
     } as unknown as Mocked<StorageRepository>;
 
     uploadPolicyService = {
@@ -641,6 +642,31 @@ describe('StorageService', () => {
       await service.deleteFolder(prefix);
 
       expect(s3Provider.deleteObject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getStorageStats', () => {
+    it('returns serialized totalBytes and fileCount', async () => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(10485760),
+        fileCount: 3,
+      });
+
+      const result = await service.getStorageStats('org-1');
+
+      expect(storageRepository.getStorageUsage).toHaveBeenCalledWith('org-1');
+      expect(result).toEqual({ totalBytes: '10485760', fileCount: 3 });
+    });
+
+    it('returns zero stats when org has no files', async () => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+
+      const result = await service.getStorageStats('org-empty');
+
+      expect(result).toEqual({ totalBytes: '0', fileCount: 0 });
     });
   });
 });

@@ -282,6 +282,26 @@ All BigInt fields are serialized as strings to preserve precision. A `null`
 
 ---
 
+### GET /admin/organizations/:orgId/storage _(admin API)_
+
+Returns confirmed file count and total bytes for an organization.
+Exposed via `GET /admin/organizations/:orgId/storage` on the admin API — not on the tenant-facing API.
+Internally calls `StorageService.getStorageStats(orgId)`.
+
+**Response:**
+
+```json
+{
+  "totalBytes": "52428800",
+  "fileCount": 12
+}
+```
+
+`totalBytes` is a string (BigInt serialized server-side for JSON safety).
+Only counts files with `status = COMPLETED`.
+
+---
+
 ### DELETE /files/:id
 
 Delete a file.

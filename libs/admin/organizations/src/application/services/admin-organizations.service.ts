@@ -5,6 +5,8 @@ import { ActivityLogService } from '@libs/activity-log';
 import { FeatureFlagsService } from '@libs/feature-flags';
 import { LegalAuditService } from '@libs/legal-audit';
 import { InviteMemberService } from '@libs/memberships';
+import { OrgExportService } from '@libs/org-export';
+import { StorageService } from '@libs/storage';
 import { AdminOrganizationsRepository } from '../../infrastructure/repositories/admin-organizations.repository';
 import type {
   AdminOrganizationDetail,
@@ -27,6 +29,8 @@ export class AdminOrganizationsService {
     private readonly featureFlags: FeatureFlagsService,
     private readonly legalAudit: LegalAuditService,
     private readonly inviteMemberService: InviteMemberService,
+    private readonly orgExportService: OrgExportService,
+    private readonly storageService: StorageService,
   ) {}
 
   /**
@@ -81,6 +85,10 @@ export class AdminOrganizationsService {
       cancelAtPeriodEnd: org.cancelAtPeriodEnd,
       recentActivity: recentActivityResult.logs,
       entitlements,
+      deletionRequestedAt: org.deletionRequestedAt ?? null,
+      deletionScheduledAt: org.deletionScheduledAt ?? null,
+      deletionCompletedAt: org.deletionCompletedAt ?? null,
+      retentionPeriodDays: org.retentionPeriodDays ?? null,
     };
   }
 
@@ -202,6 +210,43 @@ export class AdminOrganizationsService {
       planId: dto.plan ?? org.planId,
       _count: { memberships: 1 },
     });
+  }
+
+  async requestExport(
+    orgId: string,
+    actorAdminId: string,
+  ): Promise<{ exportId: string }> {
+    const exportId = await this.orgExportService.requestExport(
+      orgId,
+      actorAdminId,
+    );
+    return { exportId };
+  }
+
+  async listExports(orgId: string, limit = 10, offset = 0) {
+    const [records, total] = await Promise.all([
+      this.orgExportService.listExports(orgId, limit, offset),
+      this.orgExportService.countExports(orgId),
+    ]);
+    return { items: records.map(this.serializeExport), total, limit, offset };
+  }
+
+  async getExport(exportId: string, orgId: string) {
+    const record = await this.orgExportService.getExport(exportId, orgId);
+    return this.serializeExport(record);
+  }
+
+  async getStorageStats(
+    orgId: string,
+  ): Promise<{ totalBytes: string; fileCount: number }> {
+    return this.storageService.getStorageStats(orgId);
+  }
+
+  private serializeExport<T extends { fileSize: bigint | null }>(record: T) {
+    return {
+      ...record,
+      fileSize: record.fileSize != null ? record.fileSize.toString() : null,
+    };
   }
 
   private toListItem(

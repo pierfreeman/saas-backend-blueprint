@@ -1,4 +1,8 @@
-import { MembershipRole, OrganizationStatus } from '@libs/prisma-business';
+import {
+  JobStatus,
+  MembershipRole,
+  OrganizationStatus,
+} from '@libs/prisma-business';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
@@ -171,6 +175,35 @@ export class AdminGetPortalUrlDto {
   returnUrl!: string;
 }
 
+export class AdminChangePlanDto {
+  @ApiProperty({
+    description:
+      'Stripe Price ID of the target plan (e.g. price_enterprise_monthly)',
+    example: 'price_1NwZZv2eZvKYlo2C4hzLriU3',
+  })
+  @IsString()
+  @IsNotEmpty()
+  priceId!: string;
+
+  @ApiPropertyOptional({
+    description: 'Internal reason for the plan change (for audit trail).',
+    example: 'Enterprise upgrade negotiated by sales',
+  })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class AdminExtendTrialDto {
+  @ApiProperty({
+    description: 'New trial end date (ISO 8601). Must be in the future.',
+    example: '2025-12-31T23:59:59.000Z',
+  })
+  @IsDateString()
+  @IsNotEmpty()
+  trialEnd!: string;
+}
+
 // ── Activity log ──────────────────────────────────────────────────────────────
 
 export class AdminActivityQueryDto {
@@ -232,6 +265,50 @@ export class AdminAllActivityQueryDto extends AdminActivityQueryDto {
   orgId?: string;
 }
 
+// ── Jobs ──────────────────────────────────────────────────────────────────────
+
+export class AdminListJobsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Max results (1–200)',
+    example: 50,
+    default: 50,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'Skip N items for pagination',
+    example: 0,
+    default: 0,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
+
+  @ApiPropertyOptional({
+    enum: JobStatus,
+    description: 'Filter by job status',
+    example: JobStatus.FAILED,
+  })
+  @IsOptional()
+  @IsEnum(JobStatus)
+  status?: JobStatus;
+
+  @ApiPropertyOptional({
+    description: 'Filter by job type (exact match)',
+    example: 'ORG_EXPORT',
+  })
+  @IsOptional()
+  @IsString()
+  type?: string;
+}
+
 // ── Feature flag overrides ────────────────────────────────────────────────────
 
 /** Valid PlanEntitlements keys that can be overridden. */
@@ -280,4 +357,31 @@ export class SetFeatureFlagOverrideDto {
   @IsOptional()
   @IsDateString()
   expiresAt?: string;
+}
+
+// ── Exports ───────────────────────────────────────────────────────────────────
+
+export class AdminListExportsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Max results (1–100)',
+    example: 10,
+    default: 10,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 10;
+
+  @ApiPropertyOptional({
+    description: 'Skip N items for pagination',
+    example: 0,
+    default: 0,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number = 0;
 }

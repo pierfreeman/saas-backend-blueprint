@@ -1,0 +1,28 @@
+{
+  "name": "admin-jobs",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/admin/jobs/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:admin"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/admin/jobs"],
+      "options": {
+        "configFile": "libs/admin/jobs/vitest.config.ts",
+        "passWithNoTests": true
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/admin/jobs/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

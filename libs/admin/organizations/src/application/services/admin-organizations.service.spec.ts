@@ -11,6 +11,8 @@ import { ActivityLogService } from '@libs/activity-log';
 import { FeatureFlagsService } from '@libs/feature-flags';
 import { LegalAuditService } from '@libs/legal-audit';
 import { InviteMemberService } from '@libs/memberships';
+import { OrgExportService } from '@libs/org-export';
+import { StorageService } from '@libs/storage';
 
 const mockOrg = {
   id: 'org-1',
@@ -94,6 +96,17 @@ describe('AdminOrganizationsService', () => {
     invite: vi.fn(),
   };
 
+  const mockOrgExport = {
+    requestExport: vi.fn(),
+    listExports: vi.fn(),
+    countExports: vi.fn(),
+    getExport: vi.fn(),
+  };
+
+  const mockStorageService = {
+    getStorageStats: vi.fn(),
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
 
@@ -105,6 +118,8 @@ describe('AdminOrganizationsService', () => {
         { provide: FeatureFlagsService, useValue: mockFeatureFlags },
         { provide: LegalAuditService, useValue: mockLegalAudit },
         { provide: InviteMemberService, useValue: mockInviteMember },
+        { provide: OrgExportService, useValue: mockOrgExport },
+        { provide: StorageService, useValue: mockStorageService },
       ],
     }).compile();
 
@@ -202,6 +217,28 @@ describe('AdminOrganizationsService', () => {
         offset: 0,
       });
       expect(mockFeatureFlags.getEntitlements).toHaveBeenCalledWith('org-1');
+    });
+
+    it('includes deletion fields in the response', async () => {
+      const scheduledAt = new Date('2025-06-01');
+      const orgWithDeletion = {
+        ...mockOrg,
+        status: OrganizationStatus.PENDING_DELETION,
+        deletionRequestedAt: new Date('2025-05-01'),
+        deletionScheduledAt: scheduledAt,
+        deletionCompletedAt: null,
+        retentionPeriodDays: 30,
+      };
+      mockRepository.findByIdWithMemberCount.mockResolvedValue(orgWithDeletion);
+      mockActivityLog.findByOrg.mockResolvedValue(mockActivity);
+      mockFeatureFlags.getEntitlements.mockResolvedValue(mockEntitlements);
+
+      const result = await service.getOrganizationDetail('org-1');
+
+      expect(result.deletionRequestedAt).toEqual(new Date('2025-05-01'));
+      expect(result.deletionScheduledAt).toEqual(scheduledAt);
+      expect(result.deletionCompletedAt).toBeNull();
+      expect(result.retentionPeriodDays).toBe(30);
     });
   });
 
@@ -386,6 +423,95 @@ describe('AdminOrganizationsService', () => {
           metadata: expect.objectContaining({ reason: null }),
         }),
       );
+    });
+  });
+
+  describe('requestExport', () => {
+    it('delegates to OrgExportService and returns { exportId }', async () => {
+      mockOrgExport.requestExport.mockResolvedValue('export-uuid');
+
+      const result = await service.requestExport('org-1', 'admin-1');
+
+      expect(mockOrgExport.requestExport).toHaveBeenCalledWith(
+        'org-1',
+        'admin-1',
+      );
+      expect(result).toEqual({ exportId: 'export-uuid' });
+    });
+
+    it('propagates errors from OrgExportService', async () => {
+      mockOrgExport.requestExport.mockRejectedValue(
+        new NotFoundException('Organization org-1 not found'),
+      );
+
+      await expect(service.requestExport('org-1', 'admin-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('listExports', () => {
+    it('delegates to OrgExportService and returns paginated result', async () => {
+      const mockRecord = {
+        id: 'export-1',
+        orgId: 'org-1',
+        status: 'PENDING',
+        fileSize: null,
+      };
+      mockOrgExport.listExports.mockResolvedValue([mockRecord]);
+      mockOrgExport.countExports.mockResolvedValue(1);
+
+      const result = await service.listExports('org-1', 10, 0);
+
+      expect(mockOrgExport.listExports).toHaveBeenCalledWith('org-1', 10, 0);
+      expect(mockOrgExport.countExports).toHaveBeenCalledWith('org-1');
+      expect(result).toEqual({
+        items: [{ ...mockRecord, fileSize: null }],
+        total: 1,
+        limit: 10,
+        offset: 0,
+      });
+    });
+  });
+
+  describe('getExport', () => {
+    it('delegates to OrgExportService', async () => {
+      const mockExport = {
+        id: 'export-1',
+        orgId: 'org-1',
+        status: 'PENDING',
+        fileSize: BigInt(1024),
+      };
+      mockOrgExport.getExport.mockResolvedValue(mockExport);
+
+      const result = await service.getExport('export-1', 'org-1');
+
+      expect(mockOrgExport.getExport).toHaveBeenCalledWith('export-1', 'org-1');
+      expect(result).toEqual({ ...mockExport, fileSize: '1024' });
+    });
+
+    it('propagates NotFoundException from OrgExportService', async () => {
+      mockOrgExport.getExport.mockRejectedValue(
+        new NotFoundException(
+          'Export export-1 not found for organization org-1',
+        ),
+      );
+
+      await expect(service.getExport('export-1', 'org-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getStorageStats', () => {
+    it('delegates to StorageService and returns the result', async () => {
+      const stats = { totalBytes: '10485760', fileCount: 5 };
+      mockStorageService.getStorageStats.mockResolvedValue(stats);
+
+      const result = await service.getStorageStats('org-1');
+
+      expect(mockStorageService.getStorageStats).toHaveBeenCalledWith('org-1');
+      expect(result).toEqual(stats);
     });
   });
 });

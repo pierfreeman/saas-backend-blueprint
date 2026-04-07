@@ -1,11 +1,17 @@
 import { vi } from 'vitest';
 import { AdminBillingController } from './admin-billing.controller';
 import { AdminBillingService } from '@libs/admin/billing';
-import { AdminGetPortalUrlDto } from './dto/admin.dto';
+import {
+  AdminChangePlanDto,
+  AdminExtendTrialDto,
+  AdminGetPortalUrlDto,
+} from './dto/admin.dto';
 
 const mockAdminBillingService = {
   getBillingOverview: vi.fn(),
   getPortalUrl: vi.fn(),
+  changePlan: vi.fn(),
+  extendTrial: vi.fn(),
 } as unknown as AdminBillingService;
 
 const ACTOR_ADMIN_ID = 'admin-user-id';
@@ -72,6 +78,60 @@ describe('AdminBillingController', () => {
         returnUrl: dto.returnUrl,
         actorAdminId: ACTOR_ADMIN_ID,
       });
+    });
+  });
+
+  describe('changePlan()', () => {
+    it('delegates to service with orgId, priceId, actorAdminId, and reason', async () => {
+      mockAdminBillingService.changePlan = vi.fn().mockResolvedValue(undefined);
+
+      const dto: AdminChangePlanDto = {
+        priceId: 'price_enterprise',
+        reason: 'Sales deal',
+      } as AdminChangePlanDto;
+
+      await controller.changePlan('org-1', dto, ACTOR_ADMIN_ID);
+
+      expect(mockAdminBillingService.changePlan).toHaveBeenCalledWith(
+        'org-1',
+        'price_enterprise',
+        ACTOR_ADMIN_ID,
+        'Sales deal',
+      );
+    });
+
+    it('works without optional reason field', async () => {
+      mockAdminBillingService.changePlan = vi.fn().mockResolvedValue(undefined);
+
+      const dto = { priceId: 'price_pro' } as AdminChangePlanDto;
+      await controller.changePlan('org-1', dto, ACTOR_ADMIN_ID);
+
+      expect(mockAdminBillingService.changePlan).toHaveBeenCalledWith(
+        'org-1',
+        'price_pro',
+        ACTOR_ADMIN_ID,
+        undefined,
+      );
+    });
+  });
+
+  describe('extendTrial()', () => {
+    it('delegates to service with orgId, parsed Date, and actorAdminId', async () => {
+      mockAdminBillingService.extendTrial = vi
+        .fn()
+        .mockResolvedValue(undefined);
+
+      const dto: AdminExtendTrialDto = {
+        trialEnd: '2025-12-31T23:59:59.000Z',
+      } as AdminExtendTrialDto;
+
+      await controller.extendTrial('org-1', dto, ACTOR_ADMIN_ID);
+
+      expect(mockAdminBillingService.extendTrial).toHaveBeenCalledWith(
+        'org-1',
+        new Date('2025-12-31T23:59:59.000Z'),
+        ACTOR_ADMIN_ID,
+      );
     });
   });
 });

@@ -412,4 +412,17 @@ export class StorageService {
     const provider = this.getProvider(this.defaultProvider);
     await provider.putObject(storageKey, buffer, contentType);
   }
+
+  /**
+   * Return aggregate storage usage for an organization.
+   * Counts only COMPLETED (confirmed) files.
+   * The `totalBytes` bigint is serialized to string to avoid JSON.stringify issues.
+   */
+  async getStorageStats(
+    orgId: string,
+  ): Promise<{ totalBytes: string; fileCount: number }> {
+    const { totalBytes, fileCount } =
+      await this.storageRepository.getStorageUsage(orgId);
+    return { totalBytes: totalBytes.toString(), fileCount };
+  }
 }
