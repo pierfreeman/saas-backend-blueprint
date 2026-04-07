@@ -27,8 +27,13 @@ bypassing the tenant isolation enforced for regular users.
 {
   id, name, status, billingStatus, planId, membersCount, createdAt,
   stripeCustomerId, subscriptionId, subscriptionPeriodEnd, cancelAtPeriodEnd,
-  recentActivity: ActivityLogRecord[],   // last 5 events
+  recentActivity: ActivityLogRecord[],    // last 5 events
   entitlements: OrganizationEntitlements, // Redis-cached plan flags
+  // deletion lifecycle (null when no deletion has been requested)
+  deletionRequestedAt: Date | null,
+  deletionScheduledAt: Date | null,
+  deletionCompletedAt: Date | null,
+  retentionPeriodDays: number | null,
 }
 ```
 

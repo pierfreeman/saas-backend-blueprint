@@ -482,6 +482,15 @@ Set up alerts for:
 - ⚠️ Pending deletions > 100 orgs
 - ⚠️ Failed deletions not retried
 
+## Admin Backoffice Visibility
+
+The deletion lifecycle fields (`deletionRequestedAt`, `deletionScheduledAt`, `deletionCompletedAt`, `retentionPeriodDays`) are read-only observable from the admin backoffice:
+
+- `AdminOrganizationsService.getOrganizationDetail()` returns these four fields as part of the Customer 360 response — no additional query is needed because `findByIdWithMemberCount()` already fetches the full `Organization` row.
+- These fields are included in `AdminOrganizationDetail` (both the backend DTO and the frontend type in `@saas-frontend/admin/data-access`).
+- The **Deletion tab** in `admin-org-detail.component.ts` renders a read-only card with the dates and status badge when a deletion has been requested, or a "No deletion requested" empty state otherwise.
+- **No execution controls are surfaced in the admin UI.** Deletion is triggered via the tenant-facing `POST /organizations/:id/delete` endpoint (OWNER role required) or by the scheduler. The admin portal is observation-only for GDPR compliance.
+
 ## Compliance
 
 ### GDPR Article 17 - Right to Erasure
