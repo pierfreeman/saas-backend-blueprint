@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import {
   FeatureFlagsService,
   OrganizationEntitlements,
+  type EntitlementOverrideRecord,
+  type SetOverrideParams,
+} from '@libs/feature-flags';
+export type {
   EntitlementOverrideRecord,
   SetOverrideParams,
 } from '@libs/feature-flags';
@@ -9,8 +13,6 @@ import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { UsersService } from '@libs/users';
 import { OrganizationsService } from '@libs/organizations';
-
-export type { EntitlementOverrideRecord, SetOverrideParams };
 
 export interface EntitlementOverrideWithActor extends EntitlementOverrideRecord {
   createdByName: string;

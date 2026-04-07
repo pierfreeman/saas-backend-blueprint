@@ -1,10 +1,10 @@
-import { Injectable } from '@nestjs/common';
 import {
   Organization,
   OrganizationStatus,
   Prisma,
+  PrismaBusinessService,
 } from '@libs/prisma-business';
-import { PrismaBusinessService } from '@libs/prisma-business';
+import { Injectable } from '@nestjs/common';
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

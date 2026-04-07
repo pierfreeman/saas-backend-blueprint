@@ -460,9 +460,9 @@ export class StorageController {
     // Billing DB column takes precedence; fall back to entitlement override if set.
     const orgStorageLimit: bigint | null =
       billing?.storageLimit ??
-      (entitlements.storageLimitBytes != null
-        ? BigInt(entitlements.storageLimitBytes)
-        : null);
+      (entitlements.storageLimitBytes == null
+        ? null
+        : BigInt(entitlements.storageLimitBytes));
 
     return { planType, orgStorageLimit };
   }

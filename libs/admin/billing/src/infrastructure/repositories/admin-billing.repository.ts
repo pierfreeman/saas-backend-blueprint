@@ -1,6 +1,5 @@
+import { Organization, PrismaBusinessService } from '@libs/prisma-business';
 import { Injectable } from '@nestjs/common';
-import { Organization } from '@libs/prisma-business';
-import { PrismaBusinessService } from '@libs/prisma-business';
 
 type OrgBillingFields = Pick<
   Organization,

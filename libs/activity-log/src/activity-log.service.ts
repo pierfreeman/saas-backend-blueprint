@@ -105,12 +105,12 @@ export class ActivityLogService {
       toDate,
     } = options;
 
-    const actionFilter =
-      actions && actions.length > 0
-        ? { action: { in: actions } }
-        : action
-          ? { action: { startsWith: action } }
-          : {};
+    let actionFilter: Prisma.ActivityLogWhereInput = {};
+    if (actions && actions.length > 0) {
+      actionFilter = { action: { in: actions } };
+    } else if (action) {
+      actionFilter = { action: { startsWith: action } };
+    }
 
     const where: Prisma.ActivityLogWhereInput = {
       orgId,

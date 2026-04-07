@@ -1,6 +1,10 @@
+import {
+  Job,
+  JobStatus,
+  Prisma,
+  PrismaBusinessService,
+} from '@libs/prisma-business';
 import { Injectable } from '@nestjs/common';
-import { Job, Prisma, JobStatus } from '@libs/prisma-business';
-import { PrismaBusinessService } from '@libs/prisma-business';
 import type {
   AdminJobItem,
   ListJobsQuery,

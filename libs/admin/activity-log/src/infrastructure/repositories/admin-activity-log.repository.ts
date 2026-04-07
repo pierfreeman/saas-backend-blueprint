@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { ActivityLog, Prisma } from '@libs/prisma-business';
-import { PrismaBusinessService } from '@libs/prisma-business';
 import type { ActivityLogRecord } from '@libs/activity-log';
+import {
+  ActivityLog,
+  Prisma,
+  PrismaBusinessService,
+} from '@libs/prisma-business';
+import { Injectable } from '@nestjs/common';
 import type { GetAllActivityQuery } from '../../dto/admin-activity-log.dto';
 
 const DEFAULT_LIMIT = 100;

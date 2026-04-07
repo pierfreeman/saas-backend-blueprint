@@ -79,7 +79,7 @@ export class RemoveMemberService {
           eventType: 'user.auth0.deleted',
           orgId,
           userId: actorUserId,
-          triggerType: triggerType as string,
+          triggerType,
           metadata: { deletedUserId: userId },
         });
       } catch (err) {
@@ -106,7 +106,7 @@ export class RemoveMemberService {
       eventType: 'user.deleted',
       orgId,
       userId: actorUserId,
-      triggerType: triggerType as string,
+      triggerType,
       metadata: { deletedUserId: userId },
     });
   }

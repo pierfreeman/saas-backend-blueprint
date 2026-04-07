@@ -245,7 +245,7 @@ export class AdminOrganizationsService {
   private serializeExport<T extends { fileSize: bigint | null }>(record: T) {
     return {
       ...record,
-      fileSize: record.fileSize != null ? record.fileSize.toString() : null,
+      fileSize: record.fileSize == null ? null : record.fileSize.toString(),
     };
   }
 

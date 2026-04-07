@@ -95,7 +95,7 @@ export class InviteMemberService {
         eventType: 'user.created.pending',
         orgId,
         userId: inviterUserId,
-        triggerType: triggerType as string,
+        triggerType,
         metadata: { createdUserId: user.id },
       });
     }
