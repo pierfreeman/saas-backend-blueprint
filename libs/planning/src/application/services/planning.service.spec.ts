@@ -331,6 +331,11 @@ describe('PlanningService', () => {
 
       // Fire-and-forget — should not propagate the error
       await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-2',
+        'org-1',
+        expect.objectContaining({ type: 'event.cancelled' }),
+      );
     });
   });
 
@@ -451,6 +456,11 @@ describe('PlanningService', () => {
 
       // Fire-and-forget — just verify it doesn't throw
       await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'creator',
+        'org-1',
+        expect.objectContaining({ type: 'event.rsvp' }),
+      );
     });
 
     it('per-occurrence: calls upsertOccurrenceAttendee and ensureAttendee when originalStartUtc is provided on a recurring event', async () => {
@@ -683,6 +693,11 @@ describe('PlanningService', () => {
 
       // Fire-and-forget — should not propagate the error
       await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-2',
+        'org-1',
+        expect.objectContaining({ type: 'event.invite' }),
+      );
     });
   });
 
@@ -1022,6 +1037,11 @@ describe('PlanningService', () => {
 
       // Fire-and-forget — should not propagate the error
       await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-new',
+        'org-1',
+        expect.objectContaining({ type: 'event.invite' }),
+      );
     });
 
     it('logs error when sendUpdateNotifications rejects during notifyAttendees', async () => {
@@ -1044,6 +1064,11 @@ describe('PlanningService', () => {
 
       // Fire-and-forget — should not propagate the error
       await new Promise((r) => setImmediate(r));
+      expect(notificationsService.notifyUser).toHaveBeenCalledWith(
+        'user-2',
+        'org-1',
+        expect.objectContaining({ type: 'event.updated' }),
+      );
     });
 
     it('skips attendee upsert when attendee is already in the list', async () => {
