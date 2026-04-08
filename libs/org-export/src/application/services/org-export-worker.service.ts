@@ -240,18 +240,12 @@ export class OrgExportWorkerService {
       organization: raw.organization
         ? this.sanitizeOrganization(raw.organization)
         : null,
-      memberships: (raw.memberships as unknown[]).map((m) =>
-        this.sanitizeMembership(m),
-      ),
-      activityLogs: (raw.activityLogs as unknown[]).map((a) =>
-        this.sanitizeActivityLog(a),
-      ),
-      jobs: (raw.jobs as unknown[]).map((j) => this.sanitizeJob(j)),
-      files: (raw.files as unknown[]).map((f) => this.sanitizeFile(f)),
-      notifications: (raw.notifications as unknown[]).map((n) =>
-        this.sanitizeNotification(n),
-      ),
-      events: (raw.events as unknown[]).map((e) => this.sanitizeEvent(e)),
+      memberships: raw.memberships.map((m) => this.sanitizeMembership(m)),
+      activityLogs: raw.activityLogs.map((a) => this.sanitizeActivityLog(a)),
+      jobs: raw.jobs.map((j) => this.sanitizeJob(j)),
+      files: raw.files.map((f) => this.sanitizeFile(f)),
+      notifications: raw.notifications.map((n) => this.sanitizeNotification(n)),
+      events: raw.events.map((e) => this.sanitizeEvent(e)),
       metadata: {
         exportedAt: new Date().toISOString(),
         version: '1.0',
@@ -279,11 +273,14 @@ export class OrgExportWorkerService {
     });
     const size = buffer.length;
 
-    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const datePrefix = new Date()
+      .toISOString()
+      .slice(0, 10)
+      .replaceAll('-', '');
     const safeName = orgName
-      .replace(/[^a-zA-Z0-9]/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '');
+      .replaceAll(/[^a-zA-Z0-9]/g, '_')
+      .replaceAll(/_+/g, '_')
+      .replaceAll(/^_|_$/g, '');
     const filename = `${datePrefix}_${safeName}_Export.zip`;
 
     this.logger.log(

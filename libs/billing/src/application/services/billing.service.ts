@@ -119,6 +119,12 @@ export class BillingService {
       org.stripeCustomerId = updated.stripeCustomerId;
     }
 
+    if (!org.stripeCustomerId) {
+      throw new BadRequestException(
+        'Failed to provision Stripe customer for organization',
+      );
+    }
+
     const defaultSuccessUrl =
       this.configService.get<string>('BILLING_SUCCESS_URL') ??
       'http://localhost:3000/billing/success';
@@ -127,7 +133,7 @@ export class BillingService {
       'http://localhost:3000/billing/cancel';
 
     const session = await this.stripeService.createCheckoutSession({
-      customerId: org.stripeCustomerId!,
+      customerId: org.stripeCustomerId,
       priceId,
       successUrl: options.successUrl ?? defaultSuccessUrl,
       cancelUrl: options.cancelUrl ?? defaultCancelUrl,
@@ -187,12 +193,18 @@ export class BillingService {
       org.stripeCustomerId = updated.stripeCustomerId;
     }
 
+    if (!org.stripeCustomerId) {
+      throw new BadRequestException(
+        'Failed to provision Stripe customer for organization',
+      );
+    }
+
     const defaultReturnUrl =
       this.configService.get<string>('BILLING_RETURN_URL') ??
       'http://localhost:3000/billing';
 
     const session = await this.stripeService.createPortalSession(
-      org.stripeCustomerId!,
+      org.stripeCustomerId,
       returnUrl ?? defaultReturnUrl,
     );
 

@@ -88,10 +88,11 @@ export class RecurrenceService {
     >();
     for (const oa of event.occurrenceAttendees) {
       const key = oa.originalStartUtc.getTime();
-      if (!occurrenceRsvpMap.has(key)) {
-        occurrenceRsvpMap.set(key, new Map());
-      }
-      occurrenceRsvpMap.get(key)!.set(oa.userId, oa);
+      const keyMap =
+        occurrenceRsvpMap.get(key) ??
+        new Map<string, EventOccurrenceAttendee>();
+      occurrenceRsvpMap.set(key, keyMap);
+      keyMap.set(oa.userId, oa);
     }
 
     const occurrences: EventOccurrence[] = [];

@@ -267,6 +267,6 @@ export class EmailService {
    */
   private hashEmail(email: string): string {
     // Simple hash for demonstration (in production, use crypto.createHash)
-    return `${email.length}_${email[0]}***${email[email.length - 1]}`;
+    return `${email.length}_${email[0]}***${email.at(-1)}`;
   }
 }

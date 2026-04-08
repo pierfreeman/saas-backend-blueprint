@@ -295,60 +295,17 @@ export class PlanningService {
 
     // Sync attendee list when attendeeIds is explicitly provided
     if (dto.attendeeIds !== undefined) {
-      const newInvitedIds = dto.attendeeIds.filter(
-        (uid) => uid !== actorUserId && uid !== event.createdByUserId,
+      updated = await this.#syncAttendees(
+        id,
+        orgId,
+        dto.attendeeIds,
+        event,
+        updated,
+        actorUserId,
       );
-      // Remove attendees no longer in the list (keep creator and actor)
-      const keepUserIds = [
-        ...new Set([event.createdByUserId, actorUserId, ...newInvitedIds]),
-      ];
-      await this.repo.deleteAttendeesExcluding(id, keepUserIds);
-
-      // Upsert newly invited attendees
-      const existingIds = new Set(updated.attendees.map((a) => a.userId));
-      const brandNewIds = newInvitedIds.filter((uid) => !existingIds.has(uid));
-      for (const userId of brandNewIds) {
-        await this.repo.upsertAttendee(id, userId, RSVPStatus.PENDING);
-      }
-
-      // Send invite notifications to newly added attendees (fire-and-forget)
-      if (brandNewIds.length > 0) {
-        this.sendInviteNotifications(
-          brandNewIds,
-          orgId,
-          id,
-          updated.title,
-        ).catch((err: unknown) => {
-          this.logger.error(
-            `Failed to send invite notifications for event ${id}: ${err instanceof Error ? err.message : 'unknown error'}`,
-          );
-        });
-      }
-
-      // Re-fetch so the returned attendees list is accurate
-      const refreshed = await this.repo.findEventById(id, orgId);
-      if (!refreshed) throw new NotFoundException(`Event ${id} not found`);
-      updated = refreshed;
     }
 
-    if (dto.notifyAttendees) {
-      const attendeeIds = updated.attendees
-        .filter((a) => a.userId !== actorUserId)
-        .map((a) => a.userId);
-
-      if (attendeeIds.length > 0) {
-        this.sendUpdateNotifications(
-          attendeeIds,
-          orgId,
-          id,
-          updated.title,
-        ).catch((err: unknown) => {
-          this.logger.error(
-            `Failed to send update notifications for event ${id}: ${err instanceof Error ? err.message : 'unknown error'}`,
-          );
-        });
-      }
-    }
+    this.#notifyAttendeesOnUpdate(dto, updated, orgId, id, actorUserId);
 
     this.activityLog.logActivity({
       orgId,
@@ -371,6 +328,81 @@ export class PlanningService {
     });
 
     return updated;
+  }
+
+  /**
+   * Syncs the attendee list for an event. Removes attendees not in the new list
+   * (keeping creator and actor), upserts newly invited attendees, and sends
+   * invite notifications to brand-new attendees (fire-and-forget).
+   * Returns the re-fetched event so the caller has accurate attendee data.
+   */
+  async #syncAttendees(
+    id: string,
+    orgId: string,
+    attendeeIds: string[],
+    event: EventDetail,
+    updated: NonNullable<Awaited<ReturnType<typeof this.repo.findEventById>>>,
+    actorUserId: string,
+  ): Promise<NonNullable<Awaited<ReturnType<typeof this.repo.findEventById>>>> {
+    const newInvitedIds = attendeeIds.filter(
+      (uid) => uid !== actorUserId && uid !== event.createdByUserId,
+    );
+    // Remove attendees no longer in the list (keep creator and actor)
+    const keepUserIds = [
+      ...new Set([event.createdByUserId, actorUserId, ...newInvitedIds]),
+    ];
+    await this.repo.deleteAttendeesExcluding(id, keepUserIds);
+
+    // Upsert newly invited attendees
+    const existingIds = new Set(updated.attendees.map((a) => a.userId));
+    const brandNewIds = newInvitedIds.filter((uid) => !existingIds.has(uid));
+    for (const userId of brandNewIds) {
+      await this.repo.upsertAttendee(id, userId, RSVPStatus.PENDING);
+    }
+
+    // Send invite notifications to newly added attendees (fire-and-forget)
+    if (brandNewIds.length > 0) {
+      this.sendInviteNotifications(brandNewIds, orgId, id, updated.title).catch(
+        (err: unknown) => {
+          this.logger.error(
+            `Failed to send invite notifications for event ${id}: ${err instanceof Error ? err.message : 'unknown error'}`,
+          );
+        },
+      );
+    }
+
+    // Re-fetch so the returned attendees list is accurate
+    const refreshed = await this.repo.findEventById(id, orgId);
+    if (!refreshed) throw new NotFoundException(`Event ${id} not found`);
+    return refreshed;
+  }
+
+  /**
+   * Sends update notifications to all non-actor attendees when
+   * `dto.notifyAttendees` is true (fire-and-forget).
+   */
+  #notifyAttendeesOnUpdate(
+    dto: UpdateEventInput,
+    updated: EventDetail,
+    orgId: string,
+    id: string,
+    actorUserId: string,
+  ): void {
+    if (!dto.notifyAttendees) return;
+
+    const attendeeIds = updated.attendees
+      .filter((a) => a.userId !== actorUserId)
+      .map((a) => a.userId);
+
+    if (attendeeIds.length === 0) return;
+
+    this.sendUpdateNotifications(attendeeIds, orgId, id, updated.title).catch(
+      (err: unknown) => {
+        this.logger.error(
+          `Failed to send update notifications for event ${id}: ${err instanceof Error ? err.message : 'unknown error'}`,
+        );
+      },
+    );
   }
 
   async deleteEvent(
@@ -437,7 +469,7 @@ export class PlanningService {
 
     if (originalStartUtc && event.rrule) {
       const occStartUtc = new Date(originalStartUtc);
-      if (isNaN(occStartUtc.getTime())) {
+      if (Number.isNaN(occStartUtc.getTime())) {
         throw new BadRequestException(
           `originalStartUtc is not a valid ISO 8601 date: "${originalStartUtc}"`,
         );
@@ -605,7 +637,7 @@ export class PlanningService {
 
     // Validate that originalStartUtc is actually a valid occurrence of this event.
     const splitPointUtc = new Date(dto.originalStartUtc);
-    if (isNaN(splitPointUtc.getTime())) {
+    if (Number.isNaN(splitPointUtc.getTime())) {
       throw new BadRequestException(
         `originalStartUtc is not a valid ISO 8601 date: "${dto.originalStartUtc}"`,
       );

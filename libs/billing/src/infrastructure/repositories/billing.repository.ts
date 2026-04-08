@@ -1,10 +1,10 @@
-import { PrismaBusinessService } from '@libs/prisma-business';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   BillingStatus,
   MembershipRole,
   MembershipStatus,
+  PrismaBusinessService,
 } from '@libs/prisma-business';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
 import { BillingStatus as DomainBillingStatus } from '../../domain/enums/billing-status.enum';
 
@@ -359,9 +359,7 @@ export class BillingRepository {
    * Returns the minimal billing snapshot needed for entitlement checks.
    * Returns null if the organisation does not exist.
    */
-  async getOrgBillingStatus(
-    orgId: string,
-  ): Promise<{
+  async getOrgBillingStatus(orgId: string): Promise<{
     planId: string | null;
     billingStatus: BillingStatus;
     storageLimit: bigint | null;

@@ -1,17 +1,17 @@
 import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { PrismaBusinessService } from '@libs/prisma-business';
-import {
   Event,
   EventAttendee,
   EventException,
   EventOccurrenceAttendee,
   Prisma,
+  PrismaBusinessService,
   RSVPStatus,
 } from '@libs/prisma-business';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 export interface CreateEventData {
   orgId: string;
@@ -427,14 +427,8 @@ export class PlanningRepository {
           orgId: original.orgId,
           createdByUserId: original.createdByUserId,
           title: overrides.title ?? original.title,
-          description:
-            overrides.description !== undefined
-              ? overrides.description
-              : original.description,
-          location:
-            overrides.location !== undefined
-              ? overrides.location
-              : original.location,
+          description: overrides.description ?? original.description,
+          location: overrides.location ?? original.location,
           startUtc: tailStartUtc,
           endUtc: tailEndUtc,
           isAllDay: original.isAllDay,

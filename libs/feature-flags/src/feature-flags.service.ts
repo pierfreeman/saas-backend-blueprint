@@ -210,7 +210,7 @@ export class FeatureFlagsService implements OnModuleInit {
     const entitlements = await this.getEntitlements(orgId);
     const value = entitlements[featureKey];
     if (typeof value === 'boolean') return value;
-    if (typeof value === 'number') return (value as number) > 0;
+    if (typeof value === 'number') return value > 0;
     return false;
   }
 
