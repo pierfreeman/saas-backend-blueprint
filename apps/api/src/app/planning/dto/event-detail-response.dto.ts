@@ -92,7 +92,7 @@ export class EventDetailResponseDto {
     description: 'Arbitrary JSON metadata (links, tags, etc.).',
     nullable: true,
   })
-  metadata!: unknown | null;
+  metadata!: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
     description:

@@ -1,11 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  SQSClient,
   SendMessageCommand,
   SendMessageCommandOutput,
 } from '@aws-sdk/client-sqs';
-import { IEventTransport } from './transport.interface';
 import { DomainEvent } from '../interfaces/domain-event.interface';
+import { SqsBaseTransport } from './sqs-base.transport';
 
 /**
  * SqsStandardTransport
@@ -26,74 +25,27 @@ import { DomainEvent } from '../interfaces/domain-event.interface';
  *   SQS_ENDPOINT_URL         (optional, for LocalStack in development)
  */
 @Injectable()
-export class SqsStandardTransport implements IEventTransport, OnModuleInit {
-  private readonly logger = new Logger(SqsStandardTransport.name);
-  private client!: SQSClient;
-  private queueUrl!: string;
+export class SqsStandardTransport extends SqsBaseTransport {
+  protected readonly logger = new Logger(SqsStandardTransport.name);
+  protected readonly queueEnvVar = 'SQS_STANDARD_QUEUE_URL';
+  protected readonly logTag = 'STANDARD';
+  protected readonly notConfiguredWarning =
+    'SQS_STANDARD_QUEUE_URL is not configured — Standard events will be dropped';
 
-  onModuleInit(): void {
-    const region = process.env['AWS_REGION'] ?? 'eu-west-1';
-    const endpoint = process.env['SQS_ENDPOINT_URL'];
-
-    this.client = new SQSClient({
-      region,
-      ...(endpoint ? { endpoint } : {}),
-    });
-
-    this.queueUrl = process.env['SQS_STANDARD_QUEUE_URL'] ?? '';
-
-    if (this.queueUrl) {
-      this.logger.log(
-        `SQS Standard Transport ready | region: ${region} | queue: ${this.queueUrl}`,
-      );
-    } else {
-      this.logger.warn(
-        'SQS_STANDARD_QUEUE_URL is not configured — Standard events will be dropped',
-      );
-    }
-  }
-
-  async send(event: DomainEvent): Promise<string | undefined> {
-    if (!this.queueUrl) {
-      this.logger.warn(
-        `[SQS-STANDARD] Queue URL not configured, dropping event "${event.eventType}"`,
-      );
-      return undefined;
-    }
-
-    const body = JSON.stringify({
-      ...event,
-      timestamp: event.timestamp.toISOString(),
-    });
-
-    const command = new SendMessageCommand({
+  protected buildCommand(event: DomainEvent, body: string): SendMessageCommand {
+    return new SendMessageCommand({
       QueueUrl: this.queueUrl,
       MessageBody: body,
-      // Custom attribute to allow consumer-side filtering by eventType
-      MessageAttributes: {
-        EventType: {
-          DataType: 'String',
-          StringValue: event.eventType,
-        },
-        TenantId: {
-          DataType: 'String',
-          StringValue: event.tenantId ?? 'unknown',
-        },
-      },
+      MessageAttributes: this.buildMessageAttributes(event),
     });
+  }
 
-    try {
-      const result: SendMessageCommandOutput = await this.client.send(command);
-      this.logger.debug(
-        `[SQS-STANDARD] Sent "${event.eventType}" | MessageId: ${result.MessageId}`,
-      );
-      return result.MessageId;
-    } catch (error) {
-      this.logger.error(
-        `[SQS-STANDARD] Failed to send "${event.eventType}":`,
-        error,
-      );
-      throw error;
-    }
+  protected logSuccess(
+    event: DomainEvent,
+    result: SendMessageCommandOutput,
+  ): void {
+    this.logger.debug(
+      `[SQS-STANDARD] Sent "${event.eventType}" | MessageId: ${result.MessageId}`,
+    );
   }
 }

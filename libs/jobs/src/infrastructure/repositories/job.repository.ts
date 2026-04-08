@@ -1,6 +1,10 @@
-import { PrismaBusinessService } from '@libs/prisma-business';
+import {
+  Job,
+  JobStatus,
+  Prisma,
+  PrismaBusinessService,
+} from '@libs/prisma-business';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Job, JobStatus, Prisma } from '@libs/prisma-business';
 
 /**
  * JobRepository

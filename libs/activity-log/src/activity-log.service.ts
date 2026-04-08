@@ -1,10 +1,13 @@
+import {
+  ActivityLog,
+  Prisma,
+  PrismaBusinessService,
+} from '@libs/prisma-business';
 import { Injectable, Logger } from '@nestjs/common';
-import { ActivityLog, Prisma } from '@libs/prisma-business';
-import { PrismaBusinessService } from '@libs/prisma-business';
 import type {
   ActivityLogEvent,
-  ActivityLogRecord,
   ActivityLogQueryOptions,
+  ActivityLogRecord,
   PaginatedActivityLogResult,
 } from './activity-log.types';
 

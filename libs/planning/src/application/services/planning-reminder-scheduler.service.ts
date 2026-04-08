@@ -79,47 +79,75 @@ export class PlanningReminderSchedulerService {
     const attendeeIds = event.attendees.map((a) => a.userId);
     if (attendeeIds.length === 0) return;
 
-    if (!event.rrule) {
-      // ── Non-recurring ─────────────────────────────────────────────────────
-      // Only fire if we haven't sent a reminder yet (lastReminderOccurrenceUtc is null)
-      // and the reminder window is open: now >= startUtc - reminderMinutes.
-      if (event.lastReminderOccurrenceUtc !== null) return;
-      const dueAt = new Date(event.startUtc.getTime() - reminderMs);
-      if (now < dueAt) return;
-
-      await this.#sendReminder(event, event.startUtc, attendeeIds);
-    } else {
+    if (event.rrule) {
       // ── Recurring ─────────────────────────────────────────────────────────
-      // Expand occurrences in the window [lastReminderOccurrenceUtc, now + maxLookahead].
-      // Process them in chronological order; stop after the first undue one.
-      const expandFrom =
-        event.lastReminderOccurrenceUtc ?? new Date(event.startUtc.getTime());
-      const expandTo = new Date(now.getTime() + maxLookaheadMs);
-
-      const occurrences = this.recurrenceService.expand(
+      await this.#processRecurringOccurrences(
         event,
-        expandFrom,
-        expandTo,
+        now,
+        maxLookaheadMs,
+        reminderMs,
+        event.reminderMinutes,
+        attendeeIds,
       );
+      return;
+    }
 
-      for (const occ of occurrences) {
-        if (occ.isCancelled) continue;
+    // ── Non-recurring ───────────────────────────────────────────────────────
+    // Only fire if we haven't sent a reminder yet (lastReminderOccurrenceUtc is null)
+    // and the reminder window is open: now >= startUtc - reminderMinutes.
+    if (event.lastReminderOccurrenceUtc !== null) return;
+    const dueAt = new Date(event.startUtc.getTime() - reminderMs);
+    if (now < dueAt) return;
+    await this.#sendReminder(
+      event,
+      event.startUtc,
+      event.reminderMinutes,
+      attendeeIds,
+    );
+  }
 
-        const occStart = new Date(occ.startUtc);
+  /**
+   * Expand occurrences for a recurring event in the window
+   * [lastReminderOccurrenceUtc, now + maxLookahead] and send a reminder for
+   * each occurrence whose window has opened, in chronological order.
+   */
+  async #processRecurringOccurrences(
+    event: Awaited<
+      ReturnType<typeof this.repo.findEventsWithReminders>
+    >[number],
+    now: Date,
+    maxLookaheadMs: number,
+    reminderMs: number,
+    reminderMinutes: number,
+    attendeeIds: string[],
+  ): Promise<void> {
+    const expandFrom =
+      event.lastReminderOccurrenceUtc ?? new Date(event.startUtc);
+    const expandTo = new Date(now.getTime() + maxLookaheadMs);
 
-        // Skip occurrences at or before the last-reminded one (dedup).
-        if (
-          event.lastReminderOccurrenceUtc !== null &&
-          occStart <= event.lastReminderOccurrenceUtc
-        ) {
-          continue;
-        }
+    const occurrences = this.recurrenceService.expand(
+      event,
+      expandFrom,
+      expandTo,
+    );
 
-        const dueAt = new Date(occStart.getTime() - reminderMs);
-        if (now < dueAt) break; // occurrences are ordered; all later ones are also not yet due.
+    for (const occ of occurrences) {
+      if (occ.isCancelled) continue;
 
-        await this.#sendReminder(event, occStart, attendeeIds);
+      const occStart = new Date(occ.startUtc);
+
+      // Skip occurrences at or before the last-reminded one (dedup).
+      if (
+        event.lastReminderOccurrenceUtc !== null &&
+        occStart <= event.lastReminderOccurrenceUtc
+      ) {
+        continue;
       }
+
+      const dueAt = new Date(occStart.getTime() - reminderMs);
+      if (now < dueAt) break; // occurrences are ordered; all later ones are also not yet due.
+
+      await this.#sendReminder(event, occStart, reminderMinutes, attendeeIds);
     }
   }
 
@@ -128,16 +156,18 @@ export class PlanningReminderSchedulerService {
       id: string;
       orgId: string;
       title: string;
-      reminderMinutes: number | null;
     },
     occurrenceStartUtc: Date,
+    minutes: number,
     attendeeIds: string[],
   ): Promise<void> {
-    const minutes = event.reminderMinutes!;
+    const hours = minutes / 60;
+    const hourSuffix = hours > 1 ? 's' : '';
+    const minuteSuffix = minutes > 1 ? 's' : '';
     const body =
       minutes >= 60
-        ? `"${event.title}" starts in ${minutes / 60} hour${minutes / 60 > 1 ? 's' : ''}`
-        : `"${event.title}" starts in ${minutes} minute${minutes > 1 ? 's' : ''}`;
+        ? `"${event.title}" starts in ${hours} hour${hourSuffix}`
+        : `"${event.title}" starts in ${minutes} minute${minuteSuffix}`;
 
     await this.notificationsService.notifyManyUsers(attendeeIds, event.orgId, {
       type: 'event.reminder',

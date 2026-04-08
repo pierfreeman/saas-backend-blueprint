@@ -1,11 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  SQSClient,
   SendMessageCommand,
   SendMessageCommandOutput,
 } from '@aws-sdk/client-sqs';
-import { IEventTransport } from './transport.interface';
 import { DomainEvent } from '../interfaces/domain-event.interface';
+import { SqsBaseTransport } from './sqs-base.transport';
 
 /**
  * SqsFifoTransport
@@ -27,46 +26,14 @@ import { DomainEvent } from '../interfaces/domain-event.interface';
  *   SQS_ENDPOINT_URL         (optional, for LocalStack in development)
  */
 @Injectable()
-export class SqsFifoTransport implements IEventTransport, OnModuleInit {
-  private readonly logger = new Logger(SqsFifoTransport.name);
-  private client!: SQSClient;
-  private queueUrl!: string;
+export class SqsFifoTransport extends SqsBaseTransport {
+  protected readonly logger = new Logger(SqsFifoTransport.name);
+  protected readonly queueEnvVar = 'SQS_FIFO_QUEUE_URL';
+  protected readonly logTag = 'FIFO';
+  protected readonly notConfiguredWarning =
+    'SQS_FIFO_QUEUE_URL is not configured — FIFO events will be dropped';
 
-  onModuleInit(): void {
-    const region = process.env['AWS_REGION'] ?? 'eu-west-1';
-    const endpoint = process.env['SQS_ENDPOINT_URL'];
-
-    this.client = new SQSClient({
-      region,
-      ...(endpoint ? { endpoint } : {}),
-    });
-
-    this.queueUrl = process.env['SQS_FIFO_QUEUE_URL'] ?? '';
-
-    if (this.queueUrl) {
-      this.logger.log(
-        `SQS FIFO Transport ready | region: ${region} | queue: ${this.queueUrl}`,
-      );
-    } else {
-      this.logger.warn(
-        'SQS_FIFO_QUEUE_URL is not configured — FIFO events will be dropped',
-      );
-    }
-  }
-
-  async send(event: DomainEvent): Promise<string | undefined> {
-    if (!this.queueUrl) {
-      this.logger.warn(
-        `[SQS-FIFO] Queue URL not configured, dropping event "${event.eventType}"`,
-      );
-      return undefined;
-    }
-
-    const body = JSON.stringify({
-      ...event,
-      timestamp: event.timestamp.toISOString(),
-    });
-
+  protected buildCommand(event: DomainEvent, body: string): SendMessageCommand {
     // MessageGroupId guarantees ordering within the group.
     // Defaults to tenantId to isolate sequences per tenant.
     const messageGroupId = event.messageGroupId ?? event.tenantId ?? 'default';
@@ -75,35 +42,22 @@ export class SqsFifoTransport implements IEventTransport, OnModuleInit {
     // within the 5-minute SQS FIFO deduplication window.
     const deduplicationId = event.eventId ?? messageGroupId;
 
-    const command = new SendMessageCommand({
+    return new SendMessageCommand({
       QueueUrl: this.queueUrl,
       MessageBody: body,
       MessageGroupId: messageGroupId,
       MessageDeduplicationId: deduplicationId,
-      MessageAttributes: {
-        EventType: {
-          DataType: 'String',
-          StringValue: event.eventType,
-        },
-        TenantId: {
-          DataType: 'String',
-          StringValue: event.tenantId ?? 'unknown',
-        },
-      },
+      MessageAttributes: this.buildMessageAttributes(event),
     });
+  }
 
-    try {
-      const result: SendMessageCommandOutput = await this.client.send(command);
-      this.logger.debug(
-        `[SQS-FIFO] Sent "${event.eventType}" | group: ${messageGroupId} | MessageId: ${result.MessageId}`,
-      );
-      return result.MessageId;
-    } catch (error) {
-      this.logger.error(
-        `[SQS-FIFO] Failed to send "${event.eventType}":`,
-        error,
-      );
-      throw error;
-    }
+  protected logSuccess(
+    event: DomainEvent,
+    result: SendMessageCommandOutput,
+  ): void {
+    const messageGroupId = event.messageGroupId ?? event.tenantId ?? 'default';
+    this.logger.debug(
+      `[SQS-FIFO] Sent "${event.eventType}" | group: ${messageGroupId} | MessageId: ${result.MessageId}`,
+    );
   }
 }
