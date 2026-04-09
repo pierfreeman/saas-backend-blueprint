@@ -331,7 +331,7 @@ export class StripeService {
 
     try {
       const start = Date.now();
-      await this.stripe.accounts.retrieve();
+      await this.stripe.balance.retrieve();
       return { status: 'ok', responseTime: Date.now() - start };
     } catch (err) {
       if (err instanceof Stripe.errors.StripeAuthenticationError) {
