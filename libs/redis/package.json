@@ -5,8 +5,8 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
-    "@nestjs/common": "^11.1.17",
-    "ioredis": "^5.10.0",
+    "@nestjs/common": "^11.1.18",
+    "ioredis": "^5.10.1",
     "tslib": "^2.8.1"
   }
 }
