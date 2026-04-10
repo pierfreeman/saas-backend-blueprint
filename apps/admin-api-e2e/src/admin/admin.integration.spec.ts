@@ -96,11 +96,11 @@ describe('Admin Backoffice API (integration)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 403 when a regular user tries to access admin endpoints', async () => {
+    it('returns 401 when a regular user tries to access admin endpoints', async () => {
       const res = await agent
         .get('/admin/organizations')
         .set('Authorization', `Bearer ${regularToken}`);
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(401);
     });
   });
 
@@ -383,13 +383,13 @@ describe('Admin Backoffice API (integration)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 403 for non-admin users', async () => {
+    it('returns 401 for non-admin users', async () => {
       const res = await agent
         .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
         .set('Authorization', `Bearer ${regularToken}`)
         .send({ key: 'ssoEnabled', value: true, reason: 'Test' });
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(401);
     });
   });
 
