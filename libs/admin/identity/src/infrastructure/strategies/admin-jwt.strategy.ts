@@ -91,15 +91,13 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
       ? (payload[`${namespace}email`] as string | undefined)
       : undefined;
     const email =
-      namespacedEmail ??
-      (payload.email as string | undefined) ??
-      `${payload.sub}@admin.placeholder`;
+      namespacedEmail ?? payload.email ?? `${payload.sub}@admin.placeholder`;
 
     // Same pattern for display name
     const namespacedName = namespace
       ? (payload[`${namespace}name`] as string | undefined)
       : undefined;
-    const displayName = namespacedName ?? (payload.name as string | undefined);
+    const displayName = namespacedName ?? payload.name;
 
     const profile = await this.adminIdentityService.syncAdminUser(
       payload.sub,

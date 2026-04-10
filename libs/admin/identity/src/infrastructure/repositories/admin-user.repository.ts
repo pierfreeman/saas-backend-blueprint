@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { type AdminUser, PrismaLegalService } from '@libs/prisma-legal';
+import { PrismaLegalService } from '@libs/prisma-legal';
 
-export type { AdminUser };
+export type { AdminUser } from '@libs/prisma-legal';
 
 /**
  * AdminUserRepository

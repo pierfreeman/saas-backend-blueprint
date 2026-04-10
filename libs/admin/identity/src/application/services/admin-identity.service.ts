@@ -1,8 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import type { AdminUser } from '../../infrastructure/repositories/admin-user.repository';
 import { AdminUserRepository } from '../../infrastructure/repositories/admin-user.repository';
 
-export type { AdminUser };
+export type { AdminUser } from '../../infrastructure/repositories/admin-user.repository';
 
 export interface AdminUserProfile {
   adminUserId: string;
