@@ -86,7 +86,11 @@ describe('UploadPolicyService', () => {
 
     it('uses default 20 GB for pro plan when maxFileSizeGb is absent from config', () => {
       configService.get.mockReturnValue({
-        freePlan: { storageLimitGb: 0.1, fileCountLimit: 100, maxFileSizeGb: 0.05 },
+        freePlan: {
+          storageLimitGb: 0.1,
+          fileCountLimit: 100,
+          maxFileSizeGb: 0.05,
+        },
         proPlan: { storageLimitGb: 5, fileCountLimit: 10000 }, // no maxFileSizeGb
         enterprisePlan: { storageLimitGb: 50, maxFileSizeGb: 10 },
       });
@@ -96,7 +100,11 @@ describe('UploadPolicyService', () => {
 
     it('uses default 100 GB for enterprise plan when maxFileSizeGb is absent from config', () => {
       configService.get.mockReturnValue({
-        freePlan: { storageLimitGb: 0.1, fileCountLimit: 100, maxFileSizeGb: 0.05 },
+        freePlan: {
+          storageLimitGb: 0.1,
+          fileCountLimit: 100,
+          maxFileSizeGb: 0.05,
+        },
         proPlan: { storageLimitGb: 5, fileCountLimit: 10000, maxFileSizeGb: 2 },
         enterprisePlan: { storageLimitGb: 50 }, // no maxFileSizeGb
       });
@@ -125,7 +133,11 @@ describe('UploadPolicyService', () => {
 
     it('uses ?? fallback maxFileSizeGb for pro plan when absent', async () => {
       configService.get.mockReturnValue({
-        freePlan: { storageLimitGb: 0.1, fileCountLimit: 100, maxFileSizeGb: 0.05 },
+        freePlan: {
+          storageLimitGb: 0.1,
+          fileCountLimit: 100,
+          maxFileSizeGb: 0.05,
+        },
         proPlan: { storageLimitGb: 5, fileCountLimit: 10000 }, // no maxFileSizeGb
         enterprisePlan: { storageLimitGb: 50, maxFileSizeGb: 10 },
       });
@@ -135,7 +147,11 @@ describe('UploadPolicyService', () => {
 
     it('uses ?? fallback maxFileSizeGb for enterprise plan when absent', async () => {
       configService.get.mockReturnValue({
-        freePlan: { storageLimitGb: 0.1, fileCountLimit: 100, maxFileSizeGb: 0.05 },
+        freePlan: {
+          storageLimitGb: 0.1,
+          fileCountLimit: 100,
+          maxFileSizeGb: 0.05,
+        },
         proPlan: { storageLimitGb: 5, fileCountLimit: 10000, maxFileSizeGb: 2 },
         enterprisePlan: { storageLimitGb: 50 }, // no maxFileSizeGb
       });
@@ -454,7 +470,11 @@ describe('UploadPolicyService', () => {
           'free',
           BigInt(0), // zero storage quota triggers formatBytes(0) → '0 Bytes'
         ),
-      ).rejects.toThrow(expect.objectContaining({ message: expect.stringContaining('0 Bytes') }));
+      ).rejects.toThrow(
+        expect.objectContaining({
+          message: expect.stringContaining('0 Bytes'),
+        }),
+      );
     });
   });
 });

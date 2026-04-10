@@ -180,7 +180,9 @@ describe('StorageService', () => {
         return cfg[key];
       });
       uploadPolicyService.validateUploadRequest.mockResolvedValue(undefined);
-      s3Provider.generateUploadUrl.mockResolvedValue('https://s3.example.com/upload');
+      s3Provider.generateUploadUrl.mockResolvedValue(
+        'https://s3.example.com/upload',
+      );
       storageRepository.createFile.mockResolvedValue({
         id: 'f1',
         orgId: 'org-1',
@@ -517,7 +519,9 @@ describe('StorageService', () => {
         updatedAt: new Date(),
       };
       storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
-      s3Provider.generateDownloadUrl.mockResolvedValue('https://s3.example.com/dl');
+      s3Provider.generateDownloadUrl.mockResolvedValue(
+        'https://s3.example.com/dl',
+      );
 
       const result = await service.generateDownloadUrl(mockRequest);
 
