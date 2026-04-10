@@ -30,11 +30,11 @@ Pattern B (2-layer: application + infrastructure), scoped to the admin namespace
 
 This library requires three Auth0 resources:
 
-| Resource | Type | Purpose |
-|---|---|---|
-| `SaaS Admin Portal` | Single Page Application | Issues JWTs consumed by this strategy |
-| `SaaS Admin API` | API (Resource Server) | Sets the JWT audience (`ADMIN_AUTH0_AUDIENCE`) |
-| `Admin-Users-DB` | Database Connection | Admin-only user pool (signup disabled) |
+| Resource            | Type                    | Purpose                                        |
+| ------------------- | ----------------------- | ---------------------------------------------- |
+| `SaaS Admin Portal` | Single Page Application | Issues JWTs consumed by this strategy          |
+| `SaaS Admin API`    | API (Resource Server)   | Sets the JWT audience (`ADMIN_AUTH0_AUDIENCE`) |
+| `Admin-Users-DB`    | Database Connection     | Admin-only user pool (signup disabled)         |
 
 And one Auth0 **Post-Login Action** named **"Enrich Admin Access Token"** registered in the **Login flow** that sets the email custom claim:
 
@@ -55,19 +55,19 @@ exports.onExecutePostLogin = async (event, api) => {
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `ADMIN_AUTH0_DOMAIN` | ✅ | Auth0 tenant domain (e.g. `dev-xxx.eu.auth0.com`) |
-| `ADMIN_AUTH0_AUDIENCE` | ✅ | Admin API identifier (e.g. `https://admin-api.saas-api.com`) |
+| Variable                       | Required | Description                                                   |
+| ------------------------------ | -------- | ------------------------------------------------------------- |
+| `ADMIN_AUTH0_DOMAIN`           | ✅       | Auth0 tenant domain (e.g. `dev-xxx.eu.auth0.com`)             |
+| `ADMIN_AUTH0_AUDIENCE`         | ✅       | Admin API identifier (e.g. `https://admin-api.saas-api.com`)  |
 | `ADMIN_AUTH0_CLAIMS_NAMESPACE` | optional | Custom claims prefix (default: `https://admin.saas-api.com/`) |
 
 ## Exports
 
-| Symbol | Description |
-|---|---|
-| `AdminIdentityModule` | Import in `AdminAuthModule` or any admin feature module that needs it |
+| Symbol                 | Description                                                               |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `AdminIdentityModule`  | Import in `AdminAuthModule` or any admin feature module that needs it     |
 | `AdminIdentityService` | Application service — `syncAdminUser()`, `findByIdOrThrow()`, `findAll()` |
-| `AdminUserProfile` | Shape returned by `syncAdminUser()` and `findByIdOrThrow()` |
+| `AdminUserProfile`     | Shape returned by `syncAdminUser()` and `findByIdOrThrow()`               |
 
 `AdminUserRepository` and `AdminJwtStrategy` are **not exported** — they are internal infrastructure.
 
@@ -115,6 +115,33 @@ node scripts/manage-admin-user.mjs --list
 ```
 
 Requires `ADMIN_AUTH0_DOMAIN`, `ADMIN_AUTH0_M2M_CLIENT_ID`, `ADMIN_AUTH0_M2M_CLIENT_SECRET` in `.env`.
+
+## Future: Google Workspace Login (TODO)
+
+> Current implementation uses `Admin-Users-DB` (email/password). A future iteration should switch to Google Workspace SSO restricted to the company domain, keeping `admin_users` as an explicit allowlist.
+
+Required changes in this library:
+
+1. **`admin_users` schema** — make `auth0Id` nullable (`String?`). Pre-provisioned rows have `auth0Id = null`; it is set on first login.
+2. **`AdminUserRepository`** — add `findByEmail(email)` and `linkAuth0Id(id, auth0Id)` methods to support first-login linking.
+3. **`AdminIdentityService.syncAdminUser(auth0Id, email)`** — change the upsert logic:
+   ```
+   1. findByAuth0Id(auth0Id) → found → return profile (normal login)
+   2. findByEmail(email) → found + auth0Id is null → linkAuth0Id → return profile (first login)
+   3. not found → throw UnauthorizedException  ← the allowlist gate
+   ```
+4. **`manage-admin-user.mjs --create`** — remove Auth0 Management API call; write only the `admin_users` legal DB record.
+
+Auth0 Dashboard changes (no backend code):
+
+- Enable `google-oauth2` connection on `SaaS Admin Portal`
+- Add `Restrict Admin to Company Domain` Action (domain check before `syncAdminUser` is reached)
+- Disable `Admin-Users-DB` on `SaaS Admin Portal`
+- Remove `Enforce MFA for Admin` Action (enforce via Google Workspace Admin Console instead)
+
+See `saas-context-docs/docs/features/admin-backoffice-portal/separate-admin-user-base.md` for full design.
+
+---
 
 ## One-time Migration Script
 
