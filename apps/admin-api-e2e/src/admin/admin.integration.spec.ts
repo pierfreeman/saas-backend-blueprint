@@ -26,9 +26,12 @@ import * as supertest from 'supertest';
 import { bootstrapTestApp } from '../support/app-bootstrap';
 import { setupNockAuth, teardownNockAuth } from '@test/support/nock-auth';
 
-import { generateTestToken } from '@test/utils/auth.helper';
+import {
+  generateTestToken,
+  generateAdminTestToken,
+} from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
-import { seedFullOrg, createTestUser } from '@test/utils/seed.helper';
+import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
 
 describe('Admin Backoffice API (integration)', () => {
@@ -50,17 +53,13 @@ describe('Admin Backoffice API (integration)', () => {
     prisma = app.get(PrismaBusinessService);
     await resetBusinessDb(prisma);
 
-    // Seed a system admin user
+    // Seed an admin user — AdminJwtStrategy will upsert into admin_users (legal DB) on first request.
+    // No business-DB record needed; the separate Admin-Users-DB connection handles identity.
     const adminAuth0Id = 'auth0|system-admin-int-test';
-    const adminUser = await createTestUser(prisma, {
-      auth0Id: adminAuth0Id,
+    adminToken = generateAdminTestToken({
+      sub: adminAuth0Id,
       email: 'sysadmin@test.local',
     });
-    await prisma.user.update({
-      where: { id: adminUser.id },
-      data: { isSystemAdmin: true },
-    });
-    adminToken = generateTestToken({ sub: adminAuth0Id });
 
     // Seed a regular (non-admin) user with their own org — tests 403 enforcement
     const regularCtx = await seedFullOrg(prisma, {
@@ -97,11 +96,11 @@ describe('Admin Backoffice API (integration)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 403 when a regular user tries to access admin endpoints', async () => {
+    it('returns 401 when a regular user tries to access admin endpoints', async () => {
       const res = await agent
         .get('/admin/organizations')
         .set('Authorization', `Bearer ${regularToken}`);
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(401);
     });
   });
 
@@ -384,13 +383,13 @@ describe('Admin Backoffice API (integration)', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 403 for non-admin users', async () => {
+    it('returns 401 for non-admin users', async () => {
       const res = await agent
         .patch(`/admin/organizations/${tenantOrgId}/feature-flags`)
         .set('Authorization', `Bearer ${regularToken}`)
         .send({ key: 'ssoEnabled', value: true, reason: 'Test' });
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(401);
     });
   });
 

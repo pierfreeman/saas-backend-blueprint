@@ -1,0 +1,28 @@
+{
+  "name": "admin-identity",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/admin/identity/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:admin"],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": ["{workspaceRoot}/coverage/unit/libs/admin/identity"],
+      "options": {
+        "configFile": "libs/admin/identity/vitest.config.ts",
+        "passWithNoTests": true
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/admin/identity/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

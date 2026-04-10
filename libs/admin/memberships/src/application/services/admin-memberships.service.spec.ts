@@ -21,7 +21,6 @@ const mockMembership = {
     lastName: 'Smith',
     pictureUrl: null,
     auth0Id: 'auth0|abc',
-    isSystemAdmin: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   },

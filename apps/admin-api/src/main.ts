@@ -147,9 +147,9 @@ const swaggerConfig = new DocumentBuilder()
   .setTitle('SaaS Admin API')
   .setDescription(
     '## Overview\n' +
-      'Admin backoffice REST API — requires system-admin access.\n\n' +
+      'Admin backoffice REST API — requires admin access.\n\n' +
       '### Authentication\n' +
-      'All endpoints require a valid **Auth0 JWT** with `isSystemAdmin: true`.\n\n' +
+      'All endpoints require a valid **Auth0 JWT** issued by the Admin Auth0 application.\n\n' +
       '### Error format\n' +
       'All errors follow the shape `{ statusCode, timestamp, path, method, message }`.',
   )

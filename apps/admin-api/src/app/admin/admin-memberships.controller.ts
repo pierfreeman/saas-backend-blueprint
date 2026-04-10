@@ -2,8 +2,7 @@ import {
   AdminMembershipsService,
   PaginatedAdminMembersResult,
 } from '@libs/admin/memberships';
-import { JwtAuthGuard } from '@libs/common';
-import { SystemAdminGuard, CurrentAdminUserId } from '@libs/admin/auth';
+import { AdminJwtAuthGuard, CurrentAdminUserId } from '@libs/admin/auth';
 import {
   Body,
   Controller,
@@ -32,7 +31,7 @@ import {
 
 @ApiTags('Admin')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, SystemAdminGuard)
+@UseGuards(AdminJwtAuthGuard)
 @Controller('admin/organizations/:orgId/memberships')
 export class AdminMembershipsController {
   constructor(

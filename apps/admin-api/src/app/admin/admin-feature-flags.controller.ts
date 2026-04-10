@@ -1,7 +1,6 @@
 import { AdminEntitlementsService } from '@libs/admin/entitlements';
 import type { EntitlementOverrideRecord } from '@libs/admin/entitlements';
-import { JwtAuthGuard } from '@libs/common';
-import { SystemAdminGuard, CurrentAdminUserId } from '@libs/admin/auth';
+import { AdminJwtAuthGuard, CurrentAdminUserId } from '@libs/admin/auth';
 import {
   Body,
   Controller,
@@ -23,7 +22,7 @@ import { SetFeatureFlagOverrideDto } from './dto/admin.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, SystemAdminGuard)
+@UseGuards(AdminJwtAuthGuard)
 @Controller('admin/organizations/:orgId/feature-flags')
 export class AdminFeatureFlagsController {
   constructor(

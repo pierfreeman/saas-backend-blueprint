@@ -22,6 +22,19 @@ export const envValidationSchema = Joi.object({
   /** M2M credentials — required only for email-based invite flow. */
   AUTH0_M2M_CLIENT_ID: Joi.string().optional().allow(''),
   AUTH0_M2M_CLIENT_SECRET: Joi.string().optional().allow(''),
+
+  // Admin Auth0 (separate SaaS Admin Portal app + Admin-Users-DB connection)
+  ADMIN_AUTH0_DOMAIN: Joi.string().required(),
+  ADMIN_AUTH0_AUDIENCE: Joi.string().required(),
+  /** Namespace prefix for custom JWT claims in admin tokens. */
+  ADMIN_AUTH0_CLAIMS_NAMESPACE: Joi.string().default(
+    'https://admin.saas-api.com/',
+  ),
+  /** M2M credentials for manage-admin-user.mjs — not required at runtime. */
+  ADMIN_AUTH0_M2M_CLIENT_ID: Joi.string().optional().allow(''),
+  ADMIN_AUTH0_M2M_CLIENT_SECRET: Joi.string().optional().allow(''),
+  /** Feature flag to run legacy (JwtAuthGuard+SystemAdminGuard) and new (AdminJwtAuthGuard) in parallel. */
+  ADMIN_AUTH_MODE: Joi.string().valid('legacy', 'new').default('new'),
   /** Base URL of the frontend app — used as landing page in invite emails. */
   FRONTEND_BASE_URL: Joi.string()
     .uri()

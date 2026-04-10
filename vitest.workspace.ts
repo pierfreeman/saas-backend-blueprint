@@ -33,6 +33,7 @@ export default defineWorkspace([
   'libs/prisma-legal/vitest.config.ts',
   'libs/rbac/vitest.config.ts',
   'libs/admin/auth/vitest.config.ts',
+  'libs/admin/identity/vitest.config.ts',
   'libs/admin/organizations/vitest.config.ts',
   'libs/admin/memberships/vitest.config.ts',
   'libs/admin/billing/vitest.config.ts',

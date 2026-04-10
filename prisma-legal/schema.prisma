@@ -70,3 +70,33 @@ model AuditEvent {
 
   @@map("audit_events")
 }
+
+// ============================================================================
+// ADMIN USER MODEL
+// Independent admin identity stored in the legal DB (isolated from tenant users).
+// Written on first login (via AdminJwtStrategy); updated on profile change.
+// ============================================================================
+
+/// System administrator identity, isolated from the tenant user table.
+/// Never mix with the business-DB User model — these are separate identities.
+model AdminUser {
+  /// Internal UUID — primary key.
+  id          String    @id @default(uuid()) @db.Uuid
+
+  /// Auth0 subject from the Admin-Users-DB connection (e.g. "auth0|abc123").
+  /// Different from any tenant user's auth0Id even for the same email address.
+  auth0Id     String    @unique @map("auth0_id")
+
+  /// Display email — informational only. Identity is auth0Id.
+  email       String
+
+  /// Human-readable display name.
+  displayName String?   @map("display_name")
+
+  /// Timestamp of the first successful admin login (upsert creates this).
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@map("admin_users")
+}

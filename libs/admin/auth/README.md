@@ -1,35 +1,46 @@
 # @libs/admin/auth
 
-System-admin authentication gate for the backoffice portal.
+Authentication gate for the admin-api backoffice portal.
 
 ## Responsibility
 
-Provides the `SystemAdminGuard` and the `CurrentAdminUserId` parameter decorator.
-Every admin controller must apply both `JwtAuthGuard` (from `@libs/common`) and `SystemAdminGuard`.
+Provides `AdminJwtAuthGuard` (the active guard for all admin controllers), `SystemAdminGuard` (legacy — kept for backward compatibility during migration), and `CurrentAdminUserId` parameter decorator.
+
+Every admin controller must apply `AdminJwtAuthGuard`:
+
+```ts
+@Controller('admin/organizations')
+@UseGuards(AdminJwtAuthGuard)
+@ApiBearerAuth()
+export class AdminOrganizationsController { ... }
+```
 
 ## Guard pipeline
 
 ```
-JwtAuthGuard → SystemAdminGuard
+AdminJwtAuthGuard   (Passport 'admin-jwt' strategy — validates ADMIN_AUTH0_* JWT)
+  └─ AdminJwtStrategy.validate()
+        └─ AdminIdentityService.syncAdminUser()  ← upserts AdminUser in legal DB
+        └─ attaches { sub, email, adminUserId } to request.user
 ```
 
-`SystemAdminGuard` resolves the caller's DB `User` record by `auth0Id` and asserts `isSystemAdmin === true`.
-If the user is not found → `401 Unauthorized`. If found but not a system admin → `403 Forbidden`.
+`AdminJwtAuthGuard` is backed by the `AdminJwtStrategy` from `@libs/admin/identity`. It validates tokens issued by the **admin Auth0 SPA app** (`SaaS Admin Portal`) against the **admin Auth0 API** audience (`ADMIN_AUTH0_AUDIENCE`) — completely separate from the tenant JWT flow.
 
 ## Exports
 
-| Symbol               | Description                                                      |
-| -------------------- | ---------------------------------------------------------------- |
-| `AdminAuthModule`    | Import in any admin feature module                               |
-| `SystemAdminGuard`   | `CanActivate` guard — combine with `JwtAuthGuard`                |
-| `CurrentAdminUserId` | Param decorator — extracts `request.user.dbUserId` (the DB UUID) |
-| `AdminRequest`       | Express `Request` extension interface used internally            |
+| Symbol               | Description                                                        |
+| -------------------- | ------------------------------------------------------------------ |
+| `AdminAuthModule`    | Import in any admin feature module                                 |
+| `AdminJwtAuthGuard`  | ✅ Primary guard — use on all admin controllers                    |
+| `CurrentAdminUserId` | Param decorator — extracts the `adminUserId` UUID from the request |
 
 ## Usage
 
 ```ts
+import { AdminJwtAuthGuard, CurrentAdminUserId } from '@libs/admin/auth';
+
 @Controller('admin/organizations')
-@UseGuards(JwtAuthGuard, SystemAdminGuard)
+@UseGuards(AdminJwtAuthGuard)
 @ApiBearerAuth()
 export class AdminOrganizationsController {
   @Get()
@@ -43,15 +54,18 @@ export class AdminOrganizationsController {
 }
 ```
 
-## Promoting users
+## Admin user provisioning
 
-The `isSystemAdmin` flag is only set via the CLI script — never by the login flow:
+Admin users cannot self-register. They are created via the CLI script:
 
 ```sh
-node scripts/promote-admin.mjs --email user@example.com          # promote
-node scripts/promote-admin.mjs --email user@example.com --revoke # demote
+node scripts/manage-admin-user.mjs --create --email admin@example.com --name "Alice"
+node scripts/manage-admin-user.mjs --list
+node scripts/manage-admin-user.mjs --reset-password --email admin@example.com
+node scripts/manage-admin-user.mjs --disable --email admin@example.com
 ```
 
 ## Pattern
 
-Pattern D (cross-cutting) — guard + decorator only, no domain logic.
+Pattern D (cross-cutting) — guards + decorator + module wiring only, no domain logic.
+Domain logic (user sync, profile lookup) lives in `@libs/admin/identity`.

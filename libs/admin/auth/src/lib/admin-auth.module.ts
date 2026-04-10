@@ -1,19 +1,18 @@
 import { Module } from '@nestjs/common';
-import { UsersModule } from '@libs/users';
-import { SystemAdminGuard } from './guards/system-admin.guard';
+import { AdminIdentityModule } from '@libs/admin/identity';
+import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 
 /**
  * AdminAuthModule
  *
- * Provides the SystemAdminGuard and the CurrentAdminUserId decorator.
- * Import this module in any feature module that exposes admin controllers.
+ * Provides authentication guards for admin-api controllers via the
+ * new Admin-Users-DB Auth0 pipeline: `@UseGuards(AdminJwtAuthGuard)`
  *
- * Pipeline to apply on every admin controller:
- *   @UseGuards(JwtAuthGuard, SystemAdminGuard)
+ * The AdminJwtStrategy is registered via AdminIdentityModule.
  */
 @Module({
-  imports: [UsersModule],
-  providers: [SystemAdminGuard],
-  exports: [SystemAdminGuard, UsersModule],
+  imports: [AdminIdentityModule],
+  providers: [AdminJwtAuthGuard],
+  exports: [AdminJwtAuthGuard, AdminIdentityModule],
 })
 export class AdminAuthModule {}

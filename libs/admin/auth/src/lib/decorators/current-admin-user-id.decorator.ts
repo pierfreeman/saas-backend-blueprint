@@ -1,9 +1,12 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { AdminRequest } from '../guards/system-admin.guard';
+import { Request } from 'express';
+
+type AdminRequest = Request & { user?: { adminUserId?: string } };
 
 /**
- * Extracts the DB user ID of the authenticated system admin.
- * Only valid on routes protected by SystemAdminGuard.
+ * Extracts the internal ID of the authenticated admin user.
+ *
+ * `AdminJwtAuthGuard` sets `request.user.adminUserId`.
  *
  * @example
  * ```ts
@@ -14,6 +17,6 @@ import { AdminRequest } from '../guards/system-admin.guard';
 export const CurrentAdminUserId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string | undefined => {
     const request = ctx.switchToHttp().getRequest<AdminRequest>();
-    return request.user?.dbUserId;
+    return request.user?.adminUserId;
   },
 );

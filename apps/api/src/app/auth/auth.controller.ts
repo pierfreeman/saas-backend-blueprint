@@ -78,14 +78,8 @@ export class AuthController {
             'Profile picture URL. Synced from Auth0 on first social login; editable via PATCH /auth/me.',
           example: 'https://lh3.googleusercontent.com/a/example',
         },
-        isSystemAdmin: {
-          type: 'boolean',
-          description:
-            'Whether this user has system-admin access to the backoffice portal.',
-          example: false,
-        },
       },
-      required: ['id', 'auth0Id', 'email', 'isSystemAdmin'],
+      required: ['id', 'auth0Id', 'email'],
     },
   })
   @ApiResponse({
@@ -106,7 +100,6 @@ export class AuthController {
     firstName: string | null;
     lastName: string | null;
     pictureUrl: string | null;
-    isSystemAdmin: boolean;
   }> {
     const dbUser = await this.authService.syncUser(user.sub, user.email);
     return {
@@ -116,7 +109,6 @@ export class AuthController {
       firstName: dbUser.firstName ?? null,
       lastName: dbUser.lastName ?? null,
       pictureUrl: dbUser.pictureUrl ?? null,
-      isSystemAdmin: dbUser.isSystemAdmin,
     };
   }
 

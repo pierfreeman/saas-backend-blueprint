@@ -1,11 +1,10 @@
-import { CurrentAdminUserId, SystemAdminGuard } from '@libs/admin/auth';
+import { AdminJwtAuthGuard, CurrentAdminUserId } from '@libs/admin/auth';
 import {
   AdminOrganizationDetail,
   AdminOrganizationListItem,
   AdminOrganizationsService,
   PaginatedAdminOrganizationsResult,
 } from '@libs/admin/organizations';
-import { JwtAuthGuard } from '@libs/common';
 import {
   Body,
   Controller,
@@ -34,7 +33,7 @@ import {
 
 @ApiTags('Admin')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, SystemAdminGuard)
+@UseGuards(AdminJwtAuthGuard)
 @Controller('admin/organizations')
 export class AdminOrganizationsController {
   constructor(private readonly adminOrgsService: AdminOrganizationsService) {}

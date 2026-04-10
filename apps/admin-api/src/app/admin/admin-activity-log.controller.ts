@@ -2,8 +2,7 @@ import {
   AdminActivityLogService,
   PaginatedAdminActivityResult,
 } from '@libs/admin/activity-log';
-import { JwtAuthGuard } from '@libs/common';
-import { SystemAdminGuard } from '@libs/admin/auth';
+import { AdminJwtAuthGuard } from '@libs/admin/auth';
 import {
   Controller,
   Get,
@@ -26,7 +25,7 @@ import {
 
 @ApiTags('Admin')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, SystemAdminGuard)
+@UseGuards(AdminJwtAuthGuard)
 @Controller('admin')
 export class AdminActivityLogController {
   constructor(

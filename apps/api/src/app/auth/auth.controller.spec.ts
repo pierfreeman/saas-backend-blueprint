@@ -171,33 +171,6 @@ describe('AuthController', () => {
       expect(result.lastName).toBeNull();
       expect(result.pictureUrl).toBeNull();
     });
-
-    it('never passes isSystemAdmin to updateProfile even if body contains it', async () => {
-      // The global ValidationPipe with whitelist:true strips unknown properties from DTOs.
-      // This test enforces that the controller layer never forwards isSystemAdmin to the
-      // service — providing a second line of defence even if someone bypasses the pipe.
-      mockAuthService.syncUser = vi.fn().mockResolvedValue(dbUser);
-      mockAuthService.updateProfile = vi.fn().mockResolvedValue(dbUser);
-
-      // Simulate a DTO that somehow carries isSystemAdmin (e.g. pipe disabled in test)
-      const maliciousBody = Object.assign(new UpdateProfileDto(), {
-        firstName: 'Hacker',
-        isSystemAdmin: true,
-      });
-
-      await controller.updateMe(baseUser, maliciousBody);
-
-      expect(mockAuthService.updateProfile).toHaveBeenCalledWith('db-u-1', {
-        firstName: 'Hacker',
-        lastName: undefined,
-        pictureUrl: undefined,
-      });
-      // Critically, isSystemAdmin must NOT appear in the call
-      const callArg = (
-        mockAuthService.updateProfile as ReturnType<typeof vi.fn>
-      ).mock.calls[0][1];
-      expect(callArg).not.toHaveProperty('isSystemAdmin');
-    });
   });
 
   describe('requestPasswordChange', () => {
