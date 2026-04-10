@@ -51,6 +51,35 @@ export class ServiceBusConsumerService
   private receiver!: ServiceBusReceiver;
   private running = false;
 
+  private readonly handlerMap: Partial<
+    Record<string, (e: DomainEvent) => Promise<void>>
+  > = {
+    [DOMAIN_EVENTS.HEAVY_JOB_CREATED]: (e) =>
+      this.workerController.handleHeavyJobCreated(
+        e as unknown as DomainEvent<HeavyJobPayload>,
+      ),
+    [DOMAIN_EVENTS.ORG_DELETION_REQUESTED]: (e) =>
+      this.workerController.handleOrgDeletionRequested(e as any),
+    [DOMAIN_EVENTS.ORG_EXPORT_REQUESTED]: (e) =>
+      this.workerController.handleOrgExportRequested(e as any),
+    [DOMAIN_EVENTS.USER_INVITED]: (e) =>
+      this.workerController.handleUserInvited(
+        e as unknown as DomainEvent<UserInvitedPayload>,
+      ),
+    [DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED]: (e) =>
+      this.workerController.handleBillingPlanChanged(
+        e as unknown as DomainEvent<PlanChangedPayload>,
+      ),
+    [DOMAIN_EVENTS.BILLING_PAYMENT_SUCCEEDED]: (e) =>
+      this.workerController.handleBillingPaymentSucceeded(
+        e as unknown as DomainEvent<PaymentSucceededPayload>,
+      ),
+    [DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CANCELLED]: (e) =>
+      this.workerController.handleBillingSubscriptionCancelled(
+        e as unknown as DomainEvent<SubscriptionCancelledPayload>,
+      ),
+  };
+
   constructor(private readonly workerController: WorkerController) {}
 
   onModuleInit(): void {
@@ -174,7 +203,8 @@ export class ServiceBusConsumerService
   }
 
   /**
-   * Routes a DomainEvent to the appropriate WorkerController handler.
+   * Routes a DomainEvent to the appropriate WorkerController handler via
+   * handlerMap. Unknown event types are logged and the message is completed.
    *
    * NOTE: Billing events (SUBSCRIPTION_PLAN_CHANGED, BILLING_PAYMENT_SUCCEEDED,
    * BILLING_SUBSCRIPTION_CANCELLED) are published to the session-enabled queue in
@@ -182,50 +212,16 @@ export class ServiceBusConsumerService
    * support. In local mode all events are dispatched in-process via LocalTransport.
    */
   private async dispatch(event: DomainEvent): Promise<void> {
-    switch (event.eventType) {
-      case DOMAIN_EVENTS.HEAVY_JOB_CREATED:
-        await this.workerController.handleHeavyJobCreated(
-          event as unknown as DomainEvent<HeavyJobPayload>,
-        );
-        break;
+    const handler = this.handlerMap[event.eventType];
 
-      case DOMAIN_EVENTS.ORG_DELETION_REQUESTED:
-        await this.workerController.handleOrgDeletionRequested(event as any);
-        break;
-
-      case DOMAIN_EVENTS.ORG_EXPORT_REQUESTED:
-        await this.workerController.handleOrgExportRequested(event as any);
-        break;
-
-      case DOMAIN_EVENTS.USER_INVITED:
-        await this.workerController.handleUserInvited(
-          event as unknown as DomainEvent<UserInvitedPayload>,
-        );
-        break;
-
-      case DOMAIN_EVENTS.SUBSCRIPTION_PLAN_CHANGED:
-        await this.workerController.handleBillingPlanChanged(
-          event as unknown as DomainEvent<PlanChangedPayload>,
-        );
-        break;
-
-      case DOMAIN_EVENTS.BILLING_PAYMENT_SUCCEEDED:
-        await this.workerController.handleBillingPaymentSucceeded(
-          event as unknown as DomainEvent<PaymentSucceededPayload>,
-        );
-        break;
-
-      case DOMAIN_EVENTS.BILLING_SUBSCRIPTION_CANCELLED:
-        await this.workerController.handleBillingSubscriptionCancelled(
-          event as unknown as DomainEvent<SubscriptionCancelledPayload>,
-        );
-        break;
-
-      default:
-        this.logger.warn(
-          `No handler registered for event type "${event.eventType}" — message will be completed`,
-        );
+    if (!handler) {
+      this.logger.warn(
+        `No handler registered for event type "${event.eventType}" — message will be completed`,
+      );
+      return;
     }
+
+    await handler(event);
   }
 
   private sleep(ms: number): Promise<void> {
