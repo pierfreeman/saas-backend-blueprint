@@ -13,9 +13,9 @@ function getDecoratorFactory(
 ): (data: unknown, ctx: ExecutionContext) => string | undefined {
   @Controller()
   class TestController {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
     @Get()
-    handler(@decorator() _id: string): void {} // eslint-disable-line @typescript-eslint/no-unused-vars
+    // eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
+    handler(@decorator() _id: string): void {}
   }
 
   const args = Reflect.getMetadata(
