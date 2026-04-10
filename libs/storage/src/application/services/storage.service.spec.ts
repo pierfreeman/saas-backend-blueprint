@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { StorageService } from './storage.service';
 import { S3Provider } from '../../infrastructure/providers/s3.provider';
+import { AzureBlobProvider } from '../../infrastructure/providers/azure-blob.provider';
 import { StorageRepository } from '../../infrastructure/repositories/storage.repository';
 import { UploadPolicyService } from './upload-policy.service';
 import { ActivityLogService } from '@libs/activity-log';
@@ -18,6 +19,7 @@ describe('StorageService', () => {
   let service: StorageService;
   let configService: Mocked<ConfigService>;
   let s3Provider: Mocked<S3Provider>;
+  let azureProvider: Mocked<AzureBlobProvider>;
   let storageRepository: Mocked<StorageRepository>;
   let uploadPolicyService: Mocked<UploadPolicyService>;
   let activityLog: Mocked<ActivityLogService>;
@@ -35,6 +37,15 @@ describe('StorageService', () => {
       objectExists: vi.fn(),
       getObjectSize: vi.fn(),
     } as unknown as Mocked<S3Provider>;
+
+    azureProvider = {
+      generateUploadUrl: vi.fn(),
+      generateDownloadUrl: vi.fn(),
+      deleteObject: vi.fn(),
+      objectExists: vi.fn(),
+      getObjectSize: vi.fn(),
+      putObject: vi.fn(),
+    } as unknown as Mocked<AzureBlobProvider>;
 
     storageRepository = {
       createFile: vi.fn(),
@@ -73,6 +84,7 @@ describe('StorageService', () => {
         StorageService,
         { provide: ConfigService, useValue: configService },
         { provide: S3Provider, useValue: s3Provider },
+        { provide: AzureBlobProvider, useValue: azureProvider },
         { provide: StorageRepository, useValue: storageRepository },
         { provide: UploadPolicyService, useValue: uploadPolicyService },
         { provide: ActivityLogService, useValue: activityLog },
@@ -667,6 +679,100 @@ describe('StorageService', () => {
       const result = await service.getStorageStats('org-empty');
 
       expect(result).toEqual({ totalBytes: '0', fileCount: 0 });
+    });
+  });
+
+  describe('provider selection', () => {
+    it('uses S3 provider when DEFAULT_STORAGE_PROVIDER=S3 (default)', async () => {
+      // Default config already sets 'storage.defaultProvider' = 'S3'.
+      // Verify upload flow routes to s3Provider, not azureProvider.
+      uploadPolicyService.validateUploadRequest.mockResolvedValue(undefined);
+      s3Provider.generateUploadUrl.mockResolvedValue(
+        'https://s3.example.com/upload',
+      );
+      storageRepository.createFile.mockResolvedValue({
+        id: 'file-1',
+        orgId: 'org-1',
+        uploadedBy: 'user-1',
+        storageKey: 'org/org-1/file-1',
+        provider: StorageProvider.S3,
+        filename: 'test.pdf',
+        size: null,
+        mimeType: 'application/pdf',
+        status: FileStatus.PENDING,
+        expiresAt: new Date(),
+        confirmedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await service.generateUploadUrl({
+        orgId: 'org-1',
+        userId: 'user-1',
+        filename: 'test.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
+      });
+
+      expect(s3Provider.generateUploadUrl).toHaveBeenCalled();
+      expect(azureProvider.generateUploadUrl).not.toHaveBeenCalled();
+    });
+
+    it('uses Azure provider when DEFAULT_STORAGE_PROVIDER=AZURE', async () => {
+      // Rebuild service with AZURE config
+      configService.get.mockImplementation((key: string) => {
+        const cfg: Record<string, unknown> = {
+          'storage.defaultProvider': 'AZURE',
+          'storage.presignedUrl.expirationSeconds': 3600,
+        };
+        return cfg[key];
+      });
+
+      const mod = await Test.createTestingModule({
+        providers: [
+          StorageService,
+          { provide: ConfigService, useValue: configService },
+          { provide: S3Provider, useValue: s3Provider },
+          { provide: AzureBlobProvider, useValue: azureProvider },
+          { provide: StorageRepository, useValue: storageRepository },
+          { provide: UploadPolicyService, useValue: uploadPolicyService },
+          { provide: ActivityLogService, useValue: activityLog },
+          { provide: LegalAuditService, useValue: legalAudit },
+        ],
+      }).compile();
+
+      const azureService = mod.get<StorageService>(StorageService);
+
+      uploadPolicyService.validateUploadRequest.mockResolvedValue(undefined);
+      azureProvider.generateUploadUrl.mockResolvedValue(
+        'https://azurite.example.com/upload',
+      );
+      storageRepository.createFile.mockResolvedValue({
+        id: 'file-2',
+        orgId: 'org-1',
+        uploadedBy: 'user-1',
+        storageKey: 'org/org-1/file-2',
+        provider: StorageProvider.AZURE,
+        filename: 'test.pdf',
+        size: null,
+        mimeType: 'application/pdf',
+        status: FileStatus.PENDING,
+        expiresAt: new Date(),
+        confirmedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await azureService.generateUploadUrl({
+        orgId: 'org-1',
+        userId: 'user-1',
+        filename: 'test.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
+      });
+
+      expect(azureProvider.generateUploadUrl).toHaveBeenCalled();
+      expect(s3Provider.generateUploadUrl).not.toHaveBeenCalled();
     });
   });
 });

@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { IStorageProvider } from '../../domain/entities/storage-provider.interface';
 import { FileStatus, StorageProvider } from '../../domain/enums/storage.enums';
 import { S3Provider } from '../../infrastructure/providers/s3.provider';
+import { AzureBlobProvider } from '../../infrastructure/providers/azure-blob.provider';
 import { StorageRepository } from '../../infrastructure/repositories/storage.repository';
 import {
   ConfirmUploadRequest,
@@ -38,6 +39,7 @@ export class StorageService {
   constructor(
     private readonly configService: ConfigService,
     private readonly s3Provider: S3Provider,
+    private readonly azureProvider: AzureBlobProvider,
     private readonly storageRepository: StorageRepository,
     private readonly uploadPolicyService: UploadPolicyService,
     private readonly activityLog: ActivityLogService,
@@ -379,8 +381,7 @@ export class StorageService {
       case StorageProvider.S3:
         return this.s3Provider;
       case StorageProvider.AZURE:
-        // TODO: Implement Azure provider
-        throw new Error('Azure provider not yet implemented');
+        return this.azureProvider;
       default:
         throw new Error(`Unsupported storage provider: ${providerType}`);
     }
