@@ -143,15 +143,6 @@ See `saas-context-docs/docs/features/admin-backoffice-portal/separate-admin-user
 
 ---
 
-## One-time Migration Script
-
-To migrate existing `isSystemAdmin=true` users from the tenant DB to the new admin identity system:
-
-```sh
-node scripts/migrate-admin-users.mjs --dry-run   # preview
-node scripts/migrate-admin-users.mjs             # execute
-```
-
 ## Database
 
 `AdminUser` is stored in the **legal audit DB** (`prisma-legal/schema.prisma`):

@@ -41,7 +41,7 @@ saas-backend-blueprint/
 │   └── ...            ← all other domain libs
 ├── prisma/
 │   ├── schema.prisma        ← Business DB: generator + datasource only
-│   ├── user.prisma          ← User model (isSystemAdmin kept for Phase C cleanup)
+│   ├── user.prisma          ← User model
 │   ├── organization.prisma  ← Organization, enums
 │   ├── membership.prisma    ← Membership, enums
 │   ├── activity-log.prisma  ← ActivityLog
@@ -54,11 +54,8 @@ saas-backend-blueprint/
 │   └── schema.prisma        ← Legal audit DB: AuditEvent (append-only) + AdminUser
 └── scripts/           ← LocalStack + migration helpers
 │                          manage-admin-user.mjs   ← provision / disable / reset admin accounts
-│                          migrate-admin-users.mjs ← one-time migration from isSystemAdmin flag
-│                          promote-admin.mjs       ← legacy: set isSystemAdmin (kept for Phase C)
-│                          manage-admin-user.mjs   ← provision / disable / reset admin accounts
-│                          migrate-admin-users.mjs ← one-time migration from isSystemAdmin flag
-│                          promote-admin.mjs       ← legacy: set isSystemAdmin (kept for Phase C)
+│                          migrate-admin-users.mjs ← one-time migration (legacy admin users, obsolete)
+│                          promote-admin.mjs       ← legacy: promote users to system admin (obsolete)
 ```
 
 **Stack:** Nx · NestJS · TypeScript · Prisma · PostgreSQL · Redis · SQS (LocalStack in dev).
@@ -341,12 +338,7 @@ The admin backoffice libraries live under `libs/admin/` as a logical namespace. 
 
 **Identity model:** Admin users authenticate via a dedicated Auth0 SPA app (`SaaS Admin Portal`) against an isolated `Admin-Users-DB` connection (signup disabled). Their identity is stored as `AdminUser` in the **legal audit DB** — completely separate from the tenant `users` table. Accounts are provisioned via `scripts/manage-admin-user.mjs` (never by the login flow).
 
-**Guard replacement:** All admin controllers use `@UseGuards(AdminJwtAuthGuard)` from `@libs/admin/auth`. The old `JwtAuthGuard + SystemAdminGuard` combination is kept as legacy during Phase C cleanup of the `isSystemAdmin` column.
-
-**Phase C cleanup (future):** Once all admin users have been migrated:
-1. Remove `isSystemAdmin` from `prisma/user.prisma` and create a business DB migration
-2. Delete `SystemAdminGuard` from `libs/admin/auth`
-3. Remove `isSystemAdmin` computed signal and `isSystemAdminGuard` from the shell frontend
+**Guard replacement:** All admin controllers use `@UseGuards(AdminJwtAuthGuard)` from `@libs/admin/auth`.
 
 ---
 

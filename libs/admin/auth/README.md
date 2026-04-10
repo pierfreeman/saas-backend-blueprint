@@ -28,11 +28,10 @@ AdminJwtAuthGuard   (Passport 'admin-jwt' strategy — validates ADMIN_AUTH0_* J
 
 ## Exports
 
-| Symbol | Description |
-|---|---|
-| `AdminAuthModule` | Import in any admin feature module |
-| `AdminJwtAuthGuard` | ✅ Primary guard — use on all admin controllers |
-| `SystemAdminGuard` | ⚠️ Legacy guard (checks `users.isSystemAdmin`) — kept for backward compat during Phase C cleanup |
+| Symbol               | Description                                                        |
+| -------------------- | ------------------------------------------------------------------ |
+| `AdminAuthModule`    | Import in any admin feature module                                 |
+| `AdminJwtAuthGuard`  | ✅ Primary guard — use on all admin controllers                    |
 | `CurrentAdminUserId` | Param decorator — extracts the `adminUserId` UUID from the request |
 
 ## Usage
@@ -66,19 +65,7 @@ node scripts/manage-admin-user.mjs --reset-password --email admin@example.com
 node scripts/manage-admin-user.mjs --disable --email admin@example.com
 ```
 
-For the one-time migration from the legacy `isSystemAdmin` flag:
-
-```sh
-node scripts/migrate-admin-users.mjs --dry-run
-node scripts/migrate-admin-users.mjs
-```
-
-## Legacy: `SystemAdminGuard`
-
-`SystemAdminGuard` (combined with `JwtAuthGuard` from `@libs/common`) was the original access gate — it checked `users.isSystemAdmin === true` in the tenant DB. It is retained until Phase C cleanup removes the `isSystemAdmin` column. Do not use it on new controllers.
-
 ## Pattern
 
 Pattern D (cross-cutting) — guards + decorator + module wiring only, no domain logic.
 Domain logic (user sync, profile lookup) lives in `@libs/admin/identity`.
-
