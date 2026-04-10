@@ -3,8 +3,7 @@ import type {
   OrganizationEntitlements,
   EntitlementOverrideWithActor,
 } from '@libs/admin/entitlements';
-import { JwtAuthGuard } from '@libs/common';
-import { SystemAdminGuard, CurrentAdminUserId } from '@libs/admin/auth';
+import { AdminJwtAuthGuard, CurrentAdminUserId } from '@libs/admin/auth';
 import {
   Controller,
   Get,
@@ -24,7 +23,7 @@ import {
 
 @ApiTags('Admin')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, SystemAdminGuard)
+@UseGuards(AdminJwtAuthGuard)
 @Controller('admin/organizations/:orgId/entitlements')
 export class AdminEntitlementsController {
   constructor(

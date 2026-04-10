@@ -1,7 +1,7 @@
 import { ActivityLogModule } from '@libs/activity-log';
 import { Auth0Module } from '@libs/auth0';
 import { TenantMiddleware } from '@libs/common';
-import { ConfigModule } from '@libs/config';
+import { ConfigModule, adminAuthConfig } from '@libs/config';
 import { LegalAuditModule } from '@libs/legal-audit';
 import { ObservabilityModule } from '@libs/observability';
 import { PrismaBusinessModule } from '@libs/prisma-business';
@@ -18,11 +18,14 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
     ConfigModule,
+    // Register adminAuth config so AdminJwtStrategy can read it via ConfigService
+    NestConfigModule.forFeature(adminAuthConfig),
     ObservabilityModule,
     PrismaBusinessModule,
     PrismaLegalModule,
