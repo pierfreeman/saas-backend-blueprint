@@ -18,24 +18,24 @@ Pairs with [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + M
 
 ## Tech stack
 
-| Concern            | Choice                                                    |
-| ------------------ | --------------------------------------------------------- |
-| Framework          | NestJS 11 (TypeScript)                                    |
-| Monorepo           | Nx 22                                                     |
-| ORM / migrations   | Prisma 7 (ESM, driver adapter)                            |
-| Databases          | PostgreSQL × 2 (business DB + legal audit DB)             |
-| Cache / pub-sub    | Redis 7 (ioredis)                                         |
-| Authentication     | Auth0 — JWT RS256, JWKS endpoint                          |
-| Billing            | Stripe (checkout, portal, webhooks)                       |
-| Event system       | EventEmitter2 (local) / AWS SQS (production)              |
-| Background workers | NestJS standalone app, long-polls SQS Standard queue      |
-| Real-time          | Socket.IO 4.8 with Redis adapter (multi-pod)              |
-| File storage       | AWS S3 (presigned URLs, multi-tenant isolation)           |
-| Email              | Resend / SMTP, Handlebars templates                       |
-| Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles      |
-| Testing            | Vitest 4 (unit + integration)                             |
-| Observability      | Structured JSON logging, Sentry, Prometheus/Datadog stubs |
-| Package manager    | npx                                                       |
+| Concern            | Choice                                                      |
+| ------------------ | ----------------------------------------------------------- |
+| Framework          | NestJS 11 (TypeScript)                                      |
+| Monorepo           | Nx 22                                                       |
+| ORM / migrations   | Prisma 7 (ESM, driver adapter)                              |
+| Databases          | PostgreSQL × 2 (business DB + legal audit DB)               |
+| Cache / pub-sub    | Redis 7 (ioredis)                                           |
+| Authentication     | Auth0 — JWT RS256, JWKS endpoint                            |
+| Billing            | Stripe (checkout, portal, webhooks)                         |
+| Event system       | EventEmitter2 (local) / AWS SQS / Azure Service Bus         |
+| Background workers | NestJS standalone app, long-polls SQS or Service Bus        |
+| Real-time          | Socket.IO 4.8 with Redis adapter (multi-pod)                |
+| File storage       | AWS S3 or Azure Blob Storage (presigned URLs, multi-tenant) |
+| Email              | Resend / SMTP, Handlebars templates                         |
+| Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles        |
+| Testing            | Vitest 4 (unit + integration)                               |
+| Observability      | Structured JSON logging, Sentry, Prometheus/Datadog stubs   |
+| Package manager    | npx                                                         |
 
 ---
 
@@ -47,7 +47,7 @@ apps/
   api-e2e/       → Integration tests for the API
   admin-api/     → Admin backoffice API (NestJS, port 3001) + Swagger at /docs
   admin-api-e2e/ → Integration tests for admin-api
-  worker-a/      → Background worker (polls SQS Standard queue)
+  worker-a/      → Background worker (polls SQS or Azure Service Bus queue)
   worker-a-e2e/  → Integration tests for worker-a
 
 libs/

@@ -486,8 +486,19 @@ AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 AWS_S3_BUCKET=your-bucket-name
-# Optional: For S3-compatible services
+# Optional: For S3-compatible services (LocalStack)
 AWS_S3_ENDPOINT=http://localhost:4566
+```
+
+### Azure Blob Storage Configuration
+
+```env
+DEFAULT_STORAGE_PROVIDER=AZURE
+AZURE_STORAGE_ACCOUNT=devstoreaccount1
+AZURE_STORAGE_KEY=your-storage-account-key
+AZURE_STORAGE_CONTAINER=saas-backend-files
+# Optional — Azurite local emulator
+AZURE_STORAGE_ENDPOINT=http://localhost:10000/devstoreaccount1
 ```
 
 ### Upload Session
@@ -607,34 +618,34 @@ npm run test:infra:down
 
 ## Future Enhancements
 
-### Azure Blob Storage Support
+### Azure Blob Storage ✅
 
-Implement `AzureProvider`:
+`AzureBlobProvider` is fully implemented. Switch to it at runtime:
 
-```typescript
-export class AzureProvider implements IStorageProvider {
-  async generateUploadUrl(
-    key: string,
-    contentType: string,
-    expiresIn: number,
-  ): Promise<string> {
-    // Use @azure/storage-blob
-  }
-}
+```env
+DEFAULT_STORAGE_PROVIDER=AZURE
+AZURE_STORAGE_ACCOUNT=your-account-name
+AZURE_STORAGE_KEY=your-account-key
+AZURE_STORAGE_CONTAINER=your-container-name
+# Optional — Azurite local emulator
+AZURE_STORAGE_ENDPOINT=http://localhost:10000/devstoreaccount1
 ```
 
-Register in `StorageService`:
+The key classes are:
 
-```typescript
-private getProvider(providerType: StorageProvider): IStorageProvider {
-  switch (providerType) {
-    case StorageProvider.S3:
-      return this.s3Provider;
-    case StorageProvider.AZURE:
-      return this.azureProvider; // NEW
-  }
-}
+- `AzureBlobStorageClient` — thin SDK wrapper (`@azure/storage-blob`)
+- `AzureBlobProvider` — implements `IStorageProvider`, delegates to the client
+- SAS permissions: `'cw'` (create + write) for uploads, `'r'` for downloads
+
+**Local development (Azurite):**
+
+```sh
+# Start Azurite alongside the regular infra
+docker compose -f docker-compose.dev.yml --profile azure up -d azurite
 ```
+
+Then set `AZURE_STORAGE_ENDPOINT=http://localhost:10000/devstoreaccount1` in `.env`.
+The test containers (`docker-compose.test.yml`) include `azurite-test` on port 10001.
 
 ### Cleanup Jobs
 

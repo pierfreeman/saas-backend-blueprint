@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DomainEvent } from './interfaces/domain-event.interface';
 import type { IEventTransport } from './transports/transport.interface';
@@ -7,6 +7,8 @@ import { FIFO_EVENT_PREFIXES } from './constants/event-routing.constants';
 export const EVENT_TRANSPORT_LOCAL = 'EVENT_TRANSPORT_LOCAL';
 export const EVENT_TRANSPORT_STANDARD = 'EVENT_TRANSPORT_STANDARD';
 export const EVENT_TRANSPORT_FIFO = 'EVENT_TRANSPORT_FIFO';
+export const EVENT_TRANSPORT_SB_STANDARD = 'EVENT_TRANSPORT_SB_STANDARD';
+export const EVENT_TRANSPORT_SB_SESSION = 'EVENT_TRANSPORT_SB_SESSION';
 
 /**
  * EventBusService
@@ -19,6 +21,10 @@ export const EVENT_TRANSPORT_FIFO = 'EVENT_TRANSPORT_FIFO';
  *   - SQS mode (EVENT_BUS_TRANSPORT=sqs):
  *     → SQS FIFO     for critical events (billing.*, subscription.*, payment.*)
  *     → SQS Standard for all other events
+ *
+ *   - SERVICE BUS mode (EVENT_BUS_TRANSPORT=servicebus):
+ *     → Service Bus Session queue  for critical events (billing.*, subscription.*, payment.*)
+ *     → Service Bus Standard queue for all other events
  *
  * Uso:
  * ```typescript
@@ -33,7 +39,7 @@ export const EVENT_TRANSPORT_FIFO = 'EVENT_TRANSPORT_FIFO';
 @Injectable()
 export class EventBusService {
   private readonly logger = new Logger(EventBusService.name);
-  private readonly isLocal: boolean;
+  private readonly mode: 'local' | 'sqs' | 'servicebus';
 
   constructor(
     @Inject(EVENT_TRANSPORT_LOCAL)
@@ -44,13 +50,22 @@ export class EventBusService {
 
     @Inject(EVENT_TRANSPORT_FIFO)
     private readonly fifoTransport: IEventTransport,
-  ) {
-    this.isLocal =
-      (process.env['EVENT_BUS_TRANSPORT'] ?? 'local').toLowerCase() === 'local';
 
-    this.logger.log(
-      `EventBus initialized in mode: ${this.isLocal ? 'LOCAL (in-memory)' : 'SQS'}`,
-    );
+    @Optional()
+    @Inject(EVENT_TRANSPORT_SB_STANDARD)
+    private readonly sbStandardTransport: IEventTransport,
+
+    @Optional()
+    @Inject(EVENT_TRANSPORT_SB_SESSION)
+    private readonly sbSessionTransport: IEventTransport,
+  ) {
+    const raw = (process.env['EVENT_BUS_TRANSPORT'] ?? 'local').toLowerCase();
+    this.mode =
+      raw === 'sqs' || raw === 'servicebus'
+        ? (raw as 'sqs' | 'servicebus')
+        : 'local';
+
+    this.logger.log(`EventBus initialized in mode: ${this.mode.toUpperCase()}`);
   }
 
   /**
@@ -66,10 +81,23 @@ export class EventBusService {
       timestamp: event.timestamp ?? new Date(),
     };
 
-    if (this.isLocal) {
+    if (this.mode === 'local') {
       return this.localTransport.send(enriched);
     }
 
+    if (this.mode === 'servicebus') {
+      const transport = this.isFifoEvent(enriched.eventType)
+        ? this.sbSessionTransport
+        : this.sbStandardTransport;
+
+      this.logger.debug(
+        `Routing "${enriched.eventType}" → SB ${this.isFifoEvent(enriched.eventType) ? 'Session' : 'Standard'}`,
+      );
+
+      return transport.send(enriched);
+    }
+
+    // sqs mode
     const transport = this.isFifoEvent(enriched.eventType)
       ? this.fifoTransport
       : this.standardTransport;

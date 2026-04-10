@@ -14,6 +14,7 @@ describe('S3Provider', () => {
       deleteObject: vi.fn(),
       objectExists: vi.fn(),
       getObjectSize: vi.fn(),
+      putObject: vi.fn(),
     } as unknown as Mocked<S3StorageClient>;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -99,6 +100,21 @@ describe('S3Provider', () => {
 
       expect(result).toBe(BigInt(12582912));
       expect(s3Client.getObjectSize).toHaveBeenCalledWith('test-key');
+    });
+  });
+
+  describe('putObject', () => {
+    it('uploads a buffer via s3Client', async () => {
+      s3Client.putObject.mockResolvedValue(undefined);
+      const buffer = Buffer.from('file content');
+
+      await provider.putObject('test-key', buffer, 'application/gzip');
+
+      expect(s3Client.putObject).toHaveBeenCalledWith(
+        'test-key',
+        buffer,
+        'application/gzip',
+      );
     });
   });
 });

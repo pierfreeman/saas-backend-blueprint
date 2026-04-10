@@ -58,6 +58,8 @@
     "@aws-sdk/client-s3": "^3.1027.0",
     "@aws-sdk/client-sqs": "^3.1027.0",
     "@aws-sdk/s3-request-presigner": "^3.1027.0",
+    "@azure/service-bus": "^7.9.5",
+    "@azure/storage-blob": "^12.31.0",
     "@nestjs/common": "^11.1.18",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.1.18",

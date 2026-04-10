@@ -42,7 +42,10 @@ export const envValidationSchema = Joi.object({
     .default('http://localhost:4200'),
 
   // Event Bus
-  EVENT_BUS_TRANSPORT: Joi.string().valid('local', 'sqs').default('local'),
+  EVENT_BUS_TRANSPORT: Joi.string()
+    .valid('local', 'sqs', 'servicebus')
+    .default('local'),
+  // --- SQS (required when EVENT_BUS_TRANSPORT=sqs) ---
   SQS_STANDARD_QUEUE_URL: Joi.string().when('EVENT_BUS_TRANSPORT', {
     is: 'sqs',
     then: Joi.required(),
@@ -55,6 +58,18 @@ export const envValidationSchema = Joi.object({
   }),
   SQS_ENDPOINT_URL: Joi.string().optional(),
   AWS_REGION: Joi.string().default('eu-west-1'),
+  // --- Azure Service Bus (required when EVENT_BUS_TRANSPORT=servicebus) ---
+  SERVICEBUS_CONNECTION_STRING: Joi.string().when('EVENT_BUS_TRANSPORT', {
+    is: 'servicebus',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  SERVICEBUS_STANDARD_QUEUE_NAME: Joi.string().when('EVENT_BUS_TRANSPORT', {
+    is: 'servicebus',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  SERVICEBUS_SESSION_QUEUE_NAME: Joi.string().optional().allow(''),
 
   // ── Security ─────────────────────────────────────────────────────────────
   // CORS
@@ -161,4 +176,34 @@ export const envValidationSchema = Joi.object({
   // Production servers that do require auth will have these set via env vars.
   SMTP_USER: Joi.string().optional().allow(''),
   SMTP_PASS: Joi.string().optional().allow(''),
+
+  // ── Storage ─────────────────────────────────────────────────────────────────────────
+  DEFAULT_STORAGE_PROVIDER: Joi.string().valid('S3', 'AZURE').default('S3'),
+  // --- AWS S3 (required when DEFAULT_STORAGE_PROVIDER=S3) ---
+  AWS_S3_BUCKET: Joi.string().when('DEFAULT_STORAGE_PROVIDER', {
+    is: 'S3',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AWS_ACCESS_KEY_ID: Joi.string().optional().allow(''),
+  AWS_SECRET_ACCESS_KEY: Joi.string().optional().allow(''),
+  AWS_S3_ENDPOINT: Joi.string().optional().allow(''),
+  AWS_S3_PUBLIC_ENDPOINT: Joi.string().optional().allow(''),
+  // --- Azure Blob Storage (required when DEFAULT_STORAGE_PROVIDER=AZURE) ---
+  AZURE_STORAGE_ACCOUNT: Joi.string().when('DEFAULT_STORAGE_PROVIDER', {
+    is: 'AZURE',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AZURE_STORAGE_KEY: Joi.string().when('DEFAULT_STORAGE_PROVIDER', {
+    is: 'AZURE',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AZURE_STORAGE_CONTAINER: Joi.string().when('DEFAULT_STORAGE_PROVIDER', {
+    is: 'AZURE',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AZURE_STORAGE_ENDPOINT: Joi.string().optional().allow(''),
 });

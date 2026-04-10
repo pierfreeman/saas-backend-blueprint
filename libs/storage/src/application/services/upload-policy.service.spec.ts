@@ -73,6 +73,107 @@ describe('UploadPolicyService', () => {
       const policy = service.getUploadPolicy('enterprise');
       expect(policy.maxFileSizeBytes).toBe(10 * 1024 * 1024 * 1024); // 10 GB
     });
+
+    it('uses default 0.1 GB for free plan when maxFileSizeGb is absent from config', () => {
+      configService.get.mockReturnValue({
+        freePlan: { storageLimitGb: 0.1, fileCountLimit: 100 }, // no maxFileSizeGb
+        proPlan: { storageLimitGb: 5, fileCountLimit: 10000, maxFileSizeGb: 2 },
+        enterprisePlan: { storageLimitGb: 50, maxFileSizeGb: 10 },
+      });
+      const policy = service.getUploadPolicy('free');
+      expect(policy.maxFileSizeBytes).toBe(0.1 * 1024 * 1024 * 1024); // ?? 0.1 fallback
+    });
+
+    it('uses default 20 GB for pro plan when maxFileSizeGb is absent from config', () => {
+      configService.get.mockReturnValue({
+        freePlan: {
+          storageLimitGb: 0.1,
+          fileCountLimit: 100,
+          maxFileSizeGb: 0.05,
+        },
+        proPlan: { storageLimitGb: 5, fileCountLimit: 10000 }, // no maxFileSizeGb
+        enterprisePlan: { storageLimitGb: 50, maxFileSizeGb: 10 },
+      });
+      const policy = service.getUploadPolicy('pro');
+      expect(policy.maxFileSizeBytes).toBe(20 * 1024 * 1024 * 1024); // ?? 20 fallback
+    });
+
+    it('uses default 100 GB for enterprise plan when maxFileSizeGb is absent from config', () => {
+      configService.get.mockReturnValue({
+        freePlan: {
+          storageLimitGb: 0.1,
+          fileCountLimit: 100,
+          maxFileSizeGb: 0.05,
+        },
+        proPlan: { storageLimitGb: 5, fileCountLimit: 10000, maxFileSizeGb: 2 },
+        enterprisePlan: { storageLimitGb: 50 }, // no maxFileSizeGb
+      });
+      const policy = service.getUploadPolicy('enterprise');
+      expect(policy.maxFileSizeBytes).toBe(100 * 1024 * 1024 * 1024); // ?? 100 fallback
+    });
+  });
+
+  describe('getStorageQuota', () => {
+    beforeEach(() => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+    });
+
+    it('uses ?? fallback maxFileSizeGb for free plan when absent', async () => {
+      configService.get.mockReturnValue({
+        freePlan: { storageLimitGb: 0.1, fileCountLimit: 100 }, // no maxFileSizeGb
+        proPlan: { storageLimitGb: 5, fileCountLimit: 10000, maxFileSizeGb: 2 },
+        enterprisePlan: { storageLimitGb: 50, maxFileSizeGb: 10 },
+      });
+      const quota = await service.getStorageQuota('org-1', 'free');
+      expect(quota.maxFileSizeBytes).toBe(0.1 * 1024 * 1024 * 1024);
+    });
+
+    it('uses ?? fallback maxFileSizeGb for pro plan when absent', async () => {
+      configService.get.mockReturnValue({
+        freePlan: {
+          storageLimitGb: 0.1,
+          fileCountLimit: 100,
+          maxFileSizeGb: 0.05,
+        },
+        proPlan: { storageLimitGb: 5, fileCountLimit: 10000 }, // no maxFileSizeGb
+        enterprisePlan: { storageLimitGb: 50, maxFileSizeGb: 10 },
+      });
+      const quota = await service.getStorageQuota('org-1', 'pro');
+      expect(quota.maxFileSizeBytes).toBe(20 * 1024 * 1024 * 1024);
+    });
+
+    it('uses ?? fallback maxFileSizeGb for enterprise plan when absent', async () => {
+      configService.get.mockReturnValue({
+        freePlan: {
+          storageLimitGb: 0.1,
+          fileCountLimit: 100,
+          maxFileSizeGb: 0.05,
+        },
+        proPlan: { storageLimitGb: 5, fileCountLimit: 10000, maxFileSizeGb: 2 },
+        enterprisePlan: { storageLimitGb: 50 }, // no maxFileSizeGb
+      });
+      const quota = await service.getStorageQuota('org-1', 'enterprise');
+      expect(quota.maxFileSizeBytes).toBe(100 * 1024 * 1024 * 1024);
+    });
+
+    it('returns null storageLimitBytes when plan has no storageLimitGb and no orgStorageLimit', async () => {
+      configService.get.mockReturnValue({
+        freePlan: { fileCountLimit: 100, maxFileSizeGb: 0.05 }, // no storageLimitGb
+        proPlan: { storageLimitGb: 5, fileCountLimit: 10000, maxFileSizeGb: 2 },
+        enterprisePlan: { storageLimitGb: 50, maxFileSizeGb: 10 },
+      });
+      const quota = await service.getStorageQuota('org-1', 'free');
+      expect(quota.storageLimitBytes).toBeNull();
+    });
+
+    it('uses orgStorageLimit override instead of plan storageLimitGb', async () => {
+      const override = BigInt(20 * 1024 * 1024 * 1024); // 20 GB
+      const quota = await service.getStorageQuota('org-1', 'free', override);
+      expect(quota.storageLimitBytes).toBe(override);
+    });
   });
 
   describe('validateUploadRequest', () => {
@@ -287,6 +388,93 @@ describe('UploadPolicyService', () => {
           'free',
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('passes validation when MIME type is in allowedMimeTypes', async () => {
+      vi.spyOn(service, 'getUploadPolicy').mockReturnValue({
+        maxFileSizeBytes: 100 * 1024 * 1024,
+        allowedMimeTypes: ['image/png', 'image/jpeg'],
+      });
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'photo.png',
+          'image/png',
+          1024,
+          'free',
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('passes validation when MIME type is not in forbiddenMimeTypes', async () => {
+      vi.spyOn(service, 'getUploadPolicy').mockReturnValue({
+        maxFileSizeBytes: 100 * 1024 * 1024,
+        forbiddenMimeTypes: ['application/x-sh', 'application/x-msdownload'],
+      });
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'document.pdf',
+          'application/pdf',
+          1024,
+          'free',
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('allows upload when storageLimitBytes is null (unlimited storage)', async () => {
+      configService.get.mockReturnValue({
+        freePlan: { fileCountLimit: 100, maxFileSizeGb: 0.05 }, // no storageLimitGb → null limit
+        proPlan: { storageLimitGb: 5, fileCountLimit: 10000, maxFileSizeGb: 2 },
+        enterprisePlan: { storageLimitGb: 50, maxFileSizeGb: 10 },
+      });
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(999 * 1024 * 1024 * 1024), // enormous usage
+        fileCount: 50,
+      });
+
+      // storageLimitBytes = null → quota check is skipped entirely
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'test.pdf',
+          'application/pdf',
+          1024,
+          'free',
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('includes "0 Bytes" in error message when orgStorageLimit is 0', async () => {
+      storageRepository.getStorageUsage.mockResolvedValue({
+        totalBytes: BigInt(0),
+        fileCount: 0,
+      });
+
+      await expect(
+        service.validateUploadRequest(
+          'org-123',
+          'test.pdf',
+          'application/pdf',
+          1, // 1-byte upload > 0-byte quota
+          'free',
+          BigInt(0), // zero storage quota triggers formatBytes(0) → '0 Bytes'
+        ),
+      ).rejects.toThrow(
+        expect.objectContaining({
+          message: expect.stringContaining('0 Bytes'),
+        }),
+      );
     });
   });
 });

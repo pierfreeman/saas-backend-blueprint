@@ -10,25 +10,29 @@ at the call-site** when switching between modes.
 
 ## Transport modes
 
-| `EVENT_BUS_TRANSPORT` | Transport used                               | Typical environment |
-| --------------------- | -------------------------------------------- | ------------------- |
-| `local` _(default)_   | `LocalTransport` (EventEmitter2)             | dev, unit tests     |
-| `sqs`                 | `SqsStandardTransport` or `SqsFifoTransport` | staging, production |
+| `EVENT_BUS_TRANSPORT` | Transport used                                                | Typical environment |
+| --------------------- | ------------------------------------------------------------- | ------------------- |
+| `local` _(default)_   | `LocalTransport` (EventEmitter2)                              | dev, unit tests     |
+| `sqs`                 | `SqsStandardTransport` or `SqsFifoTransport`                  | AWS staging/prod    |
+| `servicebus`          | `ServiceBusStandardTransport` or `ServiceBusSessionTransport` | Azure staging/prod  |
 
-### Routing logic (SQS mode)
+### Routing logic (SQS / Service Bus)
 
 Events whose `eventType` starts with one of the prefixes in `FIFO_EVENT_PREFIXES`
-are sent to the **FIFO** queue; all others go to the **Standard** queue.
+are sent to the **FIFO/Session** queue; all others go to the **Standard** queue.
 
 ```
-billing.*        →  SQS FIFO   (strict ordering, exactly-once)
-subscription.*   →  SQS FIFO
-payment.*        →  SQS FIFO
-invoice.*        →  SQS FIFO
-<everything else> →  SQS Standard  (high throughput, at-least-once)
+billing.*        →  SQS FIFO / SB Session   (strict ordering)
+subscription.*   →  SQS FIFO / SB Session
+payment.*        →  SQS FIFO / SB Session
+invoice.*        →  SQS FIFO / SB Session
+<everything else> →  SQS Standard / SB Standard  (high throughput)
 ```
 
-To add a new FIFO-routed prefix, edit `FIFO_EVENT_PREFIXES` in
+In **Service Bus** mode, session queues replace FIFO queues.
+The `sessionId` is derived from `event.messageGroupId ?? event.tenantId ?? 'default'`.
+
+To add a new FIFO/Session-routed prefix, edit `FIFO_EVENT_PREFIXES` in
 `libs/events/src/constants/event-routing.constants.ts`.
 
 ---
@@ -144,7 +148,7 @@ via `pubSub.pSubscribe('job:update:*', handler)`.
 
 ## Consuming events (workers)
 
-### Container worker (SQS polling)
+### SQS polling worker
 
 Workers run as standalone NestJS application contexts and host a
 `SqsConsumerService` that long-polls the Standard queue:
@@ -159,6 +163,28 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
   // deletes message on success → leaves it for DLQ on failure
 }
 ```
+
+### Azure Service Bus polling worker
+
+`ServiceBusConsumerService` is the Azure equivalent, activated when
+`EVENT_BUS_TRANSPORT=servicebus`:
+
+```typescript
+// apps/worker-a/src/servicebus-consumer.service.ts
+@Injectable()
+export class ServiceBusConsumerService
+  implements OnModuleInit, OnModuleDestroy {
+  // polls SERVICEBUS_STANDARD_QUEUE_NAME using peekLock mode
+  // deserialises DomainEvent from message body
+  // delegates to WorkerController
+  // completeMessage() on success
+  // abandonMessage() on handler failure (retryable)
+  // deadLetterMessage() on parse failure (non-retryable)
+}
+```
+
+Both consumer classes coexist in `app.module.ts` as providers. Only the one
+matching the configured transport activates in `onModuleInit()`.
 
 ### Future Lambda worker
 
@@ -181,15 +207,25 @@ No code changes are needed on the publisher side when a Lambda is added.
 
 ## Environment variables
 
+### AWS SQS
+
 | Variable                 | Required in | Description                                       |
 | ------------------------ | ----------- | ------------------------------------------------- |
-| `EVENT_BUS_TRANSPORT`    | all         | `local` (default) or `sqs`                        |
-| `SQS_STANDARD_QUEUE_URL` | production  | SQS Standard queue URL                            |
-| `SQS_FIFO_QUEUE_URL`     | production  | SQS FIFO queue URL (must end in `.fifo`)          |
-| `AWS_REGION`             | production  | e.g. `eu-west-1`                                  |
-| `AWS_ACCESS_KEY_ID`      | production  | Optional when running with an IAM Role            |
-| `AWS_SECRET_ACCESS_KEY`  | production  | Optional when running with an IAM Role            |
+| `EVENT_BUS_TRANSPORT`    | all         | `local` (default), `sqs`, or `servicebus`         |
+| `SQS_STANDARD_QUEUE_URL` | sqs mode    | SQS Standard queue URL                            |
+| `SQS_FIFO_QUEUE_URL`     | sqs mode    | SQS FIFO queue URL (must end in `.fifo`)          |
+| `AWS_REGION`             | sqs mode    | e.g. `eu-west-1`                                  |
+| `AWS_ACCESS_KEY_ID`      | sqs mode    | Optional when running with an IAM Role            |
+| `AWS_SECRET_ACCESS_KEY`  | sqs mode    | Optional when running with an IAM Role            |
 | `SQS_ENDPOINT_URL`       | dev/CI      | LocalStack endpoint, e.g. `http://localhost:4566` |
+
+### Azure Service Bus
+
+| Variable                         | Required in     | Description                              |
+| -------------------------------- | --------------- | ---------------------------------------- |
+| `SERVICEBUS_CONNECTION_STRING`   | servicebus mode | Full connection string from Azure portal |
+| `SERVICEBUS_STANDARD_QUEUE_NAME` | servicebus mode | Name of the standard (non-session) queue |
+| `SERVICEBUS_SESSION_QUEUE_NAME`  | servicebus mode | Name of the session-enabled queue        |
 
 ---
 
@@ -220,7 +256,7 @@ Add new event names here instead of defining inline strings.
 
 ---
 
-## Local development with LocalStack
+## Local development with LocalStack (SQS)
 
 To run SQS locally without hitting AWS, start LocalStack and point the
 transport at it:
@@ -243,6 +279,12 @@ SQS_ENDPOINT_URL=http://localhost:4566
 SQS_STANDARD_QUEUE_URL=http://localhost:4566/000000000000/saas-backend-heavy-jobs
 SQS_FIFO_QUEUE_URL=http://localhost:4566/000000000000/saas-backend-billing-events.fifo
 ```
+
+## Local development with Azurite (Service Bus)
+
+Azurite does **not** support Service Bus (it only emulates Blob/Queue/Table). For
+local Service Bus testing, use the real Azure Service Bus namespace or skip
+integration testing by keeping `EVENT_BUS_TRANSPORT=local`.
 
 For unit tests, leave `EVENT_BUS_TRANSPORT` unset (defaults to `local`) — no
 infrastructure is required.

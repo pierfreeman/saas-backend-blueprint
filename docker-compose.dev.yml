@@ -103,7 +103,29 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
-
+  # ─── Azurite (Azure Blob Storage emulator — optional) ──────────────────────
+  # Only needed when DEFAULT_STORAGE_PROVIDER=AZURE.
+  # Start with: docker compose -f docker-compose.dev.yml --profile azure up -d azurite
+  # App env vars for Azurite:
+  #   AZURE_STORAGE_ACCOUNT=devstoreaccount1
+  #   AZURE_STORAGE_KEY=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGmAQ==
+  #   AZURE_STORAGE_CONTAINER=saas-storage
+  #   AZURE_STORAGE_ENDPOINT=http://azurite:10000/devstoreaccount1
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    restart: unless-stopped
+    command: azurite-blob --blobHost 0.0.0.0
+    ports:
+      - '10000:10000' # Blob service
+    volumes:
+      - azurite_data:/data
+    healthcheck:
+      test: ['CMD', 'nc', '-z', 'localhost', '10000']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles:
+      - azure
   # ─── Stripe CLI (webhook forwarder — dev only) ─────────────────────────────
   stripe-cli:
     image: stripe/stripe-cli
@@ -154,3 +176,4 @@ volumes:
   postgres_legal_data:
   redis_data:
   localstack_data:
+  azurite_data:

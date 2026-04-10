@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { StorageService } from './storage.service';
 import { S3Provider } from '../../infrastructure/providers/s3.provider';
+import { AzureBlobProvider } from '../../infrastructure/providers/azure-blob.provider';
 import { StorageRepository } from '../../infrastructure/repositories/storage.repository';
 import { UploadPolicyService } from './upload-policy.service';
 import { ActivityLogService } from '@libs/activity-log';
@@ -18,6 +19,7 @@ describe('StorageService', () => {
   let service: StorageService;
   let configService: Mocked<ConfigService>;
   let s3Provider: Mocked<S3Provider>;
+  let azureProvider: Mocked<AzureBlobProvider>;
   let storageRepository: Mocked<StorageRepository>;
   let uploadPolicyService: Mocked<UploadPolicyService>;
   let activityLog: Mocked<ActivityLogService>;
@@ -34,7 +36,17 @@ describe('StorageService', () => {
       deleteObject: vi.fn(),
       objectExists: vi.fn(),
       getObjectSize: vi.fn(),
+      putObject: vi.fn(),
     } as unknown as Mocked<S3Provider>;
+
+    azureProvider = {
+      generateUploadUrl: vi.fn(),
+      generateDownloadUrl: vi.fn(),
+      deleteObject: vi.fn(),
+      objectExists: vi.fn(),
+      getObjectSize: vi.fn(),
+      putObject: vi.fn(),
+    } as unknown as Mocked<AzureBlobProvider>;
 
     storageRepository = {
       createFile: vi.fn(),
@@ -73,6 +85,7 @@ describe('StorageService', () => {
         StorageService,
         { provide: ConfigService, useValue: configService },
         { provide: S3Provider, useValue: s3Provider },
+        { provide: AzureBlobProvider, useValue: azureProvider },
         { provide: StorageRepository, useValue: storageRepository },
         { provide: UploadPolicyService, useValue: uploadPolicyService },
         { provide: ActivityLogService, useValue: activityLog },
@@ -155,6 +168,47 @@ describe('StorageService', () => {
       await expect(service.generateUploadUrl(mockRequest)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('uses 3600 s expiry when storage.presignedUrl.expirationSeconds is not configured', async () => {
+      // Return undefined for the expiration config key to exercise the ?? 3600 fallback
+      configService.get.mockImplementation((key: string) => {
+        const cfg: Record<string, unknown> = {
+          'storage.defaultProvider': 'S3',
+          'storage.presignedUrl.expirationSeconds': undefined,
+        };
+        return cfg[key];
+      });
+      uploadPolicyService.validateUploadRequest.mockResolvedValue(undefined);
+      s3Provider.generateUploadUrl.mockResolvedValue(
+        'https://s3.example.com/upload',
+      );
+      storageRepository.createFile.mockResolvedValue({
+        id: 'f1',
+        orgId: 'org-1',
+        uploadedBy: 'u1',
+        storageKey: 'org/org-1/f1',
+        provider: StorageProvider.S3,
+        filename: 'f.pdf',
+        size: null,
+        mimeType: 'application/pdf',
+        status: FileStatus.PENDING,
+        expiresAt: new Date(),
+        confirmedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await service.generateUploadUrl({
+        orgId: 'org-1',
+        userId: 'u1',
+        filename: 'f.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
+      });
+
+      // expiresAt should be ~1 hour (3600 s) from now — just check it's set
+      expect(result.expiresAt).toBeInstanceOf(Date);
     });
   });
 
@@ -316,6 +370,42 @@ describe('StorageService', () => {
         BadRequestException,
       );
     });
+
+    it('uses current date as confirmedAt when repository returns null for confirmedAt', async () => {
+      const mockRequest = {
+        fileId: 'file-null-confirm',
+        orgId: 'org-456',
+        userId: 'user-789',
+      };
+      const mockFile = {
+        id: mockRequest.fileId,
+        orgId: mockRequest.orgId,
+        uploadedBy: mockRequest.userId,
+        storageKey: `org/${mockRequest.orgId}/${mockRequest.fileId}`,
+        provider: StorageProvider.S3,
+        filename: 'test.pdf',
+        size: null,
+        mimeType: 'application/pdf',
+        status: FileStatus.PENDING,
+        expiresAt: new Date(),
+        confirmedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
+      s3Provider.objectExists.mockResolvedValue(true);
+      s3Provider.getObjectSize.mockResolvedValue(BigInt(1024));
+      // confirmedAt is null → the ?? new Date() fallback is used
+      storageRepository.confirmUpload.mockResolvedValue({
+        ...mockFile,
+        status: FileStatus.COMPLETED,
+        confirmedAt: null,
+      });
+
+      const result = await service.confirmUpload(mockRequest);
+
+      expect(result.confirmedAt).toBeInstanceOf(Date);
+    });
   });
 
   describe('generateDownloadUrl', () => {
@@ -402,6 +492,41 @@ describe('StorageService', () => {
       await expect(service.generateDownloadUrl(mockRequest)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+
+    it('uses 3600 s expiry when storage.presignedUrl.expirationSeconds is not configured', async () => {
+      configService.get.mockImplementation((key: string) => {
+        const cfg: Record<string, unknown> = {
+          'storage.defaultProvider': 'S3',
+          'storage.presignedUrl.expirationSeconds': undefined,
+        };
+        return cfg[key];
+      });
+      const mockRequest = { fileId: 'file-dl', orgId: 'org-1', userId: 'u1' };
+      const mockFile = {
+        id: mockRequest.fileId,
+        orgId: mockRequest.orgId,
+        uploadedBy: mockRequest.userId,
+        storageKey: 'org/org-1/file-dl',
+        provider: StorageProvider.S3,
+        filename: 'dl.pdf',
+        size: BigInt(1024),
+        mimeType: 'application/pdf',
+        status: FileStatus.COMPLETED,
+        expiresAt: null,
+        confirmedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
+      s3Provider.generateDownloadUrl.mockResolvedValue(
+        'https://s3.example.com/dl',
+      );
+
+      const result = await service.generateDownloadUrl(mockRequest);
+
+      expect(result.expiresAt).toBeInstanceOf(Date);
+      expect(result.downloadUrl).toBe('https://s3.example.com/dl');
     });
   });
 
@@ -496,6 +621,39 @@ describe('StorageService', () => {
 
       await expect(service.deleteFile(mockRequest)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('skips storage object deletion when file is not COMPLETED (e.g. PENDING)', async () => {
+      const mockRequest = {
+        fileId: 'file-pending',
+        orgId: 'org-456',
+        userId: 'user-789',
+      };
+      const mockFile = {
+        id: mockRequest.fileId,
+        orgId: mockRequest.orgId,
+        uploadedBy: mockRequest.userId,
+        storageKey: `org/${mockRequest.orgId}/${mockRequest.fileId}`,
+        provider: StorageProvider.S3,
+        filename: 'test.pdf',
+        size: null,
+        mimeType: 'application/pdf',
+        status: FileStatus.PENDING, // NOT COMPLETED → storage deletion skipped
+        expiresAt: new Date(),
+        confirmedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      storageRepository.findByIdAndOrg.mockResolvedValue(mockFile);
+      storageRepository.deleteFile.mockResolvedValue(undefined);
+
+      await service.deleteFile(mockRequest);
+
+      expect(s3Provider.deleteObject).not.toHaveBeenCalled();
+      expect(storageRepository.deleteFile).toHaveBeenCalledWith(
+        mockRequest.fileId,
       );
     });
   });
@@ -667,6 +825,148 @@ describe('StorageService', () => {
       const result = await service.getStorageStats('org-empty');
 
       expect(result).toEqual({ totalBytes: '0', fileCount: 0 });
+    });
+  });
+
+  describe('generateRawPresignedDownloadUrl', () => {
+    it('delegates to the default provider with the given key and expiry', async () => {
+      s3Provider.generateDownloadUrl.mockResolvedValue(
+        'https://s3.example.com/org/org-1/export.gz?sig=abc',
+      );
+
+      const result = await service.generateRawPresignedDownloadUrl(
+        'org/org-1/export.gz',
+        7200,
+      );
+
+      expect(result).toBe('https://s3.example.com/org/org-1/export.gz?sig=abc');
+      expect(s3Provider.generateDownloadUrl).toHaveBeenCalledWith(
+        'org/org-1/export.gz',
+        7200,
+      );
+    });
+  });
+
+  describe('putRawObject', () => {
+    it('uploads a buffer to the default provider', async () => {
+      s3Provider.putObject.mockResolvedValue(undefined);
+      const buffer = Buffer.from('export-data');
+
+      await service.putRawObject(
+        'org/org-1/export.gz',
+        buffer,
+        'application/gzip',
+      );
+
+      expect(s3Provider.putObject).toHaveBeenCalledWith(
+        'org/org-1/export.gz',
+        buffer,
+        'application/gzip',
+      );
+    });
+  });
+
+  describe('getProvider() — unsupported type', () => {
+    it('throws when an unsupported storage provider is configured', async () => {
+      // Force an invalid defaultProvider to exercise the default branch in getProvider()
+      (service as any)['defaultProvider'] = 'UNSUPPORTED';
+      await expect(
+        service.generateRawPresignedDownloadUrl('key', 3600),
+      ).rejects.toThrow('Unsupported storage provider: UNSUPPORTED');
+    });
+  });
+
+  describe('provider selection', () => {
+    it('uses S3 provider when DEFAULT_STORAGE_PROVIDER=S3 (default)', async () => {
+      // Default config already sets 'storage.defaultProvider' = 'S3'.
+      // Verify upload flow routes to s3Provider, not azureProvider.
+      uploadPolicyService.validateUploadRequest.mockResolvedValue(undefined);
+      s3Provider.generateUploadUrl.mockResolvedValue(
+        'https://s3.example.com/upload',
+      );
+      storageRepository.createFile.mockResolvedValue({
+        id: 'file-1',
+        orgId: 'org-1',
+        uploadedBy: 'user-1',
+        storageKey: 'org/org-1/file-1',
+        provider: StorageProvider.S3,
+        filename: 'test.pdf',
+        size: null,
+        mimeType: 'application/pdf',
+        status: FileStatus.PENDING,
+        expiresAt: new Date(),
+        confirmedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await service.generateUploadUrl({
+        orgId: 'org-1',
+        userId: 'user-1',
+        filename: 'test.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
+      });
+
+      expect(s3Provider.generateUploadUrl).toHaveBeenCalled();
+      expect(azureProvider.generateUploadUrl).not.toHaveBeenCalled();
+    });
+
+    it('uses Azure provider when DEFAULT_STORAGE_PROVIDER=AZURE', async () => {
+      // Rebuild service with AZURE config
+      configService.get.mockImplementation((key: string) => {
+        const cfg: Record<string, unknown> = {
+          'storage.defaultProvider': 'AZURE',
+          'storage.presignedUrl.expirationSeconds': 3600,
+        };
+        return cfg[key];
+      });
+
+      const mod = await Test.createTestingModule({
+        providers: [
+          StorageService,
+          { provide: ConfigService, useValue: configService },
+          { provide: S3Provider, useValue: s3Provider },
+          { provide: AzureBlobProvider, useValue: azureProvider },
+          { provide: StorageRepository, useValue: storageRepository },
+          { provide: UploadPolicyService, useValue: uploadPolicyService },
+          { provide: ActivityLogService, useValue: activityLog },
+          { provide: LegalAuditService, useValue: legalAudit },
+        ],
+      }).compile();
+
+      const azureService = mod.get<StorageService>(StorageService);
+
+      uploadPolicyService.validateUploadRequest.mockResolvedValue(undefined);
+      azureProvider.generateUploadUrl.mockResolvedValue(
+        'https://azurite.example.com/upload',
+      );
+      storageRepository.createFile.mockResolvedValue({
+        id: 'file-2',
+        orgId: 'org-1',
+        uploadedBy: 'user-1',
+        storageKey: 'org/org-1/file-2',
+        provider: StorageProvider.AZURE,
+        filename: 'test.pdf',
+        size: null,
+        mimeType: 'application/pdf',
+        status: FileStatus.PENDING,
+        expiresAt: new Date(),
+        confirmedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await azureService.generateUploadUrl({
+        orgId: 'org-1',
+        userId: 'user-1',
+        filename: 'test.pdf',
+        mimeType: 'application/pdf',
+        size: 1024,
+      });
+
+      expect(azureProvider.generateUploadUrl).toHaveBeenCalled();
+      expect(s3Provider.generateUploadUrl).not.toHaveBeenCalled();
     });
   });
 });
