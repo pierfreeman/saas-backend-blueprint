@@ -1,13 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { LangChainClient } from '../../infrastructure/clients/langchain.client';
-import { AiConversationRepository } from '../../infrastructure/repositories/ai-conversation.repository';
+
+const DEFAULT_SYSTEM_PROMPT =
+  'You are a helpful assistant. Answer clearly and concisely.';
 
 @Injectable()
 export class AiChatService {
-  constructor(
-    private readonly langchainClient: LangChainClient,
-    private readonly conversationRepository: AiConversationRepository,
-  ) {}
+  constructor(private readonly langchainClient: LangChainClient) {}
 
-  // TODO: Implement chat orchestration
+  async *streamChat(
+    orgId: string,
+    userId: string,
+    message: string,
+  ): AsyncGenerator<string> {
+    yield* this.langchainClient.streamChat(DEFAULT_SYSTEM_PROMPT, message);
+  }
 }
