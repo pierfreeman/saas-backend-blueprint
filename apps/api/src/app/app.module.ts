@@ -32,6 +32,7 @@ import { RBACModule } from '@libs/rbac';
 import { StorageAppModule } from './storage/storage-app.module';
 import { TasksModule } from './tasks/tasks.module';
 import { PlanningAppModule } from './planning/planning-app.module';
+import { AiAppModule } from './ai/ai-app.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { PlanningAppModule } from './planning/planning-app.module';
     NotificationsAppModule,
     StorageAppModule,
     PlanningAppModule,
+    AiAppModule,
   ],
   controllers: [AppController],
   providers: [AppService],
