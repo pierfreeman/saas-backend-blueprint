@@ -2,16 +2,13 @@ import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { LangChainClient } from './langchain.client';
 
+const mockStream = vi.fn();
+
 vi.mock('@langchain/openai', () => {
   return {
-    ChatOpenAI: vi.fn().mockImplementation(() => ({
-      stream: vi.fn().mockResolvedValue(
-        (async function* () {
-          yield { content: 'Hello' };
-          yield { content: ' world' };
-        })(),
-      ),
-    })),
+    ChatOpenAI: class MockChatOpenAI {
+      stream = mockStream;
+    },
   };
 });
 
@@ -38,6 +35,8 @@ describe('LangChainClient', () => {
 
     client = module.get(LangChainClient);
     client.onModuleInit();
+
+    mockStream.mockReset();
   });
 
   it('should be defined', () => {
@@ -45,8 +44,14 @@ describe('LangChainClient', () => {
   });
 
   it('should yield streamed text chunks', async () => {
-    const chunks: string[] = [];
+    mockStream.mockResolvedValue(
+      (async function* () {
+        yield { content: 'Hello' };
+        yield { content: ' world' };
+      })(),
+    );
 
+    const chunks: string[] = [];
     for await (const chunk of client.streamChat('You are helpful.', 'Hi')) {
       chunks.push(chunk);
     }
