@@ -6,6 +6,7 @@ import databaseConfig from './database.config';
 import redisConfig from './redis.config';
 import storageConfig from './storage.config';
 import emailConfig from './email.config';
+import aiConfig from './ai.config';
 import { observabilityConfig } from '@libs/observability';
 import { envValidationSchema } from './env.validation';
 
@@ -41,6 +42,7 @@ import { envValidationSchema } from './env.validation';
         redisConfig,
         storageConfig,
         emailConfig,
+        aiConfig,
         observabilityConfig,
       ],
       envFilePath: '.env',

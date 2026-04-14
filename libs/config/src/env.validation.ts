@@ -148,4 +148,11 @@ export const envValidationSchema = Joi.object({
   // Production servers that do require auth will have these set via env vars.
   SMTP_USER: Joi.string().optional().allow(''),
   SMTP_PASS: Joi.string().optional().allow(''),
+
+  // ── AI ────────────────────────────────────────────────────────────────────
+  OPENAI_API_KEY: Joi.string().optional().allow(''),
+  AZURE_OPENAI_API_KEY: Joi.string().optional().allow(''),
+  AZURE_OPENAI_ENDPOINT: Joi.string().optional().allow(''),
+  ANTHROPIC_API_KEY: Joi.string().optional().allow(''),
+  GOOGLE_API_KEY: Joi.string().optional().allow(''),
 });
