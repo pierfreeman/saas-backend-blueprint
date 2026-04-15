@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Body,
+  Param,
   UseGuards,
   Res,
   HttpCode,
@@ -27,6 +28,7 @@ export class AiController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Stream a chat response from the AI' })
   async chat(
+    @Param('orgId') orgId: string,
     @Body() dto: ChatRequestDto,
     @CurrentUser() user: RequestUser,
     @Res() res: Response,
@@ -37,8 +39,6 @@ export class AiController {
     res.flushHeaders();
 
     try {
-      const orgId = (res.req as Record<string, unknown>)['orgId'] as string;
-
       for await (const chunk of this.aiChatService.streamChat(
         orgId,
         user.sub,

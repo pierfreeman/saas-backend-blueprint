@@ -6,7 +6,7 @@ const mockStream = vi.fn();
 
 vi.mock('@langchain/openai', () => {
   return {
-    ChatOpenAI: class MockChatOpenAI {
+    AzureChatOpenAI: class MockAzureChatOpenAI {
       stream = mockStream;
     },
   };

@@ -37,10 +37,10 @@ describe('AiController', () => {
       flushHeaders: vi.fn(),
       write: vi.fn((data: string) => written.push(data)),
       end: vi.fn(),
-      req: { orgId: 'org-1' },
     };
 
     await controller.chat(
+      'org-1',
       { message: 'Hi' },
       { sub: 'user-1', email: 'test@test.com' },
       mockRes as never,
