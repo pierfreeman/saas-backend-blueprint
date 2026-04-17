@@ -39,12 +39,7 @@ describe('AiController', () => {
       end: vi.fn(),
     };
 
-    await controller.chat(
-      'org-1',
-      { message: 'Hi' },
-      { sub: 'user-1', email: 'test@test.com' },
-      mockRes as never,
-    );
+    await controller.chat({ message: 'Hi' }, mockRes as never);
 
     expect(written).toEqual([
       `data: ${JSON.stringify({ content: 'Hello' })}\n\n`,

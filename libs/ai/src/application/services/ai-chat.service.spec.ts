@@ -34,7 +34,7 @@ describe('AiChatService', () => {
     );
 
     const chunks: string[] = [];
-    for await (const chunk of service.streamChat('org-1', 'user-1', 'Hi')) {
+    for await (const chunk of service.streamChat('Hi')) {
       chunks.push(chunk);
     }
 

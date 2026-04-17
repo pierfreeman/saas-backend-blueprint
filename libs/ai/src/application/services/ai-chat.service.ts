@@ -8,11 +8,7 @@ const DEFAULT_SYSTEM_PROMPT =
 export class AiChatService {
   constructor(private readonly langchainClient: LangChainClient) {}
 
-  async *streamChat(
-    orgId: string,
-    userId: string,
-    message: string,
-  ): AsyncGenerator<string> {
+  async *streamChat(message: string): AsyncGenerator<string> {
     yield* this.langchainClient.streamChat(DEFAULT_SYSTEM_PROMPT, message);
   }
 }
