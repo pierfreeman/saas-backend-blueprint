@@ -6,13 +6,20 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 @Injectable()
 export class LangChainClient implements OnModuleInit {
   private readonly logger = new Logger(LangChainClient.name);
-  private model!: AzureChatOpenAI;
+  private model: AzureChatOpenAI | undefined;
 
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit(): void {
     const apiKey = this.configService.get<string>('ai.azureOpenaiApiKey');
     const endpoint = this.configService.get<string>('ai.azureOpenaiEndpoint');
+
+    if (!apiKey || !endpoint) {
+      this.logger.warn(
+        'Azure OpenAI credentials not configured — AI chat will be unavailable',
+      );
+      return;
+    }
 
     this.model = new AzureChatOpenAI({
       azureOpenAIApiKey: apiKey,
@@ -30,6 +37,10 @@ export class LangChainClient implements OnModuleInit {
     systemPrompt: string,
     userMessage: string,
   ): AsyncGenerator<string> {
+    if (!this.model) {
+      throw new Error('AI chat is not available — Azure OpenAI is not configured');
+    }
+
     const messages = [
       new SystemMessage(systemPrompt),
       new HumanMessage(userMessage),
