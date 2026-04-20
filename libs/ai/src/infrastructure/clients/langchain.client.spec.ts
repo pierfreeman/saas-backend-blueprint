@@ -58,4 +58,21 @@ describe('LangChainClient', () => {
 
     expect(chunks).toEqual(['Hello', ' world']);
   });
+
+  it('should skip chunks with non-string content', async () => {
+    mockStream.mockResolvedValue(
+      (async function* () {
+        yield { content: ['array-content'] };
+        yield { content: 'valid' };
+        yield { content: '' };
+      })(),
+    );
+
+    const chunks: string[] = [];
+    for await (const chunk of client.streamChat('You are helpful.', 'Hi')) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual(['valid']);
+  });
 });
