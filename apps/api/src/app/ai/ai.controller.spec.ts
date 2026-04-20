@@ -1,6 +1,10 @@
 import { Test } from '@nestjs/testing';
 import { AiController } from './ai.controller';
 import { AiChatService } from '@libs/ai';
+import { JwtAuthGuard } from '@libs/common';
+import { OrgContextGuard, RBACGuard } from '@libs/rbac';
+
+const noopGuard = { canActivate: () => true };
 
 describe('AiController', () => {
   let controller: AiController;
@@ -13,7 +17,14 @@ describe('AiController', () => {
     const module = await Test.createTestingModule({
       controllers: [AiController],
       providers: [{ provide: AiChatService, useValue: mockAiChatService }],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue(noopGuard)
+      .overrideGuard(OrgContextGuard)
+      .useValue(noopGuard)
+      .overrideGuard(RBACGuard)
+      .useValue(noopGuard)
+      .compile();
 
     controller = module.get(AiController);
     vi.clearAllMocks();
