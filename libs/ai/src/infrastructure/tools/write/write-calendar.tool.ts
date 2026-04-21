@@ -61,12 +61,16 @@ export function createWriteCalendarTool(
       const startUtc = DateTime.fromISO(input.start, { zone: input.eventTimezone }).toUTC().toISO();
       const endUtc = DateTime.fromISO(input.end, { zone: input.eventTimezone }).toUTC().toISO();
 
+      if (!startUtc || !endUtc) {
+        return JSON.stringify({ error: 'Invalid start or end date provided.' });
+      }
+
       const event = await planningService.createEvent(orgId, userId, {
         title: input.title,
         description: input.description ?? null,
         location: input.location ?? null,
-        start: startUtc!,
-        end: endUtc!,
+        start: startUtc,
+        end: endUtc,
         isAllDay: input.isAllDay ?? false,
         eventTimezone: input.eventTimezone,
       });
