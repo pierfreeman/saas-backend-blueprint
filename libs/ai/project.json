@@ -1,0 +1,32 @@
+{
+  "name": "ai",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/ai/src",
+  "projectType": "library",
+  "tags": [
+    "type:lib",
+    "scope:ai"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:noop",
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test": {
+      "executor": "@nx/vitest:test",
+      "outputs": [
+        "{workspaceRoot}/coverage/unit/libs/ai"
+      ],
+      "options": {
+        "configFile": "libs/ai/vitest.config.ts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project libs/ai/tsconfig.lib.json --noEmit"
+      }
+    }
+  }
+}

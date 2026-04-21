@@ -18,6 +18,12 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@libs/ai": [
+        "libs/ai/src/index.ts"
+      ],
+      "@libs/ai/*": [
+        "libs/ai/src/*"
+      ],
       "@libs/auth0": [
         "libs/auth0/src/index.ts"
       ],

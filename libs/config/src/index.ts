@@ -6,3 +6,4 @@ export { default as databaseConfig } from './database.config';
 export { default as redisConfig } from './redis.config';
 export { default as storageConfig, type StorageConfig } from './storage.config';
 export { default as emailConfig, type EmailConfig } from './email.config';
+export { default as aiConfig } from './ai.config';
