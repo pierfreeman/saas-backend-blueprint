@@ -25,8 +25,8 @@ export function createReadCalendarTool(
     description:
       'List calendar events for the current organization within a date range. ' +
       'Use this tool when the user asks about their schedule, upcoming events, ' +
-      'or what is on their calendar. Returns event titles, times, locations, ' +
-      'attendees, and recurrence info.',
+      'or what is on their calendar. Returns event titles, local times, ' +
+      'locations, attendees, and recurrence info.',
     schema: READ_CALENDAR_SCHEMA,
     func: async (input: { from: string; to: string }): Promise<string> => {
       const from = new Date(input.from);
@@ -40,8 +40,9 @@ export function createReadCalendarTool(
           title: event.title,
           description: event.description,
           location: event.location,
-          startUtc: event.startUtc.toISOString(),
-          endUtc: event.endUtc.toISOString(),
+          startLocal: event.startUtc.toLocaleString('en-GB', { timeZone: event.eventTimezone }),
+          endLocal: event.endUtc.toLocaleString('en-GB', { timeZone: event.eventTimezone }),
+          eventTimezone: event.eventTimezone,
           isAllDay: event.isAllDay,
           isRecurring: event.isRecurring,
           isCancelled: event.isCancelled,

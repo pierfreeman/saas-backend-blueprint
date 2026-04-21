@@ -58,6 +58,9 @@ describe('createReadCalendarTool', () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].title).toBe('Standup');
     expect(parsed[0].location).toBe('Room A');
+    expect(parsed[0].startLocal).toBeDefined();
+    expect(parsed[0].endLocal).toBeDefined();
+    expect(parsed[0].eventTimezone).toBe('UTC');
     expect(parsed[0].attendees).toEqual([{ userId: 'user-1', status: 'YES' }]);
   });
 
