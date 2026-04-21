@@ -50,7 +50,7 @@ describe('AiController', () => {
       end: vi.fn(),
     };
 
-    await controller.chat('org-1', { message: 'Hi' }, mockRes as never);
+    await controller.chat('org-1', 'user-1', { message: 'Hi' }, mockRes as never);
 
     expect(written).toEqual([
       `data: ${JSON.stringify({ content: 'Hello' })}\n\n`,
@@ -58,6 +58,6 @@ describe('AiController', () => {
       `data: [DONE]\n\n`,
     ]);
     expect(mockRes.end).toHaveBeenCalled();
-    expect(mockAiChatService.streamChat).toHaveBeenCalledWith('Hi', 'org-1');
+    expect(mockAiChatService.streamChat).toHaveBeenCalledWith('Hi', 'org-1', 'user-1');
   });
 });

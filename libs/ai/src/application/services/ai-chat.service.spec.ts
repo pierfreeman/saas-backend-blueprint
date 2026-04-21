@@ -40,7 +40,7 @@ describe('AiChatService', () => {
     );
 
     const chunks: string[] = [];
-    for await (const chunk of service.streamChat('Hi', 'org-1')) {
+    for await (const chunk of service.streamChat('Hi', 'org-1', 'user-1')) {
       chunks.push(chunk);
     }
 
@@ -50,6 +50,7 @@ describe('AiChatService', () => {
       'Hi',
       expect.arrayContaining([
         expect.objectContaining({ name: 'list_calendar_events' }),
+        expect.objectContaining({ name: 'create_calendar_event' }),
       ]),
     );
   });

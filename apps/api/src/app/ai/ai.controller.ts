@@ -11,7 +11,7 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AiChatService } from '@libs/ai';
 import { JwtAuthGuard } from '@libs/common';
-import { OrgContextGuard, RBACGuard, OrgScoped } from '@libs/rbac';
+import { CurrentUserId, OrgContextGuard, RBACGuard, OrgScoped } from '@libs/rbac';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import type { Response } from 'express';
 
@@ -28,6 +28,7 @@ export class AiController {
   @ApiOperation({ summary: 'Stream a chat response from the AI' })
   async chat(
     @Param('orgId') orgId: string,
+    @CurrentUserId() userId: string,
     @Body() dto: ChatRequestDto,
     @Res() res: Response,
   ): Promise<void> {
@@ -40,6 +41,7 @@ export class AiController {
       for await (const chunk of this.aiChatService.streamChat(
         dto.message,
         orgId,
+        userId,
       )) {
         res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
       }
