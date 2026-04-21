@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Body,
+  Param,
   UseGuards,
   Res,
   HttpCode,
@@ -26,6 +27,7 @@ export class AiController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Stream a chat response from the AI' })
   async chat(
+    @Param('orgId') orgId: string,
     @Body() dto: ChatRequestDto,
     @Res() res: Response,
   ): Promise<void> {
@@ -35,7 +37,10 @@ export class AiController {
     res.flushHeaders();
 
     try {
-      for await (const chunk of this.aiChatService.streamChat(dto.message)) {
+      for await (const chunk of this.aiChatService.streamChat(
+        dto.message,
+        orgId,
+      )) {
         res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
       }
 
