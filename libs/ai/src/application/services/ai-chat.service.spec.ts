@@ -46,7 +46,7 @@ describe('AiChatService', () => {
 
     expect(chunks).toEqual(['Hello', ' there']);
     expect(mockLangChainClient.streamChat).toHaveBeenCalledWith(
-      expect.any(String),
+      expect.stringContaining("Today's date is"),
       'Hi',
       expect.arrayContaining([
         expect.objectContaining({ name: 'list_calendar_events' }),
