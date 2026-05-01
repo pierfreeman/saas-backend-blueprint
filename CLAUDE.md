@@ -18,24 +18,24 @@ Pairs with [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + M
 
 ## Tech stack
 
-| Concern            | Choice                                                    |
-| ------------------ | --------------------------------------------------------- |
-| Framework          | NestJS 11 (TypeScript)                                    |
-| Monorepo           | Nx 22                                                     |
-| ORM / migrations   | Prisma 7 (ESM, driver adapter)                            |
-| Databases          | PostgreSQL × 2 (business DB + legal audit DB)             |
-| Cache / pub-sub    | Redis 7 (ioredis)                                         |
-| Authentication     | Auth0 — JWT RS256, JWKS endpoint                          |
-| Billing            | Stripe (checkout, portal, webhooks)                       |
-| Event system       | EventEmitter2 (local) / AWS SQS (production)              |
-| Background workers | NestJS standalone app, long-polls SQS Standard queue      |
-| Real-time          | Socket.IO 4.8 with Redis adapter (multi-pod)              |
-| File storage       | AWS S3 (presigned URLs, multi-tenant isolation)           |
-| Email              | Resend / SMTP, Handlebars templates                       |
-| Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles      |
-| Testing            | Vitest 4 (unit + integration)                             |
-| Observability      | Structured JSON logging, Sentry, Prometheus/Datadog stubs |
-| Package manager    | npx                                                       |
+| Concern            | Choice                                                      |
+| ------------------ | ----------------------------------------------------------- |
+| Framework          | NestJS 11 (TypeScript)                                      |
+| Monorepo           | Nx 22                                                       |
+| ORM / migrations   | Prisma 7 (ESM, driver adapter)                              |
+| Databases          | PostgreSQL × 2 (business DB + legal audit DB)               |
+| Cache / pub-sub    | Redis 7 (ioredis)                                           |
+| Authentication     | Auth0 — JWT RS256, JWKS endpoint                            |
+| Billing            | Stripe (checkout, portal, webhooks)                         |
+| Event system       | EventEmitter2 (local) / AWS SQS / Azure Service Bus         |
+| Background workers | NestJS standalone app, long-polls SQS or Service Bus        |
+| Real-time          | Socket.IO 4.8 with Redis adapter (multi-pod)                |
+| File storage       | AWS S3 or Azure Blob Storage (presigned URLs, multi-tenant) |
+| Email              | Resend / SMTP, Handlebars templates                         |
+| Containerisation   | Docker Compose (dev + test), multi-stage Dockerfiles        |
+| Testing            | Vitest 4 (unit + integration)                               |
+| Observability      | Structured JSON logging, Sentry, Prometheus/Datadog stubs   |
+| Package manager    | npx                                                         |
 
 ---
 
@@ -45,11 +45,21 @@ Pairs with [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + M
 apps/
   api/           → HTTP API (NestJS, port 3000) + Swagger docs at /docs
   api-e2e/       → Integration tests for the API
-  worker-a/      → Background worker (polls SQS Standard queue)
+  admin-api/     → Admin backoffice API (NestJS, port 3001) + Swagger at /docs
+  admin-api-e2e/ → Integration tests for admin-api
+  worker-a/      → Background worker (polls SQS or Azure Service Bus queue)
   worker-a-e2e/  → Integration tests for worker-a
 
 libs/
   activity-log/    → Tenant-visible operational event log (business DB)
+  admin/
+    auth/          → AdminJwtAuthGuard, CurrentAdminUserId decorator (dedicated admin Auth0 app)
+    identity/      → AdminIdentityService — AdminUser upsert in legal DB
+    organizations/ → AdminOrganizationsService — org list, Customer 360 detail, provisioning
+    memberships/   → AdminMembershipsService — list/invite/role/remove across all orgs
+    billing/       → AdminBillingService — billing overview + Stripe portal delegation
+    activity-log/  → AdminActivityLogService — per-org and cross-org log queries
+    entitlements/  → AdminEntitlementsService — read/invalidate + override CRUD with createdByName
   auth/            → Auth0 JWT validation, user upsert, personal org provisioning
   billing/         → Stripe subscription management (checkout, portal, webhooks)
   common/          → Shared RBAC constants, tenant context, exception filter
@@ -76,7 +86,7 @@ libs/
   users/           → User CRUD, profile management
 
 prisma/            → Business DB (multi-file schema, Prisma v7)
-prisma-legal/      → Legal audit DB (append-only AuditEvent)
+prisma-legal/      → Legal audit DB (append-only AuditEvent + AdminUser)
 ```
 
 ---
@@ -96,10 +106,12 @@ prisma-legal/      → Legal audit DB (append-only AuditEvent)
 ### Two-database design
 
 - **Business DB** (PostgreSQL, port 5432) — User, Organization, Membership, Job, Event, Notification, etc.
-- **Legal audit DB** (PostgreSQL, port 5433) — Append-only `AuditEvent` for compliance (ISO 27001 / GDPR)
+- **Legal audit DB** (PostgreSQL, port 5433) — Append-only `AuditEvent` + `AdminUser` table for admin identity
 - Deliberately isolated — legal logs survive even if the business database is wiped.
 
-### Guard pipeline (request flow)
+### Guard pipelines
+
+**Tenant API** (`apps/api`, port 3000):
 
 ```
 JwtAuthGuard → OrgContextGuard → RBACGuard
@@ -108,6 +120,14 @@ JwtAuthGuard → OrgContextGuard → RBACGuard
 1. **JwtAuthGuard** — RS256 JWT validation via Auth0 JWKS. Attaches `{ sub, email }` to `request.user`.
 2. **OrgContextGuard** — Triggered by `@OrgScoped()`. Extracts `orgId` from params/query/body/`x-org-id` header. Verifies membership. Injects `request.orgId`, `request.membership`, `request.tenantContext`.
 3. **RBACGuard** — `@RequirePermissions()` or `@RequireRole()`. Resolves permissions via Redis-cached role map (TTL 10 min).
+
+**Admin API** (`apps/admin-api`, port 3001):
+
+```
+AdminJwtAuthGuard
+```
+
+`AdminJwtAuthGuard` validates JWTs issued by the **admin Auth0 SPA** (`ADMIN_AUTH0_AUDIENCE`). Admin users are stored in `admin_users` (legal DB) — completely separate from tenant `users`. A non-admin JWT receives `401`.
 
 ### Interceptor / middleware pipeline
 
@@ -165,7 +185,8 @@ npx prisma migrate dev
 npx prisma migrate dev --config prisma.config.legal.ts
 
 # Serve
-npx nx serve api           # HTTP API on :3000
+npx nx serve api           # Tenant HTTP API on :3000
+npx nx serve admin-api     # Admin API on :3001
 npx nx serve worker-a      # Background worker
 
 # Tests

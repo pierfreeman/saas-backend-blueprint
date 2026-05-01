@@ -189,6 +189,9 @@
       "@libs/admin/auth": [
         "libs/admin/auth/src/index.ts"
       ],
+      "@libs/admin/identity": [
+        "libs/admin/identity/src/index.ts"
+      ],
       "@libs/admin/organizations": [
         "libs/admin/organizations/src/index.ts"
       ],

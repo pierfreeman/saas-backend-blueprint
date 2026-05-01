@@ -1,0 +1,6 @@
+{
+  "root": "libs/admin/identity",
+  "sourceRoot": "libs/admin/identity/src",
+  "prefix": "libs",
+  "extends": "../../.eslintrc.json"
+}

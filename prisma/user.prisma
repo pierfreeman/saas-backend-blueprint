@@ -17,9 +17,6 @@ model User {
   lastName   String?  @map("last_name")
   /// Profile picture URL. Synced from Auth0 on first social login; editable by the user.
   pictureUrl    String?  @map("picture_url")
-  /// Whether this user has system-admin access to the backoffice portal.
-  /// Set via the promote-admin script only; never written by the Auth0 login upsert flow.
-  isSystemAdmin Boolean  @default(false) @map("is_system_admin")
   /// Timestamp of first login (record creation).
   createdAt     DateTime @default(now()) @map("created_at")
   /// Timestamp of the last profile sync.

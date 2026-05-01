@@ -8,7 +8,7 @@
 ## Project overview
 
 Multi-tenant SaaS backend — Nx 22 monorepo, NestJS 11, Prisma 7, PostgreSQL × 2.
-Two runtime apps: HTTP API (port 3000) + async background worker (SQS).
+Three runtime apps: Tenant API (port 3000), Admin API (port 3001) + async background worker (SQS).
 Pairs with [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + Module Federation).
 
 ## Tech stack
@@ -19,12 +19,22 @@ NestJS 11 · Nx 22 · Prisma 7 · PostgreSQL × 2 (business + legal audit) · Re
 
 ```
 apps/api/          → HTTP API (NestJS, port 3000, Swagger at /docs)
+apps/admin-api/    → Admin backoffice API (NestJS, port 3001, Swagger at /docs)
 apps/worker-a/     → Background worker (polls SQS)
 apps/api-e2e/      → Integration tests
+apps/admin-api-e2e/ → Admin API integration tests
 apps/worker-a-e2e/ → Worker integration tests
 
 libs/
   activity-log/    → Tenant-visible event log
+  admin/
+    auth/          → AdminJwtAuthGuard, CurrentAdminUserId decorator
+    identity/      → AdminUser upsert in legal DB
+    organizations/ → Org list, Customer 360, provisioning
+    memberships/   → Cross-org membership management
+    billing/       → Billing overview + Stripe portal delegation
+    activity-log/  → Cross-org activity log queries
+    entitlements/  → Entitlement overrides with createdByName
   auth/            → Auth0 JWT validation, user upsert
   billing/         → Stripe subscriptions (Pattern A — DDD)
   common/          → RBAC constants, tenant context, exception filter
@@ -63,11 +73,18 @@ libs/
 | E       | Flat           | Single-concern utility | events, email, redis        |
 | F       | App-layer thin | In apps/               | controller + DTOs only      |
 
-## Guard pipeline
+## Guard pipelines
 
+**Tenant API** (`apps/api`, port 3000):
 ```
 JwtAuthGuard → OrgContextGuard → RBACGuard
 ```
+
+**Admin API** (`apps/admin-api`, port 3001):
+```
+AdminJwtAuthGuard
+```
+Validates JWTs from the dedicated admin Auth0 app (`ADMIN_AUTH0_AUDIENCE`). Admin users stored in `admin_users` (legal DB) — separate from tenant `users`. Non-admin JWT → `401`.
 
 ## RBAC
 
@@ -100,7 +117,8 @@ npm install
 docker compose up -d postgres postgres-legal redis
 npx prisma generate && npx prisma generate --config prisma.config.legal.ts
 npx prisma migrate dev && npx prisma migrate dev --config prisma.config.legal.ts
-npx nx serve api                    # API
+npx nx serve api                    # Tenant API
+npx nx serve admin-api              # Admin API
 npx nx serve worker-a               # Worker
 npm run test:unit                    # Unit tests
 npm run test:integration             # Integration tests

@@ -22,6 +22,19 @@ export const envValidationSchema = Joi.object({
   /** M2M credentials — required only for email-based invite flow. */
   AUTH0_M2M_CLIENT_ID: Joi.string().optional().allow(''),
   AUTH0_M2M_CLIENT_SECRET: Joi.string().optional().allow(''),
+
+  // Admin Auth0 (separate SaaS Admin Portal app + Admin-Users-DB connection)
+  ADMIN_AUTH0_DOMAIN: Joi.string().required(),
+  ADMIN_AUTH0_AUDIENCE: Joi.string().required(),
+  /** Namespace prefix for custom JWT claims in admin tokens. */
+  ADMIN_AUTH0_CLAIMS_NAMESPACE: Joi.string().default(
+    'https://admin.saas-api.com/',
+  ),
+  /** M2M credentials for manage-admin-user.mjs — not required at runtime. */
+  ADMIN_AUTH0_M2M_CLIENT_ID: Joi.string().optional().allow(''),
+  ADMIN_AUTH0_M2M_CLIENT_SECRET: Joi.string().optional().allow(''),
+  /** Feature flag to run legacy (JwtAuthGuard+SystemAdminGuard) and new (AdminJwtAuthGuard) in parallel. */
+  ADMIN_AUTH_MODE: Joi.string().valid('legacy', 'new').default('new'),
   /** Base URL of the frontend app — used as landing page in invite emails. */
   FRONTEND_BASE_URL: Joi.string()
     .uri()
@@ -29,7 +42,10 @@ export const envValidationSchema = Joi.object({
     .default('http://localhost:4200'),
 
   // Event Bus
-  EVENT_BUS_TRANSPORT: Joi.string().valid('local', 'sqs').default('local'),
+  EVENT_BUS_TRANSPORT: Joi.string()
+    .valid('local', 'sqs', 'servicebus')
+    .default('local'),
+  // --- SQS (required when EVENT_BUS_TRANSPORT=sqs) ---
   SQS_STANDARD_QUEUE_URL: Joi.string().when('EVENT_BUS_TRANSPORT', {
     is: 'sqs',
     then: Joi.required(),
@@ -42,6 +58,18 @@ export const envValidationSchema = Joi.object({
   }),
   SQS_ENDPOINT_URL: Joi.string().optional(),
   AWS_REGION: Joi.string().default('eu-west-1'),
+  // --- Azure Service Bus (required when EVENT_BUS_TRANSPORT=servicebus) ---
+  SERVICEBUS_CONNECTION_STRING: Joi.string().when('EVENT_BUS_TRANSPORT', {
+    is: 'servicebus',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  SERVICEBUS_STANDARD_QUEUE_NAME: Joi.string().when('EVENT_BUS_TRANSPORT', {
+    is: 'servicebus',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  SERVICEBUS_SESSION_QUEUE_NAME: Joi.string().optional().allow(''),
 
   // ── Security ─────────────────────────────────────────────────────────────
   // CORS
@@ -148,4 +176,34 @@ export const envValidationSchema = Joi.object({
   // Production servers that do require auth will have these set via env vars.
   SMTP_USER: Joi.string().optional().allow(''),
   SMTP_PASS: Joi.string().optional().allow(''),
+
+  // ── Storage ─────────────────────────────────────────────────────────────────────────
+  DEFAULT_STORAGE_PROVIDER: Joi.string().valid('S3', 'AZURE').default('S3'),
+  // --- AWS S3 (required when DEFAULT_STORAGE_PROVIDER=S3) ---
+  AWS_S3_BUCKET: Joi.string().when('DEFAULT_STORAGE_PROVIDER', {
+    is: 'S3',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AWS_ACCESS_KEY_ID: Joi.string().optional().allow(''),
+  AWS_SECRET_ACCESS_KEY: Joi.string().optional().allow(''),
+  AWS_S3_ENDPOINT: Joi.string().optional().allow(''),
+  AWS_S3_PUBLIC_ENDPOINT: Joi.string().optional().allow(''),
+  // --- Azure Blob Storage (required when DEFAULT_STORAGE_PROVIDER=AZURE) ---
+  AZURE_STORAGE_ACCOUNT: Joi.string().when('DEFAULT_STORAGE_PROVIDER', {
+    is: 'AZURE',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AZURE_STORAGE_KEY: Joi.string().when('DEFAULT_STORAGE_PROVIDER', {
+    is: 'AZURE',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AZURE_STORAGE_CONTAINER: Joi.string().when('DEFAULT_STORAGE_PROVIDER', {
+    is: 'AZURE',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AZURE_STORAGE_ENDPOINT: Joi.string().optional().allow(''),
 });

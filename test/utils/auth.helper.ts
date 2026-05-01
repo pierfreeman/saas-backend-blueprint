@@ -21,6 +21,7 @@ const TEST_PRIVATE_KEY = fs.readFileSync(
 );
 
 export const TEST_AUDIENCE = 'https://api.test.local';
+export const TEST_ADMIN_AUDIENCE = 'https://admin-api.test.local';
 export const TEST_ISSUER = 'https://test.auth0.local/';
 export const TEST_KID = 'test-key-1';
 
@@ -62,4 +63,29 @@ export function generateTestToken(options: TestTokenOptions = {}): string {
  */
 export function generateExpiredToken(sub = 'auth0|test-expired'): string {
   return generateTestToken({ sub, expiresIn: -10 });
+}
+
+/**
+ * Generates a valid RS256 JWT accepted by the admin-api test application.
+ * Uses the admin audience so it passes AdminJwtStrategy audience validation.
+ */
+export function generateAdminTestToken(options: TestTokenOptions = {}): string {
+  const sub = options.sub ?? 'auth0|admin-user-default';
+  return jwt.sign(
+    {
+      sub,
+      email: options.email ?? `${sub.replace('auth0|', '')}@test.local`,
+      iss: TEST_ISSUER,
+      aud: TEST_ADMIN_AUDIENCE,
+    },
+    TEST_PRIVATE_KEY,
+    {
+      algorithm: 'RS256',
+      expiresIn:
+        options.expiresIn !== undefined
+          ? (options.expiresIn as string | number)
+          : '1h',
+      keyid: TEST_KID,
+    } as jwt.SignOptions,
+  );
 }

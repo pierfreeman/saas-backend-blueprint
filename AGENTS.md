@@ -8,7 +8,7 @@
 ## Project summary
 
 Multi-tenant SaaS backend — **Nx 22**, **NestJS 11**, **Prisma 7**, **PostgreSQL × 2**.
-Two apps: API (port 3000) + SQS worker. 20+ shared libraries.
+Three apps: API (port 3000), Admin API (port 3001), SQS worker. 20+ shared libraries.
 Frontend: [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + Module Federation).
 
 ## Key conventions (non-negotiable)
@@ -19,7 +19,7 @@ Frontend: [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + Mo
 - `class-validator` DTOs with `@ApiProperty()` and definite assignment (`!:`)
 - Global ValidationPipe: `whitelist: true`, `forbidNonWhitelisted: true`
 - Five patterns: A (DDD), B (2-layer), D (cross-cutting), E (flat), F (app-layer thin)
-- Guard pipeline: `JwtAuthGuard → OrgContextGuard → RBACGuard`
+- Guard pipeline: `JwtAuthGuard → OrgContextGuard → RBACGuard` (tenant API) / `AdminJwtAuthGuard` (admin API)
 - RBAC: `@RequirePermissions()` + `@OrgScoped()` — Redis-cached (10 min TTL)
 - Dual audit: `activityLog.logActivity()` + `legalAudit.recordEvent()` on every CUD
 - Two-database design: business DB + immutable legal audit DB
@@ -30,11 +30,12 @@ Frontend: [saas-frontend-blueprint](../saas-frontend-blueprint) (Angular 21 + Mo
 ## Commands
 
 ```sh
-pnpm install
+npm install
 docker compose up -d postgres postgres-legal redis
 npx prisma generate && npx prisma generate --config prisma.config.legal.ts
 npx prisma migrate dev && npx prisma migrate dev --config prisma.config.legal.ts
-npx nx serve api                     # API (port 3000)
+npx nx serve api                     # Tenant API (port 3000)
+npx nx serve admin-api               # Admin API (port 3001)
 npx nx serve worker-a                # SQS worker
 npm run test:unit                    # Unit tests
 npm run test:integration             # Integration tests

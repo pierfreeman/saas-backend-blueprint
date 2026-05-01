@@ -1,6 +1,5 @@
 import { AdminJobsService, PaginatedAdminJobsResult } from '@libs/admin/jobs';
-import { JwtAuthGuard } from '@libs/common';
-import { SystemAdminGuard } from '@libs/admin/auth';
+import { AdminJwtAuthGuard } from '@libs/admin/auth';
 import {
   Controller,
   Get,
@@ -20,7 +19,7 @@ import { AdminListJobsQueryDto } from './dto/admin.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, SystemAdminGuard)
+@UseGuards(AdminJwtAuthGuard)
 @Controller('admin')
 export class AdminJobsController {
   constructor(private readonly adminJobsService: AdminJobsService) {}
