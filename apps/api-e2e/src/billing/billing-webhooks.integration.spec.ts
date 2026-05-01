@@ -35,7 +35,7 @@ const TEST_WEBHOOK_SECRET =
 
 // Stripe instance used only for utilities — no network calls in tests.
 const stripeUtil = new Stripe('sk_test_placeholder_for_integration_tests', {
-  apiVersion: '2026-03-25.dahlia',
+  apiVersion: '2026-04-22.dahlia',
 });
 
 /**

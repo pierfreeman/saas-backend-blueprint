@@ -41,7 +41,7 @@ const ENTERPRISE_PRICE_ID =
 
 /** Stripe SDK instance used only for local test utilities — no real network calls. */
 const stripeUtil = new Stripe('sk_test_placeholder_for_integration_tests', {
-  apiVersion: '2026-03-25.dahlia',
+  apiVersion: '2026-04-22.dahlia',
 });
 
 function buildStripeSignatureHeader(payload: string): string {
