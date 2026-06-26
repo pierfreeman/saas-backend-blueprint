@@ -12,7 +12,7 @@
 #   runtime → minimal production image
 # ──────────────────────────────────────────────────────────────────────────────
 
-ARG NODE_VERSION=22
+ARG NODE_VERSION=24
 FROM node:${NODE_VERSION}-alpine AS base
 WORKDIR /workspace
 
