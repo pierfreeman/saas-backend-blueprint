@@ -287,6 +287,38 @@ describe('OrgContextGuard', () => {
       expect(result).toBe(true);
       expect(request.orgId).toBe(ORG_ID);
     });
+
+    it('normalizes array-valued orgId headers to a single string', async () => {
+      mockReflector.getAllAndOverride = vi.fn().mockReturnValue(false);
+
+      const dbUser = {
+        id: USER_ID,
+        email: 'test@example.com',
+        auth0Id: AUTH0_ID,
+      };
+      const membership = {
+        id: 'membership-1',
+        userId: USER_ID,
+        orgId: ORG_ID,
+        role: 'ADMIN',
+        status: MembershipStatus.ACTIVE,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockUsersService.findByAuth0Id = vi.fn().mockResolvedValue(dbUser);
+      mockMembershipsService.findByUserAndOrg = vi
+        .fn()
+        .mockResolvedValue(membership);
+
+      const request = makeRequest({ headers: { 'x-org-id': [ORG_ID] } });
+      const ctx = makeContext(request);
+
+      const result = await guard.canActivate(ctx);
+
+      expect(result).toBe(true);
+      expect(request.orgId).toBe(ORG_ID);
+    });
   });
 
   // ── Org Not Found ──────────────────────────────────────────────────────────
