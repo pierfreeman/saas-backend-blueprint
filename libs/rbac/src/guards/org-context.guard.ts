@@ -14,6 +14,17 @@ const UUID_REGEX =
 function isValidUuid(value: string): boolean {
   return UUID_REGEX.test(value);
 }
+
+function toSingleString(
+  value: string | string[] | undefined,
+): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}
+
 import { Request } from 'express';
 import { UsersService } from '@libs/users';
 import { MembershipsService } from '@libs/memberships';
@@ -83,13 +94,15 @@ export class OrgContextGuard implements CanActivate {
     // this allows /organizations/:id to work while preventing routes like
     // PATCH /notifications/:id/read from mapping the resource id to an org id.
     const rawOrgId =
-      request.params['orgId'] ??
-      (isOrgScoped
-        ? (request.params['id'] as string | undefined)
-        : undefined) ??
-      (request.query['orgId'] as string | undefined) ??
-      (request.body as { orgId?: string } | undefined)?.orgId ??
-      (request.headers['x-org-id'] as string | undefined);
+      toSingleString(request.params['orgId']) ??
+      (isOrgScoped ? toSingleString(request.params['id']) : undefined) ??
+      toSingleString(request.query['orgId'] as string | string[] | undefined) ??
+      toSingleString(
+        (request.body as { orgId?: string | string[] } | undefined)?.orgId,
+      ) ??
+      toSingleString(
+        request.headers['x-org-id'] as string | string[] | undefined,
+      );
 
     // Always resolve the DB user from JWT sub — needed even when orgId is absent
     // so that request.user.dbUserId is available to controllers without org context.
