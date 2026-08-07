@@ -41,7 +41,7 @@ const ENTERPRISE_PRICE_ID =
 
 /** Stripe SDK instance used only for local test utilities — no real network calls. */
 const stripeUtil = new Stripe('sk_test_placeholder_for_integration_tests', {
-  apiVersion: '2026-06-24.dahlia',
+  apiVersion: '2026-07-29.dahlia',
 });
 
 function buildStripeSignatureHeader(payload: string): string {
@@ -87,7 +87,7 @@ function buildSubscriptionUpdatedWebhook(opts: {
     id: opts.eventId,
     object: 'event',
     type: 'customer.subscription.updated',
-    api_version: '2026-06-24.dahlia',
+    api_version: '2026-07-29.dahlia',
     created: now,
     livemode: false,
     pending_webhooks: 1,
