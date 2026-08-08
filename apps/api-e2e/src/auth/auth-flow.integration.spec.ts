@@ -26,6 +26,7 @@ import {
 } from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import {
   BillingStatus,
   MembershipRole,
@@ -41,7 +42,7 @@ describe('Auth Flow (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     await resetBusinessDb(prisma);
   });
 

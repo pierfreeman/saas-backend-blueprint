@@ -38,6 +38,7 @@ import {
   SecurityAuditInterceptor,
   CsrfInterceptor,
 } from '@libs/security';
+import { TenantContextInterceptor } from '@libs/rbac';
 import helmet from 'helmet';
 import { AppModule } from './app/app.module';
 
@@ -160,10 +161,17 @@ app.useLogger(app.get(ObservabilityLoggerService));
 app.useGlobalFilters(app.get(ObservabilityExceptionFilter));
 
 // ── Global interceptors ──────────────────────────────────────────────────────
-// Order: request-log → Sentry → rate-limit → CSRF → audit
-// Observability interceptors run first so request metadata is always captured,
+// Order: tenant-context → request-log → Sentry → rate-limit → CSRF → audit
+// TenantContextInterceptor runs first because it wraps next.handle() in an
+// AsyncLocalStorage scope (see libs/rbac/src/interceptors) — every other
+// interceptor and the controller itself must run *inside* that scope so
+// PrismaBusinessService's tenant-scoped queries (backing Row-Level Security)
+// can read request.orgId back out. It must stay first if this list is
+// ever reordered.
+// Observability interceptors run next so request metadata is always captured,
 // even if a downstream interceptor short-circuits the chain.
 app.useGlobalInterceptors(
+  app.get(TenantContextInterceptor),
   app.get(RequestLoggingInterceptor),
   app.get(SentryInterceptor),
   app.get(RateLimitInterceptor),

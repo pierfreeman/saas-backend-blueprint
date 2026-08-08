@@ -25,6 +25,7 @@ import {
   HeavyJobPayload,
 } from '@apps/worker-a/worker.controller';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { PubSubService } from '@libs/redis';
 import { DomainEvent, DOMAIN_EVENTS } from '@libs/events';
 import { JobStatus } from '@libs/prisma-business';
@@ -42,7 +43,7 @@ describe('Worker-A Job Lifecycle (integration)', () => {
   beforeAll(async () => {
     ctx = await bootstrapWorkerContext();
     workerController = ctx.get(WorkerController);
-    prisma = ctx.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     pubSub = ctx.get(PubSubService);
     await prisma.cleanDatabase();
   });

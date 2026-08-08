@@ -72,6 +72,7 @@ COPY prisma ./prisma
 COPY prisma-legal ./prisma-legal
 COPY prisma.config.ts prisma.config.legal.ts ./
 COPY tsconfig.base.json ./
+COPY scripts ./scripts
 
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --ignore-scripts \
@@ -82,9 +83,13 @@ RUN --mount=type=cache,target=/root/.npm \
 RUN chown -R node:node /workspace
 USER node
 
-# Default: deploy business DB migrations.
-# Override via docker compose `command:` for legal DB.
-CMD ["npx", "prisma", "migrate", "deploy", "--config", "prisma.config.ts"]
+# Default: deploy business DB migrations, then sync the app_runtime /
+# app_admin_runtime role passwords (see
+# prisma/migrations/20260808120000_enable_row_level_security and
+# scripts/provision-runtime-roles.mjs). Requires APP_RUNTIME_DB_PASSWORD and
+# APP_ADMIN_RUNTIME_DB_PASSWORD in the environment. Override via docker
+# compose `command:` for the legal DB (no RLS/roles there, migrate only).
+CMD ["sh", "-c", "npx prisma migrate deploy --config prisma.config.ts && node scripts/provision-runtime-roles.mjs"]
 
 # ─── Stage 5: runtime ── minimal production image ────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runtime

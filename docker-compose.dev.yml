@@ -149,7 +149,10 @@ services:
       context: .
       target: migrate
     environment:
+      # Superuser/owner — see docker-compose.yml's migrate service comment.
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
+      APP_RUNTIME_DB_PASSWORD: ${APP_RUNTIME_DB_PASSWORD:?set APP_RUNTIME_DB_PASSWORD in .env}
+      APP_ADMIN_RUNTIME_DB_PASSWORD: ${APP_ADMIN_RUNTIME_DB_PASSWORD:?set APP_ADMIN_RUNTIME_DB_PASSWORD in .env}
     depends_on:
       postgres:
         condition: service_healthy

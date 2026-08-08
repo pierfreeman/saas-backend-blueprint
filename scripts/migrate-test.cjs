@@ -15,9 +15,21 @@ require('dotenv').config({
 });
 
 console.log('[migrate-test] Running business DB migrations...');
+// Migrations (ALTER TABLE ... ENABLE ROW LEVEL SECURITY, CREATE POLICY) need
+// the superuser/owner role — MIGRATE_DATABASE_URL, not the app_runtime-scoped
+// DATABASE_URL that e2e test processes connect with.
+const migrateDatabaseUrl =
+  process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL;
 execSync('npx prisma migrate deploy', {
   cwd: path.join(__dirname, '..'),
-  env: { ...process.env },
+  env: { ...process.env, DATABASE_URL: migrateDatabaseUrl },
+  stdio: 'inherit',
+});
+
+console.log('[migrate-test] Provisioning app_runtime / app_admin_runtime role passwords...');
+execSync('node scripts/provision-runtime-roles.mjs', {
+  cwd: path.join(__dirname, '..'),
+  env: { ...process.env, DATABASE_URL: migrateDatabaseUrl },
   stdio: 'inherit',
 });
 

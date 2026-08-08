@@ -3,6 +3,7 @@ import { UsersService } from '@libs/users';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { PENDING_USER_PREFIX, IIdentityProvider } from '@libs/common';
+import { runWithTenantUser } from '@libs/prisma-business';
 import { MembershipsService } from './memberships.service';
 
 @Injectable()
@@ -46,8 +47,16 @@ export class RemoveMemberService {
       triggerType,
     );
 
-    // 3. Check whether the user still belongs to any organization
-    const remaining = await this.membershipsService.findByUser(userId);
+    // 3. Check whether the user still belongs to any organization.
+    // `userId` here is the *removed member's* id, not the actor's (the
+    // ambient tenant context carries the actor's id, set by
+    // OrgContextGuard/TenantContextInterceptor) — and this legitimately
+    // spans every org the removed user belongs to, not just the current
+    // one. Override with the removed user's own id so the memberships RLS
+    // policy's user_id exception applies.
+    const remaining = await runWithTenantUser(userId, () =>
+      this.membershipsService.findByUser(userId),
+    );
     if (remaining.length > 0) {
       // User still has other memberships — keep their account intact
       return;

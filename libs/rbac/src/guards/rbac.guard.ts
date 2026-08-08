@@ -14,6 +14,7 @@ import {
 import { REQUIRE_ROLE_KEY } from '../decorators/require-role.decorator';
 import { PermissionResolverService } from '../services/permission-resolver.service';
 import { RequestWithOrgContext } from './org-context.guard';
+import { runWithTenant } from '@libs/prisma-business';
 
 /**
  * RBACGuard
@@ -111,9 +112,13 @@ export class RBACGuard implements CanActivate {
     permissionsMetadata: PermissionsMetadata,
   ): Promise<boolean> {
     const { permissions, mode } = permissionsMetadata;
-    const userPermissions = await this.permissionResolver.resolvePermissions(
-      userId,
-      orgId,
+    // Runs in the guards phase, before TenantContextInterceptor — on a
+    // cache miss, PermissionResolverService falls through to
+    // RBACService.resolveContext(), which queries `memberships` via
+    // PrismaBusinessService's RLS-scoped proxy. Same reasoning as
+    // OrgContextGuard's own wrapping.
+    const userPermissions = await runWithTenant(orgId, () =>
+      this.permissionResolver.resolvePermissions(userId, orgId),
     );
 
     // Inject into request for downstream use (e.g. audit logging)

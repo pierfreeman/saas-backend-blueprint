@@ -8,7 +8,7 @@ import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { CacheService } from '@libs/redis';
 import { NotificationsPubSubService } from './notifications-pubsub.service';
-import { Notification } from '@libs/prisma-business';
+import { Notification, runWithTenant } from '@libs/prisma-business';
 import {
   NotificationMessage,
   UNREAD_CACHE_KEY,
@@ -88,14 +88,16 @@ export class NotificationsService implements OnModuleDestroy {
       `Created notification ${notification.id} for user ${input.userId}`,
     );
 
-    this.activityLog.logActivity({
-      orgId: input.orgId,
-      actorId: input.userId,
-      action: 'notification.created',
-      entityType: 'notification',
-      entityId: notification.id,
-      metadata: { type: input.type, title: input.title },
-    });
+    runWithTenant(input.orgId, () =>
+      this.activityLog.logActivity({
+        orgId: input.orgId,
+        actorId: input.userId,
+        action: 'notification.created',
+        entityType: 'notification',
+        entityId: notification.id,
+        metadata: { type: input.type, title: input.title },
+      }),
+    );
     this.legalAudit.recordEvent({
       eventType: 'notification.created',
       orgId: input.orgId,
@@ -219,13 +221,15 @@ export class NotificationsService implements OnModuleDestroy {
 
     await this.pubSub.publishUserNotification(userId, this.toMessage(updated));
 
-    this.activityLog.logActivity({
-      orgId: existing.orgId,
-      actorId: userId,
-      action: 'notification.read',
-      entityType: 'notification',
-      entityId: id,
-    });
+    runWithTenant(existing.orgId, () =>
+      this.activityLog.logActivity({
+        orgId: existing.orgId,
+        actorId: userId,
+        action: 'notification.read',
+        entityType: 'notification',
+        entityId: id,
+      }),
+    );
 
     return updated;
   }
@@ -252,13 +256,15 @@ export class NotificationsService implements OnModuleDestroy {
       }
 
       for (const orgId of orgIds) {
-        this.activityLog.logActivity({
-          orgId,
-          actorId: userId,
-          action: 'notification.batch_read',
-          entityType: 'notification',
-          metadata: { count, notificationIds: ids },
-        });
+        runWithTenant(orgId, () =>
+          this.activityLog.logActivity({
+            orgId,
+            actorId: userId,
+            action: 'notification.batch_read',
+            entityType: 'notification',
+            metadata: { count, notificationIds: ids },
+          }),
+        );
       }
     }
   }
@@ -272,12 +278,14 @@ export class NotificationsService implements OnModuleDestroy {
     await this.cache.getClient().del(UNREAD_CACHE_KEY(userId));
     await this.cache.getClient().del(UNREAD_ORG_CACHE_KEY(userId, orgId));
 
-    this.activityLog.logActivity({
-      orgId,
-      actorId: userId,
-      action: 'notification.all_read',
-      entityType: 'notification',
-    });
+    runWithTenant(orgId, () =>
+      this.activityLog.logActivity({
+        orgId,
+        actorId: userId,
+        action: 'notification.all_read',
+        entityType: 'notification',
+      }),
+    );
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -301,14 +309,16 @@ export class NotificationsService implements OnModuleDestroy {
 
     await this.repo.delete(id);
 
-    this.activityLog.logActivity({
-      orgId: existing.orgId,
-      actorId: userId,
-      action: 'notification.deleted',
-      entityType: 'notification',
-      entityId: id,
-      metadata: { type: existing.type },
-    });
+    runWithTenant(existing.orgId, () =>
+      this.activityLog.logActivity({
+        orgId: existing.orgId,
+        actorId: userId,
+        action: 'notification.deleted',
+        entityType: 'notification',
+        entityId: id,
+        metadata: { type: existing.type },
+      }),
+    );
     this.legalAudit.recordEvent({
       eventType: 'notification.deleted',
       orgId: existing.orgId,

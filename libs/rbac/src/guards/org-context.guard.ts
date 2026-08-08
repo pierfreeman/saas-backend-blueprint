@@ -32,7 +32,11 @@ import { OrganizationsService } from '@libs/organizations';
 import { RequestUser, TenantRequest } from '@libs/common';
 import { ORG_SCOPED_KEY } from '../decorators/org-scoped.decorator';
 import { ALLOW_SUSPENDED_KEY } from '../decorators/allow-suspended.decorator';
-import { MembershipStatus, OrganizationStatus } from '@libs/prisma-business';
+import {
+  MembershipStatus,
+  OrganizationStatus,
+  runWithTenant,
+} from '@libs/prisma-business';
 
 export interface RequestWithOrgContext extends Request, TenantRequest {
   user: RequestUser & { dbUserId?: string };
@@ -135,16 +139,21 @@ export class OrgContextGuard implements CanActivate {
 
     const orgId = rawOrgId;
 
-    // Verify active membership
-    const membership = await this.membershipsService.findByUserAndOrg(
-      dbUser.id,
-      orgId,
+    // Runs before TenantContextInterceptor (interceptors execute *after*
+    // guards in Nest's lifecycle) and TenantMiddleware's own early guess
+    // may not have found this orgId (e.g. an @OrgScoped() route keyed on
+    // `:id` rather than `:orgId`) — so this guard's own membership/org
+    // lookups, which go through PrismaBusinessService's RLS-scoped proxy,
+    // need to set the tenant context themselves using the orgId they just
+    // resolved, rather than relying on ambient context set elsewhere.
+    const membership = await runWithTenant(orgId, () =>
+      this.membershipsService.findByUserAndOrg(dbUser.id, orgId),
     );
 
     if (!membership) {
       // OrganizationsService.findById throws NotFoundException if org doesn't exist,
       // otherwise we fall through to ForbiddenException (org exists, not a member).
-      await this.orgsService.findById(orgId);
+      await runWithTenant(orgId, () => this.orgsService.findById(orgId));
       throw new ForbiddenException('You are not a member of this organization');
     }
 
@@ -157,7 +166,9 @@ export class OrgContextGuard implements CanActivate {
     // Block access when the organization is suspended, unless the endpoint
     // explicitly opts out with @AllowSuspended() (e.g. GDPR export/deletion).
     if (!allowSuspended) {
-      const org = await this.orgsService.findById(orgId);
+      const org = await runWithTenant(orgId, () =>
+        this.orgsService.findById(orgId),
+      );
       if (org.status === OrganizationStatus.SUSPENDED) {
         throw new ForbiddenException('Organization is suspended');
       }

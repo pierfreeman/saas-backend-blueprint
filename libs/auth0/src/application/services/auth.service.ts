@@ -4,7 +4,7 @@ import { EmailService } from '@libs/email';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
 import { MembershipsService } from '@libs/memberships';
-import { User } from '@libs/prisma-business';
+import { User, runWithTenant } from '@libs/prisma-business';
 import { IIdentityProvider } from '../../domain/ports/identity-provider.interface';
 import { PENDING_USER_PREFIX } from '../../constants';
 
@@ -159,13 +159,19 @@ export class AuthService {
       await this.usersService.provisionWithPersonalOrg(auth0Id, resolvedEmail);
     this.logger.log(`Provisioned user ${user.id} with personal org`);
 
-    this.activityLog.logActivity({
-      orgId: organization.id,
-      actorId: user.id,
-      action: 'user.provisioned',
-      entityType: 'user',
-      entityId: user.id,
-      metadata: { organizationId: organization.id },
+    // No ambient tenant context can match this org yet (it didn't exist at
+    // request start — this is a first-login bootstrap) — override it for
+    // this write so the activityLog Proxy (libs/prisma-business) sets
+    // app.current_org_id to the org that was just created.
+    runWithTenant(organization.id, () => {
+      this.activityLog.logActivity({
+        orgId: organization.id,
+        actorId: user.id,
+        action: 'user.provisioned',
+        entityType: 'user',
+        entityId: user.id,
+        metadata: { organizationId: organization.id },
+      });
     });
 
     this.legalAudit.recordEvent({

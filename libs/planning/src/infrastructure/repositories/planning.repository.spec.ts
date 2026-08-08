@@ -654,6 +654,7 @@ describe('PlanningRepository', () => {
           deleteMany: vi.fn().mockResolvedValue({}),
           createMany: vi.fn().mockResolvedValue({}),
         },
+        $executeRaw: vi.fn(),
       };
       (
         mockPrisma as unknown as { $transaction: ReturnType<typeof vi.fn> }

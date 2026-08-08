@@ -35,8 +35,10 @@ import {
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { CacheService } from '@libs/redis';
 import { NotificationsService } from '@libs/notifications';
+import { runWithTenant } from '@libs/prisma-business';
 
 describe('Notifications (integration)', () => {
   let app: INestApplication;
@@ -49,9 +51,18 @@ describe('Notifications (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     cache = app.get(CacheService);
     notificationsService = app.get(NotificationsService);
+    // notificationsService is the app's own app_runtime-scoped instance
+    // (there's no HTTP endpoint to create notifications — see file header),
+    // so direct calls from this test have no ambient tenant context. Wrap
+    // every call in runWithTenant using the target org from the input,
+    // rather than editing all ~16 call sites individually.
+    const originalCreate =
+      notificationsService.createNotification.bind(notificationsService);
+    notificationsService.createNotification = (input) =>
+      runWithTenant(input.orgId, () => originalCreate(input));
     await resetBusinessDb(prisma);
   });
 

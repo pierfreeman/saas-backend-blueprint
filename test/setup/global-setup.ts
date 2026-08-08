@@ -21,9 +21,24 @@ export default async function globalSetup() {
   });
 
   console.log('\n[global-setup] Running business DB migrations...');
+  // Schema migrations (ALTER TABLE ... ENABLE ROW LEVEL SECURITY, CREATE
+  // POLICY) need the superuser/owner role — MIGRATE_DATABASE_URL, not the
+  // app_runtime/app_admin_runtime-scoped DATABASE_URL the app under test
+  // connects with. See prisma/migrations/20260808120000_enable_row_level_security.
+  const migrateDatabaseUrl =
+    process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL;
   execSync('npx prisma migrate deploy --schema=prisma/schema.prisma', {
     cwd: workspaceRoot,
-    env: { ...process.env },
+    env: { ...process.env, DATABASE_URL: migrateDatabaseUrl },
+    stdio: 'inherit',
+  });
+
+  console.log(
+    '[global-setup] Provisioning app_runtime / app_admin_runtime role passwords...',
+  );
+  execSync('node scripts/provision-runtime-roles.mjs', {
+    cwd: workspaceRoot,
+    env: { ...process.env, DATABASE_URL: migrateDatabaseUrl },
     stdio: 'inherit',
   });
 

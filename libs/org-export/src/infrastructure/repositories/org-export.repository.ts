@@ -131,6 +131,9 @@ export class OrgExportRepository {
     const jobId = randomUUID();
 
     await this.prisma.$transaction(async (tx) => {
+      // Bypasses PrismaBusinessService's per-delegate RLS proxy (explicit
+      // multi-model $transaction) — orgId is already known from `input`.
+      await tx.$executeRaw`SELECT set_config('app.current_org_id', ${input.orgId}, true)`;
       await tx.job.create({
         data: {
           id: jobId,

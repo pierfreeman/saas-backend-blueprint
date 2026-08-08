@@ -12,7 +12,8 @@ import {
 
 const mockTx = {
   organization: { update: vi.fn() },
-  subscriptionSnapshot: { create: vi.fn() },
+  subscriptionSnapshot: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+  $executeRaw: vi.fn(),
 };
 
 const mockPrisma = {
@@ -269,7 +270,11 @@ describe('BillingRepository', () => {
     };
 
     it('returns items and total using $transaction', async () => {
-      (mockPrisma.$transaction as Mock).mockResolvedValue([[snap], 1]);
+      (mockPrisma.$transaction as Mock).mockImplementation(
+        (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx),
+      );
+      mockTx.subscriptionSnapshot.findMany.mockResolvedValue([snap]);
+      mockTx.subscriptionSnapshot.count.mockResolvedValue(1);
 
       const result = await repo.findSnapshotsByOrgId('org-1', 10, 0);
 
@@ -278,7 +283,11 @@ describe('BillingRepository', () => {
     });
 
     it('returns empty list when no snapshots exist', async () => {
-      (mockPrisma.$transaction as Mock).mockResolvedValue([[], 0]);
+      (mockPrisma.$transaction as Mock).mockImplementation(
+        (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx),
+      );
+      mockTx.subscriptionSnapshot.findMany.mockResolvedValue([]);
+      mockTx.subscriptionSnapshot.count.mockResolvedValue(0);
 
       const result = await repo.findSnapshotsByOrgId('org-1', 10, 0);
 

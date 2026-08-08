@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ActivityLogService } from '@libs/activity-log';
 import { LegalAuditService } from '@libs/legal-audit';
-import { Organization } from '@libs/prisma-business';
+import { Organization, runWithTenant } from '@libs/prisma-business';
 import { OrganizationsRepository } from '../../infrastructure/repositories/organizations.repository';
 
 @Injectable()
@@ -30,13 +30,19 @@ export class OrganizationsService {
 
       this.logger.log(`Organization ${organization.id} created`);
 
-      this.activityLog.logActivity({
-        orgId: organization.id,
-        actorId: userId,
-        action: 'organization.created',
-        entityType: 'organization',
-        entityId: organization.id,
-        metadata: { name: organization.name },
+      // The request's ambient tenant context (if any) predates this org's
+      // existence — override it for this write so the activityLog Proxy
+      // (libs/prisma-business) sets app.current_org_id to the org that was
+      // just created, satisfying its RLS WITH CHECK.
+      runWithTenant(organization.id, () => {
+        this.activityLog.logActivity({
+          orgId: organization.id,
+          actorId: userId,
+          action: 'organization.created',
+          entityType: 'organization',
+          entityId: organization.id,
+          metadata: { name: organization.name },
+        });
       });
 
       this.legalAudit.recordEvent({
