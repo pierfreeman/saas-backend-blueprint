@@ -8,6 +8,7 @@ import { OrganizationsRepository } from './organizations.repository';
 const mockTx = {
   organization: { create: vi.fn() },
   membership: { create: vi.fn() },
+  $executeRaw: vi.fn(),
 };
 
 const mockPrisma = {
@@ -57,9 +58,21 @@ describe('OrganizationsRepository', () => {
       const result = await repo.createWithOwner('Acme', 'u-1');
 
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(mockTx.organization.create).toHaveBeenCalledWith({
-        data: { name: 'Acme' },
-      });
+
+      // id is generated client-side (uuidv4()) so app.current_org_id can be
+      // set before either INSERT runs (required by both tables' RLS
+      // WITH CHECK) — assert it's a valid UUID and that the same value was
+      // used for both the set_config call and the organization INSERT.
+      const createCall = mockTx.organization.create.mock.calls[0][0];
+      const generatedId = createCall.data.id;
+      expect(generatedId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(createCall).toEqual({ data: { id: generatedId, name: 'Acme' } });
+
+      const executeRawCall = mockTx.$executeRaw.mock.calls[0];
+      expect(executeRawCall[1]).toBe(generatedId);
+
       expect(mockTx.membership.create).toHaveBeenCalledWith({
         data: { userId: 'u-1', orgId: 'org-1', role: MembershipRole.OWNER },
       });

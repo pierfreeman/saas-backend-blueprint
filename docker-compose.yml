@@ -91,7 +91,13 @@ services:
       context: .
       target: migrate
     environment:
+      # Superuser/owner — required for ALTER TABLE ... ENABLE ROW LEVEL
+      # SECURITY / CREATE POLICY (see
+      # prisma/migrations/20260808120000_enable_row_level_security) and to
+      # provision the app_runtime/app_admin_runtime role passwords below.
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
+      APP_RUNTIME_DB_PASSWORD: ${APP_RUNTIME_DB_PASSWORD:?set APP_RUNTIME_DB_PASSWORD in .env}
+      APP_ADMIN_RUNTIME_DB_PASSWORD: ${APP_ADMIN_RUNTIME_DB_PASSWORD:?set APP_ADMIN_RUNTIME_DB_PASSWORD in .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,7 +131,9 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
+      # app_runtime: RLS-subject role — see
+      # prisma/migrations/20260808120000_enable_row_level_security.
+      DATABASE_URL: postgresql://app_runtime:${APP_RUNTIME_DB_PASSWORD:?set APP_RUNTIME_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-saas_backend}
       LEGAL_AUDIT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres-legal:5432/${POSTGRES_LEGAL_DB:-saas_legal_audit}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -168,7 +176,10 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3001
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
+      # app_admin_runtime: BYPASSRLS role — admin-api legitimately needs
+      # cross-org access (see
+      # prisma/migrations/20260808120000_enable_row_level_security).
+      DATABASE_URL: postgresql://app_admin_runtime:${APP_ADMIN_RUNTIME_DB_PASSWORD:?set APP_ADMIN_RUNTIME_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-saas_backend}
       LEGAL_AUDIT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres-legal:5432/${POSTGRES_LEGAL_DB:-saas_legal_audit}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -195,7 +206,9 @@ services:
     env_file: .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-saas_backend}
+      # app_runtime: RLS-subject role — see
+      # prisma/migrations/20260808120000_enable_row_level_security.
+      DATABASE_URL: postgresql://app_runtime:${APP_RUNTIME_DB_PASSWORD:?set APP_RUNTIME_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-saas_backend}
       LEGAL_AUDIT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres-legal:5432/${POSTGRES_LEGAL_DB:-saas_legal_audit}
       REDIS_HOST: redis
       REDIS_PORT: 6379

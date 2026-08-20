@@ -10,6 +10,12 @@ export * from './services/permission-resolver.service';
 export * from './guards/org-context.guard';
 export * from './guards/rbac.guard';
 
+// Interceptors
+export * from './interceptors/tenant-context.interceptor';
+
+// Middleware
+export * from './middleware/tenant-context.middleware';
+
 // Decorators
 export * from './decorators/org-scoped.decorator';
 export * from './decorators/allow-suspended.decorator';

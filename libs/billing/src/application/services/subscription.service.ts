@@ -8,7 +8,10 @@ import {
   CreateSnapshotInput,
 } from '../../infrastructure/repositories/billing.repository';
 import { BillingStatus } from '../../domain/enums/billing-status.enum';
-import { BillingStatus as PrismaBillingStatus } from '@libs/prisma-business';
+import {
+  BillingStatus as PrismaBillingStatus,
+  runWithTenant,
+} from '@libs/prisma-business';
 
 /** Context passed from webhook handlers into the sync function. */
 export interface SyncContext {
@@ -208,17 +211,21 @@ export class SubscriptionService {
     );
 
     // ── 3: ActivityLog ───────────────────────────────────────────────────────
-    await this.activityLog.logActivity({
-      orgId: org.orgId,
-      action: activityAction,
-      entityType: 'organization',
-      entityId: org.orgId,
-      metadata: {
-        stripeSubscriptionId: subscription.id,
-        planId: newPlanId,
-        status: subscription.status,
-      },
-    });
+    // No ambient tenant context (Stripe webhook is unauthenticated) — org
+    // was just resolved via a system lookup above.
+    await runWithTenant(org.orgId, () =>
+      this.activityLog.logActivity({
+        orgId: org.orgId,
+        action: activityAction,
+        entityType: 'organization',
+        entityId: org.orgId,
+        metadata: {
+          stripeSubscriptionId: subscription.id,
+          planId: newPlanId,
+          status: subscription.status,
+        },
+      }),
+    );
 
     // ── 4: LegalAuditLog ─────────────────────────────────────────────────────
     this.legalAudit.recordEvent({
@@ -272,47 +279,57 @@ export class SubscriptionService {
       return;
     }
 
-    const org = await this.billingRepository
-      .findOrgById(orgId)
-      .catch(() => null);
+    // No ambient tenant context (Stripe webhook is unauthenticated) — orgId
+    // is known from the checkout session's own metadata, so establish it
+    // explicitly for the lookup-by-id and the writes below.
+    const { org, subscriptionId } = await runWithTenant(orgId, async () => {
+      const foundOrg = await this.billingRepository
+        .findOrgById(orgId)
+        .catch(() => null);
+
+      const resolvedSubscriptionId =
+        typeof session.subscription === 'string'
+          ? session.subscription
+          : (session.subscription?.id ?? null);
+
+      if (!foundOrg) return { org: null, subscriptionId: resolvedSubscriptionId };
+
+      const updateData: {
+        billingStatus: PrismaBillingStatus;
+        stripeCustomerId?: string;
+        subscriptionId?: string | null;
+      } = { billingStatus: PrismaBillingStatus.ACTIVE };
+
+      if (!foundOrg.stripeCustomerId) {
+        updateData.stripeCustomerId = customerId;
+      }
+      if (resolvedSubscriptionId) {
+        updateData.subscriptionId = resolvedSubscriptionId;
+      }
+
+      await this.billingRepository.updateOrgBillingData(orgId, updateData);
+
+      await this.activityLog.logActivity({
+        orgId,
+        action: 'billing.checkout.completed',
+        entityType: 'organization',
+        entityId: orgId,
+        metadata: {
+          sessionId: session.id,
+          stripeCustomerId: customerId,
+          subscriptionId: resolvedSubscriptionId,
+        },
+      });
+
+      return { org: foundOrg, subscriptionId: resolvedSubscriptionId };
+    });
+
     if (!org) {
       this.logger.warn(
         `checkout.session.completed: org ${orgId} not found — skipping`,
       );
       return;
     }
-
-    const subscriptionId =
-      typeof session.subscription === 'string'
-        ? session.subscription
-        : (session.subscription?.id ?? null);
-
-    const updateData: {
-      billingStatus: PrismaBillingStatus;
-      stripeCustomerId?: string;
-      subscriptionId?: string | null;
-    } = { billingStatus: PrismaBillingStatus.ACTIVE };
-
-    if (!org.stripeCustomerId) {
-      updateData.stripeCustomerId = customerId;
-    }
-    if (subscriptionId) {
-      updateData.subscriptionId = subscriptionId;
-    }
-
-    await this.billingRepository.updateOrgBillingData(orgId, updateData);
-
-    await this.activityLog.logActivity({
-      orgId,
-      action: 'billing.checkout.completed',
-      entityType: 'organization',
-      entityId: orgId,
-      metadata: {
-        sessionId: session.id,
-        stripeCustomerId: customerId,
-        subscriptionId,
-      },
-    });
 
     this.legalAudit.recordEvent({
       eventType: 'billing.checkout.completed',
@@ -439,20 +456,25 @@ export class SubscriptionService {
       return;
     }
 
-    await this.billingRepository.updateOrgBillingData(org.orgId, {
-      billingStatus: PrismaBillingStatus.ACTIVE,
-    });
+    // No ambient tenant context (Stripe webhook is unauthenticated) — org
+    // was just resolved via a system lookup (see findOrgByStripeCustomerId),
+    // so establish its context explicitly for these writes.
+    await runWithTenant(org.orgId, async () => {
+      await this.billingRepository.updateOrgBillingData(org.orgId, {
+        billingStatus: PrismaBillingStatus.ACTIVE,
+      });
 
-    await this.activityLog.logActivity({
-      orgId: org.orgId,
-      action: 'invoice.payment_succeeded',
-      entityType: 'organization',
-      entityId: org.orgId,
-      metadata: {
-        invoiceId: invoice.id,
-        amountPaid: invoice.amount_paid,
-        currency: invoice.currency,
-      },
+      await this.activityLog.logActivity({
+        orgId: org.orgId,
+        action: 'invoice.payment_succeeded',
+        entityType: 'organization',
+        entityId: org.orgId,
+        metadata: {
+          invoiceId: invoice.id,
+          amountPaid: invoice.amount_paid,
+          currency: invoice.currency,
+        },
+      });
     });
 
     this.legalAudit.recordEvent({
@@ -508,20 +530,25 @@ export class SubscriptionService {
       return;
     }
 
-    await this.billingRepository.updateOrgBillingData(org.orgId, {
-      billingStatus: PrismaBillingStatus.PAST_DUE,
-    });
+    // No ambient tenant context (Stripe webhook is unauthenticated) — org
+    // was just resolved via a system lookup (see findOrgByStripeCustomerId),
+    // so establish its context explicitly for these writes.
+    await runWithTenant(org.orgId, async () => {
+      await this.billingRepository.updateOrgBillingData(org.orgId, {
+        billingStatus: PrismaBillingStatus.PAST_DUE,
+      });
 
-    await this.activityLog.logActivity({
-      orgId: org.orgId,
-      action: 'invoice.payment_failed',
-      entityType: 'organization',
-      entityId: org.orgId,
-      metadata: {
-        invoiceId: invoice.id,
-        attemptCount: invoice.attempt_count,
-        currency: invoice.currency,
-      },
+      await this.activityLog.logActivity({
+        orgId: org.orgId,
+        action: 'invoice.payment_failed',
+        entityType: 'organization',
+        entityId: org.orgId,
+        metadata: {
+          invoiceId: invoice.id,
+          attemptCount: invoice.attempt_count,
+          currency: invoice.currency,
+        },
+      });
     });
 
     this.legalAudit.recordEvent({

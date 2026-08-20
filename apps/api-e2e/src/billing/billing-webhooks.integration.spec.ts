@@ -25,6 +25,7 @@ import { bootstrapTestApp } from '../support/app-bootstrap';
 import { setupNockAuth, teardownNockAuth } from '@test/support/nock-auth';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { BillingStatus } from '@libs/prisma-business';
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
@@ -136,7 +137,7 @@ describe('Billing Webhooks (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     await resetBusinessDb(prisma);
 
     // Seed an organization with a Stripe customer ID

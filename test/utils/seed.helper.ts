@@ -17,6 +17,7 @@ import {
   Organization,
   User,
   Membership,
+  runWithTenant,
 } from '@libs/prisma-business';
 import * as crypto from 'node:crypto';
 
@@ -58,9 +59,18 @@ export async function createTestOrg(
   prisma: PrismaBusinessService,
   name?: string,
 ): Promise<Organization> {
-  return prisma.organization.create({
-    data: { name: name ?? `Test Org ${shortId()}` },
-  });
+  // The app connects as app_runtime in integration tests (RLS-subject), and
+  // this helper runs outside any request/job — no ambient tenant context
+  // exists. The org id is generated here (rather than left to the DB
+  // default) so app.current_org_id can be set to it before the INSERT,
+  // matching how OrganizationsRepository#createWithOwner bootstraps a new
+  // org's own RLS context. See prisma-business's tenant-context.ts.
+  const id = crypto.randomUUID();
+  return runWithTenant(id, () =>
+    prisma.organization.create({
+      data: { id, name: name ?? `Test Org ${shortId()}` },
+    }),
+  );
 }
 
 export async function createTestMembership(
@@ -70,9 +80,11 @@ export async function createTestMembership(
   role: MembershipRole = MembershipRole.MEMBER,
   status: MembershipStatus = MembershipStatus.ACTIVE,
 ): Promise<Membership> {
-  return prisma.membership.create({
-    data: { userId, orgId, role, status },
-  });
+  return runWithTenant(orgId, () =>
+    prisma.membership.create({
+      data: { userId, orgId, role, status },
+    }),
+  );
 }
 
 // ─── seedFullOrg ──────────────────────────────────────────────────────────────
@@ -111,10 +123,12 @@ export async function seedFullOrg(
         : 'STRIPE_PRICE_ID_ENTERPRISE';
     const planId =
       process.env[planIdEnvKey] ?? `price_test_${options.plan.toLowerCase()}`;
-    await prisma.organization.update({
-      where: { id: org.id },
-      data: { planId, billingStatus: 'ACTIVE' },
-    });
+    await runWithTenant(org.id, () =>
+      prisma.organization.update({
+        where: { id: org.id },
+        data: { planId, billingStatus: 'ACTIVE' },
+      }),
+    );
     (org as any).planId = planId;
     (org as any).billingStatus = 'ACTIVE';
   }

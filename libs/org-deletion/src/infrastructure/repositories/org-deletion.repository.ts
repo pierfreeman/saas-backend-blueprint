@@ -128,6 +128,9 @@ export class OrgDeletionRepository {
    */
   async deleteDatabaseRecords(orgId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      // Bypasses PrismaBusinessService's per-delegate RLS proxy (explicit
+      // multi-model $transaction) — orgId is already a parameter here.
+      await tx.$executeRaw`SELECT set_config('app.current_org_id', ${orgId}, true)`;
       await tx.subscriptionSnapshot.deleteMany({ where: { orgId } });
       await tx.event.deleteMany({ where: { orgId } });
       await tx.file.deleteMany({ where: { orgId } });

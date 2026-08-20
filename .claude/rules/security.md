@@ -34,6 +34,15 @@ Security patterns enforced across this multi-tenant SaaS backend.
 - **`request.tenantContext`** — injected by guard, available to all downstream services.
 - **All queries must be org-scoped** — services filter by `orgId` parameter.
 - **Backend enforces org scoping** — even if the frontend sends wrong org context.
+- **Postgres Row-Level Security is the database-level backstop** for the
+  application-level filtering above — see
+  `prisma/migrations/20260808120000_enable_row_level_security` and
+  `libs/prisma-business/README.md`. `apps/api`/`apps/worker-a` connect as
+  the `app_runtime` role (RLS-subject, fails closed on a missing tenant
+  context); `apps/admin-api` connects as `app_admin_runtime`
+  (`BYPASSRLS` — its own separate trust boundary). A missing `orgId` filter
+  in a repository method is no longer a cross-tenant leak, only a bug that
+  returns empty results.
 
 ---
 
@@ -106,3 +115,5 @@ Security patterns enforced across this multi-tenant SaaS backend.
 | Direct Stripe API calls outside billing lib | Bypasses webhook idempotency, audit trail  |
 | Non-whitelisted DTO properties              | Mass assignment / injection                |
 | Missing `@OrgScoped()` on org endpoints     | Tenant context not injected                |
+| Explicit `$transaction` without setting `app.current_org_id` itself | Bypasses the RLS-scoped Proxy — writes fail closed or (worse) silently see no rows; see `libs/prisma-business/README.md` |
+| Widening a `runAsSystemLookup`/`runWithTenantUser` scope beyond one lookup | Weakens the RLS backstop for unrelated queries in the same call chain |

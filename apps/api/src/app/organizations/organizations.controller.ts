@@ -19,7 +19,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Organization, MembershipRole } from '@libs/prisma-business';
+import {
+  Organization,
+  MembershipRole,
+  runWithTenantUser,
+} from '@libs/prisma-business';
 import { OrgDeletionService, DeletionTrigger } from '@libs/org-deletion';
 import { OrgExportService } from '@libs/org-export';
 import { AuthService } from '@libs/auth0';
@@ -150,7 +154,14 @@ export class OrganizationsController {
   })
   async findMine(@CurrentUser() user: RequestUser): Promise<Organization[]> {
     const dbUser = await this.resolveUser(user.sub);
-    return this.organizationsService.findByUserId(dbUser.id);
+    // Legitimately cross-org (list every org this user belongs to) — no
+    // single orgId context applies. Overrides the ambient (empty) tenant
+    // context with this user's id, which the memberships/organizations RLS
+    // policies specifically allow reading via membership match. See
+    // libs/prisma-business/src/tenant-context.ts.
+    return runWithTenantUser(dbUser.id, () =>
+      this.organizationsService.findByUserId(dbUser.id),
+    );
   }
 
   @Get(':id')

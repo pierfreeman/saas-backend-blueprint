@@ -105,6 +105,48 @@ describe('AdminMembershipsService', () => {
         {},
       );
     });
+
+    it('passes through pagination offset and status filter', async () => {
+      mockRepository.findByOrgPaginated.mockResolvedValue({
+        items: [],
+        total: 0,
+      });
+
+      await service.listMembers(
+        'org-1',
+        { limit: 10, offset: 20 },
+        { status: MembershipStatus.PENDING },
+      );
+
+      expect(mockRepository.findByOrgPaginated).toHaveBeenCalledWith(
+        'org-1',
+        { limit: 10, offset: 20 },
+        { status: MembershipStatus.PENDING },
+      );
+    });
+
+    it('defaults missing user profile fields to null', async () => {
+      mockRepository.findByOrgPaginated.mockResolvedValue({
+        items: [
+          {
+            ...mockMembership,
+            user: {
+              ...mockMembership.user,
+              firstName: null,
+              lastName: null,
+              pictureUrl: null,
+            },
+          },
+        ],
+        total: 1,
+      });
+
+      const result = await service.listMembers('org-1');
+
+      expect(result.items[0].user.firstName).toBeNull();
+      expect(result.items[0].user.lastName).toBeNull();
+      expect(result.items[0].user.pictureUrl).toBeNull();
+    });
   });
 
   describe('changeRole', () => {

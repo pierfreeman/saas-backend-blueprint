@@ -13,6 +13,7 @@ const mockPrisma = {
   organization: { create: vi.fn() },
   membership: { create: vi.fn() },
   $transaction: vi.fn(),
+  $executeRaw: vi.fn(),
 } as unknown as PrismaBusinessService;
 
 describe('UserRepository', () => {
@@ -130,8 +131,15 @@ describe('UserRepository', () => {
       expect(mockPrisma.user.create).toHaveBeenCalledWith({
         data: { auth0Id: 'auth0|1', email: 'a@b.com' },
       });
-      expect(orgCreate).toHaveBeenCalledWith({
-        data: { name: 'Personal Workspace' },
+      // id is generated client-side (uuidv4()) so app.current_org_id can be
+      // set before the org-scoped INSERTs run — see the same pattern in
+      // organizations.repository.spec.ts.
+      const orgCreateCall = orgCreate.mock.calls[0][0];
+      expect(orgCreateCall.data.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(orgCreateCall).toEqual({
+        data: { id: orgCreateCall.data.id, name: 'Personal Workspace' },
       });
       expect(membershipCreate).toHaveBeenCalledWith({
         data: {

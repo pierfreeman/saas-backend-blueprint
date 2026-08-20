@@ -28,7 +28,7 @@ import { HealthModule } from './health/health.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { NotificationsAppModule } from './notifications/notifications-app.module';
 import { OrganizationsModule } from './organizations/organizations.module';
-import { RBACModule } from '@libs/rbac';
+import { RBACModule, TenantContextMiddleware } from '@libs/rbac';
 import { StorageAppModule } from './storage/storage-app.module';
 import { TasksModule } from './tasks/tasks.module';
 import { PlanningAppModule } from './planning/planning-app.module';
@@ -75,6 +75,15 @@ export class AppModule implements NestModule {
     consumer
       // 3. Resolve tenant context from JWT/header (business logic)
       .apply(TenantMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+    consumer
+      // 4. Propagate that (unauthenticated-claim) orgId into AsyncLocalStorage
+      // *before* guards run, so OrgContextGuard's own membership/org lookups
+      // (which go through PrismaBusinessService's RLS-scoped proxy) aren't
+      // blocked by a missing tenant context. See TenantContextMiddleware's
+      // doc comment for why this can't be an interceptor.
+      .apply(TenantContextMiddleware)
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

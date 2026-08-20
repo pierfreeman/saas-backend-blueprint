@@ -7,6 +7,7 @@ import { EmailService } from '@libs/email';
 import { Injectable, Logger } from '@nestjs/common';
 import { DeletionTrigger } from '../../interfaces/org-deletion-event.interface';
 import { OrgDeletionRepository } from '../../infrastructure/repositories/org-deletion.repository';
+import { runWithTenant } from '@libs/prisma-business';
 
 /**
  * Worker service responsible for executing organization deletion.
@@ -42,6 +43,31 @@ export class OrgDeletionWorkerService {
    * @param requestedAt - When deletion was requested
    */
   async executeDeletion(
+    orgId: string,
+    trigger: DeletionTrigger,
+    orgName: string,
+    requestedAt: Date,
+    requestedByUserId?: string,
+  ): Promise<void> {
+    // Establishes its own tenant context (rather than relying solely on the
+    // caller having done so) since this is the entry point for a
+    // self-contained unit of work, and orgId is already known here — same
+    // reasoning as the worker's own runWithTenant wrapping in
+    // apps/worker-a/src/worker.controller.ts. Nested runWithTenant calls
+    // just override for their own scope, so this is harmless when the
+    // caller already wrapped it.
+    return runWithTenant(orgId, () =>
+      this.executeDeletionImpl(
+        orgId,
+        trigger,
+        orgName,
+        requestedAt,
+        requestedByUserId,
+      ),
+    );
+  }
+
+  private async executeDeletionImpl(
     orgId: string,
     trigger: DeletionTrigger,
     orgName: string,

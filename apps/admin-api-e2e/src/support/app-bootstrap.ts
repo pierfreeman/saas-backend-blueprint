@@ -18,6 +18,14 @@ import {
 import { AdminApiAppModule } from '@apps/admin-api/app/app.module';
 
 export async function bootstrapTestApp(): Promise<INestApplication> {
+  // Mirrors the ADMIN_DATABASE_URL -> DATABASE_URL remap in
+  // apps/admin-api/src/main.ts: .env.test is shared by every e2e suite, so
+  // admin-api-e2e must swap in its own app_admin_runtime (BYPASSRLS)
+  // connection string before AppModule's ConfigModule reads DATABASE_URL.
+  if (process.env['ADMIN_DATABASE_URL']) {
+    process.env['DATABASE_URL'] = process.env['ADMIN_DATABASE_URL'];
+  }
+
   const app = await NestFactory.create(AdminApiAppModule, {
     logger: ['error', 'warn'],
   });

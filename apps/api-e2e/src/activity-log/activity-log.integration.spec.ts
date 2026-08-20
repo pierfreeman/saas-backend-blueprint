@@ -18,6 +18,7 @@ import { generateTestToken } from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { PrismaLegalService } from '@libs/prisma-legal';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -32,7 +33,7 @@ describe('Activity Log & Legal Audit (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     legalPrisma = app.get(PrismaLegalService);
     await resetBusinessDb(prisma);
   });
