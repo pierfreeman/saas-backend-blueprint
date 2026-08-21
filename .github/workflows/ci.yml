@@ -122,6 +122,9 @@ jobs:
           npx prisma generate --config prisma.config.legal.ts
 
       # ── Run migrations ──────────────────────────────────────────────────
+      # DATABASE_URL here is the superuser/owner role — required for
+      # ALTER TABLE ... ENABLE ROW LEVEL SECURITY / CREATE POLICY (see
+      # prisma/migrations/20260808120000_enable_row_level_security).
       - name: Run database migrations
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
@@ -130,12 +133,32 @@ jobs:
           npx prisma migrate deploy
           npx prisma migrate deploy --config prisma.config.legal.ts
 
+      # ── Provision app_runtime / app_admin_runtime role passwords ────────
+      - name: Provision runtime DB roles
+        run: node scripts/provision-runtime-roles.mjs
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          APP_RUNTIME_DB_PASSWORD: ci-app-runtime-pw
+          APP_ADMIN_RUNTIME_DB_PASSWORD: ci-app-admin-runtime-pw
+
+      # ── RLS policy drift check ───────────────────────────────────────────
+      # Fails the build if a tenant-scoped table (org_id column, or a known
+      # FK/root-scoped table) is missing Row-Level Security or a policy.
+      - name: Verify RLS policies
+        run: npm run verify:rls
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+
       # ── E2E suites ──────────────────────────────────────────────────────
+      # api-e2e / worker-a-e2e connect as app_runtime (RLS-subject) — the
+      # same role apps/api and apps/worker-a use in production, so RLS is
+      # genuinely exercised through real request/job paths, not bypassed.
       - name: E2E — api-e2e
         run: npx nx e2e api-e2e --coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          MIGRATE_DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          DATABASE_URL: postgresql://app_runtime:ci-app-runtime-pw@localhost:5440/saas_test
           LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
           REDIS_HOST: localhost
           REDIS_PORT: 6380
@@ -145,11 +168,14 @@ jobs:
           EVENT_BUS_TRANSPORT: local
           PORT: '0'
 
+      # admin-api connects as app_admin_runtime (BYPASSRLS) — it legitimately
+      # needs cross-org access (see apps/admin-api/src/main.ts).
       - name: E2E — admin-api-e2e
         run: npx nx e2e admin-api-e2e --coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          MIGRATE_DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          DATABASE_URL: postgresql://app_admin_runtime:ci-app-admin-runtime-pw@localhost:5440/saas_test
           LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
           REDIS_HOST: localhost
           REDIS_PORT: 6380
@@ -163,7 +189,8 @@ jobs:
         run: npx nx e2e worker-a-e2e --coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          MIGRATE_DATABASE_URL: postgresql://postgres:postgres@localhost:5440/saas_test
+          DATABASE_URL: postgresql://app_runtime:ci-app-runtime-pw@localhost:5440/saas_test
           LEGAL_AUDIT_DATABASE_URL: postgresql://postgres:postgres@localhost:5441/legal_test
           REDIS_HOST: localhost
           REDIS_PORT: 6380

@@ -18,6 +18,7 @@ function buildTx() {
     job: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     activityLog: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     membership: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    $executeRaw: vi.fn(),
   };
 }
 

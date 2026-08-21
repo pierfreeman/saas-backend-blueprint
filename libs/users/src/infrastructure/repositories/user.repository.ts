@@ -6,6 +6,7 @@ import {
   User,
 } from '@libs/prisma-business';
 import { Injectable } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class UserRepository {
@@ -50,15 +51,26 @@ export class UserRepository {
   /**
    * Provisions a new user with a personal workspace org and OWNER membership
    * atomically in a single transaction. Called on first Auth0 login.
+   *
+   * Bypasses PrismaBusinessService's per-delegate RLS proxy on purpose,
+   * same reasoning as OrganizationsRepository#createWithOwner: this
+   * transaction spans `users`, `organizations`, and `memberships` INSERTs,
+   * and no tenant context can exist yet for an org that doesn't exist yet.
+   * The org id is generated client-side so app.current_org_id can be set
+   * before either org-scoped INSERT runs (required by their RLS
+   * WITH CHECK clauses). `users` itself is not tenant-scoped (no RLS
+   * policy), so its INSERT is unaffected by the session var either way.
    */
   async provisionWithPersonalOrg(
     auth0Id: string,
     email: string,
   ): Promise<{ user: User; organization: Organization }> {
+    const orgId = uuidv4();
     return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_org_id', ${orgId}, true)`;
       const user = await tx.user.create({ data: { auth0Id, email } });
       const organization = await tx.organization.create({
-        data: { name: 'Personal Workspace' },
+        data: { id: orgId, name: 'Personal Workspace' },
       });
       await tx.membership.create({
         data: {

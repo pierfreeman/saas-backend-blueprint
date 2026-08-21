@@ -14,6 +14,7 @@ function buildTx() {
   return {
     job: { create: vi.fn().mockResolvedValue({}) },
     orgExport: { create: vi.fn().mockResolvedValue({}) },
+    $executeRaw: vi.fn(),
   };
 }
 

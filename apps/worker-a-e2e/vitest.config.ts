@@ -1,8 +1,10 @@
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import swc from 'unplugin-swc';
+
+const workspaceRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
  * Vitest config for worker-a-e2e integration tests.
@@ -12,6 +14,34 @@ import swc from 'unplugin-swc';
  * globalSetup runs Prisma migrations once before any test suite starts.
  */
 export default defineConfig({
+  resolve: {
+    alias: [
+      // Explicit aliases so forks-pool workers can resolve path aliases without
+      // relying solely on vite-tsconfig-paths, which can fail for files outside root
+      // (e.g. test/utils/*.ts, imported from apps/worker-a-e2e specs).
+      {
+        find: /^@libs\/([^/]+)\/([^/]+)$/,
+        replacement: resolve(workspaceRoot, 'libs/$1/$2/src/index.ts'),
+      },
+      {
+        find: /^@libs\/([^/]+)$/,
+        replacement: resolve(workspaceRoot, 'libs/$1/src/index.ts'),
+      },
+      {
+        find: /^@libs\/([^/]+)\/(.+)$/,
+        replacement: resolve(workspaceRoot, 'libs/$1/src/$2'),
+      },
+      {
+        find: /^@apps\/([^/]+)$/,
+        replacement: resolve(workspaceRoot, 'apps/$1/src/index.ts'),
+      },
+      {
+        find: /^@apps\/([^/]+)\/(.+)$/,
+        replacement: resolve(workspaceRoot, 'apps/$1/src/$2'),
+      },
+      { find: /^@test\/(.+)$/, replacement: resolve(workspaceRoot, 'test/$1') },
+    ],
+  },
   plugins: [
     tsconfigPaths({
       root: join(dirname(fileURLToPath(import.meta.url)), '../..'),

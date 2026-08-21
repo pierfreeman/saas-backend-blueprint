@@ -27,6 +27,7 @@ import { generateTestToken } from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { CacheService } from '@libs/redis';
 import { BillingStatus, FileStatus } from '@libs/prisma-business';
 
@@ -49,7 +50,7 @@ describe('Storage Quota (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     cache = app.get(CacheService);
     await resetBusinessDb(prisma);
     await cache.flushdb();

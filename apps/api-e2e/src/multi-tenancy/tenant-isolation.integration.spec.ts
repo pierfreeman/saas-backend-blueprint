@@ -18,6 +18,7 @@ import { generateTestToken } from '@test/utils/auth.helper';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { JobStatus } from '@libs/prisma-business';
 
 describe('Multi-Tenant Isolation (integration)', () => {
@@ -29,7 +30,7 @@ describe('Multi-Tenant Isolation (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     await resetBusinessDb(prisma);
   });
 

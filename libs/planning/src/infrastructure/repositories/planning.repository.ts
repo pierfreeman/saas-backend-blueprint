@@ -411,6 +411,10 @@ export class PlanningRepository {
     } = params;
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Bypasses PrismaBusinessService's per-delegate RLS proxy (explicit
+      // multi-model $transaction) — orgId is already known from `original`.
+      await tx.$executeRaw`SELECT set_config('app.current_org_id', ${original.orgId}, true)`;
+
       // 1. Truncate the original series.
       await tx.event.update({
         where: { id: original.id },

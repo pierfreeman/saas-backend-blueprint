@@ -4,6 +4,7 @@ import {
   WebhookDispatcherService,
 } from '@libs/billing';
 import { LegalAuditService } from '@libs/legal-audit';
+import { runWithTenant } from '@libs/prisma-business';
 import {
   BadRequestException,
   Controller,
@@ -138,14 +139,24 @@ export class WebhookController {
     // ── Step 5: Compute payload hash for tamper detection ───────────────────
     const payloadHash = createHash('sha256').update(rawBody).digest('hex');
 
-    // ── Step 6: Dispatch to handler ──────────────────────────────────────────
-    await this.dispatcher.dispatch(event);
-
-    // ── Step 7: Record as processed (idempotency fence) ───────────────────────
+    // This endpoint is unauthenticated (Stripe, not a logged-in user) — no
+    // OrgContextGuard/TenantContextInterceptor ever runs for it, so there is
+    // no ambient tenant context. orgId is resolved below and used to
+    // establish one explicitly for the writes that need it (see
+    // libs/prisma-business/tenant-context.ts). Handlers that update an
+    // existing org/subscription (BillingRepository#updateOrgAndSnapshotTx)
+    // already set their own context from their own orgId parameter and
+    // don't depend on this, but createBillingEvent below does.
     const orgId = (event.data.object as { metadata?: { orgId?: string } })
       ?.metadata?.['orgId'];
 
-    await this.billingService.createBillingEvent(event.id, payloadHash, orgId);
+    // ── Step 6: Dispatch to handler ──────────────────────────────────────────
+    await runWithTenant(orgId ?? null, () => this.dispatcher.dispatch(event));
+
+    // ── Step 7: Record as processed (idempotency fence) ───────────────────────
+    await runWithTenant(orgId ?? null, () =>
+      this.billingService.createBillingEvent(event.id, payloadHash, orgId),
+    );
 
     this.logger.log(`Stripe event processed: ${event.type} (${event.id})`);
 

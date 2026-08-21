@@ -33,6 +33,7 @@ import {
   RequestLoggingInterceptor,
   SentryInterceptor,
 } from '@libs/observability';
+import { TenantContextInterceptor } from '@libs/rbac';
 // E2e bootstrapping: importing the app module for NestFactory.create() is intentional.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import { AppModule } from '@apps/api/app/app.module';
@@ -62,7 +63,12 @@ export async function bootstrapTestApp(): Promise<INestApplication> {
   // Observability: structured logging + Sentry filter (mirrors main.ts)
   app.useLogger(app.get(ObservabilityLoggerService));
   app.useGlobalFilters(app.get(ObservabilityExceptionFilter));
+  // TenantContextInterceptor MUST be first — it wraps everything downstream
+  // in the AsyncLocalStorage scope that backs Row-Level Security (see
+  // libs/rbac/src/interceptors/tenant-context.interceptor.ts and
+  // apps/api/src/main.ts, which this bootstrap otherwise mirrors).
   app.useGlobalInterceptors(
+    app.get(TenantContextInterceptor),
     app.get(RequestLoggingInterceptor),
     app.get(SentryInterceptor),
   );

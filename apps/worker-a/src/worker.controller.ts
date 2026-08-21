@@ -18,7 +18,7 @@ import type {
   PaymentSucceededPayload,
   SubscriptionCancelledPayload,
 } from '@libs/billing';
-import { JobStatus } from '@libs/prisma-business';
+import { JobStatus, runWithTenant } from '@libs/prisma-business';
 
 /**
  * Job payload carried inside DomainEvent.payload for HEAVY_JOB_CREATED events.
@@ -53,6 +53,13 @@ const jobChannel = (tenantId: string) => `job:update:${tenantId}`;
  *   1. Updates the `jobs` table in Postgres (source of truth).
  *   2. Publishes a JobUpdateMessage to Redis Pub/Sub so that
  *      the API's JobsGateway can push the update to connected clients.
+ *
+ * Tenant context: the worker has no HTTP request scope, so — unlike
+ * apps/api, which propagates it via TenantContextInterceptor — every
+ * handler here wraps its body in `runWithTenant(orgId, ...)` explicitly,
+ * using the orgId/tenantId already present in the SQS event payload. This
+ * backs the same Row-Level Security policies PrismaBusinessService's
+ * tenant-scoped delegates rely on (see libs/prisma-business).
  */
 @Injectable()
 export class WorkerController {
@@ -76,58 +83,63 @@ export class WorkerController {
   ): Promise<void> {
     const { jobId, tenantId, userId } = event.payload;
 
-    this.logger.log(
-      `[Worker-Compute-A] Received job: ${jobId} | tenant: ${tenantId}`,
-    );
+    return runWithTenant(tenantId, async () => {
+      this.logger.log(
+        `[Worker-Compute-A] Received job: ${jobId} | tenant: ${tenantId}`,
+      );
 
-    // ── PENDING → PROCESSING ─────────────────────────────────────────────
-    await this.jobRepo.markProcessing(jobId, tenantId, userId);
-
-    await this.pubSub.publish(jobChannel(tenantId), {
-      jobId,
-      status: JobStatus.PROCESSING,
-      tenantId,
-      userId,
-      updatedAt: new Date().toISOString(),
-    } satisfies JobUpdateMessage);
-
-    this.logger.log(`[Worker-Compute-A] Processing job ${jobId}...`);
-
-    try {
-      const result = await this.doWork(event.payload);
-
-      // ── PROCESSING → DONE ─────────────────────────────────────────────
-      await this.jobRepo.markDone(jobId, result, tenantId, userId);
+      // ── PENDING → PROCESSING ─────────────────────────────────────────────
+      await this.jobRepo.markProcessing(jobId, tenantId, userId);
 
       await this.pubSub.publish(jobChannel(tenantId), {
         jobId,
-        status: JobStatus.DONE,
+        status: JobStatus.PROCESSING,
         tenantId,
         userId,
-        result,
         updatedAt: new Date().toISOString(),
       } satisfies JobUpdateMessage);
 
-      this.logger.log(`[Worker-Compute-A] Job ${jobId} completed successfully`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.log(`[Worker-Compute-A] Processing job ${jobId}...`);
 
-      // ── PROCESSING → FAILED ───────────────────────────────────────────
-      await this.jobRepo.markFailed(jobId, message, tenantId, userId);
+      try {
+        const result = await this.doWork(event.payload);
 
-      await this.pubSub.publish(jobChannel(tenantId), {
-        jobId,
-        status: JobStatus.FAILED,
-        tenantId,
-        userId,
-        error: message,
-        updatedAt: new Date().toISOString(),
-      } satisfies JobUpdateMessage);
+        // ── PROCESSING → DONE ─────────────────────────────────────────────
+        await this.jobRepo.markDone(jobId, result, tenantId, userId);
 
-      this.logger.error(`[Worker-Compute-A] Job ${jobId} failed: ${message}`);
+        await this.pubSub.publish(jobChannel(tenantId), {
+          jobId,
+          status: JobStatus.DONE,
+          tenantId,
+          userId,
+          result,
+          updatedAt: new Date().toISOString(),
+        } satisfies JobUpdateMessage);
 
-      throw error; // re-throw → SqsConsumerService handles DLQ
-    }
+        this.logger.log(
+          `[Worker-Compute-A] Job ${jobId} completed successfully`,
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+
+        // ── PROCESSING → FAILED ───────────────────────────────────────────
+        await this.jobRepo.markFailed(jobId, message, tenantId, userId);
+
+        await this.pubSub.publish(jobChannel(tenantId), {
+          jobId,
+          status: JobStatus.FAILED,
+          tenantId,
+          userId,
+          error: message,
+          updatedAt: new Date().toISOString(),
+        } satisfies JobUpdateMessage);
+
+        this.logger.error(`[Worker-Compute-A] Job ${jobId} failed: ${message}`);
+
+        throw error; // re-throw → SqsConsumerService handles DLQ
+      }
+    });
   }
 
   /**
@@ -159,18 +171,20 @@ export class WorkerController {
   ): Promise<void> {
     const { orgId, trigger, orgName, requestedAt, userId } = event.payload;
 
-    this.logger.log(
-      `[Worker-Compute-A] Received org deletion request: ${orgId} | trigger: ${trigger}`,
-    );
+    return runWithTenant(orgId, async () => {
+      this.logger.log(
+        `[Worker-Compute-A] Received org deletion request: ${orgId} | trigger: ${trigger}`,
+      );
 
-    // Execute the deletion workflow
-    await this.orgDeletionWorker.executeDeletion(
-      orgId,
-      trigger,
-      orgName,
-      requestedAt,
-      ...(userId ? [userId] : []),
-    );
+      // Execute the deletion workflow
+      await this.orgDeletionWorker.executeDeletion(
+        orgId,
+        trigger,
+        orgName,
+        requestedAt,
+        ...(userId ? [userId] : []),
+      );
+    });
   }
 
   /**
@@ -183,19 +197,21 @@ export class WorkerController {
     const { orgId, exportId, jobId, orgName, requestedByUserId, requestedAt } =
       event.payload;
 
-    this.logger.log(
-      `[Worker-Compute-A] Received org export request: ${exportId} for org ${orgId}`,
-    );
+    return runWithTenant(orgId, async () => {
+      this.logger.log(
+        `[Worker-Compute-A] Received org export request: ${exportId} for org ${orgId}`,
+      );
 
-    // Execute the export workflow
-    await this.orgExportWorker.executeExport(
-      orgId,
-      exportId,
-      jobId,
-      orgName,
-      requestedByUserId,
-      requestedAt,
-    );
+      // Execute the export workflow
+      await this.orgExportWorker.executeExport(
+        orgId,
+        exportId,
+        jobId,
+        orgName,
+        requestedByUserId,
+        requestedAt,
+      );
+    });
   }
 
   /**
@@ -205,11 +221,13 @@ export class WorkerController {
   async handleUserInvited(
     event: DomainEvent<UserInvitedPayload>,
   ): Promise<void> {
-    this.logger.log(
-      `[Worker-Compute-A] Received USER_INVITED for ${event.payload.inviteeEmail} in org ${event.payload.organizationId}`,
-    );
+    return runWithTenant(event.payload.organizationId, async () => {
+      this.logger.log(
+        `[Worker-Compute-A] Received USER_INVITED for ${event.payload.inviteeEmail} in org ${event.payload.organizationId}`,
+      );
 
-    await this.userInvitedHandler.handle(event);
+      await this.userInvitedHandler.handle(event);
+    });
   }
 
   /**
@@ -219,11 +237,13 @@ export class WorkerController {
   async handleBillingPlanChanged(
     event: DomainEvent<PlanChangedPayload>,
   ): Promise<void> {
-    this.logger.log(
-      `[Worker-Compute-A] Received SUBSCRIPTION_PLAN_CHANGED for org ${event.payload.orgId} (direction: ${event.payload.planChangeDirection})`,
-    );
+    return runWithTenant(event.payload.orgId, async () => {
+      this.logger.log(
+        `[Worker-Compute-A] Received SUBSCRIPTION_PLAN_CHANGED for org ${event.payload.orgId} (direction: ${event.payload.planChangeDirection})`,
+      );
 
-    await this.billingEmailHandler.handlePlanChanged(event);
+      await this.billingEmailHandler.handlePlanChanged(event);
+    });
   }
 
   /**
@@ -233,11 +253,13 @@ export class WorkerController {
   async handleBillingPaymentSucceeded(
     event: DomainEvent<PaymentSucceededPayload>,
   ): Promise<void> {
-    this.logger.log(
-      `[Worker-Compute-A] Received BILLING_PAYMENT_SUCCEEDED for org ${event.payload.orgId} (invoice ${event.payload.invoiceId})`,
-    );
+    return runWithTenant(event.payload.orgId, async () => {
+      this.logger.log(
+        `[Worker-Compute-A] Received BILLING_PAYMENT_SUCCEEDED for org ${event.payload.orgId} (invoice ${event.payload.invoiceId})`,
+      );
 
-    await this.billingEmailHandler.handlePaymentSucceeded(event);
+      await this.billingEmailHandler.handlePaymentSucceeded(event);
+    });
   }
 
   /**
@@ -247,10 +269,12 @@ export class WorkerController {
   async handleBillingSubscriptionCancelled(
     event: DomainEvent<SubscriptionCancelledPayload>,
   ): Promise<void> {
-    this.logger.log(
-      `[Worker-Compute-A] Received BILLING_SUBSCRIPTION_CANCELLED for org ${event.payload.orgId}`,
-    );
+    return runWithTenant(event.payload.orgId, async () => {
+      this.logger.log(
+        `[Worker-Compute-A] Received BILLING_SUBSCRIPTION_CANCELLED for org ${event.payload.orgId}`,
+      );
 
-    await this.billingEmailHandler.handleSubscriptionCancelled(event);
+      await this.billingEmailHandler.handleSubscriptionCancelled(event);
+    });
   }
 }

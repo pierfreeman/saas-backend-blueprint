@@ -3,6 +3,7 @@ import {
   MembershipRole,
   MembershipStatus,
   PrismaBusinessService,
+  runAsSystemLookup,
 } from '@libs/prisma-business';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SubscriptionEntity } from '../../domain/entities/subscription.entity';
@@ -130,20 +131,27 @@ export class BillingRepository {
   async findOrgByStripeCustomerId(
     customerId: string,
   ): Promise<SubscriptionEntity | null> {
-    const org = await this.prisma.organization.findUnique({
-      where: { stripeCustomerId: customerId },
-      select: {
-        id: true,
-        stripeCustomerId: true,
-        subscriptionId: true,
-        billingStatus: true,
-        planId: true,
-        storageLimit: true,
-        subscriptionPeriodStart: true,
-        subscriptionPeriodEnd: true,
-        cancelAtPeriodEnd: true,
-      },
-    });
+    // Stripe webhooks are unauthenticated (no JWT), so there is no ambient
+    // org or user context to match — and resolving *which* org this
+    // customer belongs to is the whole point of the query, so it can't
+    // require already knowing the org. See tenant-context.ts#runAsSystemLookup
+    // and the organizations RLS policy's app.system_lookup exception.
+    const org = await runAsSystemLookup(() =>
+      this.prisma.organization.findUnique({
+        where: { stripeCustomerId: customerId },
+        select: {
+          id: true,
+          stripeCustomerId: true,
+          subscriptionId: true,
+          billingStatus: true,
+          planId: true,
+          storageLimit: true,
+          subscriptionPeriodStart: true,
+          subscriptionPeriodEnd: true,
+          cancelAtPeriodEnd: true,
+        },
+      }),
+    );
 
     if (!org) {
       return null;
@@ -232,6 +240,10 @@ export class BillingRepository {
     snapshot: CreateSnapshotInput,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      // Bypasses PrismaBusinessService's per-delegate RLS proxy (explicit
+      // multi-model $transaction) — orgId is already a parameter here, so
+      // use it directly rather than relying on ambient tenant context.
+      await tx.$executeRaw`SELECT set_config('app.current_org_id', ${orgId}, true)`;
       await tx.organization.update({
         where: { id: orgId },
         data: {
@@ -288,8 +300,17 @@ export class BillingRepository {
     limit: number,
     offset: number,
   ): Promise<{ items: SubscriptionSnapshotItem[]; total: number }> {
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.subscriptionSnapshot.findMany({
+    // Was an array-form `this.prisma.$transaction([delegateA(...), delegateB(...)])`
+    // batch. That form needs *lazy*, un-awaited PrismaPromise objects to
+    // batch — but PrismaBusinessService's tenant-scoped delegates
+    // (this.prisma.subscriptionSnapshot) are wrapped in a Proxy that opens
+    // and awaits its own transaction as soon as a method is called, so
+    // passing its result into an outer $transaction([...]) array no longer
+    // batches anything. Rewritten as an explicit interactive transaction
+    // instead, bypassing the proxy and setting app.current_org_id itself.
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_org_id', ${orgId}, true)`;
+      const items = await tx.subscriptionSnapshot.findMany({
         where: { orgId },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -305,10 +326,10 @@ export class BillingRepository {
           periodEnd: true,
           createdAt: true,
         },
-      }),
-      this.prisma.subscriptionSnapshot.count({ where: { orgId } }),
-    ]);
-    return { items, total };
+      });
+      const total = await tx.subscriptionSnapshot.count({ where: { orgId } });
+      return { items, total };
+    });
   }
 
   /**
@@ -318,10 +339,18 @@ export class BillingRepository {
   async findBillingEvent(
     stripeEventId: string,
   ): Promise<{ id: string } | null> {
-    return this.prisma.billingEvent.findUnique({
-      where: { stripeEventId },
-      select: { id: true },
-    });
+    // Idempotency check: must see the row regardless of tenant context —
+    // events with a resolved org_id would otherwise be invisible to a
+    // webhook retry that has no ambient context yet, silently breaking the
+    // "duplicate events are safely ignored" guarantee (see
+    // .claude/rules/security.md) by reprocessing an already-handled event.
+    // Same reasoning as findOrgByStripeCustomerId.
+    return runAsSystemLookup(() =>
+      this.prisma.billingEvent.findUnique({
+        where: { stripeEventId },
+        select: { id: true },
+      }),
+    );
   }
 
   /**

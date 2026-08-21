@@ -25,6 +25,7 @@ import { bootstrapTestApp } from '../support/app-bootstrap';
 import { setupNockAuth, teardownNockAuth } from '@test/support/nock-auth';
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { BillingStatus } from '@libs/prisma-business';
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ const TEST_WEBHOOK_SECRET =
 
 // Stripe instance used only for utilities — no network calls in tests.
 const stripeUtil = new Stripe('sk_test_placeholder_for_integration_tests', {
-  apiVersion: '2026-06-24.dahlia',
+  apiVersion: '2026-07-29.dahlia',
 });
 
 /**
@@ -114,7 +115,7 @@ function buildWebhookEvent(
     id: eventId ?? `evt_int_${Date.now()}`,
     object: 'event',
     type: eventType,
-    api_version: '2026-06-24.dahlia',
+    api_version: '2026-07-29.dahlia',
     created: Math.floor(Date.now() / 1000),
     livemode: false,
     pending_webhooks: 1,
@@ -136,7 +137,7 @@ describe('Billing Webhooks (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     await resetBusinessDb(prisma);
 
     // Seed an organization with a Stripe customer ID

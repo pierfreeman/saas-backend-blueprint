@@ -25,6 +25,7 @@ import {
   seedFullOrg,
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { PrismaLegalService } from '@libs/prisma-legal';
 import { ExportStatus, JobStatus, MembershipRole } from '@libs/prisma-business';
 
@@ -41,7 +42,7 @@ describe('Org Export Workflow (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     legalPrisma = app.get(PrismaLegalService);
     await resetBusinessDb(prisma);
   });

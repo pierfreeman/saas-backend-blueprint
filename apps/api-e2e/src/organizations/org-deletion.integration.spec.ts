@@ -21,6 +21,7 @@ import {
   createTestMembership,
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { PrismaLegalService } from '@libs/prisma-legal';
 import { OrgDeletionWorkerService, DeletionTrigger } from '@libs/org-deletion';
 import { JobStatus, MembershipRole } from '@libs/prisma-business';
@@ -39,7 +40,7 @@ describe('Org Deletion Workflow (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     legalPrisma = app.get(PrismaLegalService);
     orgDeletionWorkerService = app.get(OrgDeletionWorkerService);
     await resetBusinessDb(prisma);

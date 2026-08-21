@@ -36,6 +36,7 @@ import {
 import { resetBusinessDb } from '@test/utils/db-reset.helper';
 import { seedFullOrg } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 
 /** Base route for planning events scoped to an organisation. */
 const BASE = (orgId: string) => `/organizations/${orgId}/planning/events`;
@@ -49,7 +50,7 @@ describe('Planning Events (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     await resetBusinessDb(prisma);
   });
 

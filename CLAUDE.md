@@ -132,8 +132,21 @@ AdminJwtAuthGuard
 ### Interceptor / middleware pipeline
 
 ```
-RequestSizeLimit → PayloadSanitization → TenantMiddleware → [Guards] → Controller
+RequestSizeLimit → PayloadSanitization → TenantMiddleware → TenantContextMiddleware → [Guards] → TenantContextInterceptor → Controller
 ```
+
+`TenantContextMiddleware` and `TenantContextInterceptor` (both `@libs/rbac`) propagate the current org/user into the AsyncLocalStorage context that backs Row-Level Security — see below.
+
+### Row-Level Security (tenant isolation backstop)
+
+Application-level `orgId` filtering (above) is backed by Postgres RLS —
+see `prisma/migrations/20260808120000_enable_row_level_security` and
+`libs/prisma-business/README.md` for the full mechanism. `apps/api` /
+`apps/worker-a` connect as `app_runtime` (RLS-subject, fails closed);
+`apps/admin-api` connects as `app_admin_runtime` (`BYPASSRLS` — its own
+separate trust boundary). A repository method that forgets an `orgId`
+filter can no longer leak another tenant's row — it returns nothing
+instead.
 
 ### RBAC
 
@@ -237,6 +250,7 @@ Infra: PostgreSQL × 2, Redis, SQS (AWS), S3 (AWS).
 | Security rules              | `.claude/rules/security.md`                          |
 | Architecture rules          | `.claude/rules/architecture.md`                      |
 | RBAC / permissions model    | `libs/common/README.md` + `libs/rbac/README.md`      |
+| Row-Level Security (tenant isolation backstop) | `libs/prisma-business/README.md` |
 | Per-lib domain detail       | `libs/{name}/README.md`                              |
 | API conventions             | `../saas-context-docs/docs/api/conventions.md`       |
 | Full architecture overview  | `../saas-context-docs/docs/architecture/overview.md` |

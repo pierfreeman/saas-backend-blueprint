@@ -5,6 +5,19 @@
  * async-context tracking is active from the very first import.
  */
 
+// ── DB role override (must run before ConfigModule reads DATABASE_URL) ───────
+// admin-api connects via the app_admin_runtime Postgres role (BYPASSRLS —
+// it legitimately needs cross-org queries), a distinct role from the
+// app_runtime role api/worker-a use. All three apps share one root .env in
+// local dev (`npm run dev` runs them as sibling processes), so this remaps
+// ADMIN_DATABASE_URL -> DATABASE_URL before anything else reads it. In
+// docker-compose.yml each service sets DATABASE_URL directly instead, so
+// this is a no-op there (ADMIN_DATABASE_URL is simply unset).
+if (process.env['ADMIN_DATABASE_URL']) {
+  process.env['DATABASE_URL'] = process.env['ADMIN_DATABASE_URL'];
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── Sentry initialisation (must be first) ────────────────────────────────────
 import * as Sentry from '@sentry/node';
 

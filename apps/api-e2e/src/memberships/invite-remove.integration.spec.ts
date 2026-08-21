@@ -35,6 +35,7 @@ import {
   createTestMembership,
 } from '@test/utils/seed.helper';
 import { PrismaBusinessService } from '@libs/prisma-business';
+import { getTestAdminPrisma } from '@test/utils/admin-db.helper';
 import { MembershipRole } from '@libs/prisma-business';
 import { IIdentityProvider } from '@libs/common';
 
@@ -58,7 +59,7 @@ describe('Invite & Remove Member (integration)', () => {
     setupNockAuth();
     app = await bootstrapTestApp();
     agent = supertest.agent(app.getHttpServer());
-    prisma = app.get(PrismaBusinessService);
+    prisma = await getTestAdminPrisma();
     auth0Service = app.get(IIdentityProvider);
     await resetBusinessDb(prisma);
   });
